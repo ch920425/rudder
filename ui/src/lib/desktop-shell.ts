@@ -50,6 +50,7 @@ export type DesktopUpdateChannel = DesktopUpdateCheckResult["channel"];
 
 export type DesktopUpdateInstallResult =
   | { status: "started"; version: string }
+  | { status: "waiting"; version: string; totalRuns: number; message: string }
   | { status: "unavailable"; message: string }
   | { status: "blocked"; totalRuns: number; message: string }
   | { status: "failed"; message: string };

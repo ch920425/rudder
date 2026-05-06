@@ -235,6 +235,16 @@ export function InstanceAboutSettings() {
         });
         return;
       }
+      if (result.status === "waiting") {
+        pushToast({
+          title: t("about.updates.installWaiting.toastTitle"),
+          body: t("about.updates.installWaiting.toastBody", {
+            totalRuns: result.totalRuns,
+          }),
+          tone: "info",
+        });
+        return;
+      }
 
       const message = result.message || t("about.updates.installFailed");
       setActionError(message);

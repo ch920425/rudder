@@ -426,6 +426,8 @@ export const zhCN: Messages = {
   "about.updates.available.toastBody": "{{latestVersion}} 已可下载。",
   "about.updates.installStarted.toastTitle": "已开始更新",
   "about.updates.installStarted.toastBody": "Rudder 会在安装 {{latestVersion}} 后关闭并重新打开。",
+  "about.updates.installWaiting.toastTitle": "更新已排队",
+  "about.updates.installWaiting.toastBody": "安装包正在下载。Rudder 会在 {{totalRuns}} 个活跃运行结束后自动更新。",
   "about.updates.installBlocked.toastTitle": "更新已暂停",
   "about.updates.installUnavailable": "当前构建不支持应用内安装更新。",
   "about.updates.installFailed": "无法开始更新。",

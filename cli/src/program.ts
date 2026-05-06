@@ -63,6 +63,7 @@ export function createProgram(): Command {
     .option("--output-dir <path>", "Directory for downloaded desktop release assets")
     .option("--desktop-install-dir <path>", "Directory for the portable Desktop install")
     .option("--no-open", "Install Desktop without launching it")
+    .option("--wait-for-active-runs", "Wait for active Rudder runs to finish before replacing Desktop", false)
     .option("--no-version-check", "Skip checking npm for a newer Rudder CLI version")
     .option("--dry-run", "Print the start actions without changing the machine", false)
     .action(startCommand);

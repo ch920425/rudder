@@ -475,6 +475,9 @@ export const en = {
   "about.updates.available.toastBody": "{{latestVersion}} is ready to download.",
   "about.updates.installStarted.toastTitle": "Update started",
   "about.updates.installStarted.toastBody": "Rudder will close and reopen after installing {{latestVersion}}.",
+  "about.updates.installWaiting.toastTitle": "Update queued",
+  "about.updates.installWaiting.toastBody":
+    "The installer is downloading now. Rudder will update after {{totalRuns}} active run(s) finish.",
   "about.updates.installBlocked.toastTitle": "Update paused",
   "about.updates.installUnavailable": "In-app update installation is unavailable in this build.",
   "about.updates.installFailed": "Failed to start the update.",

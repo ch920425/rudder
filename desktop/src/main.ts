@@ -171,6 +171,7 @@ type OpenNotificationSettingsResult = {
 
 type DesktopUpdateInstallResult =
   | { status: "started"; version: string }
+  | { status: "waiting"; version: string; totalRuns: number; message: string }
   | { status: "unavailable"; message: string }
   | { status: "blocked"; totalRuns: number; message: string }
   | { status: "failed"; message: string };
@@ -341,7 +342,7 @@ function formatVersionForDisplay(version: string | null | undefined): string {
   return version.startsWith("v") ? version : `v${version}`;
 }
 
-async function showUpdateInstallFallbackDialog(installResult: Exclude<DesktopUpdateInstallResult, { status: "started" }>): Promise<void> {
+async function showUpdateInstallFallbackDialog(installResult: Exclude<DesktopUpdateInstallResult, { status: "started" } | { status: "waiting" }>): Promise<void> {
   await showMessageBox({
     type: installResult.status === "blocked" ? "warning" : "error",
     title: APP_NAME,
@@ -352,6 +353,27 @@ async function showUpdateInstallFallbackDialog(installResult: Exclude<DesktopUpd
     message: installResult.status === "blocked" ? "Update paused." : "Update could not start.",
     detail: installResult.message,
   });
+}
+
+async function promptForDeferredUpdate(summary: ActiveRunSummary): Promise<"wait" | "cancel"> {
+  const detail = formatQuitRunDetail(summary);
+  const response = await showMessageBox({
+    type: "warning",
+    title: APP_NAME,
+    buttons: ["Download and Update When Idle", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+    message: summary.totalRuns === 1
+      ? "There is 1 active agent run."
+      : `There are ${summary.totalRuns} active agent runs.`,
+    detail:
+      "Rudder can download the installer now, keep active work running, then apply the update after the runs finish. "
+      + "The desktop app may close and reopen automatically when it is safe to replace.\n\n"
+      + detail,
+  });
+
+  return response.response === 0 ? "wait" : "cancel";
 }
 
 async function promptToInstallAvailableUpdate(result: DesktopUpdateCheckResult): Promise<void> {
@@ -375,7 +397,7 @@ async function promptToInstallAvailableUpdate(result: DesktopUpdateCheckResult):
   if (response.response !== 0) return;
 
   const installResult = await installUpdate(result.latestVersion);
-  if (installResult.status === "started") return;
+  if (installResult.status === "started" || installResult.status === "waiting") return;
 
   await showUpdateInstallFallbackDialog(installResult);
 }
@@ -445,14 +467,19 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
 
   try {
     const activeRuns = await listActiveRunsForQuit();
+    let waitForActiveRuns = false;
     if (activeRuns.totalRuns > 0) {
-      return {
-        status: "blocked",
-        totalRuns: activeRuns.totalRuns,
-        message:
-          `Rudder has ${activeRuns.totalRuns} active run${activeRuns.totalRuns === 1 ? "" : "s"}.\n\n`
-          + `${formatQuitRunDetail(activeRuns)}\n\nStop active work, then run the update again.`,
-      };
+      const decision = await promptForDeferredUpdate(activeRuns);
+      if (decision !== "wait") {
+        return {
+          status: "blocked",
+          totalRuns: activeRuns.totalRuns,
+          message:
+            `Rudder has ${activeRuns.totalRuns} active run${activeRuns.totalRuns === 1 ? "" : "s"}.\n\n`
+            + `${formatQuitRunDetail(activeRuns)}\n\nRun the update again after active work is finished.`,
+        };
+      }
+      waitForActiveRuns = true;
     }
 
     const profileName = currentBootState.runtime?.localEnv;
@@ -466,6 +493,7 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       "--repo",
       DESKTOP_GITHUB_REPO,
       "--no-version-check",
+      ...(waitForActiveRuns ? ["--wait-for-active-runs"] : []),
     ];
     const child = spawn(process.execPath, args, {
       detached: true,
@@ -473,6 +501,16 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       stdio: "ignore",
     });
     child.unref();
+    if (waitForActiveRuns) {
+      return {
+        status: "waiting",
+        version: normalizedVersion,
+        totalRuns: activeRuns.totalRuns,
+        message:
+          `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will update after `
+          + `${activeRuns.totalRuns} active run${activeRuns.totalRuns === 1 ? "" : "s"} finish.`,
+      };
+    }
     return { status: "started", version: normalizedVersion };
   } catch (error) {
     return {

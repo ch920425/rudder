@@ -55,6 +55,7 @@ interface StartCommandOptions {
   outputDir?: string;
   desktopInstallDir?: string;
   open?: boolean;
+  waitForActiveRuns?: boolean;
   dryRun?: boolean;
   versionCheck?: boolean;
 }
@@ -575,10 +576,21 @@ async function removePathWithRetry(targetPath: string, attempts = 5): Promise<bo
   return false;
 }
 
-async function prepareForDesktopReplace(paths: DesktopInstallPaths, target: DesktopAssetTarget): Promise<void> {
+async function prepareForDesktopReplace(
+  paths: DesktopInstallPaths,
+  target: DesktopAssetTarget,
+  options: { waitForActiveRuns?: boolean; activeRunPollIntervalMs?: number } = {},
+): Promise<void> {
   const hasManagedExecutable = await pathExists(paths.executablePath);
   if (hasManagedExecutable) {
-    const quitResponse = await requestDesktopQuit(paths.executablePath, target);
+    let quitResponse = await requestDesktopQuit(paths.executablePath, target);
+    while (quitResponse && !quitResponse.ok && quitResponse.status === "active_runs" && options.waitForActiveRuns) {
+      p.log.warn(
+        `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}; waiting before replacing Desktop.`,
+      );
+      await delay(options.activeRunPollIntervalMs ?? 15_000);
+      quitResponse = await requestDesktopQuit(paths.executablePath, target);
+    }
     if (quitResponse && !quitResponse.ok && quitResponse.status === "active_runs") {
       throw new Error(
         `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}. Stop active work, then rerun start.`,
@@ -867,7 +879,7 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
       await runStartPhase(
         "Replacing existing Rudder Desktop if needed...",
         "Existing Desktop install is ready for replacement.",
-        () => prepareForDesktopReplace(installPaths, target),
+        () => prepareForDesktopReplace(installPaths, target, { waitForActiveRuns: opts.waitForActiveRuns === true }),
       );
       await runStartPhase(
         "Installing portable Desktop app...",

@@ -390,6 +390,58 @@ test.describe("Settings sidebar", () => {
     ))).toEqual(["0.2.25"]);
   });
 
+  test("shows a queued update toast when active runs defer installation", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "desktopShell", {
+        configurable: true,
+        value: {
+          getBootState: async () => ({
+            runtime: { version: "0.2.24", mode: "owned", ownerKind: "desktop" },
+            paths: { instanceRoot: "/tmp/rudder-e2e" },
+          }),
+          onBootState: () => () => {},
+          getAppVersion: async () => "0.2.24",
+          checkForUpdates: async () => ({
+            status: "update-available",
+            channel: "stable",
+            currentVersion: "0.2.24",
+            latestVersion: "0.2.25",
+            checkedAt: "2026-05-06T00:00:00.000Z",
+          }),
+          installUpdate: async () => ({
+            status: "waiting",
+            version: "0.2.25",
+            totalRuns: 2,
+            message: "Rudder is downloading v0.2.25 and will update after 2 active runs finish.",
+          }),
+          openExternal: async () => {},
+          sendFeedback: async () => {},
+        },
+      });
+    });
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Desktop Deferred Update ${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { issuePrefix: string };
+
+    await page.goto(`/${organization.issuePrefix}/dashboard`);
+    await page.getByRole("button", { name: "System settings" }).click();
+    await page.locator('a[href$="/instance/settings/about"]').click();
+
+    await page.getByRole("button", { name: "Check for updates" }).click();
+    const availableToast = page.locator("aside").filter({ hasText: "New version available" });
+    await expect(availableToast).toBeVisible();
+    await availableToast.getByRole("button", { name: "Download update" }).click();
+
+    const queuedToast = page.locator("aside").filter({ hasText: "Update queued" });
+    await expect(queuedToast).toBeVisible();
+    await expect(queuedToast).toContainText("after 2 active run(s) finish");
+  });
+
 
   test("shows system permissions and keeps notification debug controls hidden", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {

@@ -281,6 +281,29 @@ describe("desktop start command helpers", () => {
     expect(output).not.toBe("0.3.1\n");
   });
 
+  it("parses deferred desktop replacement while active runs finish", async () => {
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      await expect(runCli([
+        process.execPath,
+        "rudder",
+        "start",
+        "--no-cli",
+        "--target-version",
+        "0.3.1",
+        "--repo",
+        "example/rudder",
+        "--wait-for-active-runs",
+        "--dry-run",
+        "--no-open",
+      ])).resolves.toBe(0);
+    } finally {
+      stdout.mockRestore();
+      stderr.mockRestore();
+    }
+  });
+
   it("uses the explicit desktop target version before the legacy start version option", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
