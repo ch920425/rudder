@@ -486,7 +486,7 @@ describe("agent skill routes", () => {
         "SOUL.md": "You are QA.",
         "TOOLS.md": expect.any(String),
       }),
-      { entryFile: "SOUL.md", replaceExisting: false },
+      { entryFile: "SOUL.md", replaceExisting: false, clearLegacyPromptTemplate: true },
     );
     expect(mockAgentService.update).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
@@ -527,7 +527,7 @@ describe("agent skill routes", () => {
         "SOUL.md": expect.stringContaining("You are the CEO."),
         "TOOLS.md": expect.stringContaining("# TOOLS.md"),
       }),
-      { entryFile: "SOUL.md", replaceExisting: false },
+      { entryFile: "SOUL.md", replaceExisting: false, clearLegacyPromptTemplate: true },
     );
     const ceoBundle = mockAgentInstructionsService.materializeManagedBundle.mock.calls[0]?.[1] as Record<string, string>;
     expect(ceoBundle["SOUL.md"]).toContain("CEO Persona");
@@ -554,7 +554,7 @@ describe("agent skill routes", () => {
       expect.objectContaining({
         "SOUL.md": expect.stringContaining("Agent Persona"),
       }),
-      { entryFile: "SOUL.md", replaceExisting: false },
+      { entryFile: "SOUL.md", replaceExisting: false, clearLegacyPromptTemplate: true },
     );
     const defaultBundle = mockAgentInstructionsService.materializeManagedBundle.mock.calls[0]?.[1] as Record<string, string>;
     expect(defaultBundle).not.toHaveProperty("AGENTS.md");
@@ -658,5 +658,58 @@ describe("agent skill routes", () => {
       | { payload?: { agentRuntimeConfig?: Record<string, unknown> } }
       | undefined;
     expect(approvalInput?.payload?.agentRuntimeConfig?.promptTemplate).toBeUndefined();
+  });
+
+  it("materializes hire prompt templates even when clients send incomplete managed bundle metadata", async () => {
+    const res = await request(createApp(createDb(true)))
+      .post("/api/orgs/organization-1/agent-hires")
+      .send({
+        name: "Marketing Agent",
+        role: "cmo",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          cwd: "/tmp/workspace",
+          instructionsBundleMode: "managed",
+          instructionsEntryFile: "SOUL.md",
+          promptTemplate: "# SOUL.md -- CMO Persona\n\nYou are the CMO.",
+        },
+      });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(mockAgentInstructionsService.materializeManagedBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "11111111-1111-4111-8111-111111111111",
+        role: "cmo",
+        agentRuntimeType: "codex_local",
+      }),
+      expect.objectContaining({
+        "SOUL.md": "# SOUL.md -- CMO Persona\n\nYou are the CMO.",
+      }),
+      { entryFile: "SOUL.md", replaceExisting: false, clearLegacyPromptTemplate: true },
+    );
+    expect(mockAgentService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({
+        agentRuntimeConfig: expect.objectContaining({
+          instructionsRootPath: "/tmp/11111111-1111-4111-8111-111111111111/instructions",
+          instructionsEntryFile: "SOUL.md",
+          instructionsFilePath: "/tmp/11111111-1111-4111-8111-111111111111/instructions/SOUL.md",
+        }),
+      }),
+    );
+    const updatePatch = mockAgentService.update.mock.calls.at(-1)?.[1] as
+      | { agentRuntimeConfig?: Record<string, unknown> }
+      | undefined;
+    expect(updatePatch?.agentRuntimeConfig?.promptTemplate).toBeUndefined();
+    expect(mockApprovalService.create).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          agentRuntimeConfig: expect.not.objectContaining({
+            promptTemplate: expect.any(String),
+          }),
+        }),
+      }),
+    );
   });
 });

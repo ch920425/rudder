@@ -586,9 +586,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
 
     const agentRuntimeConfig = asRecord(agent.agentRuntimeConfig) ?? {};
     const hasExplicitInstructionsBundle =
-      Boolean(asNonEmptyString(agentRuntimeConfig.instructionsBundleMode))
-      || Boolean(asNonEmptyString(agentRuntimeConfig.instructionsRootPath))
-      || Boolean(asNonEmptyString(agentRuntimeConfig.instructionsEntryFile))
+      Boolean(asNonEmptyString(agentRuntimeConfig.instructionsRootPath))
       || Boolean(asNonEmptyString(agentRuntimeConfig.instructionsFilePath))
       || Boolean(asNonEmptyString(agentRuntimeConfig.agentsMdPath));
     if (hasExplicitInstructionsBundle) {
@@ -607,10 +605,11 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     const materialized = await instructions.materializeManagedBundle(
       agent,
       files,
-      { entryFile: "SOUL.md", replaceExisting: false },
+      { entryFile: "SOUL.md", replaceExisting: false, clearLegacyPromptTemplate: true },
     );
     const nextAdapterConfig = { ...materialized.agentRuntimeConfig };
     delete nextAdapterConfig.promptTemplate;
+    delete nextAdapterConfig.bootstrapPromptTemplate;
 
     const updated = await svc.update(agent.id, { agentRuntimeConfig: nextAdapterConfig });
     return (updated as T | null) ?? { ...agent, agentRuntimeConfig: nextAdapterConfig };
