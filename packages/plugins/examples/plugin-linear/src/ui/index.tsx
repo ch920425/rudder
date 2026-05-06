@@ -374,7 +374,7 @@ function prepareConfigForSubmit(config: LinearPluginConfig): LinearPluginConfig 
     // Keep a legacy-compatible shape for already-installed manifests that still
     // require organizationMappings during config validation. New runtime code
     // reads the top-level teamMappings field.
-    organizationMappings: [{ orgId: "__global__", teamMappings }],
+    organizationMappings: teamMappings.length > 0 ? [{ orgId: "__global__", teamMappings }] : [],
   };
 }
 
