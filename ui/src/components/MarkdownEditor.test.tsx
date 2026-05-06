@@ -146,6 +146,48 @@ vi.mock("@mdxeditor/editor", async () => {
 
 let cleanupFn: (() => void) | null = null;
 
+function stubCaretRect() {
+  const originalGetBoundingClientRect = Range.prototype.getBoundingClientRect;
+  Range.prototype.getBoundingClientRect = () => ({
+    x: 120,
+    y: 240,
+    width: 1,
+    height: 18,
+    top: 240,
+    right: 121,
+    bottom: 258,
+    left: 120,
+    toJSON: () => undefined,
+  });
+  return () => {
+    Range.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+  };
+}
+
+async function placeCaretAndOpenMentionMenu(editable: Element, offset: number) {
+  const textNode = editable.firstChild;
+  expect(textNode?.nodeType).toBe(Node.TEXT_NODE);
+
+  await act(async () => {
+    const range = document.createRange();
+    range.setStart(textNode!, offset);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
+async function chooseMentionOption(optionId: string) {
+  const option = document.body.querySelector(`[data-testid="markdown-mention-option-${optionId}"]`);
+  expect(option).toBeTruthy();
+
+  await act(async () => {
+    option?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  });
+}
+
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
@@ -321,25 +363,138 @@ describe("MarkdownEditor", () => {
     expect(mdxEditorMocks.lastEditorProps?.translation?.("linkPreview.edit", "Edit link URL")).toBe("Edit");
   });
 
+  it("inserts a selected mention at the active mid-text caret position", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="before @rud after"
+          onChange={onChange}
+          mentions={[
+            {
+              id: "agent:agent-1",
+              name: "Rudder Bot",
+              kind: "agent",
+              agentId: "agent-1",
+              searchText: "rudder bot rud",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "before @rud".length);
+    await chooseMentionOption("agent:agent-1");
+
+    expect(onChange).toHaveBeenCalledWith("before [Rudder Bot](agent://agent-1) after");
+  });
+
+  it("replaces only the active repeated mention query", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="@rud first and @rud second"
+          onChange={onChange}
+          mentions={[
+            {
+              id: "project:project-1",
+              name: "Rudder Project",
+              kind: "project",
+              projectId: "project-1",
+              searchText: "rudder project rud",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "@rud first and @rud".length);
+    await chooseMentionOption("project:project-1");
+
+    expect(onChange).toHaveBeenCalledWith("@rud first and [Rudder Project](project://project-1) second");
+  });
+
+  it("uses the same active range for skill mentions", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="ask @mem now"
+          onChange={onChange}
+          mentions={[
+            {
+              id: "skill:memory",
+              name: "Memory",
+              kind: "skill",
+              skillRefLabel: "memory",
+              skillMarkdownTarget: "skill://memory",
+              searchText: "memory mem",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "ask @mem".length);
+    await chooseMentionOption("skill:memory");
+
+    expect(onChange).toHaveBeenCalledWith("ask [memory](skill://memory) now");
+  });
+
   it("renders issue mention options with status, project, and assignee metadata", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    const originalGetBoundingClientRect = Range.prototype.getBoundingClientRect;
-    Range.prototype.getBoundingClientRect = () => ({
-      x: 120,
-      y: 240,
-      width: 1,
-      height: 18,
-      top: 240,
-      right: 121,
-      bottom: 258,
-      left: 120,
-      toJSON: () => undefined,
-    });
+    const restoreCaretRect = stubCaretRect();
 
     cleanupFn = () => {
-      Range.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+      restoreCaretRect();
       act(() => {
         root.unmount();
       });
@@ -372,18 +527,8 @@ describe("MarkdownEditor", () => {
     });
 
     const editable = container.querySelector('[contenteditable="true"]');
-    const textNode = editable?.firstChild;
-    expect(textNode?.nodeType).toBe(Node.TEXT_NODE);
-
-    await act(async () => {
-      const range = document.createRange();
-      range.setStart(textNode!, 4);
-      range.collapse(true);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      document.dispatchEvent(new Event("selectionchange"));
-    });
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, 4);
 
     const menu = document.body.querySelector('[data-testid="markdown-mention-menu"]');
     expect(menu?.textContent).toContain("RUD-28 Add icon for opening a file in IDE");

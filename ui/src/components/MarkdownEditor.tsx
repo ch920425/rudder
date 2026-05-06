@@ -594,13 +594,83 @@ function mentionMarkdown(option: MentionOption): string {
   return `[${option.name}](${buildAgentMentionHref(agentId, option.agentIcon ?? null)}) `;
 }
 
-/** Replace `@<query>` in the markdown string with the selected mention token. */
-function applyMention(markdown: string, query: string, option: MentionOption): string {
-  const search = `@${query}`;
+function getAllSubstringIndexes(value: string, search: string): number[] {
+  const indexes: number[] = [];
+  let idx = value.indexOf(search);
+  while (idx !== -1) {
+    indexes.push(idx);
+    idx = value.indexOf(search, idx + search.length);
+  }
+  return indexes;
+}
+
+function countSubstringOccurrences(value: string, search: string): number {
+  return getAllSubstringIndexes(value, search).length;
+}
+
+function commonSuffixLength(a: string, b: string, maxLength: number): number {
+  const limit = Math.min(a.length, b.length, maxLength);
+  let length = 0;
+  while (length < limit && a[a.length - 1 - length] === b[b.length - 1 - length]) {
+    length += 1;
+  }
+  return length;
+}
+
+function commonPrefixLength(a: string, b: string, maxLength: number): number {
+  const limit = Math.min(a.length, b.length, maxLength);
+  let length = 0;
+  while (length < limit && a[length] === b[length]) {
+    length += 1;
+  }
+  return length;
+}
+
+function getVisibleMentionOrdinal(editable: HTMLElement | null, state: MentionState, search: string): number | null {
+  if (!editable || !editable.contains(state.textNode)) return null;
+  const range = document.createRange();
+  range.setStart(editable, 0);
+  range.setEnd(state.textNode, state.atPos);
+  return countSubstringOccurrences(range.toString(), search);
+}
+
+function findActiveMentionIndex(markdown: string, state: MentionState, editable: HTMLElement | null): number {
+  const search = `@${state.query}`;
+  const indexes = getAllSubstringIndexes(markdown, search);
+  if (indexes.length === 0) return -1;
+  if (indexes.length === 1) return indexes[0]!;
+
+  const ordinal = getVisibleMentionOrdinal(editable, state, search);
+  const ordinalIndex = typeof ordinal === "number" ? indexes[ordinal] ?? null : null;
+  const nodeText = state.textNode.textContent ?? "";
+  const beforeText = nodeText.slice(0, state.atPos);
+  const afterText = nodeText.slice(state.endPos);
+  const contextScores = indexes.map((idx) => ({
+    idx,
+    score: commonSuffixLength(markdown.slice(0, idx), beforeText, 80)
+      + commonPrefixLength(markdown.slice(idx + search.length), afterText, 80),
+  }));
+  const bestScore = Math.max(...contextScores.map((candidate) => candidate.score));
+  const bestIndexes = contextScores
+    .filter((candidate) => candidate.score === bestScore)
+    .map((candidate) => candidate.idx);
+
+  if (ordinalIndex !== null && bestIndexes.includes(ordinalIndex)) return ordinalIndex;
+  if (bestScore > 0) return bestIndexes[0]!;
+  return ordinalIndex ?? indexes[indexes.length - 1]!;
+}
+
+/** Replace the active `@<query>` range with the selected mention token. */
+function applyMention(markdown: string, state: MentionState, option: MentionOption, editable: HTMLElement | null): string {
+  const search = `@${state.query}`;
   const replacement = mentionMarkdown(option);
-  const idx = markdown.lastIndexOf(search);
+  const idx = findActiveMentionIndex(markdown, state, editable);
   if (idx === -1) return markdown;
-  return markdown.slice(0, idx) + replacement + markdown.slice(idx + search.length);
+  const replacementEnd = idx + search.length;
+  const replaceLength = replacement.endsWith(" ") && markdown[replacementEnd] === " "
+    ? search.length + 1
+    : search.length;
+  return markdown.slice(0, idx) + replacement + markdown.slice(idx + replaceLength);
 }
 
 /* ---- Component ---- */
@@ -990,7 +1060,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       const state = mentionStateRef.current;
       if (!state) return;
       const current = latestValueRef.current;
-      const next = applyMention(current, state.query, option);
+      const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+      const next = applyMention(current, state, option, editable instanceof HTMLElement ? editable : null);
       if (next !== current) {
         latestValueRef.current = next;
         ref.current?.setMarkdown(next);
