@@ -101,6 +101,7 @@ interface ActivityRowProps {
   entityTitleMap?: Map<string, string>;
   className?: string;
   currentBoardUserId?: string | null;
+  operatorDisplayName?: string | null;
 }
 
 export function ActivityRow({
@@ -110,6 +111,7 @@ export function ActivityRow({
   entityTitleMap,
   className,
   currentBoardUserId,
+  operatorDisplayName,
 }: ActivityRowProps) {
   const verb = formatVerb(event.action, event.details);
 
@@ -130,7 +132,7 @@ export function ActivityRow({
     : entityLink(event.entityType, event.entityId, name);
 
   const actor = event.actorType === "agent" ? agentMap.get(event.actorId) : null;
-  const actorName = actor?.name ?? resolveActivityActorName(event, agentMap, currentBoardUserId);
+  const actorName = actor?.name ?? resolveActivityActorName(event, agentMap, currentBoardUserId, operatorDisplayName);
   const entityLabel = activityEntityLabel(event.entityType);
 
   const inner = (

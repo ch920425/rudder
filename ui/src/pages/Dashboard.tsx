@@ -12,6 +12,7 @@ import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
 import { useOrganization } from "../context/OrganizationContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { useOperatorDisplayName } from "../hooks/useOperatorDisplayName";
 import { queryKeys } from "../lib/queryKeys";
 import { MetricCard } from "../components/MetricCard";
 import { EmptyState } from "../components/EmptyState";
@@ -226,6 +227,7 @@ export function Dashboard() {
   const { selectedOrganizationId, organizations } = useOrganization();
   const { openOnboarding } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const operatorDisplayName = useOperatorDisplayName();
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
   const seenActivityIdsRef = useRef<Set<string>>(new Set());
   const hydratedActivityRef = useRef(false);
@@ -713,6 +715,7 @@ export function Dashboard() {
                         entityNameMap={entityNameMap}
                         entityTitleMap={entityTitleMap}
                         currentBoardUserId={currentBoardAccess?.user?.id ?? currentBoardAccess?.userId}
+                        operatorDisplayName={operatorDisplayName}
                         className={animatedActivityIds.has(event.id) ? "activity-row-enter" : undefined}
                       />
                     ))}

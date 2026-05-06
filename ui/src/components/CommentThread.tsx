@@ -16,6 +16,7 @@ import { AgentIcon } from "./AgentIconPicker";
 import { RunTranscriptView } from "./transcript/RunTranscriptView";
 import { useLiveRunTranscripts } from "./transcript/useLiveRunTranscripts";
 import { formatDateTime } from "../lib/utils";
+import { resolveOperatorDisplayName } from "../lib/operator-display";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
 const COMMENT_ATTACHMENT_ACCEPT = "image/*,application/pdf,text/plain,text/markdown,application/json,text/csv,text/html,.md,.markdown";
@@ -59,6 +60,7 @@ interface CommentThreadProps {
   currentAssigneeValue?: string;
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
+  operatorDisplayName?: string | null;
 }
 
 const DRAFT_DEBOUNCE_MS = 800;
@@ -155,6 +157,7 @@ const TimelineList = memo(function TimelineList({
   highlightCommentId,
   runTranscriptById,
   runHasOutput,
+  operatorDisplayName,
 }: {
   timeline: TimelineItem[];
   agentMap?: Map<string, Agent>;
@@ -163,6 +166,7 @@ const TimelineList = memo(function TimelineList({
   highlightCommentId?: string | null;
   runTranscriptById: Map<string, TranscriptEntry[]>;
   runHasOutput: (runId: string) => boolean;
+  operatorDisplayName?: string | null;
 }) {
   if (timeline.length === 0) {
     return <p className="text-sm text-muted-foreground">No comments or runs yet.</p>;
@@ -248,7 +252,7 @@ const TimelineList = memo(function TimelineList({
                   />
                 </Link>
               ) : (
-                <Identity name="You" size="sm" />
+                <Identity name={resolveOperatorDisplayName(operatorDisplayName)} size="sm" />
               )}
               <span className="flex items-center gap-1.5">
                 {orgId ? (
@@ -335,6 +339,7 @@ export function CommentThread({
   currentAssigneeValue = "",
   suggestedAssigneeValue,
   mentions: providedMentions,
+  operatorDisplayName,
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const canReopen = shouldOfferReopen(issueStatus);
@@ -515,6 +520,7 @@ export function CommentThread({
         highlightCommentId={highlightCommentId}
         runTranscriptById={transcriptByRun}
         runHasOutput={hasOutputForRun}
+        operatorDisplayName={operatorDisplayName}
       />
 
       {liveRunSlot}

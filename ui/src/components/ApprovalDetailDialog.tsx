@@ -19,6 +19,7 @@ import { useOrganization } from "@/context/OrganizationContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { Link, useNavigate, useSearchParams } from "@/lib/router";
 import { resolveBoardActorLabel } from "@/lib/activity-actors";
+import { useOperatorDisplayName } from "@/hooks/useOperatorDisplayName";
 import { Identity } from "./Identity";
 import { AgentIdentity } from "./AgentAvatar";
 import { MarkdownBody } from "./MarkdownBody";
@@ -51,6 +52,7 @@ export function ApprovalDetailDialog({
   const [commentBody, setCommentBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showRawPayload, setShowRawPayload] = useState(false);
+  const operatorDisplayName = useOperatorDisplayName();
 
   const { data: approval, isLoading } = useQuery({
     queryKey: queryKeys.approvals.detail(approvalId ?? "__none__"),
@@ -449,7 +451,7 @@ export function ApprovalDetailDialog({
                             </Link>
                           ) : (
                             <Identity
-                              name={resolveBoardActorLabel("user", comment.authorUserId, currentBoardUserId)}
+                              name={resolveBoardActorLabel("user", comment.authorUserId, currentBoardUserId, operatorDisplayName)}
                               size="sm"
                             />
                           )}

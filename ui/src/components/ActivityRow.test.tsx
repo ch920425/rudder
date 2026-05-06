@@ -34,6 +34,14 @@ describe("resolveActivityActorName", () => {
   it("uses You for the current board user in generic actor labels", () => {
     expect(resolveBoardActorLabel("user", "user-1", "user-1")).toBe("You");
   });
+
+  it("uses the nickname for the current board user when configured", () => {
+    expect(resolveBoardActorLabel("user", "user-1", "user-1", "  Zee  ")).toBe("Zee");
+  });
+
+  it("falls back to You when the configured nickname is blank", () => {
+    expect(resolveBoardActorLabel("user", "user-1", "user-1", "   ")).toBe("You");
+  });
 });
 
 describe("ActivityRow", () => {
@@ -56,10 +64,12 @@ describe("ActivityRow", () => {
         agentMap={new Map()}
         entityNameMap={new Map()}
         currentBoardUserId="user-1"
+        operatorDisplayName="Zee"
       />,
     );
 
-    expect(html).toContain("You");
+    expect(html).toContain("Zee");
+    expect(html).not.toContain("You");
     expect(html).toContain("created");
     expect(html).toContain("goal");
     expect(html).toContain("Launch the new onboarding flow");

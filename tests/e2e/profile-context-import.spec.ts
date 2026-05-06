@@ -49,4 +49,39 @@ test.describe("Profile context import", () => {
     expect(savedProfile.moreAboutYou).toContain("Prefer concise, direct engineering feedback.");
     expect(savedProfile.moreAboutYou).toContain("## Projects");
   });
+
+  test("uses the saved nickname for current-user activity labels", async ({ page }) => {
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Profile Nickname ${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    const profileRes = await page.request.patch("/api/instance/settings/profile", {
+      data: {
+        nickname: "Wanhu",
+      },
+    });
+    expect(profileRes.ok()).toBe(true);
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Nickname activity label",
+        description: "Activity should use the operator nickname.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+
+    await page.goto(`/${organization.issuePrefix}/activity`);
+
+    const activityRow = page.getByRole("link", { name: /Wanhu created .*Nickname activity label/ });
+    await expect(activityRow).toBeVisible({ timeout: 15_000 });
+    await expect(activityRow).toContainText("Wanhu");
+    await expect(activityRow).toContainText("created");
+    await expect(activityRow).not.toContainText("You");
+  });
 });

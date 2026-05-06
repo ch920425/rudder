@@ -22,6 +22,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { readIssueDetailBreadcrumb } from "../lib/issueDetailBreadcrumb";
 import { readRecentIssueIds, recordRecentIssue } from "../lib/recent-issues";
 import { resolveBoardActorLabel } from "../lib/activity-actors";
+import { useOperatorDisplayName } from "../hooks/useOperatorDisplayName";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { relativeTime, cn, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { InlineEditor } from "../components/InlineEditor";
@@ -548,17 +549,19 @@ function ActorIdentity({
   evt,
   agentMap,
   currentBoardUserId,
+  operatorDisplayName,
 }: {
   evt: ActivityEvent;
   agentMap: Map<string, Agent>;
   currentBoardUserId?: string | null;
+  operatorDisplayName?: string | null;
 }) {
   const id = evt.actorId;
   if (evt.actorType === "agent") {
     const agent = agentMap.get(id);
     return <AgentIdentity name={agent?.name ?? id.slice(0, 8)} icon={agent?.icon} role={agent?.role} size="sm" />;
   }
-  return <Identity name={resolveBoardActorLabel(evt.actorType, id, currentBoardUserId)} size="sm" />;
+  return <Identity name={resolveBoardActorLabel(evt.actorType, id, currentBoardUserId, operatorDisplayName)} size="sm" />;
 }
 
 function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, { linked: true }> }) {
@@ -639,6 +642,7 @@ export function IssueDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { pushToast } = useToast();
+  const operatorDisplayName = useOperatorDisplayName();
   const [headerMoreOpen, setHeaderMoreOpen] = useState(false);
   const [sidebarMoreOpen, setSidebarMoreOpen] = useState(false);
   const [copiedIssueId, setCopiedIssueId] = useState(false);
@@ -1842,7 +1846,7 @@ export function IssueDetail() {
                           <span className="font-mono text-xs text-muted-foreground">{child.assigneeAgentId.slice(0, 8)}</span>
                         )
                       ) : child.assigneeUserId ? (
-                        <Identity name={resolveBoardActorLabel("user", child.assigneeUserId, currentBoardUserId)} size="sm" />
+                        <Identity name={resolveBoardActorLabel("user", child.assigneeUserId, currentBoardUserId, operatorDisplayName)} size="sm" />
                       ) : null}
                     </div>
                   </Link>
@@ -1967,6 +1971,7 @@ export function IssueDetail() {
             currentAssigneeValue={actualAssigneeValue}
             suggestedAssigneeValue={suggestedAssigneeValue}
             mentions={mentionOptions}
+            operatorDisplayName={operatorDisplayName}
             onAdd={async (body, reopen, reassignment) => {
               if (reassignment) {
                 await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
@@ -2019,7 +2024,12 @@ export function IssueDetail() {
             <div className="space-y-1.5">
               {activity.slice(0, 20).map((evt) => (
                 <div key={evt.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <ActorIdentity evt={evt} agentMap={agentMap} currentBoardUserId={currentBoardUserId} />
+                  <ActorIdentity
+                    evt={evt}
+                    agentMap={agentMap}
+                    currentBoardUserId={currentBoardUserId}
+                    operatorDisplayName={operatorDisplayName}
+                  />
                   <span>{renderActivityDescription(evt)}</span>
                   <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
                 </div>

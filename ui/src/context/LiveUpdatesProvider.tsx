@@ -13,6 +13,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { toOrganizationRelativePath } from "../lib/organization-routes";
 import { useLocation } from "../lib/router";
 import { SETTINGS_PREFETCH_STALE_TIME_MS } from "@/lib/settings-prefetch";
+import { useOperatorDisplayName } from "@/hooks/useOperatorDisplayName";
 
 const TOAST_COOLDOWN_WINDOW_MS = 10_000;
 const TOAST_COOLDOWN_MAX = 3;
@@ -102,11 +103,12 @@ function resolveActorLabel(
   actorType: string | null,
   actorId: string | null,
   currentBoardUserId?: string | null,
+  operatorDisplayName?: string | null,
 ): string {
   if (actorType === "agent" && actorId) {
     return resolveAgentName(queryClient, orgId, actorId) ?? `Agent ${shortId(actorId)}`;
   }
-  return resolveBoardActorLabel(actorType, actorId, currentBoardUserId) || "Someone";
+  return resolveBoardActorLabel(actorType, actorId, currentBoardUserId, operatorDisplayName) || "Someone";
 }
 
 interface IssueToastContext {
@@ -355,6 +357,7 @@ function buildActivityToast(
   orgId: string,
   payload: Record<string, unknown>,
   currentActor: { userId: string | null; agentId: string | null },
+  operatorDisplayName?: string | null,
 ): ToastInput | null {
   const entityType = readString(payload.entityType);
   const entityId = readString(payload.entityId);
@@ -368,7 +371,7 @@ function buildActivityToast(
   }
 
   const issue = resolveIssueToastContext(queryClient, orgId, entityId, details);
-  const actor = resolveActorLabel(queryClient, orgId, actorType, actorId, currentActor.userId);
+  const actor = resolveActorLabel(queryClient, orgId, actorType, actorId, currentActor.userId, operatorDisplayName);
   const isSelfActivity =
     (actorType === "user" && !!currentActor.userId && actorId === currentActor.userId) ||
     (actorType === "agent" && !!currentActor.agentId && actorId === currentActor.agentId);
@@ -720,6 +723,7 @@ function handleLiveEvent(
   gate: ToastGate,
   currentActor: { userId: string | null; agentId: string | null },
   notificationPreferences: LiveNotificationPreferences,
+  operatorDisplayName?: string | null,
 ) {
   if (event.orgId !== expectedCompanyId) return;
 
@@ -770,7 +774,7 @@ function handleLiveEvent(
     const action = readString(payload.action);
     const toast =
       (notificationPreferences.issueNotifications
-        ? buildActivityToast(queryClient, expectedCompanyId, payload, currentActor)
+        ? buildActivityToast(queryClient, expectedCompanyId, payload, currentActor, operatorDisplayName)
         : null) ??
       (notificationPreferences.chatNotifications ? buildChatToast(payload) : null) ??
       buildJoinRequestToast(payload);
@@ -800,6 +804,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const location = useLocation();
+  const operatorDisplayName = useOperatorDisplayName();
   const gateRef = useRef<ToastGate>({ cooldownHits: new Map(), suppressUntil: 0 });
   const pathnameRef = useRef(location.pathname);
   const { data: session } = useQuery({
@@ -872,7 +877,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
           handleLiveEvent(queryClient, selectedOrganizationId, pathnameRef.current, parsed, pushToast, gateRef.current, {
             userId: currentUserId,
             agentId: null,
-          }, notificationPreferences);
+          }, notificationPreferences, operatorDisplayName);
         } catch {
           // Ignore non-JSON payloads.
         }
@@ -906,6 +911,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
     selectedOrganizationId,
     pushToast,
     currentUserId,
+    operatorDisplayName,
     notificationPreferences.issueNotifications,
     notificationPreferences.chatNotifications,
   ]);

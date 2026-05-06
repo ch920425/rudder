@@ -8,6 +8,7 @@ import { goalsApi } from "../api/goals";
 import { accessApi } from "../api/access";
 import { useOrganization } from "../context/OrganizationContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { useOperatorDisplayName } from "../hooks/useOperatorDisplayName";
 import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { ActivityRow } from "../components/ActivityRow";
@@ -25,6 +26,7 @@ import type { Agent } from "@rudderhq/shared";
 export function Activity() {
   const { selectedOrganizationId } = useOrganization();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const operatorDisplayName = useOperatorDisplayName();
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
@@ -139,6 +141,7 @@ export function Activity() {
               entityNameMap={entityNameMap}
               entityTitleMap={entityTitleMap}
               currentBoardUserId={currentBoardAccess?.user?.id ?? currentBoardAccess?.userId}
+              operatorDisplayName={operatorDisplayName}
             />
           ))}
         </div>
