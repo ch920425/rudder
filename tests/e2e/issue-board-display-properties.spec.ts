@@ -45,6 +45,15 @@ test.describe("Issue board display properties", () => {
       },
     );
 
+    const label = await apiPost<{ id: string; name: string }>(
+      page,
+      `/api/orgs/${organization.id}/labels`,
+      {
+        name: "Display default",
+        color: "#8b5cf6",
+      },
+    );
+
     const issue = await apiPost<{ identifier: string | null }>(
       page,
       `/api/orgs/${organization.id}/issues`,
@@ -54,6 +63,7 @@ test.describe("Issue board display properties", () => {
         description: "Display properties should control board card metadata.",
         status: "todo",
         priority: "high",
+        labelIds: [label.id],
       },
     );
 
@@ -61,26 +71,42 @@ test.describe("Issue board display properties", () => {
     await page.goto(`/${organization.issuePrefix}/issues`);
     await page.getByTitle("Board view").click();
 
-    await expect(page.getByText("Tune board card fields", { exact: true })).toBeVisible();
-    await expect(page.getByText(project.name, { exact: true })).toHaveCount(0);
+    const card = page.locator('[data-testid^="kanban-card-"]').filter({ hasText: "Tune board card fields" });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(project.name);
+    await expect(card).toContainText(label.name);
+    await expect(card).toContainText("Created");
+    await expect(card).not.toContainText("Updated");
     if (issue.identifier) {
-      await expect(page.getByText(issue.identifier, { exact: true })).toBeVisible();
+      await expect(card).toContainText(issue.identifier);
     }
 
-    await page.getByRole("button", { name: /Display/ }).click();
-    await page.getByText("Project", { exact: true }).click();
-    await expect(page.getByText(project.name, { exact: true })).toBeVisible();
+    await page.getByTestId("issues-view-toolbar").getByRole("button", { name: /Display/ }).click();
+    const displayOption = (name: string) => page.locator("label").filter({ hasText: name }).getByRole("checkbox");
+    await expect(displayOption("Identifier")).toBeChecked();
+    await expect(displayOption("Priority")).toBeChecked();
+    await expect(displayOption("Assignee")).toBeChecked();
+    await expect(displayOption("Labels")).toBeChecked();
+    await expect(displayOption("Project")).toBeChecked();
+    await expect(displayOption("Updated")).not.toBeChecked();
+    await expect(displayOption("Created")).toBeChecked();
+
+    await displayOption("Project").click();
+    await expect(card).not.toContainText(project.name);
 
     if (issue.identifier) {
-      await page.getByText("Identifier", { exact: true }).click();
-      await expect(page.getByText(issue.identifier, { exact: true })).toHaveCount(0);
+      await displayOption("Identifier").click();
+      await expect(card).not.toContainText(issue.identifier);
     }
 
     const savedDisplayProperties = await page.evaluate((orgId) => {
       const raw = window.localStorage.getItem(`rudder:issues-view:${orgId}`);
       return raw ? JSON.parse(raw).displayProperties : null;
     }, organization.id);
-    expect(savedDisplayProperties).toContain("project");
+    expect(savedDisplayProperties).toContain("labels");
+    expect(savedDisplayProperties).toContain("created");
+    expect(savedDisplayProperties).not.toContain("project");
+    expect(savedDisplayProperties).not.toContain("updated");
     expect(savedDisplayProperties).not.toContain("identifier");
   });
 
@@ -127,8 +153,8 @@ test.describe("Issue board display properties", () => {
     await page.goto(`/${organization.issuePrefix}/issues`);
     await page.getByTitle("Board view").click();
 
-    await page.getByRole("button", { name: /Sort/ }).click();
-    await page.getByRole("button", { name: "Priority" }).click();
+    await page.getByTestId("issues-view-toolbar").getByRole("button", { name: /Sort/ }).click();
+    await page.locator('[data-slot="popover-content"]').getByRole("button", { name: "Priority", exact: true }).click();
 
     const todoCards = page.locator('[data-testid="kanban-column-todo"] [data-testid^="kanban-card-"]');
     await expect(todoCards.nth(0)).toContainText("Critical priority board issue");

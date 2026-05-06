@@ -518,6 +518,48 @@ describe("IssuesList", () => {
     expect(container.textContent).not.toContain("RUD-1");
   });
 
+  it("shows the default board card metadata for new views", () => {
+    window.localStorage.setItem(
+      "test:issues:org-1",
+      JSON.stringify({ viewMode: "board" }),
+    );
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <IssuesList
+          issues={[{
+            ...baseIssue,
+            labels: [label],
+            labelIds: [label.id],
+            projectId: "project-1",
+          }]}
+          agents={[{ id: "agent-1", name: "Alice", role: "engineer", title: null }]}
+          projects={[{ id: "project-1", name: "Operator console" }]}
+          viewStateKey="test:issues"
+          toolbarMode="hidden"
+          onUpdateIssue={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("RUD-1");
+    expect(container.textContent).toContain("Backend");
+    expect(container.textContent).toContain("Operator console");
+    expect(container.textContent).toContain("Created");
+    expect(container.textContent).not.toContain("Updated");
+  });
+
   it("toggles board display properties from the toolbar and persists them", () => {
     window.localStorage.setItem(
       "test:issues:org-1",

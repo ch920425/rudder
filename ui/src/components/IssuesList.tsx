@@ -31,7 +31,7 @@ import { Popover, PopoverAnchor, PopoverTrigger, PopoverContent } from "@/compon
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, Star, SlidersHorizontal } from "lucide-react";
-import { KanbanBoard, type IssueDisplayProperty } from "./KanbanBoard";
+import { DEFAULT_ISSUE_DISPLAY_PROPERTIES, KanbanBoard, type IssueDisplayProperty } from "./KanbanBoard";
 import type { AgentRole, Issue, ReorderIssue } from "@rudderhq/shared";
 
 /* ── Helpers ── */
@@ -70,7 +70,7 @@ const displayPropertyValues = new Set<IssueDisplayProperty>(
   displayPropertyOptions.map((option) => option.value),
 );
 
-const defaultDisplayProperties: IssueDisplayProperty[] = ["identifier", "priority", "assignee"];
+const defaultDisplayProperties: IssueDisplayProperty[] = [...DEFAULT_ISSUE_DISPLAY_PROPERTIES];
 
 const defaultViewState: IssueViewState = {
   statuses: [],

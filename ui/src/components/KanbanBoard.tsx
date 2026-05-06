@@ -150,6 +150,15 @@ export type IssueDisplayProperty =
   | "updated"
   | "created";
 
+export const DEFAULT_ISSUE_DISPLAY_PROPERTIES: IssueDisplayProperty[] = [
+  "identifier",
+  "priority",
+  "assignee",
+  "labels",
+  "project",
+  "created",
+];
+
 interface KanbanBoardProps {
   issues: Issue[];
   agents?: Agent[];
@@ -194,7 +203,7 @@ function KanbanColumn({
   issues,
   agents,
   currentUserId,
-  displayProperties = ["identifier", "priority", "assignee"],
+  displayProperties = DEFAULT_ISSUE_DISPLAY_PROPERTIES,
   liveIssueIds,
   recentlyDroppedIssueIds,
   projects,
@@ -306,7 +315,7 @@ function KanbanCard({
   issue,
   agents,
   currentUserId,
-  displayProperties = ["identifier", "priority", "assignee"],
+  displayProperties = DEFAULT_ISSUE_DISPLAY_PROPERTIES,
   isLive,
   isOverlay,
   justDropped,
