@@ -1239,7 +1239,7 @@ button[draggable="false"] {
   font-weight: 600;
   line-height: 1.3;
   text-decoration: none;
-  vertical-align: baseline;
+  vertical-align: middle;
   white-space: nowrap;
   user-select: none;
 }
@@ -1834,7 +1834,7 @@ a.rudder-project-mention-chip {
   font-weight: 600;
   line-height: 1.3;
   text-decoration: none;
-  vertical-align: baseline;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
