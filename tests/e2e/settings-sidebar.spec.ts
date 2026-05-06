@@ -325,12 +325,71 @@ test.describe("Settings sidebar", () => {
     const modal = page.getByTestId("settings-modal-shell");
     await expect(page).toHaveURL(/\/instance\/settings\/about$/);
     await expect(modal.getByRole("heading", { name: "About" })).toBeVisible();
-    await expect(modal.getByText("App version")).toBeVisible();
+    await expect(modal.locator("div").filter({ hasText: /^Version$/ }).first()).toBeVisible();
     await expect(modal.locator("div").filter({ hasText: /^Environment$/ }).first()).toBeVisible();
     await expect(modal.locator("div").filter({ hasText: /^Instance ID$/ }).first()).toBeVisible();
     await expect(modal.getByRole("button", { name: "Check for updates" })).toBeVisible();
     await expect(modal.getByRole("button", { name: "Send Feedback" })).toBeVisible();
   });
+
+  test("shows a download-style toast when a desktop update is available", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "desktopShell", {
+        configurable: true,
+        value: {
+          getBootState: async () => ({
+            runtime: { version: "0.2.24", mode: "owned", ownerKind: "desktop" },
+            paths: { instanceRoot: "/tmp/rudder-e2e" },
+          }),
+          onBootState: () => () => {},
+          getAppVersion: async () => "0.2.24",
+          checkForUpdates: async () => ({
+            status: "update-available",
+            channel: "stable",
+            currentVersion: "0.2.24",
+            latestVersion: "0.2.25",
+            checkedAt: "2026-05-06T00:00:00.000Z",
+          }),
+          installUpdate: async (version: string) => {
+            (window as typeof window & { __rudderInstallUpdateCalls?: string[] }).__rudderInstallUpdateCalls = [
+              ...((window as typeof window & { __rudderInstallUpdateCalls?: string[] }).__rudderInstallUpdateCalls ?? []),
+              version,
+            ];
+            return { status: "started", version };
+          },
+          openExternal: async () => {},
+          sendFeedback: async () => {},
+        },
+      });
+    });
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Desktop Update Toast ${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { issuePrefix: string };
+
+    await page.goto(`/${organization.issuePrefix}/dashboard`);
+    await page.getByRole("button", { name: "System settings" }).click();
+    await page.locator('a[href$="/instance/settings/about"]').click();
+
+    await page.getByRole("button", { name: "Check for updates" }).click();
+
+    const toast = page.locator("aside").filter({ hasText: "New version available" });
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText("v0.2.25 is ready to download.");
+    await expect(toast).toHaveClass(/bottom-4/);
+    await expect(toast).toHaveClass(/right-4/);
+
+    await toast.getByRole("button", { name: "Download update" }).click();
+
+    await expect.poll(() => page.evaluate(() => (
+      (window as typeof window & { __rudderInstallUpdateCalls?: string[] }).__rudderInstallUpdateCalls ?? []
+    ))).toEqual(["0.2.25"]);
+  });
+
 
   test("shows system permissions and keeps notification debug controls hidden", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
