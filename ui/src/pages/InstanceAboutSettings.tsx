@@ -82,7 +82,7 @@ function buildUpdateFeedback(
       body: t("about.updates.available.toastBody", {
         latestVersion: formatVersion(result.latestVersion, t("common.unknown")),
       }),
-      tone: "warn",
+      tone: "info",
     };
   }
   if (result.status === "up-to-date") {
@@ -184,7 +184,21 @@ export function InstanceAboutSettings() {
       const result = await desktopShell.checkForUpdates();
       setUpdateResult(result);
       const feedback = buildUpdateFeedback(t, result);
-      pushToast(feedback);
+      if (result.status === "update-available" && result.latestVersion) {
+        pushToast({
+          ...feedback,
+          id: "desktop-update-available",
+          dedupeKey: `desktop-update-available:${result.latestVersion}`,
+          persistent: true,
+          icon: "download",
+          action: {
+            label: t("about.updates.download"),
+            onClick: () => handleInstallUpdate(result.latestVersion),
+          },
+        });
+      } else {
+        pushToast(feedback);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : t("about.updates.failed");
       setActionError(message);
@@ -198,9 +212,9 @@ export function InstanceAboutSettings() {
     }
   }
 
-  async function handleInstallUpdate() {
+  async function handleInstallUpdate(versionOverride?: string) {
     const desktopShell = readDesktopShell();
-    const latestVersion = updateResult?.latestVersion;
+    const latestVersion = versionOverride ?? updateResult?.latestVersion;
     setActionError(null);
 
     if (!desktopShell || !latestVersion) {
