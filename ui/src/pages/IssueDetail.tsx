@@ -26,7 +26,7 @@ import { useOperatorDisplayName } from "../hooks/useOperatorDisplayName";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { relativeTime, cn, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { InlineEditor } from "../components/InlineEditor";
-import { CommentThread } from "../components/CommentThread";
+import { CommentThread, type CommentThreadActivityItem } from "../components/CommentThread";
 import {
   IssueDocumentFocusPage,
   IssueDocumentsSection,
@@ -58,7 +58,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -109,12 +108,21 @@ type DocumentFocusState = {
   phase: "open" | "closing";
 };
 
+type IssueCostSummaryData = {
+  input: number;
+  output: number;
+  cached: number;
+  cost: number;
+  totalTokens: number;
+  hasCost: boolean;
+  hasTokens: boolean;
+};
+
 const ACTION_LABELS: Record<string, string> = {
   "issue.created": "created the issue",
   "issue.updated": "updated the issue",
   "issue.checked_out": "checked out the issue",
   "issue.released": "released the issue",
-  "issue.comment_added": "added a comment",
   "issue.passive_followup_queued": "queued passive follow-up",
   "issue.closure_needs_operator_review": "needs operator review for close-out",
   "issue.attachment_added": "added an attachment",
@@ -564,6 +572,31 @@ function ActorIdentity({
   return <Identity name={resolveBoardActorLabel(evt.actorType, id, currentBoardUserId, operatorDisplayName)} size="sm" />;
 }
 
+function IssueActivityRow({
+  evt,
+  agentMap,
+  currentBoardUserId,
+  operatorDisplayName,
+}: {
+  evt: ActivityEvent;
+  agentMap: Map<string, Agent>;
+  currentBoardUserId?: string | null;
+  operatorDisplayName?: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs text-muted-foreground">
+      <ActorIdentity
+        evt={evt}
+        agentMap={agentMap}
+        currentBoardUserId={currentBoardUserId}
+        operatorDisplayName={operatorDisplayName}
+      />
+      <span className="min-w-0">{renderActivityDescription(evt)}</span>
+      <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
+    </div>
+  );
+}
+
 function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, { linked: true }> }) {
   const latest = data.latestIssue;
   const link = data.link;
@@ -579,7 +612,7 @@ function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, 
 
   return (
     <section
-      className="mb-3 rounded-lg border border-border bg-card/70 p-3 text-sm"
+      className="rounded-lg border border-border bg-card/70 p-3 text-sm"
       data-testid="issue-activity-linear-link"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -634,6 +667,48 @@ function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, 
   );
 }
 
+function IssueCostSummaryPanel({ summary }: { summary: IssueCostSummaryData }) {
+  if (!summary.hasCost && !summary.hasTokens) return null;
+
+  return (
+    <section className="rounded-lg border border-border bg-background/80 p-3">
+      <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        Cost
+      </div>
+      <div className="space-y-1.5 text-xs text-muted-foreground tabular-nums">
+        {summary.hasCost ? (
+          <div className="flex items-center justify-between gap-3">
+            <span>Spend</span>
+            <span className="font-medium text-foreground">${summary.cost.toFixed(4)}</span>
+          </div>
+        ) : null}
+        {summary.hasTokens ? (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <span>Total tokens</span>
+              <span className="font-medium text-foreground">{formatTokens(summary.totalTokens)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>Input</span>
+              <span>{formatTokens(summary.input)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>Output</span>
+              <span>{formatTokens(summary.output)}</span>
+            </div>
+            {summary.cached > 0 ? (
+              <div className="flex items-center justify-between gap-3">
+                <span>Cached</span>
+                <span>{formatTokens(summary.cached)}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export function IssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
   const { organizations, selectedOrganizationId, selectedOrganization } = useOrganization();
@@ -647,7 +722,6 @@ export function IssueDetail() {
   const [sidebarMoreOpen, setSidebarMoreOpen] = useState(false);
   const [copiedIssueId, setCopiedIssueId] = useState(false);
   const [mobilePropsOpen, setMobilePropsOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState("comments");
   const [subIssueComposerOpen, setSubIssueComposerOpen] = useState(false);
   const [subIssueTitle, setSubIssueTitle] = useState("");
   const [subIssueStatusPickerIssueId, setSubIssueStatusPickerIssueId] = useState<string | null>(null);
@@ -854,8 +928,6 @@ export function IssueDetail() {
     [issuePluginDetailSlots],
   );
   const linearIssueActivitySlot = issuePluginDetailSlots.find((slot) => isLinearIssueDetailSlot(slot)) ?? null;
-  const activePluginTab = issuePluginTabItems.find((item) => item.value === detailTab) ?? null;
-
   const { data: linearIssueLink } = useQuery({
     queryKey: [
       "plugins",
@@ -1024,7 +1096,7 @@ export function IssueDetail() {
     });
   }, [activity, comments, linkedRuns]);
 
-  const issueCostSummary = useMemo(() => {
+  const issueCostSummary = useMemo<IssueCostSummaryData>(() => {
     let input = 0;
     let output = 0;
     let cached = 0;
@@ -1062,6 +1134,36 @@ export function IssueDetail() {
       hasTokens,
     };
   }, [linkedRuns]);
+
+  const issueActivityItems = useMemo<CommentThreadActivityItem[]>(() => {
+    const items: CommentThreadActivityItem[] = [];
+
+    if (linearIssueLink?.linked) {
+      items.push({
+        id: "linear-linked-issue",
+        createdAt: linearIssueLink.latestIssue?.updatedAt ?? linearIssueLink.link.updatedAt ?? linearIssueLink.link.importedAt,
+        node: <LinearIssueActivityCard data={linearIssueLink} />,
+      });
+    }
+
+    for (const evt of activity ?? []) {
+      if (evt.action === "issue.comment_added") continue;
+      items.push({
+        id: evt.id,
+        createdAt: evt.createdAt,
+        node: (
+          <IssueActivityRow
+            evt={evt}
+            agentMap={agentMap}
+            currentBoardUserId={currentBoardUserId}
+            operatorDisplayName={operatorDisplayName}
+          />
+        ),
+      });
+    }
+
+    return items;
+  }, [activity, agentMap, currentBoardUserId, linearIssueLink, operatorDisplayName]);
 
   const invalidateIssue = () => {
     const issueOrgId = issue?.orgId ?? resolvedCompanyId ?? selectedOrganizationId;
@@ -1940,120 +2042,66 @@ export function IssueDetail() {
 
       <Separator />
 
-      <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-3">
-        <TabsList variant="line" className="w-full justify-start gap-1">
-          <TabsTrigger value="comments" className="gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Chat
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-1.5">
-            <ActivityIcon className="h-3.5 w-3.5" />
-            Activity
-          </TabsTrigger>
+      <section aria-label="Activity" className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <ActivityIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>Activity</span>
+        </div>
+        <CommentThread
+          comments={commentsWithRunMeta}
+          linkedRuns={timelineRuns}
+          activityItems={issueActivityItems}
+          orgId={issue.orgId}
+          projectId={issue.projectId}
+          issueStatus={issue.status}
+          agentMap={agentMap}
+          draftKey={`rudder:issue-comment-draft:${issue.id}`}
+          enableReassign
+          reassignOptions={commentReassignOptions}
+          currentAssigneeValue={actualAssigneeValue}
+          suggestedAssigneeValue={suggestedAssigneeValue}
+          mentions={mentionOptions}
+          operatorDisplayName={operatorDisplayName}
+          hideHeading
+          emptyMessage="No activity yet."
+          onAdd={async (body, reopen, reassignment) => {
+            if (reassignment) {
+              await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
+              return;
+            }
+            await addComment.mutateAsync({ body, reopen });
+          }}
+          imageUploadHandler={async (file) => {
+            const attachment = await uploadAttachment.mutateAsync({ file, usage: "comment_inline" });
+            return attachment.contentPath;
+          }}
+          onAttachImage={async (file) => {
+            await uploadAttachment.mutateAsync({ file, usage: "comment_attachment" });
+          }}
+          liveRunSlot={<LiveRunWidget issueId={issueId!} orgId={issue.orgId} />}
+        />
+      </section>
+
+      {issuePluginTabItems.length > 0 ? (
+        <div className="space-y-3">
           {issuePluginTabItems.map((item) => (
-            <TabsTrigger key={item.value} value={item.value}>
-              {item.label}
-            </TabsTrigger>
+            <section key={item.value} className="space-y-2">
+              <h3 className="text-sm font-semibold">{item.label}</h3>
+              <PluginSlotMount
+                slot={item.slot}
+                context={{
+                  orgId: issue.orgId,
+                  orgPrefix: currentOrganization?.issuePrefix ?? null,
+                  projectId: issue.projectId ?? null,
+                  entityId: issue.id,
+                  entityType: "issue",
+                }}
+                missingBehavior="placeholder"
+              />
+            </section>
           ))}
-        </TabsList>
-
-        <TabsContent value="comments">
-          <CommentThread
-            comments={commentsWithRunMeta}
-            linkedRuns={timelineRuns}
-            orgId={issue.orgId}
-            projectId={issue.projectId}
-            issueStatus={issue.status}
-            agentMap={agentMap}
-            draftKey={`rudder:issue-comment-draft:${issue.id}`}
-            enableReassign
-            reassignOptions={commentReassignOptions}
-            currentAssigneeValue={actualAssigneeValue}
-            suggestedAssigneeValue={suggestedAssigneeValue}
-            mentions={mentionOptions}
-            operatorDisplayName={operatorDisplayName}
-            onAdd={async (body, reopen, reassignment) => {
-              if (reassignment) {
-                await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
-                return;
-              }
-              await addComment.mutateAsync({ body, reopen });
-            }}
-            imageUploadHandler={async (file) => {
-              const attachment = await uploadAttachment.mutateAsync({ file, usage: "comment_inline" });
-              return attachment.contentPath;
-            }}
-            onAttachImage={async (file) => {
-              await uploadAttachment.mutateAsync({ file, usage: "comment_attachment" });
-            }}
-            liveRunSlot={<LiveRunWidget issueId={issueId!} orgId={issue.orgId} />}
-          />
-        </TabsContent>
-
-        <TabsContent value="activity">
-          {linearIssueLink?.linked ? (
-            <LinearIssueActivityCard data={linearIssueLink} />
-          ) : null}
-          {linkedRuns && linkedRuns.length > 0 && (
-            <div className="mb-3 px-3 py-2 rounded-lg border border-border">
-              <div className="text-sm font-medium text-muted-foreground mb-1">Cost Summary</div>
-              {!issueCostSummary.hasCost && !issueCostSummary.hasTokens ? (
-                <div className="text-xs text-muted-foreground">No cost data yet.</div>
-              ) : (
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground tabular-nums">
-                  {issueCostSummary.hasCost && (
-                    <span className="font-medium text-foreground">
-                      ${issueCostSummary.cost.toFixed(4)}
-                    </span>
-                  )}
-                  {issueCostSummary.hasTokens && (
-                    <span>
-                      Tokens {formatTokens(issueCostSummary.totalTokens)}
-                      {issueCostSummary.cached > 0
-                        ? ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)}, cached ${formatTokens(issueCostSummary.cached)})`
-                        : ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)})`}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {!activity || activity.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No activity yet.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {activity.slice(0, 20).map((evt) => (
-                <div key={evt.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <ActorIdentity
-                    evt={evt}
-                    agentMap={agentMap}
-                    currentBoardUserId={currentBoardUserId}
-                    operatorDisplayName={operatorDisplayName}
-                  />
-                  <span>{renderActivityDescription(evt)}</span>
-                  <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {activePluginTab && (
-          <TabsContent value={activePluginTab.value}>
-            <PluginSlotMount
-              slot={activePluginTab.slot}
-              context={{
-                orgId: issue.orgId,
-                orgPrefix: currentOrganization?.issuePrefix ?? null,
-                projectId: issue.projectId ?? null,
-                entityId: issue.id,
-                entityType: "issue",
-              }}
-              missingBehavior="placeholder"
-            />
-          </TabsContent>
-        )}
-      </Tabs>
+        </div>
+      ) : null}
 
       {linkedApprovals && linkedApprovals.length > 0 && (
         <Collapsible
@@ -2098,8 +2146,9 @@ export function IssueDetail() {
             <SheetTitle className="text-sm">Properties</SheetTitle>
           </SheetHeader>
           <ScrollArea className="flex-1 overflow-y-auto">
-            <div className="px-4 pb-4">
+            <div className="space-y-3 px-4 pb-4">
               <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} inline />
+              <IssueCostSummaryPanel summary={issueCostSummary} />
             </div>
           </ScrollArea>
         </SheetContent>
@@ -2124,6 +2173,7 @@ export function IssueDetail() {
             </div>
             <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} />
           </section>
+          <IssueCostSummaryPanel summary={issueCostSummary} />
         </div>
       </aside>
       </>

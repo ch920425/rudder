@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { IssueComment, Agent } from "@rudderhq/shared";
 import { Button } from "@/components/ui/button";
@@ -42,9 +42,16 @@ interface CommentReassignment {
   assigneeUserId: string | null;
 }
 
+export interface CommentThreadActivityItem {
+  id: string;
+  createdAt: Date | string;
+  node: ReactNode;
+}
+
 interface CommentThreadProps {
   comments: CommentWithRunMeta[];
   linkedRuns?: LinkedRunItem[];
+  activityItems?: CommentThreadActivityItem[];
   orgId?: string | null;
   projectId?: string | null;
   onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment) => Promise<void>;
@@ -61,6 +68,9 @@ interface CommentThreadProps {
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
   operatorDisplayName?: string | null;
+  heading?: ReactNode;
+  hideHeading?: boolean;
+  emptyMessage?: string;
 }
 
 const DRAFT_DEBOUNCE_MS = 800;
@@ -147,7 +157,8 @@ function CopyMarkdownButton({ text }: { text: string }) {
 
 type TimelineItem =
   | { kind: "comment"; id: string; createdAtMs: number; comment: CommentWithRunMeta }
-  | { kind: "run"; id: string; createdAtMs: number; run: LinkedRunItem };
+  | { kind: "run"; id: string; createdAtMs: number; run: LinkedRunItem }
+  | { kind: "activity"; id: string; createdAtMs: number; activity: CommentThreadActivityItem };
 
 const TimelineList = memo(function TimelineList({
   timeline,
@@ -158,6 +169,7 @@ const TimelineList = memo(function TimelineList({
   runTranscriptById,
   runHasOutput,
   operatorDisplayName,
+  emptyMessage,
 }: {
   timeline: TimelineItem[];
   agentMap?: Map<string, Agent>;
@@ -167,14 +179,23 @@ const TimelineList = memo(function TimelineList({
   runTranscriptById: Map<string, TranscriptEntry[]>;
   runHasOutput: (runId: string) => boolean;
   operatorDisplayName?: string | null;
+  emptyMessage: string;
 }) {
   if (timeline.length === 0) {
-    return <p className="text-sm text-muted-foreground">No comments or runs yet.</p>;
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
     <div className="space-y-3">
       {timeline.map((item) => {
+        if (item.kind === "activity") {
+          return (
+            <div key={`activity:${item.id}`}>
+              {item.activity.node}
+            </div>
+          );
+        }
+
         if (item.kind === "run") {
           const run = item.run;
           const isActive = run.status === "queued" || run.status === "running";
@@ -325,6 +346,7 @@ const TimelineList = memo(function TimelineList({
 export function CommentThread({
   comments,
   linkedRuns = [],
+  activityItems = [],
   orgId,
   projectId,
   onAdd,
@@ -340,6 +362,9 @@ export function CommentThread({
   suggestedAssigneeValue,
   mentions: providedMentions,
   operatorDisplayName,
+  heading,
+  hideHeading = false,
+  emptyMessage = "No comments or runs yet.",
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const canReopen = shouldOfferReopen(issueStatus);
@@ -370,12 +395,24 @@ export function CommentThread({
       createdAtMs: new Date(run.startedAt ?? run.createdAt).getTime(),
       run,
     }));
-    return [...commentItems, ...runItems].sort((a, b) => {
+    const activityTimelineItems: TimelineItem[] = activityItems.map((activity) => ({
+      kind: "activity",
+      id: activity.id,
+      createdAtMs: new Date(activity.createdAt).getTime(),
+      activity,
+    }));
+    const kindOrder: Record<TimelineItem["kind"], number> = {
+      activity: 0,
+      comment: 1,
+      run: 2,
+    };
+    return [...commentItems, ...runItems, ...activityTimelineItems].sort((a, b) => {
       if (a.createdAtMs !== b.createdAtMs) return a.createdAtMs - b.createdAtMs;
+      if (a.kind !== b.kind) return kindOrder[a.kind] - kindOrder[b.kind];
       if (a.kind === b.kind) return a.id.localeCompare(b.id);
-      return a.kind === "comment" ? -1 : 1;
+      return 0;
     });
-  }, [comments, linkedRuns]);
+  }, [activityItems, comments, linkedRuns]);
 
   const transcriptRuns = useMemo<LiveRunForIssue[]>(() => {
     return linkedRuns.map((run) => {
@@ -510,7 +547,9 @@ export function CommentThread({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Comments &amp; Runs ({timeline.length})</h3>
+      {!hideHeading && (
+        heading ?? <h3 className="text-sm font-semibold">Comments &amp; Runs ({timeline.length})</h3>
+      )}
 
       <TimelineList
         timeline={timeline}
@@ -521,6 +560,7 @@ export function CommentThread({
         runTranscriptById={transcriptByRun}
         runHasOutput={hasOutputForRun}
         operatorDisplayName={operatorDisplayName}
+        emptyMessage={emptyMessage}
       />
 
       {liveRunSlot}

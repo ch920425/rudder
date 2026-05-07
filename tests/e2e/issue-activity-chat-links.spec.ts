@@ -51,14 +51,12 @@ test.describe("Issue activity chat links", () => {
     const convertedIssue = convertedPayload.issue;
 
     await page.goto(`/issues/${linkedIssue.identifier ?? linkedIssue.id}`);
-    await expect(page.getByRole("tab", { name: "Activity" })).toBeVisible();
-    await page.getByRole("tab", { name: "Activity" }).click();
+    await expect(page.getByRole("region", { name: "Activity" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Debug thread" })).toBeVisible();
     await expect(page.getByText("with this issue linked", { exact: false })).toBeVisible();
 
     await page.goto(`/issues/${convertedIssue.identifier ?? convertedIssue.id}`);
-    await expect(page.getByRole("tab", { name: "Activity" })).toBeVisible();
-    await page.getByRole("tab", { name: "Activity" }).click();
+    await expect(page.getByRole("region", { name: "Activity" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Customer escalation" })).toBeVisible();
     await expect(page.getByText("created this issue from", { exact: false })).toBeVisible();
   });

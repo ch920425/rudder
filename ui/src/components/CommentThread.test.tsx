@@ -98,4 +98,41 @@ describe("CommentThread", () => {
 
     expect(html).toContain("You");
   });
+
+  it("mixes activity items and comments in chronological order", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <CommentThread
+          comments={[
+            {
+              id: "comment-1",
+              issueId: "issue-1",
+              orgId: "org-1",
+              authorUserId: "user-1",
+              authorAgentId: null,
+              body: "Middle comment.",
+              createdAt: new Date("2026-05-07T00:02:00.000Z"),
+              updatedAt: new Date("2026-05-07T00:02:00.000Z"),
+            },
+          ]}
+          activityItems={[
+            {
+              id: "activity-1",
+              createdAt: new Date("2026-05-07T00:01:00.000Z"),
+              node: <div>First activity</div>,
+            },
+            {
+              id: "activity-2",
+              createdAt: new Date("2026-05-07T00:03:00.000Z"),
+              node: <div>Last activity</div>,
+            },
+          ]}
+          onAdd={async () => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(html.indexOf("First activity")).toBeLessThan(html.indexOf("Middle comment."));
+    expect(html.indexOf("Middle comment.")).toBeLessThan(html.indexOf("Last activity"));
+  });
 });

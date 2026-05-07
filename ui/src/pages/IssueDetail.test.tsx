@@ -297,9 +297,22 @@ vi.mock("../components/InlineEditor", () => ({
 }));
 
 vi.mock("../components/CommentThread", () => ({
-  CommentThread: ({ mentions }: { mentions?: Array<Record<string, unknown>> }) => {
+  CommentThread: ({
+    mentions,
+    activityItems = [],
+  }: {
+    mentions?: Array<Record<string, unknown>>;
+    activityItems?: Array<{ id: string; node: ReactNode }>;
+  }) => {
     capturedMentions = mentions ?? [];
-    return <div>Comment thread</div>;
+    return (
+      <div>
+        Comment thread
+        {activityItems.map((item) => (
+          <div key={item.id}>{item.node}</div>
+        ))}
+      </div>
+    );
   },
 }));
 
@@ -499,6 +512,10 @@ describe("IssueDetail", () => {
     expect(html).toContain("Existing child issue");
     expect(html).toContain("Change status for Existing child issue");
     expect(html).toContain("Documents");
+    expect(html).toContain("Activity");
+    expect(html).toContain("Comment thread");
+    expect(html).not.toContain(">Activity</button>");
+    expect(html).not.toContain("Comments &amp; Runs");
   });
 
   it("includes the issue assignee's enabled skills in mention suggestions", () => {
@@ -588,7 +605,7 @@ describe("IssueDetail", () => {
     expect(html).toContain("ENG-42");
     expect(html).toContain("Fresh Linear context.");
     expect(html).toContain("Open in Linear");
-    expect(html).toContain(">Delivery</button>");
-    expect(html).not.toContain(">Linear</button>");
+    expect(html).toContain(">Delivery</h3>");
+    expect(html).not.toContain(">Linear</h3>");
   });
 });

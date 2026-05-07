@@ -41,8 +41,9 @@ test.describe("Issue detail sub-issues", () => {
     await expect(page.getByText("Existing child issue", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Change status for Existing child issue" })).toBeVisible();
     await expect(page.getByRole("button", { name: "New document" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Chat" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Activity" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Chat" })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Activity" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Activity" })).toBeVisible();
 
     const subIssuesBox = await page.getByLabel("Sub-issues").boundingBox();
     const documentsBox = await page.getByRole("button", { name: "New document" }).boundingBox();
@@ -87,9 +88,7 @@ test.describe("Issue detail sub-issues", () => {
     await subIssuesSection.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByPlaceholder("Add sub-issue title")).toHaveCount(0);
 
-    await page.getByRole("tab", { name: "Activity" }).click();
     await expect(page.getByText("created the issue")).toBeVisible();
-    await page.getByRole("tab", { name: "Chat" }).click();
     await expect(page.locator('[contenteditable="true"]').last()).toBeVisible();
   });
 });
