@@ -200,6 +200,8 @@ export type {
   ChatOperationProposalDecisionAction,
   ChatOperationProposalDecisionStatus,
   ChatStreamTranscriptEntry,
+  ChatStreamTranscriptTodoItem,
+  ChatStreamTranscriptTodoItemStatus,
   ChatStreamAckEvent,
   ChatStreamAssistantDeltaEvent,
   ChatStreamAssistantStateEvent,

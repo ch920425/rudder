@@ -61,6 +61,52 @@ describe("codex_local ui stdout parser", () => {
     ]);
   });
 
+  it("parses real Codex todo list lifecycle events", () => {
+    const ts = "2026-02-20T00:00:00.000Z";
+
+    expect(
+      parseCodexStdoutLine(
+        JSON.stringify({
+          type: "item.started",
+          item: {
+            id: "item_0",
+            type: "todo_list",
+            items: [{ text: "Verify event shape", completed: false }],
+          },
+        }),
+        ts,
+      ),
+    ).toEqual([
+      {
+        kind: "todo_list",
+        ts,
+        todoListId: "item_0",
+        items: [{ text: "Verify event shape", status: "pending" }],
+      },
+    ]);
+
+    expect(
+      parseCodexStdoutLine(
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "item_0",
+            type: "todo_list",
+            items: [{ text: "Verify event shape", completed: true }],
+          },
+        }),
+        ts,
+      ),
+    ).toEqual([
+      {
+        kind: "todo_list",
+        ts,
+        todoListId: "item_0",
+        items: [{ text: "Verify event shape", status: "completed" }],
+      },
+    ]);
+  });
+
   it("parses command execution and file changes", () => {
     const ts = "2026-02-20T00:00:00.000Z";
 

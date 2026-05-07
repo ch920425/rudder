@@ -68,6 +68,12 @@ function appendTranscriptText(current: string, next: string, isDelta = false) {
   return current + next;
 }
 
+function formatTodoListOutput(entry: Extract<TranscriptEntry, { kind: "todo_list" }>) {
+  return entry.items
+    .map((item) => `${item.status === "completed" ? "[x]" : item.status === "in_progress" ? "[~]" : "[ ]"} ${item.text}`)
+    .join("\n");
+}
+
 function appendTurnInput(current: unknown, next: string) {
   const normalized = next.trim();
   if (!normalized) return current;
@@ -364,6 +370,23 @@ export function emitExecutionTranscriptTree(
           toolName: entry.toolName ?? null,
         });
         turn.lastTs = entry.ts;
+        break;
+      }
+
+      case "todo_list": {
+        createTranscriptEvent(input.parentObservation, input.context, {
+          name: "todo_list",
+          ts: entry.ts,
+          output: formatTodoListOutput(entry),
+          metadata: {
+            todoListId: entry.todoListId ?? null,
+            itemCount: entry.items.length,
+            completedCount: entry.items.filter((item) => item.status === "completed").length,
+          },
+        });
+        eventCount += 1;
+        const turn = activeTurn as ActiveTurnState | null;
+        if (turn) turn.lastTs = entry.ts;
         break;
       }
 

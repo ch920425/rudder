@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseCodexStdoutLine } from "@rudderhq/agent-runtime-codex-local/ui";
 import { buildTranscript, type RunLogChunk } from "./transcript";
 
 describe("buildTranscript", () => {
@@ -25,6 +26,89 @@ describe("buildTranscript", () => {
     expect(entries).toEqual([
       { kind: "stdout", ts, text: "opened /Users/d****/project" },
       { kind: "stderr", ts, text: "stderr /Users/d****/project" },
+    ]);
+  });
+
+  it("builds structured transcript entries for Codex todo list started and completed events", () => {
+    const entries = buildTranscript([
+      {
+        ts,
+        stream: "stdout",
+        chunk: `${JSON.stringify({
+          type: "item.started",
+          item: {
+            id: "item_3",
+            type: "todo_list",
+            items: [
+              { text: "Checkout assigned issue", completed: false },
+            ],
+          },
+        })}\n${JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "item_3",
+            type: "todo_list",
+            items: [
+              { text: "Checkout assigned issue", completed: true },
+              { text: "Inspect agent patterns", completed: false },
+              { text: "Patch transcript UI", status: "in_progress" },
+            ],
+          },
+        })}\n`,
+      },
+    ], parseCodexStdoutLine);
+
+    expect(entries).toEqual([
+      {
+        kind: "todo_list",
+        ts,
+        todoListId: "item_3",
+        items: [
+          { text: "Checkout assigned issue", status: "pending" },
+        ],
+      },
+      {
+        kind: "todo_list",
+        ts,
+        todoListId: "item_3",
+        items: [
+          { text: "Checkout assigned issue", status: "completed" },
+          { text: "Inspect agent patterns", status: "pending" },
+          { text: "Patch transcript UI", status: "in_progress" },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps parsing Codex todo list updated events", () => {
+    const entries = buildTranscript([
+      {
+        ts,
+        stream: "stdout",
+        chunk: `${JSON.stringify({
+          type: "item.updated",
+          item: {
+            id: "item_3",
+            type: "todo_list",
+            items: [
+              { text: "Checkout assigned issue", completed: true },
+              { text: "Patch transcript UI", status: "in_progress" },
+            ],
+          },
+        })}\n`,
+      },
+    ], parseCodexStdoutLine);
+
+    expect(entries).toEqual([
+      {
+        kind: "todo_list",
+        ts,
+        todoListId: "item_3",
+        items: [
+          { text: "Checkout assigned issue", status: "completed" },
+          { text: "Patch transcript UI", status: "in_progress" },
+        ],
+      },
     ]);
   });
 });

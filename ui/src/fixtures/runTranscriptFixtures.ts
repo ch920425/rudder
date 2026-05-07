@@ -47,6 +47,17 @@ export const runTranscriptFixtureEntries: TranscriptEntry[] = [
     text: "I’m starting with the Rudder heartbeat procedure and the repo-required docs so I can see what task is actually assigned and then work only on that scope.",
   },
   {
+    kind: "todo_list",
+    ts: "2026-03-11T15:21:18.952Z",
+    todoListId: "item_todo_fixture",
+    items: [
+      { text: "Read AGENTS.md and relevant docs", status: "completed" },
+      { text: "Inspect transcript rendering paths", status: "completed" },
+      { text: "Patch checklist renderer", status: "in_progress" },
+      { text: "Run targeted validation", status: "pending" },
+    ],
+  },
+  {
     kind: "tool_call",
     ts: "2026-03-11T15:21:19.026Z",
     name: "command_execution",

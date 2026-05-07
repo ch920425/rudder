@@ -120,6 +120,55 @@ describe("RunTranscriptView", () => {
     });
   });
 
+  it("renders Codex todo list updates as a checklist", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "todo_list",
+        ts: "2026-05-07T05:00:00.000Z",
+        todoListId: "item_3",
+        items: [
+          { text: "Checkout assigned issue", status: "completed" },
+          { text: "Inspect agent patterns", status: "pending" },
+          { text: "Patch transcript UI", status: "in_progress" },
+        ],
+      },
+      {
+        kind: "todo_list",
+        ts: "2026-05-07T05:00:10.000Z",
+        todoListId: "item_3",
+        items: [
+          { text: "Checkout assigned issue", status: "completed" },
+          { text: "Inspect agent patterns", status: "completed" },
+          { text: "Patch transcript UI", status: "in_progress" },
+        ],
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, true);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: "todo_list",
+      items: [
+        { text: "Checkout assigned issue", status: "completed" },
+        { text: "Inspect agent patterns", status: "completed" },
+        { text: "Patch transcript UI", status: "in_progress" },
+      ],
+    });
+
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView density="compact" entries={entries} />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Todo List");
+    expect(html).toContain("2/3");
+    expect(html).toContain("Checkout assigned issue");
+    expect(html).toContain("Patch transcript UI");
+    expect(html).not.toContain("todo_list");
+  });
+
   it("does not render stderr warning lines or their analytics HTML body", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>

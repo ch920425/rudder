@@ -27,6 +27,8 @@ export type {
   QuotaWindow,
   ProviderQuotaResult,
   TranscriptEntry,
+  TranscriptTodoItem,
+  TranscriptTodoItemStatus,
   StdoutLineParser,
   CLIAgentRuntimeModule,
   CreateConfigValues,

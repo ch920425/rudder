@@ -56,6 +56,8 @@ interface TranscriptToolCardEntry {
   status: "running" | "completed" | "error";
 }
 
+type TranscriptTodoListItem = Extract<TranscriptEntry, { kind: "todo_list" }>["items"][number];
+
 interface RunTranscriptViewProps {
   entries: TranscriptEntry[];
   mode?: TranscriptMode;
@@ -103,6 +105,12 @@ type TranscriptBlock =
       activityId?: string;
       name: string;
       status: "running" | "completed";
+    }
+  | {
+      type: "todo_list";
+      ts: string;
+      todoListId?: string;
+      items: TranscriptTodoListItem[];
     }
   | {
       type: "command_group";
@@ -1108,6 +1116,21 @@ function parseSystemActivity(text: string): { activityId?: string; name: string;
   };
 }
 
+function getTodoListCompletedCount(items: TranscriptTodoListItem[]): number {
+  return items.filter((item) => item.status === "completed").length;
+}
+
+function formatTodoListSummary(items: TranscriptTodoListItem[]): string {
+  const completed = getTodoListCompletedCount(items);
+  return `Todo list updated: ${completed}/${items.length} complete`;
+}
+
+function formatTodoListRaw(items: TranscriptTodoListItem[]): string {
+  return items
+    .map((item) => `${item.status === "completed" ? "[x]" : item.status === "in_progress" ? "[~]" : "[ ]"} ${item.text}`)
+    .join("\n");
+}
+
 function shouldHideNiceModeStderr(text: string): boolean {
   const normalized = compactWhitespace(text).toLowerCase();
   return normalized.startsWith("[rudder] skipping saved session resume");
@@ -1201,6 +1224,7 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
   const blocks: TranscriptBlock[] = [];
   const pendingToolBlocks = new Map<string, Extract<TranscriptBlock, { type: "tool" }>>();
   const pendingActivityBlocks = new Map<string, Extract<TranscriptBlock, { type: "activity" }>>();
+  const pendingTodoListBlocks = new Map<string, Extract<TranscriptBlock, { type: "todo_list" }>>();
 
   for (const entry of entries) {
     const previous = blocks[blocks.length - 1];
@@ -1279,6 +1303,26 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
         isError: entry.isError,
         status: entry.isError ? "error" : "completed",
         });
+      }
+      continue;
+    }
+
+    if (entry.kind === "todo_list") {
+      if (entry.items.length === 0) continue;
+      const todoListKey = entry.todoListId ?? "default";
+      const existing = pendingTodoListBlocks.get(todoListKey);
+      if (existing) {
+        existing.ts = entry.ts;
+        existing.items = entry.items;
+      } else {
+        const block: Extract<TranscriptBlock, { type: "todo_list" }> = {
+          type: "todo_list",
+          ts: entry.ts,
+          todoListId: entry.todoListId,
+          items: entry.items,
+        };
+        blocks.push(block);
+        pendingTodoListBlocks.set(todoListKey, block);
       }
       continue;
     }
@@ -1407,6 +1451,9 @@ function summarizeChatTurn(blocks: TranscriptBlock[]): string | null {
       const text = compactWhitespace(block.text);
       if (text) return truncate(text, 160);
     }
+    if (block.type === "todo_list") {
+      return formatTodoListSummary(block.items);
+    }
   }
 
   for (const block of blocks) {
@@ -1460,6 +1507,7 @@ function normalizeChatTranscriptTurns(entries: TranscriptEntry[], streaming: boo
         if (block.type === "tool") return block.status === "running";
         if (block.type === "command_group") return block.items.some((item) => item.status === "running");
         if (block.type === "activity") return block.status === "running";
+        if (block.type === "todo_list") return block.items.some((item) => item.status === "in_progress");
         if (block.type === "message" || block.type === "thinking") return block.streaming;
         return false;
       });
@@ -1674,6 +1722,7 @@ function renderTranscriptBlock({
       )}
       {block.type === "tool" && <TranscriptToolCard block={block} density={density} presentation={presentation} />}
       {block.type === "command_group" && <TranscriptCommandGroup block={block} density={density} />}
+      {block.type === "todo_list" && <TranscriptTodoListRow block={block} density={density} presentation={presentation} />}
       {block.type === "stdout" && (
         <TranscriptStdoutRow
           block={block}
@@ -1984,6 +2033,75 @@ function TranscriptActivityRow({
       )}>
         {block.name}
       </div>
+    </div>
+  );
+}
+
+function TranscriptTodoListRow({
+  block,
+  density,
+  presentation = "default",
+}: {
+  block: Extract<TranscriptBlock, { type: "todo_list" }>;
+  density: TranscriptDensity;
+  presentation?: TranscriptPresentation;
+}) {
+  const compact = density === "compact";
+  const completedCount = getTodoListCompletedCount(block.items);
+  const running = block.items.some((item) => item.status === "in_progress");
+  const allCompleted = block.items.length > 0 && completedCount === block.items.length;
+  const detail = presentation === "detail";
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-border/45 bg-muted/10",
+        detail ? "p-3" : compact ? "p-2.5" : "p-3",
+      )}
+      title={getTranscriptTimestampTitle(block.ts)}
+    >
+      <div className="flex items-center gap-2">
+        {running ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-cyan-600 dark:text-cyan-300" />
+        ) : allCompleted ? (
+          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/55" />
+        )}
+        <div className="min-w-0 flex-1 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground">
+          Todo List
+        </div>
+        <div className="text-[10px] font-medium tabular-nums text-muted-foreground">
+          {completedCount}/{block.items.length}
+        </div>
+      </div>
+      <ul className={cn("mt-2 space-y-1.5", compact ? "text-xs leading-5" : "text-sm leading-6")}>
+        {block.items.map((item, index) => (
+          <li key={`${item.status}-${index}-${item.text}`} className="flex items-start gap-2 text-foreground/82">
+            <span
+              className={cn(
+                "mt-[0.35em] inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border",
+                item.status === "completed"
+                  ? "border-emerald-500/40 bg-emerald-500/[0.10] text-emerald-700 dark:text-emerald-300"
+                  : item.status === "in_progress"
+                    ? "border-cyan-500/40 bg-cyan-500/[0.10] text-cyan-700 dark:text-cyan-300"
+                    : "border-border bg-background text-transparent",
+              )}
+            >
+              {item.status === "completed" ? (
+                <Check className="h-2.5 w-2.5" />
+              ) : item.status === "in_progress" ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              ) : (
+                <span className="h-1.5 w-1.5 rounded-full" />
+              )}
+            </span>
+            <span className={cn("min-w-0 break-words", item.status === "completed" && "text-muted-foreground line-through decoration-muted-foreground/40")}>
+              {item.text}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2675,6 +2793,7 @@ interface DetailTimelineRow {
     | Extract<TranscriptBlock, { type: "message" }>
     | Extract<TranscriptBlock, { type: "thinking" }>
     | Extract<TranscriptBlock, { type: "tool" }>
+    | Extract<TranscriptBlock, { type: "todo_list" }>
     | Extract<TranscriptBlock, { type: "activity" }>
     | Extract<TranscriptBlock, { type: "event" }>
     | Extract<TranscriptBlock, { type: "stdout" }>;
@@ -2720,6 +2839,14 @@ function expandDetailTimelineBlocks(blocks: TranscriptBlock[]): DetailTimelineRo
     }
 
     if (block.type === "tool") {
+      rows.push({
+        key: `${block.type}-${block.ts}-${rows.length}`,
+        block,
+      });
+      continue;
+    }
+
+    if (block.type === "todo_list") {
       rows.push({
         key: `${block.type}-${block.ts}-${rows.length}`,
         block,
@@ -2798,6 +2925,9 @@ function TranscriptDetailTimeline({
             {row.block.type === "tool" && (
               <TranscriptToolCard block={row.block} density={density} presentation="detail" />
             )}
+            {row.block.type === "todo_list" && (
+              <TranscriptTodoListRow block={row.block} density={density} presentation="detail" />
+            )}
             {row.block.type === "activity" && <TranscriptActivityRow block={row.block} density={density} />}
             {row.block.type === "event" && (
               <TranscriptEventRow block={row.block} density={density} presentation="detail" />
@@ -2859,6 +2989,8 @@ function RawTranscriptView({
               ? `${entry.name}\n${formatToolPayload(entry.input)}`
               : entry.kind === "tool_result"
                 ? formatToolPayload(entry.content)
+                : entry.kind === "todo_list"
+                  ? formatTodoListRaw(entry.items)
                 : entry.kind === "result"
                   ? `${entry.text}\n${formatTokens(entry.inputTokens)} / ${formatTokens(entry.outputTokens)} / $${entry.costUsd.toFixed(6)}`
                   : entry.kind === "init"
