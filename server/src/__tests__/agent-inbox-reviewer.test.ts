@@ -95,6 +95,14 @@ describe("agent inbox reviewer rows", () => {
           priority: "medium",
           updatedAt: new Date("2026-05-07T11:00:00.000Z"),
         }),
+        issue({
+          id: "blocked-review-issue",
+          identifier: "RUD-3",
+          title: "Review blocker",
+          status: "blocked",
+          priority: "low",
+          updatedAt: new Date("2026-05-07T08:00:00.000Z"),
+        }),
       ])
       .mockResolvedValueOnce([
         issue({
@@ -104,6 +112,14 @@ describe("agent inbox reviewer rows", () => {
           status: "in_review",
           priority: "high",
           updatedAt: new Date("2026-05-07T09:00:00.000Z"),
+        }),
+        issue({
+          id: "blocked-review-issue",
+          identifier: "RUD-3",
+          title: "Review blocker",
+          status: "blocked",
+          priority: "low",
+          updatedAt: new Date("2026-05-07T08:00:00.000Z"),
         }),
       ]);
 
@@ -116,7 +132,7 @@ describe("agent inbox reviewer rows", () => {
     });
     expect(mockIssueService.list).toHaveBeenNthCalledWith(2, "org-1", {
       reviewerAgentId: "agent-1",
-      status: "in_review",
+      status: "in_review,blocked",
     });
     expect(res.body).toMatchObject([
       {
@@ -129,6 +145,12 @@ describe("agent inbox reviewer rows", () => {
         relationship: "assignee",
         status: "in_progress",
       },
+      {
+        id: "blocked-review-issue",
+        relationship: "reviewer",
+        status: "blocked",
+      },
     ]);
+    expect(res.body).toHaveLength(3);
   });
 });

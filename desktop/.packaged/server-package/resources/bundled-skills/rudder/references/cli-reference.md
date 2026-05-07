@@ -20,13 +20,13 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 | `rudder issue get <issue>` | Read a full issue by UUID or identifier. | no | no | no | no |
 | `rudder issue context <issue>` | Read the compact heartbeat context for an issue. | no | no | no | no |
 | `rudder issue checkout <issue>` | Atomically checkout an issue for the current or specified agent. | yes | no | required | attached when available |
-| `rudder issue comment <issue> --body <text>` | Add a comment to an issue. | yes | no | no | attached when available |
+| `rudder issue comment <issue> --body <text> [--image <path>]` | Add a comment to an issue, optionally uploading images and appending Markdown image links. | yes | no | no | attached when available |
 | `rudder issue comments list <issue>` | List issue comments, optionally only newer comments after a cursor. | no | no | no | no |
 | `rudder issue comments get <issue> <comment-id>` | Read one issue comment by id. | no | no | no | no |
-| `rudder issue update <issue> ...` | Apply generic issue updates when workflow commands are not enough. | yes | no | no | attached when available |
+| `rudder issue update <issue> ... [--image <path>]` | Apply generic issue updates when workflow commands are not enough, optionally uploading images for the update comment. | yes | no | no | attached when available |
 | `rudder issue review <issue> --decision <decision> --comment <text>` | Record a structured reviewer decision with a required comment. | yes | no | no | attached when available |
-| `rudder issue done <issue> --comment <text>` | Mark an issue done with a required completion comment. | yes | no | no | attached when available |
-| `rudder issue block <issue> --comment <text>` | Mark an issue blocked with a required blocker comment. | yes | no | no | attached when available |
+| `rudder issue done <issue> --comment <text> [--image <path>]` | Mark an issue done with a required completion comment, optionally uploading images. | yes | no | no | attached when available |
+| `rudder issue block <issue> --comment <text> [--image <path>]` | Mark an issue blocked with a required blocker comment, optionally uploading images. | yes | no | no | attached when available |
 | `rudder issue release <issue>` | Release an issue back to todo and clear ownership. | yes | no | no | attached when available |
 | `rudder issue documents list <issue>` | List issue documents. | no | no | no | no |
 | `rudder issue documents get <issue> <key>` | Read one issue document by key. | no | no | no | no |
@@ -46,21 +46,25 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 
 Before a successful `todo` or `in_progress` issue run exits, leave one close-out signal with the command that matches the outcome:
 
-- progress remains: `rudder issue comment <issue> --body <text>`
-- work is complete: `rudder issue done <issue> --comment <text>`
-- work is blocked: `rudder issue block <issue> --comment <text>`
+- progress remains: `rudder issue comment <issue> --body <text> [--image <path>]`
+- work is complete: `rudder issue done <issue> --comment <text> [--image <path>]`
+- work is blocked: `rudder issue block <issue> --comment <text> [--image <path>]`
 - ownership changes: add an explicit handoff comment before or with the assignee update
+
+If an issue has a reviewer, moving it to `blocked` is also a reviewer handoff: the reviewer should confirm the blocker, request changes, approve, or keep explicit follow-up open with `rudder issue review`.
+
+`--image` may be repeated. The CLI uploads each local PNG/JPEG/WebP/GIF as an issue attachment and appends Markdown image links to the comment text before sending it.
 
 If `RUDDER_WAKE_REASON=issue_passive_followup`, the run is close-out governance for the same issue. Inspect current issue state first, then leave a progress comment, completion, blocker, or explicit handoff.
 
 ## Reviewer Close-Out Signals
 
-When the inbox row or wake context says `relationship: "reviewer"`, `role: "reviewer"`, or `wakeSource: "review"`, finish the review with one structured reviewer decision:
+When the inbox row or wake context says `relationship: "reviewer"`, `role: "reviewer"`, or `wakeSource: "review"`, finish the review with one structured reviewer decision. Reviewer work can be either `in_review` or `blocked`; blocked reviewer work means blocker triage, not implementation takeover.
 
 - approve: `rudder issue review <issue> --decision approve --comment <text>`
 - request changes: `rudder issue review <issue> --decision request_changes --comment <text>`
 - needs follow-up: `rudder issue review <issue> --decision needs_followup --comment <text>`
-- blocked: `rudder issue review <issue> --decision blocked --comment <text>`
+- blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment <text>`
 
 Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal.
 

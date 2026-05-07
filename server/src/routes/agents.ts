@@ -1141,13 +1141,21 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     });
     const reviewerRows = await issuesSvc.list(req.actor.orgId, {
       reviewerAgentId: req.actor.agentId,
-      status: "in_review",
+      status: "in_review,blocked",
     });
 
-    const rows = [
-      ...assigneeRows.map((issue) => ({ issue, relationship: "assignee" as const })),
-      ...reviewerRows.map((issue) => ({ issue, relationship: "reviewer" as const })),
-    ].sort((a, b) => {
+    const rowsByIssueId = new Map<string, {
+      issue: (typeof assigneeRows)[number];
+      relationship: "assignee" | "reviewer";
+    }>();
+    for (const issue of assigneeRows) {
+      rowsByIssueId.set(issue.id, { issue, relationship: "assignee" });
+    }
+    for (const issue of reviewerRows) {
+      rowsByIssueId.set(issue.id, { issue, relationship: "reviewer" });
+    }
+
+    const rows = Array.from(rowsByIssueId.values()).sort((a, b) => {
       const priorityRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
       const aPriority = priorityRank[a.issue.priority] ?? 9;
       const bPriority = priorityRank[b.issue.priority] ?? 9;

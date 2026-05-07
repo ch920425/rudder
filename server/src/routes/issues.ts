@@ -206,6 +206,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
   }
 
+  function statusAcceptsReviewerDecision(status: string) {
+    return status === "in_review" || status === "blocked";
+  }
+
   // Resolve issue identifiers (e.g. "PAP-39") to UUIDs for all /issues/:id routes
   router.param("id", async (req, res, next, rawId) => {
     try {
@@ -1057,8 +1061,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
       if (!commentBody) {
         throw unprocessable("Reviewer decisions require a comment");
       }
-      if (existing.status !== "in_review") {
-        throw unprocessable("Reviewer decisions can only be recorded while the issue is in_review");
+      if (!statusAcceptsReviewerDecision(existing.status)) {
+        throw unprocessable("Reviewer decisions can only be recorded while the issue is in_review or blocked");
       }
       if (actor.actorType === "agent" && !isReviewerAgentForIssue(actor, existing)) {
         throw forbidden("Only the reviewer agent can record a reviewer decision");
@@ -1075,7 +1079,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       updateFields.status === "done" &&
       issueHasReviewer(existing) &&
       actor.actorType === "agent" &&
-      !(existing.status === "in_review" && isReviewerAgentForIssue(actor, existing))
+      !(statusAcceptsReviewerDecision(existing.status) && isReviewerAgentForIssue(actor, existing))
     ) {
       updateFields.status = "in_review";
       reviewedCompletionNormalized = true;
@@ -1220,14 +1224,18 @@ export function issueRoutes(db: Db, storage: StorageService) {
       existing.status !== "in_review" &&
       issue.status === "in_review" &&
       updateFields.status !== undefined;
+    const statusChangedToBlocked =
+      existing.status !== "blocked" &&
+      issue.status === "blocked" &&
+      updateFields.status !== undefined;
     const statusChangedFromReviewToInProgress =
-      existing.status === "in_review" &&
+      statusAcceptsReviewerDecision(existing.status) &&
       issue.status === "in_progress" &&
       updateFields.status !== undefined;
-    const reviewerChangedInReview =
+    const reviewerChangedInReviewableStatus =
       reviewerChanged &&
-      existing.status === "in_review" &&
-      issue.status === "in_review";
+      statusAcceptsReviewerDecision(existing.status) &&
+      statusAcceptsReviewerDecision(issue.status);
 
     // Merge all wakeups from this update into one enqueue per agent to avoid duplicate runs.
     void (async () => {
@@ -1305,16 +1313,22 @@ export function issueRoutes(db: Db, storage: StorageService) {
         });
       }
 
-      if ((statusChangedToInReview || reviewerChangedInReview) && issue.reviewerAgentId) {
-        const mutation = statusChangedToInReview ? "status_to_in_review" : "reviewer_changed_in_review";
+      if ((statusChangedToInReview || statusChangedToBlocked || reviewerChangedInReviewableStatus) && issue.reviewerAgentId) {
+        const mutation = statusChangedToInReview
+          ? "status_to_in_review"
+          : statusChangedToBlocked
+            ? "status_to_blocked"
+            : issue.status === "blocked"
+              ? "reviewer_changed_blocked"
+              : "reviewer_changed_in_review";
         const actorIsReviewerAgent = actor.actorType === "agent" && actor.actorId === issue.reviewerAgentId;
         const actorIsAssigneeAgent = actor.actorType === "agent" && actor.actorId === issue.assigneeAgentId;
-        const assigneeHandoffToReview = statusChangedToInReview && actorIsAssigneeAgent;
+        const assigneeHandoffToReview = (statusChangedToInReview || statusChangedToBlocked) && actorIsAssigneeAgent;
         if (!actorIsReviewerAgent || assigneeHandoffToReview) {
           wakeups.set(issue.reviewerAgentId, buildIssueReviewWakeupOptions({
             issue,
             mutation,
-            contextSource: statusChangedToInReview ? "issue.status_change" : "issue.reviewer_change",
+            contextSource: statusChangedToInReview || statusChangedToBlocked ? "issue.status_change" : "issue.reviewer_change",
             requestedByActorType: actor.actorType,
             requestedByActorId: actor.actorId,
           }));

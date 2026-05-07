@@ -26,6 +26,7 @@ related_code:
   - server/resources/bundled-skills/rudder/references/cli-reference.md
 commit_refs:
   - "fix: recover missing reviewer closeout"
+  - "fix: route blocked reviewer handoffs"
 updated_at: 2026-05-07
 ---
 
@@ -34,9 +35,10 @@ updated_at: 2026-05-07
 ## Summary
 
 Make reviewer work a first-class, recoverable part of the Rudder agent work
-loop. A reviewer must be able to discover pending `in_review` work during normal
-timer heartbeats, record one structured review outcome, and be nudged by the
-platform when a review run ends without a durable outcome.
+loop. A reviewer must be able to discover pending `in_review` work and reviewed
+`blocked` handoffs during normal timer heartbeats, record one structured review
+outcome, and be nudged by the platform when a review run ends without a durable
+outcome.
 
 The intended end state is:
 
@@ -45,6 +47,7 @@ The intended end state is:
   inferred from free-form comments.
 - review runs that end without a decision get bounded follow-up before operator
   escalation.
+- assignee blocker handoffs on reviewed issues do not strand in `blocked`.
 
 ## Problem
 
@@ -60,6 +63,10 @@ Evidence from Codex session `019e023c-82a7-7581-b881-5785621c2f65`:
 - `/agents/me/inbox-lite` only returned `assigneeAgentId = me` rows in
   `todo,in_progress,blocked`, so a timer heartbeat could exit even while the
   agent had pending reviewer work.
+- The first implementation only treated `in_review` as reviewer-owned. That
+  missed reviewed issues where the assignee records a blocker with `issue
+  block`: the issue can be intentionally handed to the reviewer for blocker
+  triage but never appears as reviewer work.
 
 The first-principles issue is that Rudder cannot assume agents will remember to
 translate a review judgment into a workflow mutation. Reviewer work needs the
@@ -70,6 +77,7 @@ same control-plane safety net as assignee closeout.
 In scope:
 
 - include reviewer `in_review` rows in the compact agent inbox
+- include reviewer `blocked` rows for reviewed blocker handoffs
 - mark inbox rows with the agent's relationship to the issue
 - add a reviewer decision CLI command that atomically sends decision + comment
 - record structured `issue.review_decision_recorded` activity
@@ -92,16 +100,19 @@ Out of scope:
    output.
 3. Add `reviewDecision` to issue update validation and expose
    `rudder issue review`.
-4. In issue update routing, map reviewer decisions to durable state:
-   `approve -> done`, `request_changes -> in_progress`, `blocked -> blocked`,
-   and `needs_followup -> in_review` with a required comment.
+4. In issue update routing, allow reviewer decisions from `in_review` or
+   `blocked`, then map them to durable state: `approve -> done`,
+   `request_changes -> in_progress`, `blocked -> blocked`, and
+   `needs_followup -> keep current review/blocker state` with a required
+   comment.
 5. Record `issue.review_decision_recorded` activity with the run id.
-6. Add runtime reconciliation for reviewer issue runs that finish in
-   `in_review` without a recorded review decision.
-7. Queue a bounded reviewer closeout wakeup; after max attempts, log
+6. Wake the reviewer when a reviewed issue enters `blocked`.
+7. Add runtime reconciliation for reviewer issue runs that finish in
+   `in_review` or `blocked` without a recorded review decision.
+8. Queue a bounded reviewer closeout wakeup; after max attempts, log
    `issue.review_closure_needs_operator_review`.
-8. Update bundled `rudder` skill and generated CLI reference.
-9. Run focused tests, then broader validation if the dirty checkout allows it.
+9. Update bundled `rudder` skill and generated CLI reference.
+10. Run focused tests, then broader validation if the dirty checkout allows it.
 
 ## Design Notes
 
@@ -113,7 +124,14 @@ closed the review run.
 The reviewer closeout watchdog should be issue-scoped and bounded. It should
 ask the reviewer to record a missing decision, not rerun the original review
 from scratch. If the reviewer still fails to record a decision, Rudder escalates
-to operator attention rather than leaving the issue silently in `in_review`.
+to operator attention rather than leaving the issue silently in `in_review` or
+`blocked`.
+
+`blocked` is not automatically a terminal parked state for reviewed issues. It
+can mean "the assignee cannot proceed and needs reviewer judgment." The reviewer
+should not take over implementation by default; they should record whether the
+blocker is confirmed, whether the assignee must make changes, whether more
+information is needed, or whether the work is acceptable.
 
 The inbox change is intentionally additive. Existing clients that ignore
 `relationship` still receive the same core issue fields. New agents can use
@@ -122,27 +140,32 @@ The inbox change is intentionally additive. Existing clients that ignore
 ## Success Criteria
 
 - A timer heartbeat that calls `rudder agent inbox --json` can see reviewer
-  `in_review` work.
+  `in_review` and reviewed `blocked` work.
 - Review decision commands write both a required comment and a structured
   decision activity.
 - `request_changes` moves the issue to `in_progress` and wakes the assignee.
 - `approve` moves the issue to `done`.
-- `needs_followup` leaves the issue in `in_review` but counts as a structured
-  reviewer outcome.
+- `needs_followup` leaves the issue in its current review/blocker state but
+  counts as a structured reviewer outcome.
 - A reviewer issue run that exits without a decision is requeued for reviewer
-  closeout.
+  closeout while the issue is `in_review` or `blocked`.
 - Bounded reviewer closeout exhaustion emits operator-review activity.
 
 ## Validation
 
 Completed on 2026-05-07:
 
-- `pnpm exec vitest run server/src/__tests__/agent-inbox-reviewer.test.ts server/src/__tests__/issue-lifecycle-routes.test.ts server/src/__tests__/heartbeat-passive-issue-closeout.test.ts`
-- `pnpm exec vitest run cli/src/__tests__/agent-v1-registry.test.ts`
+- `pnpm exec vitest run server/src/__tests__/agent-inbox-reviewer.test.ts server/src/__tests__/issue-lifecycle-routes.test.ts server/src/__tests__/heartbeat-passive-issue-closeout.test.ts cli/src/__tests__/agent-v1-registry.test.ts`
+- `pnpm exec vitest run server/src/__tests__/heartbeat-run-concurrency.test.ts server/src/__tests__/cli-auth-routes.test.ts`
 - `git diff --check`
 - `pnpm -r typecheck`
-- `pnpm test:run`
 - `pnpm build`
+
+Also attempted on 2026-05-07:
+
+- `pnpm test:run` ran 1485 passing tests and then failed in unrelated
+  `heartbeat-run-concurrency` and `cli-auth-routes` checks. The exact failed
+  files were rerun directly and passed.
 
 ## Open Issues
 

@@ -114,7 +114,7 @@ function makeIssue(overrides?: Partial<{
   identifier: string;
   projectId: string | null;
   boardOrder: number;
-  status: "backlog" | "todo" | "in_progress" | "in_review" | "done";
+  status: "backlog" | "todo" | "in_progress" | "in_review" | "blocked" | "done";
   title: string;
   description: string | null;
   priority: string;
@@ -474,7 +474,7 @@ describe("issue lifecycle routes", () => {
           wakeSource: "review",
           wakeReason: "issue_review_requested",
           role: "reviewer",
-          reviewInstructions: expect.stringContaining("You are the reviewer"),
+          reviewInstructions: expect.stringContaining("structured reviewer decision"),
         }),
       }),
     );
@@ -511,6 +511,45 @@ describe("issue lifecycle routes", () => {
           wakeSource: "review",
           wakeReason: "issue_review_requested",
           role: "reviewer",
+        }),
+      }),
+    );
+  });
+
+  it("queues a reviewer wakeup when an assignee blocks a reviewed issue", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_progress",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "blocked",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({ status: "blocked", comment: "Blocked by missing credentials." });
+
+    expect(res.status).toBe(200);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      REVIEWER_AGENT_ID,
+      expect.objectContaining({
+        source: "review",
+        reason: "issue_review_requested",
+        payload: { issueId: "11111111-1111-4111-8111-111111111111", mutation: "status_to_blocked" },
+        contextSnapshot: expect.objectContaining({
+          source: "issue.status_change",
+          wakeSource: "review",
+          wakeReason: "issue_review_requested",
+          role: "reviewer",
+          issue: expect.objectContaining({ status: "blocked" }),
         }),
       }),
     );
@@ -682,6 +721,93 @@ describe("issue lifecycle routes", () => {
       ASSIGNEE_AGENT_ID,
       expect.objectContaining({ reason: "issue_changes_requested" }),
     );
+  });
+
+  it("records a structured reviewer request-changes decision from blocked", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "blocked",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "in_progress",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "request_changes",
+        comment: "Credentials are available; retry with the updated setup.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ status: "in_progress" }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.review_decision_recorded",
+        details: expect.objectContaining({
+          decision: "request_changes",
+          status: "in_progress",
+        }),
+      }),
+    );
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      ASSIGNEE_AGENT_ID,
+      expect.objectContaining({ reason: "issue_changes_requested" }),
+    );
+  });
+
+  it("records a structured reviewer approve decision from blocked as done", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "blocked",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "done",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "approve",
+        comment: "Blocker is resolved and the existing work is acceptable.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ status: "done" }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.review_decision_recorded",
+        details: expect.objectContaining({
+          decision: "approve",
+          status: "done",
+        }),
+      }),
+    );
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
   });
 
   it("records a structured needs-followup reviewer decision without changing status", async () => {

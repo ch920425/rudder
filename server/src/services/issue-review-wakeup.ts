@@ -18,7 +18,12 @@ export interface IssueReviewWakeupDeps {
   ) => Promise<unknown>;
 }
 
-export type IssueReviewWakeupMutation = "status_to_in_review" | "reviewer_changed_in_review" | "create_in_review";
+export type IssueReviewWakeupMutation =
+  | "status_to_in_review"
+  | "status_to_blocked"
+  | "reviewer_changed_in_review"
+  | "reviewer_changed_blocked"
+  | "create_in_review";
 export type IssueConvergenceReviewWakeupMutation = "convergence_escalation";
 export type IssueReviewCloseoutWakeupMutation = "review_outcome_missing";
 
@@ -49,6 +54,10 @@ export function buildIssueReviewWakeupOptions(input: {
   requestedByActorType?: "user" | "agent" | "system";
   requestedByActorId?: string | null;
 }) {
+  const blockedInstructions =
+    input.issue.status === "blocked"
+      ? "The issue is blocked and has been routed to you as reviewer. Decide whether to confirm the blocker, request changes, approve, or keep a specific follow-up open."
+      : "The issue is ready for review.";
   return {
     source: "review" as const,
     triggerDetail: "system" as const,
@@ -64,7 +73,8 @@ export function buildIssueReviewWakeupOptions(input: {
       role: "reviewer",
       issue: buildIssueSnapshot(input.issue),
       reviewInstructions:
-        "You are the reviewer for this issue. Review the result and record one structured reviewer decision before exiting: approve, request_changes, needs_followup, or blocked. Use `rudder issue review`; do not rely on a free-form comment as the durable outcome. Do not take over implementation unless explicitly asked.",
+        `${blockedInstructions} Record one structured reviewer decision before exiting: approve, request_changes, needs_followup, or blocked. Use ` +
+        "`rudder issue review`; do not rely on a free-form comment as the durable outcome. Do not take over implementation unless explicitly asked.",
     },
   };
 }
@@ -177,7 +187,7 @@ export function queueIssueReviewWakeup(input: {
   actorAgentId?: string | null;
   rethrowOnError?: boolean;
 }) {
-  if (!input.issue.reviewerAgentId || input.issue.status !== "in_review") return;
+  if (!input.issue.reviewerAgentId || (input.issue.status !== "in_review" && input.issue.status !== "blocked")) return;
   if (input.actorAgentId && input.issue.reviewerAgentId === input.actorAgentId) return;
 
   return input.heartbeat

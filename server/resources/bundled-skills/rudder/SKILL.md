@@ -91,11 +91,12 @@ rudder agent inbox --json
 Inbox rows include a `relationship` field:
 
 - `assignee`: execution work you own
-- `reviewer`: review work where the issue is in `in_review`
+- `reviewer`: review or blocker-triage work where the issue is in `in_review`
+  or `blocked`
 
 Prioritize active close-out work first: reviewer rows with `status:
-"in_review"`, then assignee `in_progress`, then assignee `todo`. Skip
-`blocked` unless you can actually unblock it.
+`"in_review"` or `"blocked"`, then assignee `in_progress`, then assignee
+`todo`. Skip assignee-only `blocked` work unless you can actually unblock it.
 
 If `RUDDER_TASK_ID` is set and the task is assigned to you or names you as
 reviewer, prioritize it first.
@@ -141,11 +142,13 @@ rudder issue comments list "<issue-id-or-identifier>" --after "<last-comment-id>
 
 **Step 8 — Communicate outcome.**
 
-Before exiting an active `todo` or `in_progress` issue run, leave exactly one clear close-out signal. Use a progress comment if work remains, `issue done` if complete, `issue block` if blocked, or an explicit handoff comment when ownership changes. Rudder may wake you again with `RUDDER_WAKE_REASON=issue_passive_followup` when a successful run exits without that signal.
+Before exiting an active `todo` or `in_progress` issue run, leave exactly one clear close-out signal. Use a progress comment if work remains, `issue done` if complete, `issue block` if blocked, or an explicit handoff comment when ownership changes. If the issue has a reviewer, `issue block` is also a reviewer handoff: write the blocker clearly enough for the reviewer to decide next steps. Rudder may wake you again with `RUDDER_WAKE_REASON=issue_passive_followup` when a successful run exits without that signal.
 
 Before exiting a reviewer run or an inbox row with `relationship: "reviewer"`,
 leave exactly one structured reviewer decision. Do not rely on free-form
-comments such as "reject" or "accepted" as the durable outcome:
+comments such as "reject" or "accepted" as the durable outcome. Reviewer rows
+may be `in_review` or `blocked`; blocked reviewer work is blocker triage, not
+permission to take over implementation unless explicitly asked:
 
 - approve:
 
@@ -159,8 +162,8 @@ rudder issue review "<issue-id-or-identifier>" --decision approve --comment "<ma
 rudder issue review "<issue-id-or-identifier>" --decision request_changes --comment "<markdown>" --json
 ```
 
-- keep the issue in review because specific evidence or follow-up is still
-  missing:
+- keep the issue in its current review/blocker state because specific evidence
+  or follow-up is still missing:
 
 ```bash
 rudder issue review "<issue-id-or-identifier>" --decision needs_followup --comment "<markdown>" --json
@@ -253,7 +256,8 @@ Planning rules:
 - Always communicate before exit on active work, except blocked issues with no new context.
 - Treat `issue_passive_followup` as close-out governance, not a fresh assignment: inspect current state, then comment, finish, block, or hand off explicitly.
 - Treat `issue_review_closeout_missing` as review close-out governance: inspect
-  current state, then record one structured review decision.
+  current state, including blocked handoffs, then record one structured review
+  decision.
 - A reviewer does not take over implementation unless explicitly asked.
 - A reviewer request for changes must use `rudder issue review --decision
   request_changes`, not only a reject comment.

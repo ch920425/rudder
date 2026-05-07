@@ -165,7 +165,7 @@ describe("heartbeat passive issue closeout", () => {
   async function seedFixture(input?: {
     agentRuntimeConfig?: Record<string, unknown>;
     runtimeConfig?: Record<string, unknown>;
-    issueStatus?: "todo" | "in_progress" | "in_review";
+    issueStatus?: "todo" | "in_progress" | "in_review" | "blocked";
     reviewerAgent?: boolean;
     reviewerUserId?: string | null;
   }) {
@@ -254,6 +254,7 @@ describe("heartbeat passive issue closeout", () => {
     agentId: string;
     issueId: string;
     reason?: string;
+    issueStatus?: "in_review" | "blocked";
     reviewCloseout?: Record<string, unknown>;
   }) {
     const heartbeat = heartbeatService(db);
@@ -274,7 +275,7 @@ describe("heartbeat passive issue closeout", () => {
         issue: {
           id: input.issueId,
           title: "Close out the issue",
-          status: "in_review",
+          status: input.issueStatus ?? "in_review",
           priority: "medium",
           description: "The reviewer must record a decision.",
         },
@@ -357,6 +358,41 @@ describe("heartbeat passive issue closeout", () => {
       attempts: 1,
       maxAttempts: 2,
       reason: "missing_review_decision",
+    });
+  });
+
+  it("queues reviewer closeout when a blocked review run exits without a structured decision", async () => {
+    const { agentId, issueId } = await seedFixture({
+      issueStatus: "blocked",
+      reviewerAgent: true,
+    });
+    const run = await wakeReviewRun({ agentId, issueId, issueStatus: "blocked" });
+
+    const followup = await waitFor(async () => {
+      const runs = await db
+        .select()
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.agentId, agentId));
+      return runs.find((row) =>
+        row.id !== run.id &&
+        row.invocationSource === "review" &&
+        (row.contextSnapshot as any)?.wakeReason === "issue_review_closeout_missing") ?? null;
+    });
+
+    expect(followup.contextSnapshot).toMatchObject({
+      issueId,
+      wakeReason: "issue_review_closeout_missing",
+      wakeSource: "review",
+      role: "reviewer",
+      issue: {
+        status: "blocked",
+      },
+      reviewCloseout: {
+        originRunId: run.id,
+        previousRunId: run.id,
+        attempt: 1,
+        maxAttempts: 2,
+      },
     });
   });
 

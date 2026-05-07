@@ -2540,7 +2540,7 @@ export function heartbeatService(db: Db) {
     if (!runIssueId || runIssueId !== issue.id) return { kind: "none", reason: "run_not_issue_backed" };
     if (run.status !== "succeeded") return { kind: "none", reason: "run_not_successful" };
     const reviewerRun =
-      issue.status === "in_review" &&
+      (issue.status === "in_review" || issue.status === "blocked") &&
       issue.reviewerAgentId === run.agentId &&
       (
         run.invocationSource === "review" ||
