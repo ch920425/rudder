@@ -9,9 +9,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Copy,
   Folder,
+  ListChecks,
   Loader2,
   Paperclip,
   Pencil,
@@ -57,7 +57,6 @@ import { HoverTimestampLabel } from "@/components/HoverTimestamp";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RunTranscriptView } from "@/components/transcript/RunTranscriptView";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOrganization } from "@/context/OrganizationContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useSidebar } from "@/context/SidebarContext";
@@ -890,7 +889,7 @@ function ProposalCard({
                     ? "Add context for what still needs to change."
                     : "Optional note for approval, rejection, or requested changes."
                 }
-                className="chat-field min-h-[88px] rounded-[var(--radius-lg)]"
+              className="chat-field min-h-[88px] rounded-[var(--radius-lg)]"
               />
             </label>
           ) : null}
@@ -909,7 +908,7 @@ function ProposalCard({
                 size="sm"
                 className="bg-green-700 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
                 disabled={actionPending}
-                onClick={() => onApprovalAction(message.approval!.id, "approve", message.id)}
+              onClick={() => onApprovalAction(message.approval!.id, "approve", message.id)}
               >
                 Approve
               </Button>
@@ -1189,10 +1188,10 @@ function ChatMessageItem({
           </button>
           {turnBranchControls ? (
             <span className="inline-flex items-center gap-0.5 rounded-md px-0.5 text-[11px] tabular-nums text-muted-foreground">
-              <button
-                type="button"
+            <button
+              type="button"
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-                aria-label="Previous branch"
+              aria-label="Previous branch"
                 disabled={!turnBranchControls.canPrev}
                 onClick={turnBranchControls.onPrev}
               >
@@ -2743,7 +2742,9 @@ function ChatWorkspace() {
   const emptyStateHeading = userNickname
     ? t("chat.emptyState.headingNamed", { name: userNickname })
     : t("chat.emptyState.heading");
-  const composerPlaceholder = t("chat.composer.placeholder");
+  const composerPlaceholder = activePlanMode
+    ? t("chat.composer.planModePlaceholder")
+    : t("chat.composer.placeholder");
   const expandedPromptGroup = EMPTY_STATE_PROMPT_GROUPS.find((group) => group.label === expandedEmptyStatePrompt) ?? null;
   const emptyStatePromptOptionsId = "chat-empty-state-prompt-options";
   const emptyStatePromptOriginX = expandedEmptyStatePrompt === "Scope a new feature"
@@ -3014,32 +3015,20 @@ function ChatWorkspace() {
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                className="justify-between rounded-[var(--radius-md)] px-3 py-2.5"
-                onSelect={(event) => event.preventDefault()}
+                className={cn(
+                  "cursor-pointer justify-between rounded-[var(--radius-md)] px-3 py-2.5",
+                  activePlanMode
+                    && "bg-[color:color-mix(in_oklab,var(--accent-soft)_72%,transparent)] text-foreground focus:bg-[color:color-mix(in_oklab,var(--accent-soft)_88%,transparent)]",
+                )}
+              title={PLAN_MODE_HELP_TEXT}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  applyPlanMode(!activePlanMode);
+                }}
               >
                 <div className="flex min-w-0 items-center">
-                  <Pencil className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <div className="font-medium text-foreground">Plan mode</div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="About plan mode"
-                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                          }}
-                        >
-                          <CircleHelp className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" sideOffset={8} className="max-w-[280px] px-3 py-2 text-xs leading-5">
-                        {PLAN_MODE_HELP_TEXT}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
+                  <ListChecks className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="font-medium text-foreground">Plan mode</div>
                 </div>
                 <ToggleSwitch
                   checked={activePlanMode}
@@ -3065,6 +3054,21 @@ function ChatWorkspace() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {activePlanMode ? (
+            <button
+              type="button"
+              className="inline-flex max-w-[10rem] min-w-0 items-center gap-1.5 rounded-[var(--radius-md)] bg-[color:color-mix(in_oklab,var(--accent-soft)_78%,var(--surface-elevated))] px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:color-mix(in_oklab,var(--accent-soft)_92%,var(--surface-elevated))] hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/40"
+              aria-label="Turn off plan mode"
+              title={PLAN_MODE_HELP_TEXT}
+              onClick={() => applyPlanMode(false)}
+            >
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_oklab,var(--ink-muted)_78%,transparent)] text-[color:var(--surface-elevated)]">
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </span>
+              <span className="min-w-0 truncate">Plan</span>
+            </button>
+          ) : null}
 
           <button
             type="button"

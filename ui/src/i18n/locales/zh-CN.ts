@@ -40,6 +40,7 @@ export const zhCN: Messages = {
   "chat.emptyState.heading": "想聊点什么？",
   "chat.emptyState.headingNamed": "想聊点什么，{{name}}？",
   "chat.composer.placeholder": "尽管问",
+  "chat.composer.planModePlaceholder": "询问后续调整",
   "organizations.description": "管理这个 Rudder 实例下的组织。",
   "organizationSkills.createSkillChatPrompt":
     "帮我为这个 Rudder organization 设计一个新的 Agent skill。\n\n参考 [$office-hours]({{officeHoursPath}}) 的结构和严谨度。\n\n请：\n1. 先问最少的问题来澄清这个 skill 的职责。\n2. 提议 skill 名称、触发描述和工作流。\n3. 最后起草完整的 `SKILL.md` 内容，最终的 `SKILL.md` 用英文写。",
