@@ -100,6 +100,7 @@ vi.mock("@tanstack/react-query", () => ({
   }),
   useQueryClient: () => ({
     invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
   }),
 }));
 
@@ -116,6 +117,7 @@ vi.mock("@/lib/router", () => ({
     pathname: "/issues",
     search: "",
   }),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("@/context/OrganizationContext", () => ({

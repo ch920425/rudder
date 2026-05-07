@@ -35,7 +35,8 @@ import {
   currentUserAssigneeOption,
   parseAssigneeValue,
 } from "../lib/assignees";
-import { useLocation } from "@/lib/router";
+import { useLocation, useNavigate } from "@/lib/router";
+import { createIssueDetailLocationState } from "@/lib/issueDetailBreadcrumb";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,7 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
+  CheckCircle2,
   Tag,
   Calendar,
   FileText,
@@ -88,6 +90,28 @@ type StagedIssueFile = {
 
 const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["claude_local", "codex_local", "opencode_local"]);
 const STAGED_FILE_ACCEPT = "image/*,application/pdf,text/plain,text/markdown,application/json,text/csv,text/html,.md,.markdown";
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void) => { finished: Promise<void> };
+};
+
+function buildCreatedIssueDetailHref(input: {
+  issue: { id: string; identifier: string | null };
+  orgId: string;
+  organizations: Array<{ id: string; issuePrefix?: string | null }>;
+}): string {
+  const issueRef = input.issue.identifier ?? input.issue.id;
+  const organizationPrefix = input.organizations
+    .find((organization) => organization.id === input.orgId)
+    ?.issuePrefix
+    ?.trim();
+  return organizationPrefix ? `/${organizationPrefix}/issues/${issueRef}` : `/issues/${issueRef}`;
+}
+
+function buildIssueDetailSourceHref(openContextLocation: { pathname: string; search: string } | null): string {
+  if (!openContextLocation) return "/issues";
+  return `${openContextLocation.pathname}${openContextLocation.search}`;
+}
 
 const ISSUE_THINKING_EFFORT_OPTIONS = {
   claude_local: [
@@ -231,6 +255,7 @@ export function NewIssueDialog() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("todo");
@@ -250,6 +275,7 @@ export function NewIssueDialog() {
   const [stagedFiles, setStagedFiles] = useState<StagedIssueFile[]>([]);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
   const [activeSavedIssueDraftId, setActiveSavedIssueDraftId] = useState<string | null>(null);
+  const [redirectingIssueRef, setRedirectingIssueRef] = useState<string | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openContextLocationRef = useRef<{ pathname: string; search: string } | null>(null);
 
@@ -423,28 +449,43 @@ export function NewIssueDialog() {
 
       return { issue, orgId, failures };
     },
-    onSuccess: ({ issue, orgId, failures }) => {
+    onSuccess: async ({ issue, orgId, failures }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(orgId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(orgId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(orgId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(orgId) });
+      queryClient.setQueryData(queryKeys.issues.detail(issue.identifier ?? issue.id), issue);
+      queryClient.setQueryData(queryKeys.issues.detail(issue.id), issue);
       if (draftTimer.current) clearTimeout(draftTimer.current);
+      const issueRef = issue.identifier ?? issue.id;
+      const issueDetailHref = buildCreatedIssueDetailHref({ issue, orgId, organizations });
+      const sourceHref = buildIssueDetailSourceHref(openContextLocationRef.current);
       if (failures.length > 0) {
-        const prefix = (organizations.find((organization) => organization.id === orgId)?.issuePrefix ?? "").trim();
-        const issueRef = issue.identifier ?? issue.id;
         pushToast({
           title: `Created ${issueRef} with upload warnings`,
           body: `${failures.length} staged ${failures.length === 1 ? "file" : "files"} could not be added.`,
           tone: "warn",
-          action: prefix
-            ? { label: `Open ${issueRef}`, href: `/${prefix}/issues/${issueRef}` }
-            : undefined,
+          action: { label: `Open ${issueRef}`, href: issueDetailHref },
         });
       }
+      setRedirectingIssueRef(issueRef);
+      await new Promise((resolve) => setTimeout(resolve, 340));
       clearIssueAutosave();
       deleteIssueDraft(activeSavedIssueDraftId);
       reset();
       closeNewIssue();
+      const transitionDocument = document as ViewTransitionDocument;
+      if (transitionDocument.startViewTransition) {
+        await transitionDocument.startViewTransition(() => {
+          navigate(issueDetailHref, {
+            state: createIssueDetailLocationState("Issues", sourceHref),
+          });
+        }).finished.catch(() => undefined);
+      } else {
+        navigate(issueDetailHref, {
+          state: createIssueDetailLocationState("Issues", sourceHref),
+        });
+      }
     },
   });
   const createLabel = useMutation({
@@ -688,6 +729,7 @@ export function NewIssueDialog() {
     setIsFileDragOver(false);
     setCompanyOpen(false);
     setActiveSavedIssueDraftId(null);
+    setRedirectingIssueRef(null);
   }
 
   function handleCompanyChange(orgId: string) {
@@ -734,7 +776,8 @@ export function NewIssueDialog() {
   }
 
   function handleSubmit() {
-    if (!effectiveCompanyId || !title.trim() || createIssue.isPending) return;
+    if (!effectiveCompanyId || !title.trim() || createIssue.isPending || redirectingIssueRef) return;
+    setRedirectingIssueRef(null);
     const assigneeAgentRuntimeOverrides = buildAssigneeAdapterOverrides({
       agentRuntimeType: assigneeAdapterType,
       modelOverride: assigneeModelOverride,
@@ -956,6 +999,7 @@ export function NewIssueDialog() {
   });
   const createIssueErrorMessage =
     createIssue.error instanceof Error ? createIssue.error.message : "Failed to create issue. Try again.";
+  const isCreatingOrRedirecting = createIssue.isPending || Boolean(redirectingIssueRef);
   const stagedDocuments = stagedFiles.filter((file) => file.kind === "document");
   const stagedAttachments = stagedFiles.filter((file) => file.kind === "attachment");
 
@@ -991,26 +1035,28 @@ export function NewIssueDialog() {
     <Dialog
       open={newIssueOpen}
       onOpenChange={(open) => {
-        if (!open && !createIssue.isPending) closeNewIssue();
+        if (!open && !isCreatingOrRedirecting) closeNewIssue();
       }}
     >
       <DialogContent
         showCloseButton={false}
         aria-describedby={undefined}
         className={cn(
-          "p-0 gap-0 flex flex-col max-h-[calc(100dvh-2rem)]",
+          "motion-new-issue-dialog p-0 gap-0 flex flex-col max-h-[calc(100dvh-2rem)]",
           expanded
             ? "sm:max-w-[1040px]"
-            : "sm:max-w-[920px]"
+            : "sm:max-w-[920px]",
+          redirectingIssueRef && "motion-new-issue-dialog--created",
         )}
+        data-redirecting={redirectingIssueRef ? "true" : undefined}
         onKeyDown={handleKeyDown}
         onEscapeKeyDown={(event) => {
-          if (createIssue.isPending) {
+          if (isCreatingOrRedirecting) {
             event.preventDefault();
           }
         }}
         onPointerDownOutside={(event) => {
-          if (createIssue.isPending) {
+          if (isCreatingOrRedirecting) {
             event.preventDefault();
             return;
           }
@@ -1026,6 +1072,17 @@ export function NewIssueDialog() {
           }
         }}
       >
+        {redirectingIssueRef ? (
+          <div
+            className="motion-new-issue-created-banner absolute left-1/2 top-4 z-10 inline-flex -translate-x-1/2 items-center gap-2 rounded-md border border-[color:color-mix(in_oklab,var(--accent-base)_42%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent-soft)_82%,var(--surface-elevated))] px-3 py-1.5 text-xs font-medium text-foreground shadow-[var(--shadow-sm)]"
+            role="status"
+            aria-live="polite"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--accent-base)]" />
+            <span>Created {redirectingIssueRef}. Opening issue...</span>
+          </div>
+        ) : null}
+
         {/* Header bar */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1091,7 +1148,7 @@ export function NewIssueDialog() {
               size="icon-xs"
               className="text-muted-foreground"
               onClick={() => setExpanded(!expanded)}
-              disabled={createIssue.isPending}
+              disabled={isCreatingOrRedirecting}
             >
               {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
@@ -1100,7 +1157,7 @@ export function NewIssueDialog() {
               size="icon-xs"
               className="text-muted-foreground"
               onClick={() => closeNewIssue()}
-              disabled={createIssue.isPending}
+              disabled={isCreatingOrRedirecting}
             >
               <span className="text-lg leading-none">&times;</span>
             </Button>
@@ -1119,7 +1176,7 @@ export function NewIssueDialog() {
               e.target.style.height = "auto";
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
-            readOnly={createIssue.isPending}
+            readOnly={isCreatingOrRedirecting}
             onKeyDown={(e) => {
               if (
                 e.key === "Enter" &&
@@ -1416,7 +1473,7 @@ export function NewIssueDialog() {
                           size="icon-xs"
                           className="shrink-0 text-muted-foreground"
                           onClick={() => removeStagedFile(file.id)}
-                          disabled={createIssue.isPending}
+                          disabled={isCreatingOrRedirecting}
                           title="Remove document"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -1447,7 +1504,7 @@ export function NewIssueDialog() {
                           size="icon-xs"
                           className="shrink-0 text-muted-foreground"
                           onClick={() => removeStagedFile(file.id)}
-                          disabled={createIssue.isPending}
+                          disabled={isCreatingOrRedirecting}
                           title="Remove attachment"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -1530,7 +1587,7 @@ export function NewIssueDialog() {
                   "inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors",
                   selectedLabels.length > 0 ? "text-foreground" : "text-muted-foreground",
                 )}
-                disabled={createIssue.isPending}
+                disabled={isCreatingOrRedirecting}
               >
                 {labelsTrigger}
               </button>
@@ -1607,7 +1664,7 @@ export function NewIssueDialog() {
           <button
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors text-muted-foreground"
             onClick={() => stageFileInputRef.current?.click()}
-            disabled={createIssue.isPending}
+            disabled={isCreatingOrRedirecting}
           >
             <Paperclip className="h-3 w-3" />
             Upload
@@ -1643,13 +1700,18 @@ export function NewIssueDialog() {
               !canSaveDraft && "disabled:border-border/40 disabled:bg-muted/20 disabled:text-muted-foreground/70",
             )}
             onClick={saveDraftIssue}
-            disabled={createIssue.isPending || !canSaveDraft}
+            disabled={isCreatingOrRedirecting || !canSaveDraft}
           >
             Save Draft
           </Button>
           <div className="flex items-center gap-3">
             <div className="min-h-5 text-right">
-              {createIssue.isPending ? (
+              {redirectingIssueRef ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[color:var(--accent-base)]">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Opening issue...
+                </span>
+              ) : createIssue.isPending ? (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Creating issue...
@@ -1661,13 +1723,17 @@ export function NewIssueDialog() {
             <Button
               size="sm"
               className="min-w-[8.5rem] disabled:opacity-100"
-              disabled={!title.trim() || createIssue.isPending}
+              disabled={!title.trim() || isCreatingOrRedirecting}
               onClick={handleSubmit}
-              aria-busy={createIssue.isPending}
+              aria-busy={isCreatingOrRedirecting}
             >
               <span className="inline-flex items-center justify-center gap-1.5">
-                {createIssue.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                <span>{createIssue.isPending ? "Creating..." : "Create Issue"}</span>
+                {redirectingIssueRef ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : createIssue.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                <span>{redirectingIssueRef ? "Opening..." : createIssue.isPending ? "Creating..." : "Create Issue"}</span>
               </span>
             </Button>
           </div>

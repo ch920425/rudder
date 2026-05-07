@@ -2,6 +2,48 @@ import { expect, test } from "@playwright/test";
 import { E2E_BASE_URL } from "./support/e2e-env";
 
 test.describe("New issue project context", () => {
+  test("redirects to the created issue detail after submitting the dialog", async ({ page }) => {
+    const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
+      data: {
+        name: `New-Issue-Redirect-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    await page.goto(E2E_BASE_URL);
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues`);
+    await page.getByTestId("workspace-main-header").getByRole("button", { name: "Create Issue" }).click();
+
+    const dialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
+    const title = `Redirected issue ${Date.now()}`;
+    await expect(dialog).toBeVisible();
+    await dialog.getByPlaceholder("Issue title").fill(title);
+
+    const createResponse = page.waitForResponse((response) =>
+      response.request().method() === "POST"
+      && response.url().endsWith(`/api/orgs/${organization.id}/issues`)
+      && response.ok(),
+    );
+    await dialog.getByRole("button", { name: "Create Issue" }).click();
+    const createdIssue = await (await createResponse).json() as {
+      id: string;
+      identifier: string | null;
+    };
+
+    await expect(page).toHaveURL(
+      new RegExp(`/${organization.issuePrefix}/issues/${createdIssue.identifier ?? createdIssue.id}$`),
+    );
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(
+      page.getByTestId("issue-detail-breadcrumb").getByRole("link", { name: "Issues" }),
+    ).toHaveAttribute("href", new RegExp(`/${organization.issuePrefix}/issues$`));
+  });
+
   test("prefills the selected project when opening the dialog from a project-filtered issues view", async ({ page }) => {
     const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
       data: {

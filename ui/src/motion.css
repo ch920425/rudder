@@ -8,6 +8,34 @@
   --motion-ease-exit: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.motion-new-issue-dialog {
+  view-transition-name: new-issue-dialog;
+  transition:
+    opacity var(--motion-duration-standard) var(--motion-ease-standard),
+    scale var(--motion-duration-standard) var(--motion-ease-enter),
+    box-shadow var(--motion-duration-standard) var(--motion-ease-standard);
+  will-change: opacity, scale, box-shadow;
+}
+
+.motion-new-issue-dialog--created {
+  opacity: 0.92;
+  scale: 0.985;
+  box-shadow:
+    0 22px 64px -46px color-mix(in oklab, var(--accent-base) 64%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent-base) 34%, transparent);
+}
+
+.motion-new-issue-created-banner {
+  animation: rudder-new-issue-created-banner var(--motion-duration-emphasis) var(--motion-ease-enter) both;
+  will-change: opacity, transform;
+}
+
+::view-transition-old(new-issue-dialog),
+::view-transition-new(new-issue-dialog) {
+  animation-duration: var(--motion-duration-standard);
+  animation-timing-function: var(--motion-ease-enter);
+}
+
 .motion-focus-ring {
   transition:
     border-color var(--motion-duration-fast) var(--motion-ease-standard),
@@ -305,6 +333,21 @@
   transform: rotate(90deg);
 }
 
+@keyframes rudder-new-issue-created-banner {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.96);
+  }
+  64% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(2px) scale(1.012);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
 @keyframes rudder-list-enter {
   from {
     opacity: 0;
@@ -509,6 +552,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .motion-list-enter,
+  .motion-new-issue-created-banner,
   .motion-state-flash,
   .motion-live-surface::before,
   .motion-live-dot::after,
@@ -527,6 +571,7 @@
   }
 
   .motion-focus-ring,
+  .motion-new-issue-dialog,
   .motion-kanban-lane,
   .motion-kanban-card,
   .motion-draft-issue-card,
@@ -547,8 +592,19 @@
     transform: none !important;
   }
 
+  .motion-new-issue-dialog--created {
+    opacity: 1 !important;
+    scale: 1 !important;
+  }
+
+  ::view-transition-old(new-issue-dialog),
+  ::view-transition-new(new-issue-dialog) {
+    animation: none !important;
+  }
+
   .motion-chat-options-pop,
   .motion-chat-options-pop [data-chat-option],
+  .motion-new-issue-created-banner,
   .motion-chat-composer-menu-pop,
   .motion-chat-composer-menu-pop [data-chat-composer-menu-item],
   .motion-organization-menu-pop,
@@ -556,6 +612,7 @@
   .motion-disclosure-enter {
     opacity: 1 !important;
     transform: none !important;
+    scale: 1 !important;
     clip-path: none !important;
   }
 }
