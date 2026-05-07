@@ -212,7 +212,7 @@ describe("messengerService and issue follows", () => {
     expect(assignedItem?.metadata).toMatchObject({ assignedToMe: true, createdByMe: false });
     expect(assignedItem?.body).toContain("assigned to me");
     expect(createdItem?.metadata).toMatchObject({ assignedToMe: false, createdByMe: true });
-    expect(issuesSummary?.preview).toBe("Review Summary: render enough comment body to judge the issue update");
+    expect(issuesSummary?.preview).toBe("Followed issue — Review Summary: render enough comment body to judge the issue update");
   });
 
   it("preserves chat attachments when editing a user message into a new turn variant", async () => {
@@ -394,6 +394,56 @@ describe("messengerService and issue follows", () => {
     expect(issuesSummary?.unreadCount).toBe(0);
     expect(issuesSummary?.needsAttention).toBe(false);
     expect(issuesSummary?.latestActivityAt).toBeNull();
+  });
+
+  it("includes the issue title in completion previews for unread Messenger issue notifications", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-completion-preview";
+    const issueId = randomUUID();
+    const completedAt = new Date("2026-04-10T15:00:00.000Z");
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Completion Preview Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Completion Preview Org"),
+      issuePrefix: `C${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Explain completed notification",
+      status: "done",
+      priority: "medium",
+      assigneeUserId: userId,
+      identifier: "CMP-41",
+      createdAt: completedAt,
+      updatedAt: completedAt,
+      completedAt,
+    });
+
+    await db.insert(activityLog).values({
+      orgId,
+      actorType: "agent",
+      actorId: "completion-agent",
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: issueId,
+      details: { status: "done", identifier: "CMP-41", _previous: { status: "in_progress" } },
+      createdAt: completedAt,
+    });
+
+    const thread = await messengerSvc.getIssuesThread(orgId, userId);
+    const summaries = await messengerSvc.listThreadSummaries(orgId, userId);
+    const issuesSummary = summaries.find((item) => item.threadKey === "issues");
+    const item = thread.detail.items.find((entry) => entry.issueId === issueId);
+
+    expect(item?.preview).toBe("Completed");
+    expect(thread.summary.preview).toBe("CMP-41 · Explain completed notification — Completed");
+    expect(issuesSummary?.preview).toBe("CMP-41 · Explain completed notification — Completed");
+    expect(thread.detail.unreadCount).toBe(1);
+    expect(thread.detail.needsAttention).toBe(true);
   });
 
   it("does not count self-authored issue status updates as Messenger attention", async () => {

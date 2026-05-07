@@ -404,7 +404,7 @@ describe("inbox helpers", () => {
         makeThreadSummary({
           threadKey: "issues",
           title: "Issues",
-          preview: "## Update\nReview the hiring plan",
+          preview: "RUD-41 · Improve notification detail — Completed",
           latestActivityAt: new Date("2026-03-11T04:00:00.000Z"),
           unreadCount: 1,
         }),
@@ -413,7 +413,7 @@ describe("inbox helpers", () => {
 
     expect(content).toEqual({
       title: "Issues",
-      body: "Update Review the hiring plan",
+      body: "RUD-41 · Improve notification detail — Completed",
     });
   });
 

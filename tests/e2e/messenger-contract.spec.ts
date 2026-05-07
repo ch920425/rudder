@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { createDb, heartbeatRuns } from "../../packages/db/src/index.ts";
+import { eq } from "drizzle-orm";
+import { activityLog, createDb, heartbeatRuns, issues } from "../../packages/db/src/index.ts";
 import { E2E_CODEX_STUB, E2E_DATABASE_URL } from "./support/e2e-env";
 
 const e2eDb = createDb(E2E_DATABASE_URL);
@@ -584,6 +585,60 @@ test.describe("Messenger unified threads contract", () => {
     await expect(issueCard).toContainText("created by me");
     await expect(issueCard).not.toContainText("assigned to me");
     await expect(issueCard).toContainText("Status changed to blocked");
+  });
+
+  test("shows the completed issue title in Messenger issue previews", async ({ page }) => {
+    const sessionRes = await page.request.get("/api/auth/get-session");
+    expect(sessionRes.ok()).toBe(true);
+    const session = await sessionRes.json();
+    const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
+    expect(currentUserId).toBeTruthy();
+
+    const organization = await createOrganization(page, `Messenger-Completed-Preview-${Date.now()}`);
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Clarify completed notification",
+        description: "The issue notification should name the completed task.",
+        status: "todo",
+        priority: "medium",
+        assigneeUserId: currentUserId,
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+    const completedAt = new Date();
+
+    await e2eDb
+      .update(issues)
+      .set({ status: "done", updatedAt: completedAt, completedAt })
+      .where(eq(issues.id, issue.id));
+    await e2eDb.insert(activityLog).values({
+      orgId: organization.id,
+      actorType: "agent",
+      actorId: randomUUID(),
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: issue.id,
+      details: { status: "done", identifier: issue.identifier, _previous: { status: "todo" } },
+      createdAt: completedAt,
+    });
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const issuesThread = page.getByTestId(threadTestId("issues"));
+    await expect(issuesThread).toBeVisible({ timeout: 15_000 });
+    await expect(issuesThread).toContainText("Clarify completed notification");
+    await expect(issuesThread).toContainText("Completed");
+
+    await page.goto(`/${organization.issuePrefix}/messenger/issues`, { waitUntil: "commit" });
+    const issueCard = page.locator(`[data-testid="messenger-issue-card-${issue.id}"]`);
+    await expect(issueCard).toContainText("Clarify completed notification");
+    await expect(issueCard).toContainText("Completed");
   });
 
   test("renders failed-run issue titles as links without exposing raw issue ids", async ({ page }, testInfo) => {

@@ -217,6 +217,17 @@ function issueHref(issue: IssueUniverseRow) {
   return `/issues/${issue.identifier ?? issue.id}`;
 }
 
+function issueDisplayLabel(issue: IssueUniverseRow) {
+  return issue.identifier ? `${issue.identifier} · ${issue.title}` : issue.title;
+}
+
+function issueThreadPreview(issue: IssueUniverseRow, preview: string | null) {
+  const label = issueDisplayLabel(issue);
+  const normalizedPreview = truncate(preview, 120);
+  if (!normalizedPreview || normalizedPreview === label) return truncate(label, 180);
+  return truncate(`${label} — ${normalizedPreview}`, 180);
+}
+
 function issueBodyFromSnapshot(
   issue: IssueUniverseRow,
   latestPreview: string | null,
@@ -242,7 +253,10 @@ function summarizeIssueActivity(activity: IssueActivityRow, issue: IssueUniverse
   switch (activity.action) {
     case "issue.updated": {
       if (typeof details.status === "string") {
-        return `Status changed to ${details.status.replaceAll("_", " ")}`;
+        const status = details.status.replaceAll("_", " ");
+        if (details.status === "done") return "Completed";
+        if (details.status === "cancelled") return "Cancelled";
+        return `Status changed to ${status}`;
       }
       if (typeof details.assigneeUserId !== "undefined" || typeof details.assigneeAgentId !== "undefined") {
         return "Assignment changed";
@@ -430,7 +444,7 @@ function issueCard(
     id: issue.id,
     threadKey: "issues",
     kind: "issues",
-    title: `${issue.identifier ?? issue.id} · ${issue.title}`,
+    title: issueDisplayLabel(issue),
     subtitle: issueBodyFromSnapshot(issue, latestPreview, followed, createdByMe, assignedToMe, reviewerForMe),
     body: issueBodyFromSnapshot(issue, latestPreview, followed, createdByMe, assignedToMe, reviewerForMe),
     preview: latestPreview,
@@ -746,6 +760,7 @@ export function messengerService(db: Db) {
                 issue.reviewerUserId === userId && issue.status === "in_review",
               )
               : null;
+      const summaryPreview = attentionActivityAt ? issueThreadPreview(issue, attentionPreview) : null;
 
       return {
         item: issueCard(
@@ -757,7 +772,7 @@ export function messengerService(db: Db) {
           latestSourceIsComment ? latestComment : null,
         ),
         attentionActivityAt,
-        attentionPreview,
+        attentionPreview: summaryPreview,
       };
     });
 
