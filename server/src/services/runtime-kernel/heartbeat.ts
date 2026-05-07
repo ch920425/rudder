@@ -74,7 +74,10 @@ import {
 } from "../workspace-runtime.js";
 import { issueService } from "../issues.js";
 import { documentService } from "../documents.js";
-import { buildIssueConvergenceReviewWakeupOptions } from "../issue-review-wakeup.js";
+import {
+  buildIssueConvergenceReviewWakeupOptions,
+  buildIssueReviewCloseoutWakeupOptions,
+} from "../issue-review-wakeup.js";
 import { executionWorkspaceService } from "../execution-workspaces.js";
 import { buildObservedRunLangfuseScores } from "../run-intelligence.js";
 import { workspaceOperationService } from "../workspace-operations.js";
@@ -118,6 +121,9 @@ const ISSUE_PASSIVE_FOLLOWUP_REASON = "issue_passive_followup";
 const ISSUE_PASSIVE_FOLLOWUP_WAKE_SOURCE = "passive_issue_followup";
 const ISSUE_PASSIVE_FOLLOWUP_FAILURE_REASON = "missing_closure";
 const ISSUE_PASSIVE_FOLLOWUP_MAX_ATTEMPTS = 2;
+const ISSUE_REVIEW_CLOSEOUT_REASON = "issue_review_closeout_missing";
+const ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON = "missing_review_decision";
+const ISSUE_REVIEW_CLOSEOUT_MAX_ATTEMPTS = 2;
 const ISSUE_PASSIVE_FOLLOWUP_COOLDOWN_MS_BY_ATTEMPT = new Map<number, number>([
   [1, 2 * 60 * 1000],
   [2, 5 * 60 * 1000],
@@ -1085,6 +1091,14 @@ type PassiveFollowupContext = {
   queuedAt: string | null;
 };
 
+type ReviewCloseoutContext = {
+  originRunId: string;
+  previousRunId: string | null;
+  attempt: number;
+  maxAttempts: number;
+  reason: typeof ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON;
+};
+
 type PassiveIssueClosureOutcome =
   | { kind: "none"; reason: string }
   | {
@@ -1111,6 +1125,24 @@ type PassiveIssueClosureOutcome =
       previousRunId: string;
       attempts: number;
       reason: typeof ISSUE_PASSIVE_FOLLOWUP_FAILURE_REASON;
+    }
+  | {
+      kind: "reviewer_closeout";
+      issue: PassiveFollowupIssueRow;
+      originRunId: string;
+      previousRunId: string;
+      attempts: number;
+      maxAttempts: number;
+      reason: typeof ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON;
+    }
+  | {
+      kind: "reviewer_closeout_operator_review";
+      issue: PassiveFollowupIssueRow;
+      originRunId: string;
+      previousRunId: string;
+      attempts: number;
+      maxAttempts: number;
+      reason: typeof ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON;
     };
 
 function normalizePassiveFollowupContext(raw: unknown): PassiveFollowupContext | null {
@@ -1125,6 +1157,20 @@ function normalizePassiveFollowupContext(raw: unknown): PassiveFollowupContext |
     maxAttempts: Math.max(1, Math.floor(asNumber(parsed.maxAttempts, ISSUE_PASSIVE_FOLLOWUP_MAX_ATTEMPTS))),
     reason: ISSUE_PASSIVE_FOLLOWUP_FAILURE_REASON,
     queuedAt: readNonEmptyString(parsed.queuedAt),
+  };
+}
+
+function normalizeReviewCloseoutContext(raw: unknown): ReviewCloseoutContext | null {
+  const parsed = parseObject(raw);
+  const originRunId = readNonEmptyString(parsed.originRunId);
+  if (!originRunId) return null;
+  const attempt = Math.max(0, Math.floor(asNumber(parsed.attempt, 0)));
+  return {
+    originRunId,
+    previousRunId: readNonEmptyString(parsed.previousRunId),
+    attempt,
+    maxAttempts: Math.max(1, Math.floor(asNumber(parsed.maxAttempts, ISSUE_REVIEW_CLOSEOUT_MAX_ATTEMPTS))),
+    reason: ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON,
   };
 }
 
@@ -2398,6 +2444,24 @@ export function heartbeatService(db: Db) {
     return Boolean(commentActivity);
   }
 
+  async function runHasIssueReviewDecision(tx: any, run: typeof heartbeatRuns.$inferSelect, issueId: string) {
+    const decisionActivity = await tx
+      .select({ id: activityLog.id })
+      .from(activityLog)
+      .where(
+        and(
+          eq(activityLog.orgId, run.orgId),
+          eq(activityLog.action, "issue.review_decision_recorded"),
+          eq(activityLog.entityType, "issue"),
+          eq(activityLog.entityId, issueId),
+          eq(activityLog.runId, run.id),
+        ),
+      )
+      .limit(1)
+      .then((rows: Array<{ id: string }>) => rows[0] ?? null);
+    return Boolean(decisionActivity);
+  }
+
   async function issueHasDeferredWake(tx: any, orgId: string, issueId: string) {
     const deferred = await tx
       .select({ id: agentWakeupRequests.id })
@@ -2441,6 +2505,29 @@ export function heartbeatService(db: Db) {
     return Boolean(existingReview);
   }
 
+  async function reviewerCloseoutAlreadyRecorded(tx: any, runId: string) {
+    const existingWake = await tx
+      .select({ id: agentWakeupRequests.id })
+      .from(agentWakeupRequests)
+      .where(eq(agentWakeupRequests.idempotencyKey, `${ISSUE_REVIEW_CLOSEOUT_REASON}:${runId}`))
+      .limit(1)
+      .then((rows: Array<{ id: string }>) => rows[0] ?? null);
+    if (existingWake) return true;
+
+    const existingReview = await tx
+      .select({ id: activityLog.id })
+      .from(activityLog)
+      .where(
+        and(
+          eq(activityLog.runId, runId),
+          eq(activityLog.action, "issue.review_closure_needs_operator_review"),
+        ),
+      )
+      .limit(1)
+      .then((rows: Array<{ id: string }>) => rows[0] ?? null);
+    return Boolean(existingReview);
+  }
+
   async function evaluatePassiveIssueClosureForLockedIssue(input: {
     tx: any;
     run: typeof heartbeatRuns.$inferSelect;
@@ -2452,6 +2539,51 @@ export function heartbeatService(db: Db) {
     const runIssueId = readNonEmptyString(context.issueId);
     if (!runIssueId || runIssueId !== issue.id) return { kind: "none", reason: "run_not_issue_backed" };
     if (run.status !== "succeeded") return { kind: "none", reason: "run_not_successful" };
+    const reviewerRun =
+      issue.status === "in_review" &&
+      issue.reviewerAgentId === run.agentId &&
+      (
+        run.invocationSource === "review" ||
+        readNonEmptyString(context.role) === "reviewer" ||
+        readNonEmptyString(context.wakeSource) === "review"
+      );
+    if (reviewerRun) {
+      if (await runHasIssueReviewDecision(tx, run, issue.id)) {
+        return { kind: "none", reason: "review_decision_recorded" };
+      }
+      if (await issueHasDeferredWake(tx, issue.orgId, issue.id)) {
+        return { kind: "none", reason: "deferred_issue_wake_exists" };
+      }
+      if (await reviewerCloseoutAlreadyRecorded(tx, run.id)) {
+        return { kind: "none", reason: "reviewer_closeout_already_recorded" };
+      }
+
+      const reviewCloseout = normalizeReviewCloseoutContext(context.reviewCloseout);
+      const currentAttempt = reviewCloseout?.attempt ?? 0;
+      const maxAttempts = reviewCloseout?.maxAttempts ?? ISSUE_REVIEW_CLOSEOUT_MAX_ATTEMPTS;
+      const originRunId = reviewCloseout?.originRunId ?? run.id;
+      if (currentAttempt >= maxAttempts) {
+        return {
+          kind: "reviewer_closeout_operator_review",
+          issue,
+          originRunId,
+          previousRunId: run.id,
+          attempts: currentAttempt,
+          maxAttempts,
+          reason: ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON,
+        };
+      }
+
+      return {
+        kind: "reviewer_closeout",
+        issue,
+        originRunId,
+        previousRunId: run.id,
+        attempts: currentAttempt + 1,
+        maxAttempts,
+        reason: ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON,
+      };
+    }
     if (issue.status !== "todo" && issue.status !== "in_progress") {
       return { kind: "none", reason: "issue_has_closure_status" };
     }
@@ -4327,6 +4459,94 @@ export function heartbeatService(db: Db) {
           return null;
         });
       }
+    } else if (passiveClosure?.kind === "reviewer_closeout") {
+      await appendRunEvent(run, await nextRunEventSeq(run.id), {
+        eventType: "issue.review_closeout_missing",
+        stream: "system",
+        level: "warn",
+        message: "Reviewer run finished without a structured review decision",
+        payload: {
+          issueId: passiveClosure.issue.id,
+          originRunId: passiveClosure.originRunId,
+          previousRunId: passiveClosure.previousRunId,
+          attempts: passiveClosure.attempts,
+          maxAttempts: passiveClosure.maxAttempts,
+          reason: passiveClosure.reason,
+        },
+      });
+      await logActivity(db, {
+        orgId: passiveClosure.issue.orgId,
+        actorType: "system",
+        actorId: "issue_review_closeout_governance",
+        action: "issue.review_closeout_missing",
+        entityType: "issue",
+        entityId: passiveClosure.issue.id,
+        agentId: run.agentId,
+        runId: run.id,
+        details: {
+          issueId: passiveClosure.issue.id,
+          issueTitle: passiveClosure.issue.title,
+          reviewerAgentId: passiveClosure.issue.reviewerAgentId,
+          originRunId: passiveClosure.originRunId,
+          previousRunId: passiveClosure.previousRunId,
+          attempts: passiveClosure.attempts,
+          maxAttempts: passiveClosure.maxAttempts,
+          reason: passiveClosure.reason,
+        },
+      });
+      if (passiveClosure.issue.reviewerAgentId) {
+        await enqueueWakeup(passiveClosure.issue.reviewerAgentId, {
+          ...buildIssueReviewCloseoutWakeupOptions({
+            issue: passiveClosure.issue,
+            contextSource: "issue.review_closeout_missing",
+            originRunId: passiveClosure.originRunId,
+            previousRunId: passiveClosure.previousRunId,
+            attempts: passiveClosure.attempts,
+            maxAttempts: passiveClosure.maxAttempts,
+            requestedByActorType: "system",
+            requestedByActorId: "issue_review_closeout_governance",
+          }),
+          idempotencyKey: `${ISSUE_REVIEW_CLOSEOUT_REASON}:${run.id}`,
+        }).catch((err) => {
+          logger.warn({ err, issueId: passiveClosure.issue.id }, "failed to wake reviewer after missing review close-out");
+          return null;
+        });
+      }
+    } else if (passiveClosure?.kind === "reviewer_closeout_operator_review") {
+      await appendRunEvent(run, await nextRunEventSeq(run.id), {
+        eventType: "issue.review_closure_needs_operator_review",
+        stream: "system",
+        level: "warn",
+        message: "Reviewer close-out attempts stopped and need operator review",
+        payload: {
+          issueId: passiveClosure.issue.id,
+          originRunId: passiveClosure.originRunId,
+          previousRunId: passiveClosure.previousRunId,
+          attempts: passiveClosure.attempts,
+          maxAttempts: passiveClosure.maxAttempts,
+          reason: passiveClosure.reason,
+        },
+      });
+      await logActivity(db, {
+        orgId: passiveClosure.issue.orgId,
+        actorType: "system",
+        actorId: "issue_review_closeout_governance",
+        action: "issue.review_closure_needs_operator_review",
+        entityType: "issue",
+        entityId: passiveClosure.issue.id,
+        agentId: run.agentId,
+        runId: run.id,
+        details: {
+          issueId: passiveClosure.issue.id,
+          issueTitle: passiveClosure.issue.title,
+          reviewerAgentId: passiveClosure.issue.reviewerAgentId,
+          originRunId: passiveClosure.originRunId,
+          previousRunId: passiveClosure.previousRunId,
+          attempts: passiveClosure.attempts,
+          maxAttempts: passiveClosure.maxAttempts,
+          reason: passiveClosure.reason,
+        },
+      });
     }
 
     const promotedRun = outcome.promotedRun;

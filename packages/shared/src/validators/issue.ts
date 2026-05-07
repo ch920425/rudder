@@ -78,6 +78,7 @@ export const updateIssueSchema = createIssueSchema.partial().extend({
   comment: z.string().min(1).optional(),
   reopen: z.boolean().optional(),
   hiddenAt: z.string().datetime().nullable().optional(),
+  reviewDecision: z.enum(["approve", "request_changes", "needs_followup", "blocked"]).optional(),
 });
 
 export type UpdateIssue = z.infer<typeof updateIssueSchema>;

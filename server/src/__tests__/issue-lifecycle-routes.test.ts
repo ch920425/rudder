@@ -637,6 +637,115 @@ describe("issue lifecycle routes", () => {
     );
   });
 
+  it("records a structured reviewer request-changes decision", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "in_progress",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "request_changes",
+        comment: "Please add the missing E2E proof.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ status: "in_progress" }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.review_decision_recorded",
+        runId: RUN_ID,
+        details: expect.objectContaining({
+          decision: "request_changes",
+          status: "in_progress",
+          commentId: "comment-1",
+        }),
+      }),
+    );
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      ASSIGNEE_AGENT_ID,
+      expect.objectContaining({ reason: "issue_changes_requested" }),
+    );
+  });
+
+  it("records a structured needs-followup reviewer decision without changing status", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: (patch.status as "in_review" | undefined) ?? "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "needs_followup",
+        comment: "Waiting for the preview URL before final review.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.not.objectContaining({ status: expect.anything() }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.review_decision_recorded",
+        details: expect.objectContaining({
+          decision: "needs_followup",
+          status: "in_review",
+        }),
+      }),
+    );
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
+  });
+
+  it("rejects reviewer decisions from a non-reviewer agent", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "approve",
+        comment: "Looks good.",
+      });
+
+    expect(res.status).toBe(403);
+    expect(mockIssueService.update).not.toHaveBeenCalled();
+  });
+
   it("wakes the assignee when a backlog issue is moved back into the active queue", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({

@@ -37,6 +37,7 @@ interface AgentInboxItem {
   id: string;
   identifier: string | null;
   title: string;
+  relationship?: "assignee" | "reviewer";
   status: string;
   priority: string;
   projectId: string | null;
@@ -257,6 +258,7 @@ export function registerAgentCommands(program: Command): void {
               formatInlineRecord({
                 identifier: row.identifier,
                 id: row.id,
+                relationship: row.relationship ?? "assignee",
                 status: row.status,
                 priority: row.priority,
                 title: row.title,

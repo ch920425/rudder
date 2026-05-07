@@ -278,6 +278,22 @@ reviewers see the issue through reviewer filters and issue attention surfaces.
 Creating an issue directly in `in_review` with a reviewer agent is treated as a
 review request.
 
+Agent reviewer work also appears in the compact agent inbox with
+`relationship: "reviewer"` while the issue is `in_review`. A reviewer must close
+the review with a structured decision, not only a free-form comment:
+
+- `approve` moves `in_review -> done`
+- `request_changes` moves `in_review -> in_progress` and routes work back to
+  the assignee
+- `needs_followup` leaves the issue in `in_review` with an explicit waiting
+  condition
+- `blocked` moves the issue to `blocked`
+
+If a reviewer run exits without a structured decision while the issue remains
+`in_review`, Rudder may wake the reviewer again with
+`issue_review_closeout_missing`. Bounded repeated failures escalate to operator
+review instead of leaving the issue stranded.
+
 ---
 
 ## Sub-issues (Parent/Child)

@@ -20,6 +20,7 @@ export interface IssueReviewWakeupDeps {
 
 export type IssueReviewWakeupMutation = "status_to_in_review" | "reviewer_changed_in_review" | "create_in_review";
 export type IssueConvergenceReviewWakeupMutation = "convergence_escalation";
+export type IssueReviewCloseoutWakeupMutation = "review_outcome_missing";
 
 type IssueReviewWakeupIssue = {
   id: string;
@@ -63,7 +64,7 @@ export function buildIssueReviewWakeupOptions(input: {
       role: "reviewer",
       issue: buildIssueSnapshot(input.issue),
       reviewInstructions:
-        "You are the reviewer for this issue. Review the result and leave feedback, request changes, or mark the issue done. Do not take over implementation unless explicitly asked.",
+        "You are the reviewer for this issue. Review the result and record one structured reviewer decision before exiting: approve, request_changes, needs_followup, or blocked. Use `rudder issue review`; do not rely on a free-form comment as the durable outcome. Do not take over implementation unless explicitly asked.",
     },
   };
 }
@@ -109,6 +110,51 @@ export function buildIssueConvergenceReviewWakeupOptions(input: {
       },
       reviewInstructions:
         "The assignee did not converge this issue after passive follow-up. Review the thread and decide the next step: request changes, mark blocked, escalate or reassign, or mark done only if the evidence is sufficient.",
+    },
+  };
+}
+
+export function buildIssueReviewCloseoutWakeupOptions(input: {
+  issue: IssueReviewWakeupIssue;
+  mutation?: IssueReviewCloseoutWakeupMutation;
+  contextSource: string;
+  originRunId: string;
+  previousRunId: string;
+  attempts: number;
+  maxAttempts: number;
+  requestedByActorType?: "user" | "agent" | "system";
+  requestedByActorId?: string | null;
+}) {
+  const mutation = input.mutation ?? "review_outcome_missing";
+  return {
+    source: "review" as const,
+    triggerDetail: "system" as const,
+    reason: "issue_review_closeout_missing",
+    payload: {
+      issueId: input.issue.id,
+      mutation,
+      originRunId: input.originRunId,
+      previousRunId: input.previousRunId,
+      attempts: input.attempts,
+      maxAttempts: input.maxAttempts,
+    },
+    requestedByActorType: input.requestedByActorType,
+    requestedByActorId: input.requestedByActorId ?? null,
+    contextSnapshot: {
+      issueId: input.issue.id,
+      source: input.contextSource,
+      wakeSource: "review",
+      wakeReason: "issue_review_closeout_missing",
+      role: "reviewer",
+      issue: buildIssueSnapshot(input.issue),
+      reviewCloseout: {
+        originRunId: input.originRunId,
+        previousRunId: input.previousRunId,
+        attempt: input.attempts,
+        maxAttempts: input.maxAttempts,
+      },
+      reviewInstructions:
+        "Your previous reviewer run ended without a structured decision. Inspect the current issue state and record exactly one outcome with `rudder issue review --decision approve|request_changes|needs_followup|blocked --comment ...`.",
     },
   };
 }

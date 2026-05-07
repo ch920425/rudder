@@ -165,7 +165,7 @@ describe("heartbeat passive issue closeout", () => {
   async function seedFixture(input?: {
     agentRuntimeConfig?: Record<string, unknown>;
     runtimeConfig?: Record<string, unknown>;
-    issueStatus?: "todo" | "in_progress";
+    issueStatus?: "todo" | "in_progress" | "in_review";
     reviewerAgent?: boolean;
     reviewerUserId?: string | null;
   }) {
@@ -250,6 +250,41 @@ describe("heartbeat passive issue closeout", () => {
     return run;
   }
 
+  async function wakeReviewRun(input: {
+    agentId: string;
+    issueId: string;
+    reason?: string;
+    reviewCloseout?: Record<string, unknown>;
+  }) {
+    const heartbeat = heartbeatService(db);
+    const run = await heartbeat.wakeup(input.agentId, {
+      source: "review",
+      triggerDetail: "system",
+      reason: input.reason ?? "issue_review_requested",
+      payload: { issueId: input.issueId },
+      requestedByActorType: "system",
+      requestedByActorId: "test",
+      contextSnapshot: {
+        issueId: input.issueId,
+        taskId: input.issueId,
+        taskKey: input.issueId,
+        wakeReason: input.reason ?? "issue_review_requested",
+        wakeSource: "review",
+        role: "reviewer",
+        issue: {
+          id: input.issueId,
+          title: "Close out the issue",
+          status: "in_review",
+          priority: "medium",
+          description: "The reviewer must record a decision.",
+        },
+        ...(input.reviewCloseout ? { reviewCloseout: input.reviewCloseout } : {}),
+      },
+    });
+    if (!run) throw new Error("Expected review wakeup to create a run");
+    return run;
+  }
+
   async function getRun(runId: string) {
     return db
       .select()
@@ -265,6 +300,109 @@ describe("heartbeat passive issue closeout", () => {
       .where(eq(issues.id, issueId))
       .then((rows) => rows[0] ?? null);
   }
+
+  it("queues reviewer closeout when a review run exits without a structured decision", async () => {
+    const { agentId, issueId } = await seedFixture({
+      issueStatus: "in_review",
+      reviewerAgent: true,
+    });
+    const run = await wakeReviewRun({ agentId, issueId });
+
+    const followup = await waitFor(async () => {
+      const runs = await db
+        .select()
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.agentId, agentId));
+      return runs.find((row) =>
+        row.id !== run.id &&
+        row.invocationSource === "review" &&
+        (row.contextSnapshot as any)?.wakeReason === "issue_review_closeout_missing") ?? null;
+    });
+
+    expect(followup.contextSnapshot).toMatchObject({
+      issueId,
+      wakeReason: "issue_review_closeout_missing",
+      wakeSource: "review",
+      role: "reviewer",
+      reviewCloseout: {
+        originRunId: run.id,
+        previousRunId: run.id,
+        attempt: 1,
+        maxAttempts: 2,
+      },
+    });
+
+    const wakeup = await db
+      .select()
+      .from(agentWakeupRequests)
+      .where(eq(agentWakeupRequests.id, followup.wakeupRequestId ?? ""))
+      .then((rows) => rows[0] ?? null);
+    expect(wakeup).toMatchObject({
+      source: "review",
+      reason: "issue_review_closeout_missing",
+      requestedByActorType: "system",
+      requestedByActorId: "issue_review_closeout_governance",
+    });
+
+    const activity = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.action, "issue.review_closeout_missing"))
+      .then((rows) => rows[0] ?? null);
+    expect(activity?.details).toMatchObject({
+      issueId,
+      reviewerAgentId: agentId,
+      originRunId: run.id,
+      previousRunId: run.id,
+      attempts: 1,
+      maxAttempts: 2,
+      reason: "missing_review_decision",
+    });
+  });
+
+  it("escalates reviewer closeout after bounded missing-decision attempts", async () => {
+    const { agentId, issueId } = await seedFixture({
+      issueStatus: "in_review",
+      reviewerAgent: true,
+    });
+    const originRunId = randomUUID();
+    const run = await wakeReviewRun({
+      agentId,
+      issueId,
+      reason: "issue_review_closeout_missing",
+      reviewCloseout: {
+        originRunId,
+        previousRunId: randomUUID(),
+        attempt: 2,
+        maxAttempts: 2,
+        reason: "missing_review_decision",
+      },
+    });
+
+    const activity = await waitFor(async () => {
+      return db
+        .select()
+        .from(activityLog)
+        .where(eq(activityLog.action, "issue.review_closure_needs_operator_review"))
+        .then((rows) => rows[0] ?? null);
+    });
+
+    expect(activity.details).toMatchObject({
+      issueId,
+      reviewerAgentId: agentId,
+      originRunId,
+      previousRunId: run.id,
+      attempts: 2,
+      maxAttempts: 2,
+      reason: "missing_review_decision",
+    });
+
+    const closeoutWakeups = await db
+      .select()
+      .from(agentWakeupRequests)
+      .where(eq(agentWakeupRequests.reason, "issue_review_closeout_missing"));
+    expect(closeoutWakeups.filter((row) => row.id !== run.wakeupRequestId)).toHaveLength(0);
+  });
 
   it("queues a same-agent passive follow-up when a successful issue run exits without close-out", async () => {
     const { agentId, issueId } = await seedFixture();

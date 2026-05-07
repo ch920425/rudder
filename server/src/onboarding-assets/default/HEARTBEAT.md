@@ -18,19 +18,22 @@ Run this checklist on every heartbeat.
 
 If approval context is set, review linked issues and close/comment.
 
-## 4. Get Assignments
+## 4. Get Inbox Work
 
-- Check for assigned issues.
-- Prioritize: in_progress first, then todo.
+- Check `rudder agent inbox --json` for both assignee and reviewer rows.
+- Prioritize reviewer `in_review` rows first, then assignee `in_progress`, then assignee `todo`.
 
 ## 5. Checkout and Work
 
 - Always checkout before working.
 - Do the work. Update status and comment when done.
 - If `RUDDER_WAKE_REASON=issue_passive_followup`, inspect current issue state first, then leave a close-out signal: progress comment, done, blocked with reason, or explicit handoff.
+- If you are the reviewer, record a structured review decision with `rudder issue review --decision approve|request_changes|needs_followup|blocked --comment ...`.
+- If `RUDDER_WAKE_REASON=issue_review_closeout_missing`, inspect current state and record exactly one structured review decision.
 
 ## 6. Exit
 
 - Comment on in_progress work before exiting.
+- Reviewer work is not closed by a free-form accept/reject comment; use `rudder issue review`.
 - A successful `todo` or `in_progress` issue run without a close-out signal can trigger a same-agent passive follow-up.
 - Exit cleanly if no assignments.

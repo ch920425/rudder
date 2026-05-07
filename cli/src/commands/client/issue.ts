@@ -71,6 +71,11 @@ interface IssueStatusCommentOptions extends BaseClientOptions {
   comment: string;
 }
 
+interface IssueReviewOptions extends BaseClientOptions {
+  decision: "approve" | "request_changes" | "needs_followup" | "blocked";
+  comment: string;
+}
+
 interface IssueContextOptions extends BaseClientOptions {
   wakeCommentId?: string;
 }
@@ -335,6 +340,31 @@ export function registerIssueCommands(program: Command): void {
 
   addCommonClientOptions(
     issue
+      .command("review")
+      .description(getAgentCliCapabilityById("issue.review").description)
+      .argument("<issueId>", "Issue ID")
+      .requiredOption(
+        "--decision <decision>",
+        "Review decision: approve, request_changes, needs_followup, or blocked",
+      )
+      .requiredOption("--comment <text>", "Required review comment")
+      .action(async (issueId: string, opts: IssueReviewOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const decision = parseReviewDecision(opts.decision);
+          const updated = await ctx.api.patch<Issue & { comment?: IssueComment | null }>(`/api/issues/${issueId}`, {
+            reviewDecision: decision,
+            comment: opts.comment,
+          });
+          printOutput(updated, { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    issue
       .command("done")
       .description(getAgentCliCapabilityById("issue.done").description)
       .argument("<issueId>", "Issue ID")
@@ -562,6 +592,19 @@ function parseHiddenAt(value: string | undefined): string | null | undefined {
   if (value === undefined) return undefined;
   if (value.trim().toLowerCase() === "null") return null;
   return value;
+}
+
+function parseReviewDecision(value: string): IssueReviewOptions["decision"] {
+  const normalized = value.trim();
+  if (
+    normalized === "approve" ||
+    normalized === "request_changes" ||
+    normalized === "needs_followup" ||
+    normalized === "blocked"
+  ) {
+    return normalized;
+  }
+  throw new Error("Invalid review decision. Use approve, request_changes, needs_followup, or blocked.");
 }
 
 function filterIssueRows(rows: Issue[], match: string | undefined): Issue[] {

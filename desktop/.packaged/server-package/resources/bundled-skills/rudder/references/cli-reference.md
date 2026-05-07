@@ -14,7 +14,7 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 | Command | Description | Mutating | Org | Agent | Run ID |
 | --- | --- | --- | --- | --- | --- |
 | `rudder agent me` | Show the authenticated agent identity, budget, and chain of command. | no | no | no | no |
-| `rudder agent inbox` | List the compact assigned-work inbox for the authenticated agent. | no | no | no | no |
+| `rudder agent inbox` | List the compact assignee and reviewer work inbox for the authenticated agent. | no | no | no | no |
 | `rudder agent capabilities` | List the stable Rudder agent command contract. | no | no | no | no |
 | `rudder agent skills sync <agent-id>` | Sync the desired enabled skill set for an agent. | yes | no | no | attached when available |
 | `rudder issue get <issue>` | Read a full issue by UUID or identifier. | no | no | no | no |
@@ -24,6 +24,7 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 | `rudder issue comments list <issue>` | List issue comments, optionally only newer comments after a cursor. | no | no | no | no |
 | `rudder issue comments get <issue> <comment-id>` | Read one issue comment by id. | no | no | no | no |
 | `rudder issue update <issue> ...` | Apply generic issue updates when workflow commands are not enough. | yes | no | no | attached when available |
+| `rudder issue review <issue> --decision <decision> --comment <text>` | Record a structured reviewer decision with a required comment. | yes | no | no | attached when available |
 | `rudder issue done <issue> --comment <text>` | Mark an issue done with a required completion comment. | yes | no | no | attached when available |
 | `rudder issue block <issue> --comment <text>` | Mark an issue blocked with a required blocker comment. | yes | no | no | attached when available |
 | `rudder issue release <issue>` | Release an issue back to todo and clear ownership. | yes | no | no | attached when available |
@@ -51,6 +52,17 @@ Before a successful `todo` or `in_progress` issue run exits, leave one close-out
 - ownership changes: add an explicit handoff comment before or with the assignee update
 
 If `RUDDER_WAKE_REASON=issue_passive_followup`, the run is close-out governance for the same issue. Inspect current issue state first, then leave a progress comment, completion, blocker, or explicit handoff.
+
+## Reviewer Close-Out Signals
+
+When the inbox row or wake context says `relationship: "reviewer"`, `role: "reviewer"`, or `wakeSource: "review"`, finish the review with one structured reviewer decision:
+
+- approve: `rudder issue review <issue> --decision approve --comment <text>`
+- request changes: `rudder issue review <issue> --decision request_changes --comment <text>`
+- needs follow-up: `rudder issue review <issue> --decision needs_followup --comment <text>`
+- blocked: `rudder issue review <issue> --decision blocked --comment <text>`
+
+Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal.
 
 ## Compatibility Commands
 

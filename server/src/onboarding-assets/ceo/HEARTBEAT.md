@@ -23,12 +23,13 @@ If `RUDDER_APPROVAL_ID` is set:
 - Review the approval and its linked issues with `rudder approval get "$RUDDER_APPROVAL_ID" --json` and `rudder approval issues "$RUDDER_APPROVAL_ID" --json`.
 - Close resolved issues or comment on what remains open.
 
-## 4. Get Assignments
+## 4. Get Inbox Work
 
 - `rudder agent inbox --json`
-- Prioritize: `in_progress` first, then `todo`. Skip `blocked` unless you can unblock it.
+- Inbox rows can be `relationship: "assignee"` or `relationship: "reviewer"`.
+- Prioritize reviewer `in_review` rows first, then assignee `in_progress`, then assignee `todo`. Skip `blocked` unless you can unblock it.
 - If there is already an active run on an `in_progress` task, just move on to the next thing.
-- If `RUDDER_TASK_ID` is set and assigned to you, prioritize that task.
+- If `RUDDER_TASK_ID` is set and assigned to you or names you as reviewer, prioritize that task.
 
 ## 5. Checkout and Work
 
@@ -37,6 +38,8 @@ If `RUDDER_APPROVAL_ID` is set:
 - Use `rudder issue context "<issue-id-or-identifier>" --json` to load compact context.
 - Do the work. Use `rudder issue comment`, `rudder issue done`, or `rudder issue block` to communicate outcome.
 - If `RUDDER_WAKE_REASON=issue_passive_followup`, treat the wake as close-out governance, not a fresh assignment: inspect state and leave a progress comment, completion, blocker, or explicit handoff.
+- If you are the reviewer, record one structured decision with `rudder issue review --decision approve|request_changes|needs_followup|blocked --comment ...`.
+- If `RUDDER_WAKE_REASON=issue_review_closeout_missing`, treat the wake as reviewer close-out governance and record one structured review decision.
 
 ## 6. Delegation
 
@@ -55,6 +58,7 @@ If `RUDDER_APPROVAL_ID` is set:
 ## 8. Exit
 
 - Comment on any in_progress work before exiting.
+- Reviewer work is not closed by a free-form accept/reject comment; use `rudder issue review`.
 - A successful `todo` or `in_progress` issue run without a close-out signal can trigger a same-agent passive follow-up.
 - If no assignments and no valid mention-handoff, exit cleanly.
 

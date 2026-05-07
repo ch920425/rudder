@@ -36,7 +36,7 @@ import {
 } from "../services/index.js";
 import { organizationWorkspaceBrowserService } from "../services/organization-workspace-browser.js";
 import { logger } from "../middleware/logger.js";
-import { forbidden, HttpError, unauthorized } from "../errors.js";
+import { forbidden, HttpError, unauthorized, unprocessable } from "../errors.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { shouldWakeAssigneeOnCheckout } from "./issues-checkout-wakeup.js";
 import { isAllowedContentType, MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
@@ -189,6 +189,21 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
   function isReviewerAgentForIssue(actor: ReturnType<typeof getActorInfo>, issue: { reviewerAgentId: string | null }) {
     return actor.actorType === "agent" && Boolean(actor.agentId) && actor.agentId === issue.reviewerAgentId;
+  }
+
+  function statusForReviewDecision(decision: string) {
+    switch (decision) {
+      case "approve":
+        return "done";
+      case "request_changes":
+        return "in_progress";
+      case "blocked":
+        return "blocked";
+      case "needs_followup":
+        return null;
+      default:
+        return null;
+    }
   }
 
   // Resolve issue identifiers (e.g. "PAP-39") to UUIDs for all /issues/:id routes
@@ -1025,12 +1040,35 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
     const actor = getActorInfo(req);
     const isClosed = existing.status === "done" || existing.status === "cancelled";
-    const { comment: commentBody, reopen: reopenRequested, hiddenAt: hiddenAtRaw, ...updateFields } = req.body;
+    const {
+      comment: commentBody,
+      reopen: reopenRequested,
+      hiddenAt: hiddenAtRaw,
+      reviewDecision,
+      ...updateFields
+    } = req.body;
     if (hiddenAtRaw !== undefined) {
       updateFields.hiddenAt = hiddenAtRaw ? new Date(hiddenAtRaw) : null;
     }
     if (commentBody && reopenRequested === true && isClosed && updateFields.status === undefined) {
       updateFields.status = "todo";
+    }
+    if (reviewDecision !== undefined) {
+      if (!commentBody) {
+        throw unprocessable("Reviewer decisions require a comment");
+      }
+      if (existing.status !== "in_review") {
+        throw unprocessable("Reviewer decisions can only be recorded while the issue is in_review");
+      }
+      if (actor.actorType === "agent" && !isReviewerAgentForIssue(actor, existing)) {
+        throw forbidden("Only the reviewer agent can record a reviewer decision");
+      }
+      const decisionStatus = statusForReviewDecision(reviewDecision);
+      if (decisionStatus) {
+        updateFields.status = decisionStatus;
+      } else {
+        delete updateFields.status;
+      }
     }
     let reviewedCompletionNormalized = false;
     if (
@@ -1153,21 +1191,39 @@ export function issueRoutes(db: Db, storage: StorageService) {
       });
 
     }
+    if (reviewDecision !== undefined) {
+      await logActivity(db, {
+        orgId: issue.orgId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: issue.id,
+        details: {
+          decision: reviewDecision,
+          status: issue.status,
+          identifier: issue.identifier,
+          commentId: comment?.id ?? null,
+        },
+      });
+    }
 
     const assigneeChanged = assigneeWillChange;
     const reviewerChanged = reviewerWillChange;
     const statusChangedFromBacklog =
       existing.status === "backlog" &&
       issue.status !== "backlog" &&
-      req.body.status !== undefined;
+      updateFields.status !== undefined;
     const statusChangedToInReview =
       existing.status !== "in_review" &&
       issue.status === "in_review" &&
-      req.body.status !== undefined;
+      updateFields.status !== undefined;
     const statusChangedFromReviewToInProgress =
       existing.status === "in_review" &&
       issue.status === "in_progress" &&
-      req.body.status !== undefined;
+      updateFields.status !== undefined;
     const reviewerChangedInReview =
       reviewerChanged &&
       existing.status === "in_review" &&

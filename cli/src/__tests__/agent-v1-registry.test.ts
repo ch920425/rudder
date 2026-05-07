@@ -38,6 +38,7 @@ describe("agent-v1 registry", () => {
       "issue.comments.list",
       "issue.comments.get",
       "issue.update",
+      "issue.review",
       "issue.done",
       "issue.block",
       "issue.release",

@@ -1135,16 +1135,32 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     }
 
     const issuesSvc = issueService(db);
-    const rows = await issuesSvc.list(req.actor.orgId, {
+    const assigneeRows = await issuesSvc.list(req.actor.orgId, {
       assigneeAgentId: req.actor.agentId,
       status: "todo,in_progress,blocked",
     });
+    const reviewerRows = await issuesSvc.list(req.actor.orgId, {
+      reviewerAgentId: req.actor.agentId,
+      status: "in_review",
+    });
+
+    const rows = [
+      ...assigneeRows.map((issue) => ({ issue, relationship: "assignee" as const })),
+      ...reviewerRows.map((issue) => ({ issue, relationship: "reviewer" as const })),
+    ].sort((a, b) => {
+      const priorityRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      const aPriority = priorityRank[a.issue.priority] ?? 9;
+      const bPriority = priorityRank[b.issue.priority] ?? 9;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return new Date(a.issue.updatedAt).getTime() - new Date(b.issue.updatedAt).getTime();
+    });
 
     res.json(
-      rows.map((issue) => ({
+      rows.map(({ issue, relationship }) => ({
         id: issue.id,
         identifier: issue.identifier,
         title: issue.title,
+        relationship,
         status: issue.status,
         priority: issue.priority,
         projectId: issue.projectId,
