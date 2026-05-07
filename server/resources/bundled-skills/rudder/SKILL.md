@@ -175,22 +175,24 @@ rudder issue review "<issue-id-or-identifier>" --decision blocked --comment "<ma
 - progress-only update:
 
 ```bash
-rudder issue comment "<issue-id-or-identifier>" --body "<markdown>" --json
+rudder issue comment "<issue-id-or-identifier>" --body "<markdown>" [--image "<path>"] --json
 ```
 
 - completion:
 
 ```bash
-rudder issue done "<issue-id-or-identifier>" --comment "<markdown>" --json
+rudder issue done "<issue-id-or-identifier>" --comment "<markdown>" [--image "<path>"] --json
 ```
 
 - blocker:
 
 ```bash
-rudder issue block "<issue-id-or-identifier>" --comment "<markdown>" --json
+rudder issue block "<issue-id-or-identifier>" --comment "<markdown>" [--image "<path>"] --json
 ```
 
 - generic patch when workflow commands are not enough:
+
+Add `--image "<path>"` one or more times when the close-out/progress comment should include local screenshots or images. Supported local image types are PNG, JPEG, WebP, and GIF; the CLI uploads them as issue attachments and appends Markdown image links.
 
 ```bash
 rudder issue update "<issue-id-or-identifier>" ... --json

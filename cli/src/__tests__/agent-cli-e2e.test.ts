@@ -13,6 +13,7 @@ import {
   applyPendingMigrations,
   createDb,
   ensurePostgresDatabase,
+  issueAttachments,
   issueComments,
   issues,
   organizations,
@@ -77,6 +78,7 @@ type AgentHireResult = {
 };
 
 let latestServerOutput = { stdout: [] as string[], stderr: [] as string[] };
+const tinyPngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -591,6 +593,196 @@ describe("agent CLI e2e", () => {
       env,
     });
     expect(done.status).toBe("done");
+  });
+
+  it("uploads images into issue comments from the CLI", { timeout: 60_000 }, async () => {
+    const db = createDb(connectionString);
+    const imageIssueId = randomUUID();
+    await db.insert(issues).values({
+      id: imageIssueId,
+      orgId,
+      title: "Comment with uploaded image",
+      description: "Validate CLI image uploads into issue comments.",
+      status: "todo",
+      priority: "high",
+      assigneeAgentId: agentId,
+      createdByUserId: "local-board",
+    });
+
+    const env = {
+      RUDDER_API_KEY: agentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: agentId,
+      RUDDER_RUN_ID: runId,
+    };
+    await runCliJson<Issue>(["issue", "checkout", imageIssueId], {
+      apiBase,
+      configPath,
+      env,
+    });
+
+    const imagePath = path.join(tempRoot, "comment-proof.png");
+    writeFileSync(imagePath, Buffer.from(tinyPngBase64, "base64"));
+
+    const comment = await runCliJson<IssueComment>(
+      ["issue", "comment", imageIssueId, "--body", "Progress with image.", "--image", imagePath],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+
+    expect(comment.body).toContain("Progress with image.");
+    expect(comment.body).toContain("![comment-proof.png](/api/attachments/");
+    expect(comment.body).toContain("/content)");
+
+    const attachments = await db
+      .select()
+      .from(issueAttachments)
+      .where(eq(issueAttachments.issueId, imageIssueId));
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]?.usage).toBe("comment_inline");
+  });
+
+  it("uploads images for generic update comments", { timeout: 60_000 }, async () => {
+    const db = createDb(connectionString);
+    const updateIssueId = randomUUID();
+    await db.insert(issues).values({
+      id: updateIssueId,
+      orgId,
+      title: "Update with uploaded image",
+      description: "Validate CLI image uploads into update comments.",
+      status: "todo",
+      priority: "high",
+      assigneeAgentId: agentId,
+      createdByUserId: "local-board",
+    });
+
+    const env = {
+      RUDDER_API_KEY: agentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: agentId,
+      RUDDER_RUN_ID: runId,
+    };
+    await runCliJson<Issue>(["issue", "checkout", updateIssueId], {
+      apiBase,
+      configPath,
+      env,
+    });
+
+    const imagePath = path.join(tempRoot, "update-proof.png");
+    writeFileSync(imagePath, Buffer.from(tinyPngBase64, "base64"));
+
+    const updated = await runCliJson<Issue & { comment?: IssueComment | null }>(
+      ["issue", "update", updateIssueId, "--comment", "Update with image.", "--image", imagePath],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+
+    expect(updated.status).toBe("in_progress");
+    expect(updated.comment?.body).toContain("Update with image.");
+    expect(updated.comment?.body).toContain("![update-proof.png](/api/attachments/");
+
+    const attachments = await db
+      .select()
+      .from(issueAttachments)
+      .where(eq(issueAttachments.issueId, updateIssueId));
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]?.usage).toBe("comment_inline");
+  });
+
+  it("uploads images for close-out comments", { timeout: 60_000 }, async () => {
+    const db = createDb(connectionString);
+    const closeoutIssueId = randomUUID();
+    await db.insert(issues).values({
+      id: closeoutIssueId,
+      orgId,
+      title: "Close out with uploaded image",
+      description: "Validate CLI image uploads into done comments.",
+      status: "todo",
+      priority: "high",
+      assigneeAgentId: agentId,
+      createdByUserId: "local-board",
+    });
+
+    const env = {
+      RUDDER_API_KEY: agentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: agentId,
+      RUDDER_RUN_ID: runId,
+    };
+    await runCliJson<Issue>(["issue", "checkout", closeoutIssueId], {
+      apiBase,
+      configPath,
+      env,
+    });
+
+    const imagePath = path.join(tempRoot, "done-proof.png");
+    writeFileSync(imagePath, Buffer.from(tinyPngBase64, "base64"));
+
+    const done = await runCliJson<Issue & { comment?: IssueComment | null }>(
+      ["issue", "done", closeoutIssueId, "--comment", "Done with image.", "--image", imagePath],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+
+    expect(done.status).toBe("done");
+    expect(done.comment?.body).toContain("Done with image.");
+    expect(done.comment?.body).toContain("![done-proof.png](/api/attachments/");
+
+    const attachments = await db
+      .select()
+      .from(issueAttachments)
+      .where(eq(issueAttachments.issueId, closeoutIssueId));
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]?.usage).toBe("comment_inline");
+
+    const blockIssueId = randomUUID();
+    await db.insert(issues).values({
+      id: blockIssueId,
+      orgId,
+      title: "Block with uploaded image",
+      description: "Validate CLI image uploads into blocker comments.",
+      status: "todo",
+      priority: "high",
+      assigneeAgentId: agentId,
+      createdByUserId: "local-board",
+    });
+    await runCliJson<Issue>(["issue", "checkout", blockIssueId], {
+      apiBase,
+      configPath,
+      env,
+    });
+
+    const blockImagePath = path.join(tempRoot, "block-proof.png");
+    writeFileSync(blockImagePath, Buffer.from(tinyPngBase64, "base64"));
+
+    const blocked = await runCliJson<Issue & { comment?: IssueComment | null }>(
+      ["issue", "block", blockIssueId, "--comment", "Blocked with image.", "--image", blockImagePath],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+
+    expect(blocked.status).toBe("blocked");
+    expect(blocked.comment?.body).toContain("Blocked with image.");
+    expect(blocked.comment?.body).toContain("![block-proof.png](/api/attachments/");
+
+    const blockAttachments = await db
+      .select()
+      .from(issueAttachments)
+      .where(eq(issueAttachments.issueId, blockIssueId));
+    expect(blockAttachments).toHaveLength(1);
+    expect(blockAttachments[0]?.usage).toBe("comment_inline");
   });
 
   it("runs the CLI-only organization skill path", { timeout: 60_000 }, async () => {

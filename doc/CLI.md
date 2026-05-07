@@ -153,11 +153,16 @@ Notes:
 pnpm rudder issue list --org-id <org-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
 pnpm rudder issue get <issue-id-or-identifier>
 pnpm rudder issue create --org-id <org-id> --title "..." [--description "..."] [--status todo] [--priority high]
-pnpm rudder issue update <issue-id> [--status in_progress] [--comment "..."]
-pnpm rudder issue comment <issue-id> --body "..." [--reopen]
+pnpm rudder issue update <issue-id> [--status in_progress] [--comment "..."] [--image ./screenshot.png]
+pnpm rudder issue comment <issue-id> --body "..." [--image ./screenshot.png] [--reopen]
+pnpm rudder issue done <issue-id> --comment "..." [--image ./screenshot.png]
+pnpm rudder issue block <issue-id> --comment "..." [--image ./screenshot.png]
 pnpm rudder issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
 pnpm rudder issue release <issue-id>
 ```
+
+`--image` may be repeated. The CLI uploads each local PNG/JPEG/WebP/GIF as an
+issue attachment and appends Markdown image links to the comment body.
 
 ## Agent Commands
 

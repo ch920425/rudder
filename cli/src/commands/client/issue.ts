@@ -1,3 +1,5 @@
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { Command } from "commander";
 import {
   addIssueCommentSchema,
@@ -10,6 +12,7 @@ import {
   type IssueDocumentSummary,
   type LegacyPlanDocument,
   type Issue,
+  type IssueAttachment,
   type IssueComment,
 } from "@rudderhq/shared";
 import {
@@ -54,11 +57,13 @@ interface IssueUpdateOptions extends BaseClientOptions {
   requestDepth?: string;
   billingCode?: string;
   comment?: string;
+  image?: string[];
   hiddenAt?: string;
 }
 
 interface IssueCommentOptions extends BaseClientOptions {
   body: string;
+  image?: string[];
   reopen?: boolean;
 }
 
@@ -69,12 +74,15 @@ interface IssueCheckoutOptions extends BaseClientOptions {
 
 interface IssueStatusCommentOptions extends BaseClientOptions {
   comment: string;
+  image?: string[];
 }
 
 interface IssueReviewOptions extends BaseClientOptions {
   decision: "approve" | "request_changes" | "needs_followup" | "blocked";
   comment: string;
 }
+
+type CommandContext = ReturnType<typeof resolveCommandContext>;
 
 interface IssueContextOptions extends BaseClientOptions {
   wakeCommentId?: string;
@@ -289,10 +297,12 @@ export function registerIssueCommands(program: Command): void {
       .option("--request-depth <n>", "Request depth integer")
       .option("--billing-code <code>", "Billing code")
       .option("--comment <text>", "Optional comment to add with update")
+      .option("--image <path>", "Image file to upload and append to the update comment; may be repeated", collectImagePath, [] as string[])
       .option("--hidden-at <iso8601|null>", "Set hiddenAt timestamp or literal 'null'")
       .action(async (issueId: string, opts: IssueUpdateOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
+          const comment = await appendUploadedIssueImages(ctx, issueId, opts.comment, opts.image);
           const payload = updateIssueSchema.parse({
             title: opts.title,
             description: opts.description,
@@ -304,7 +314,7 @@ export function registerIssueCommands(program: Command): void {
             parentId: opts.parentId,
             requestDepth: parseOptionalInt(opts.requestDepth),
             billingCode: opts.billingCode,
-            comment: opts.comment,
+            comment,
             hiddenAt: parseHiddenAt(opts.hiddenAt),
           });
 
@@ -322,12 +332,14 @@ export function registerIssueCommands(program: Command): void {
       .description(getAgentCliCapabilityById("issue.comment").description)
       .argument("<issueId>", "Issue ID")
       .requiredOption("--body <text>", "Comment body")
+      .option("--image <path>", "Image file to upload and append to the comment; may be repeated", collectImagePath, [] as string[])
       .option("--reopen", "Reopen if issue is done/cancelled")
       .action(async (issueId: string, opts: IssueCommentOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
+          const body = await appendUploadedIssueImages(ctx, issueId, opts.body, opts.image);
           const payload = addIssueCommentSchema.parse({
-            body: opts.body,
+            body,
             reopen: opts.reopen,
           });
           const comment = await ctx.api.post<IssueComment>(`/api/issues/${issueId}/comments`, payload);
@@ -369,12 +381,14 @@ export function registerIssueCommands(program: Command): void {
       .description(getAgentCliCapabilityById("issue.done").description)
       .argument("<issueId>", "Issue ID")
       .requiredOption("--comment <text>", "Required completion comment")
+      .option("--image <path>", "Image file to upload and append to the completion comment; may be repeated", collectImagePath, [] as string[])
       .action(async (issueId: string, opts: IssueStatusCommentOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
+          const comment = await appendUploadedIssueImages(ctx, issueId, opts.comment, opts.image);
           const updated = await ctx.api.patch<Issue>(`/api/issues/${issueId}`, {
             status: "done",
-            comment: opts.comment,
+            comment,
           });
           printOutput(updated, { json: ctx.json });
         } catch (err) {
@@ -389,12 +403,14 @@ export function registerIssueCommands(program: Command): void {
       .description(getAgentCliCapabilityById("issue.block").description)
       .argument("<issueId>", "Issue ID")
       .requiredOption("--comment <text>", "Required blocker comment")
+      .option("--image <path>", "Image file to upload and append to the blocker comment; may be repeated", collectImagePath, [] as string[])
       .action(async (issueId: string, opts: IssueStatusCommentOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
+          const comment = await appendUploadedIssueImages(ctx, issueId, opts.comment, opts.image);
           const updated = await ctx.api.patch<Issue>(`/api/issues/${issueId}`, {
             status: "blocked",
-            comment: opts.comment,
+            comment,
           });
           printOutput(updated, { json: ctx.json });
         } catch (err) {
@@ -572,6 +588,99 @@ export function registerIssueCommands(program: Command): void {
         }
       }),
   );
+}
+
+function collectImagePath(value: string, previous: string[]): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error("--image path cannot be empty");
+  }
+  return [...previous, trimmed];
+}
+
+async function appendUploadedIssueImages(
+  ctx: CommandContext,
+  issueId: string,
+  body: string | undefined,
+  imagePaths: string[] | undefined,
+): Promise<string | undefined> {
+  const paths = imagePaths ?? [];
+  if (paths.length === 0) return body;
+
+  const issue = await ctx.api.get<Issue>(`/api/issues/${issueId}`);
+  if (!issue) {
+    throw new Error("Issue not found");
+  }
+
+  const links: string[] = [];
+  for (const imagePath of paths) {
+    const attachment = await uploadIssueCommentImage(ctx, issue, imagePath);
+    links.push(formatAttachmentMarkdown(attachment));
+  }
+
+  const base = body?.trimEnd() ?? "";
+  const imageBlock = links.join("\n");
+  return base ? `${base}\n\n${imageBlock}` : imageBlock;
+}
+
+async function uploadIssueCommentImage(
+  ctx: CommandContext,
+  issue: Issue,
+  imagePath: string,
+): Promise<IssueAttachment> {
+  const resolvedPath = path.resolve(process.cwd(), imagePath);
+  const stats = await stat(resolvedPath).catch((err: unknown) => {
+    throw new Error(`Unable to read image ${imagePath}: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (!stats.isFile()) {
+    throw new Error(`Image path must be a file: ${imagePath}`);
+  }
+
+  const filename = path.basename(resolvedPath);
+  const contentType = inferCommentImageContentType(filename);
+  const buffer = await readFile(resolvedPath);
+  if (buffer.length <= 0) {
+    throw new Error(`Image is empty: ${imagePath}`);
+  }
+
+  const form = new FormData();
+  form.set("usage", "comment_inline");
+  form.set("file", new Blob([buffer], { type: contentType }), filename);
+
+  const attachment = await ctx.api.postForm<IssueAttachment>(
+    `/api/orgs/${issue.orgId}/issues/${issue.id}/attachments`,
+    form,
+  );
+  if (!attachment) {
+    throw new Error(`Image upload returned no attachment: ${imagePath}`);
+  }
+  return attachment;
+}
+
+function inferCommentImageContentType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  switch (ext) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    default:
+      throw new Error(`Unsupported comment image type: ${filename}. Use PNG, JPEG, WebP, or GIF.`);
+  }
+}
+
+function formatAttachmentMarkdown(attachment: IssueAttachment): string {
+  const alt = escapeMarkdownAltText(attachment.originalFilename ?? "image");
+  return `![${alt}](${attachment.contentPath})`;
+}
+
+function escapeMarkdownAltText(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
 }
 
 function parseCsv(value: string | undefined): string[] {

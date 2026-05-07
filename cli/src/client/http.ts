@@ -56,6 +56,13 @@ export class RudderApiClient {
     }, opts);
   }
 
+  postForm<T>(path: string, form: FormData, opts?: RequestOptions): Promise<T | null> {
+    return this.request<T>(path, {
+      method: "POST",
+      body: form,
+    }, opts);
+  }
+
   patch<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T | null> {
     return this.request<T>(path, {
       method: "PATCH",
@@ -91,7 +98,7 @@ export class RudderApiClient {
       ...toStringRecord(init.headers),
     };
 
-    if (init.body !== undefined) {
+    if (typeof init.body === "string") {
       headers["content-type"] = headers["content-type"] ?? "application/json";
     }
 
