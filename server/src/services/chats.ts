@@ -939,7 +939,7 @@ export function chatService(db: Db) {
         orgId: string;
         role: "user" | "assistant" | "system";
         kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion" | "system_event";
-        status?: "completed" | "stopped" | "failed";
+        status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
         body: string;
         structuredPayload?: Record<string, unknown> | null;
         transcript?: ChatStreamTranscriptEntry[];
@@ -972,6 +972,84 @@ export function chatService(db: Db) {
       }
       const [hydrated] = await hydrateMessages([message]);
       return hydrated;
+  }
+
+  async function updateMessage(
+      conversationId: string,
+      messageId: string,
+      input: {
+        kind?: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion" | "system_event";
+        status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
+        body?: string;
+        structuredPayload?: Record<string, unknown> | null;
+        transcript?: ChatStreamTranscriptEntry[];
+        approvalId?: string | null;
+        replyingAgentId?: string | null;
+      },
+    ) {
+      const existing = await db
+        .select()
+        .from(chatMessages)
+        .where(and(eq(chatMessages.conversationId, conversationId), eq(chatMessages.id, messageId)))
+        .then((rows) => rows[0] ?? null);
+      if (!existing) return null;
+
+      const [updated] = await db
+        .update(chatMessages)
+        .set({
+          ...(input.kind !== undefined ? { kind: input.kind } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.body !== undefined ? { body: input.body } : {}),
+          ...(input.structuredPayload !== undefined || input.transcript !== undefined
+            ? {
+              structuredPayload: withPersistedTranscript(
+                input.structuredPayload !== undefined
+                  ? input.structuredPayload
+                  : stripChatMetadataFromPayload(existing.structuredPayload),
+                input.transcript !== undefined
+                  ? input.transcript
+                  : chatTranscriptFromPayload(existing.structuredPayload),
+              ),
+            }
+            : {}),
+          ...(input.approvalId !== undefined ? { approvalId: input.approvalId } : {}),
+          ...(input.replyingAgentId !== undefined ? { replyingAgentId: input.replyingAgentId } : {}),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(chatMessages.conversationId, conversationId), eq(chatMessages.id, messageId)))
+        .returning();
+      if (!updated) return null;
+      if (input.body !== undefined || input.status !== undefined) {
+        await refreshConversationTouch(conversationId, updated.updatedAt);
+      }
+      const [hydrated] = await hydrateMessages([updated]);
+      return hydrated ?? null;
+  }
+
+  async function markInterruptedStreamingMessages(conversationId: string) {
+      const rows = await db
+        .select()
+        .from(chatMessages)
+        .where(
+          and(
+            eq(chatMessages.conversationId, conversationId),
+            eq(chatMessages.role, "assistant"),
+            eq(chatMessages.status, "streaming"),
+            isNull(chatMessages.supersededAt),
+          ),
+        );
+      const updatedMessages = [];
+      for (const row of rows) {
+        const body = row.body.trim().length > 0
+          ? row.body
+          : "Chat run interrupted before a final reply. Continue the conversation to resume from the preserved context.";
+        const updated = await updateMessage(conversationId, row.id, {
+          status: "interrupted",
+          body,
+        });
+        if (updated) updatedMessages.push(updated);
+      }
+      return updatedMessages;
   }
 
   async function updateMessageStructuredPayload(
@@ -1563,6 +1641,8 @@ export function chatService(db: Db) {
     setPinned,
     listMessages,
     addMessage,
+    updateMessage,
+    markInterruptedStreamingMessages,
     addUserChatMessage,
     addContextLink,
     setProjectContextLink,

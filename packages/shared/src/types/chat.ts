@@ -97,7 +97,7 @@ export interface ChatMessage {
     | "operation_proposal"
     | "routing_suggestion"
     | "system_event";
-  status: "completed" | "stopped" | "failed";
+  status: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
   body: string;
   structuredPayload: Record<string, unknown> | null;
   approvalId: string | null;

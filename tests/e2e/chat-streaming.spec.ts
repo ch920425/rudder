@@ -1,9 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { chatMessages, createDb } from "../../packages/db/src/index.ts";
 import { createE2EChatAgent } from "./support/chat-agent";
-import { E2E_CODEX_STUB, E2E_ROOT } from "./support/e2e-env";
+import { E2E_CODEX_STUB, E2E_DATABASE_URL, E2E_ROOT } from "./support/e2e-env";
 
 const E2E_CODEX_IGNORE_TERM_STUB = path.resolve(E2E_ROOT, "fixtures", "codex-ignore-term");
+const e2eDb = createDb(E2E_DATABASE_URL);
 
 async function expectTranscriptBetweenUserAndAssistant(page: Page) {
   const userBubble = page.getByTestId("chat-user-message-bubble").last();
@@ -184,6 +187,89 @@ test.describe("Chat streaming", () => {
     await expect(page.getByText("Streaming reply for chat.", { exact: false })).toHaveCount(0);
     await expect(page.getByText(/__RUDDER_RESULT_/)).toHaveCount(0);
     await expect(page.getByText(/"kind":"message"/)).toHaveCount(0);
+  });
+
+  test("marks preserved streaming progress interrupted after restart and can continue", async ({ page }) => {
+    const organization = await createStreamingOrg(page, `Recover-Chat-${Date.now()}`);
+
+    const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Interrupted progress recovery",
+        preferredAgentId: organization.chatAgent.id,
+        issueCreationMode: "manual_approval",
+        planMode: false,
+      },
+    });
+    expect(chatRes.ok()).toBe(true);
+    const chat = await chatRes.json();
+
+    const chatTurnId = randomUUID();
+    const userCreatedAt = new Date(Date.now() - 2_000);
+    const assistantCreatedAt = new Date(Date.now() - 1_000);
+    await e2eDb.insert(chatMessages).values([
+      {
+        id: randomUUID(),
+        orgId: organization.id,
+        conversationId: chat.id,
+        role: "user",
+        kind: "message",
+        status: "completed",
+        body: "Original interrupted request",
+        chatTurnId,
+        turnVariant: 0,
+        createdAt: userCreatedAt,
+        updatedAt: userCreatedAt,
+      },
+      {
+        id: randomUUID(),
+        orgId: organization.id,
+        conversationId: chat.id,
+        role: "assistant",
+        kind: "message",
+        status: "streaming",
+        body: "Partial preserved reply",
+        structuredPayload: {
+          __chatTranscript: [
+            {
+              kind: "thinking",
+              ts: assistantCreatedAt.toISOString(),
+              text: "Preserved recovery transcript",
+            },
+          ],
+        },
+        replyingAgentId: organization.chatAgent.id,
+        chatTurnId,
+        turnVariant: 0,
+        createdAt: assistantCreatedAt,
+        updatedAt: assistantCreatedAt,
+      },
+    ]);
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
+
+    await expect(page.getByTestId("chat-assistant-message").filter({ hasText: "Partial preserved reply" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("Interrupted", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Continue" })).toBeVisible({ timeout: 15_000 });
+    const messagesRes = await page.request.get(`/api/chats/${chat.id}/messages`);
+    expect(messagesRes.ok()).toBe(true);
+    const messages = await messagesRes.json();
+    expect(messages.find((message: { role: string }) => message.role === "assistant")?.status).toBe("interrupted");
+
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByTestId("chat-user-message-bubble").filter({ hasText: "Continue from the interrupted chat run." })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("chat-assistant-message").last()).toContainText("Streaming reply for chat.", {
+      timeout: 15_000,
+    });
   });
 
   test("recovers the composer after stopping a stubborn chat run", async ({ page }) => {

@@ -750,18 +750,25 @@ function formatChatPrimaryIssueBreadcrumb(issue: ChatPrimaryIssueSummary): strin
   return idPart ?? titlePart ?? issue.id;
 }
 
-function assistantStateLabel(state: ChatStreamDraftState | ChatMessage["status"]) {
+export const INTERRUPTED_CHAT_CONTINUATION_PROMPT = "Continue from the interrupted chat run.";
+
+export function canContinueInterruptedChatMessage(message: Pick<ChatMessage, "role" | "status">) {
+  return message.role === "assistant" && message.status === "interrupted";
+}
+
+export function assistantStateLabel(state: ChatStreamDraftState | ChatMessage["status"]) {
   if (state === "streaming") return "Streaming";
   if (state === "finalizing") return "Finalizing";
   if (state === "stopped") return "Stopped";
   if (state === "failed") return "Failed";
+  if (state === "interrupted") return "Interrupted";
   return null;
 }
 
-function statusChipClassName(state: ChatStreamDraftState | ChatMessage["status"]) {
-  return state === "failed"
-    ? "border-destructive/30 bg-destructive/10 text-destructive"
-    : "chat-chip";
+export function statusChipClassName(state: ChatStreamDraftState | ChatMessage["status"]) {
+  if (state === "failed") return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (state === "interrupted") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  return "chat-chip";
 }
 
 function ChatAssistantAttributionRow({
@@ -1081,6 +1088,7 @@ function ChatMessageItem({
   actionPending,
   onCopyMessageText,
   onEditUserMessage,
+  onContinueInterruptedMessage,
   onOpenImage,
   turnBranchControls,
   skillReferences,
@@ -1096,6 +1104,7 @@ function ChatMessageItem({
   actionPending: boolean;
   onCopyMessageText: (text: string) => void | Promise<void>;
   onEditUserMessage: (message: ChatMessage) => void;
+  onContinueInterruptedMessage: (message: ChatMessage) => void;
   onOpenImage: (preview: AttachmentPreviewState) => void;
   skillReferences: MarkdownSkillReferencePreview[];
   turnBranchControls?: {
@@ -1137,6 +1146,7 @@ function ChatMessageItem({
 
   const isUser = message.role === "user";
   const statusLabel = !isUser ? assistantStateLabel(message.status) : null;
+  const canContinueInterrupted = canContinueInterruptedChatMessage(message);
 
   if (!isUser) {
     return (
@@ -1152,6 +1162,15 @@ function ChatMessageItem({
               <span className={cn("rounded-full px-2 py-0.5 text-[10px]", statusChipClassName(message.status))}>
                 {statusLabel}
               </span>
+              {canContinueInterrupted ? (
+                <button
+                  type="button"
+                  className="inline-flex h-7 items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                  onClick={() => onContinueInterruptedMessage(message)}
+                >
+                  Continue
+                </button>
+              ) : null}
             </div>
           ) : null}
           <div className="max-w-[72ch] text-[15px] leading-7 text-foreground">
@@ -2257,6 +2276,7 @@ function ChatWorkspace() {
       return;
     }
 
+    const usesComposerState = options?.bodyOverride === undefined && options?.filesOverride === undefined;
     const body = (options?.bodyOverride ?? draft).trim();
     if (!body) {
       pushToast({ title: "Message cannot be empty", tone: "error" });
@@ -2264,7 +2284,7 @@ function ChatWorkspace() {
     }
 
     const filesToUpload = [...(options?.filesOverride ?? pendingFiles)];
-    const editUserMessageId = editForkUserMessageId;
+    const editUserMessageId = usesComposerState ? editForkUserMessageId : null;
     const editTargetMessage = editUserMessageId
       ? rawMessages.find((message) => message.id === editUserMessageId) ?? null
       : null;
@@ -2305,10 +2325,12 @@ function ChatWorkspace() {
         const startedAt = new Date();
         conversation = upsertOptimisticConversation(createdConversation, body, startedAt);
         rememberChatAgentId(selectedOrganizationId, selectedDraftAgentId);
-        setDraft("");
-        setPendingFiles([]);
-        setEditForkUserMessageId(null);
-        setBranchPreview(null);
+        if (usesComposerState) {
+          setDraft("");
+          setPendingFiles([]);
+          setEditForkUserMessageId(null);
+          setBranchPreview(null);
+        }
         navigate(chatConversationPath(conversation.id));
       }
 
@@ -2329,10 +2351,12 @@ function ChatWorkspace() {
         newConversationLockAcquired = false;
       }
 
-      setEditForkUserMessageId(null);
-      setBranchPreview(null);
-      setDraft("");
-      setPendingFiles([]);
+      if (usesComposerState) {
+        setEditForkUserMessageId(null);
+        setBranchPreview(null);
+        setDraft("");
+        setPendingFiles([]);
+      }
       setChatSendInFlight(chatId, true);
       stopRequestedChatIdsRef.current.delete(chatId);
       const abortController = new AbortController();
@@ -3479,6 +3503,13 @@ function ChatWorkspace() {
                                   }
                                   onCopyMessageText={copyChatMessageText}
                                   onEditUserMessage={beginEditUserMessage}
+                                  onContinueInterruptedMessage={() => {
+                                    void sendMessage({
+                                      bodyOverride: INTERRUPTED_CHAT_CONTINUATION_PROMPT,
+                                      filesOverride: [],
+                                      conversationOverride: selectedConversation,
+                                    });
+                                  }}
                                   onOpenImage={setAttachmentPreview}
                                   turnBranchControls={turnBranchControlsFor(message)}
                                   skillReferences={chatSkillReferences}

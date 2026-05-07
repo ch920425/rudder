@@ -7,9 +7,13 @@ import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
 import {
   ChatSystemMessageBody,
+  INTERRUPTED_CHAT_CONTINUATION_PROMPT,
+  assistantStateLabel,
+  canContinueInterruptedChatMessage,
   computeDisplayedChatMessages,
   isChatAgentSelectionLocked,
   scrollChatMessagesToBottom,
+  statusChipClassName,
   withOptimisticPlanMode,
 } from "./Chat";
 
@@ -122,6 +126,27 @@ describe("ChatSystemMessageBody", () => {
     expect(html).toContain("rudder-markdown");
     expect(html).toContain("<strong>approved</strong>");
     expect(html).not.toContain("chat-system-issue-link");
+  });
+});
+
+describe("interrupted chat messages", () => {
+  it("labels interrupted assistant messages and exposes continuation intent", () => {
+    const interrupted = message({
+      role: "assistant",
+      kind: "message",
+      status: "interrupted",
+      body: "Partial preserved reply",
+    });
+
+    expect(assistantStateLabel("interrupted")).toBe("Interrupted");
+    expect(statusChipClassName("interrupted")).toContain("amber");
+    expect(canContinueInterruptedChatMessage(interrupted)).toBe(true);
+    expect(INTERRUPTED_CHAT_CONTINUATION_PROMPT).toBe("Continue from the interrupted chat run.");
+  });
+
+  it("does not offer continuation for completed or user messages", () => {
+    expect(canContinueInterruptedChatMessage(message({ role: "assistant", status: "completed" }))).toBe(false);
+    expect(canContinueInterruptedChatMessage(message({ role: "user", status: "interrupted" }))).toBe(false);
   });
 });
 

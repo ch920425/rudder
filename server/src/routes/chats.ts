@@ -39,7 +39,7 @@ import {
   chatAssistantService,
   type ChatAssistantResult,
 } from "../services/chat-assistant.js";
-import { cancelActiveChatGeneration, claimChatGeneration } from "../services/chat-generation-locks.js";
+import { cancelActiveChatGeneration, claimChatGeneration, hasActiveChatGeneration } from "../services/chat-generation-locks.js";
 import {
   agentService,
   chatService,
@@ -521,9 +521,41 @@ export function chatRoutes(db: Db, storage: StorageService) {
     turnContext: ChatTurnContext,
     transcript: TranscriptEntry[] = [],
     replyingAgentId = assistantReply.replyingAgentId ?? chatReplyingAgentId(conversation),
+    existingMessageId?: string | null,
   ) {
     const createdMessages: ChatMessage[] = [];
     const { chatTurnId, turnVariant } = turnContext;
+    const saveAssistantMessage = async (input: {
+      kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion";
+      body: string;
+      structuredPayload?: Record<string, unknown> | null;
+      approvalId?: string | null;
+    }) => {
+      if (existingMessageId) {
+        const updated = await svc.updateMessage(conversation.id, existingMessageId, {
+          kind: input.kind,
+          status: "completed",
+          body: input.body,
+          structuredPayload: input.structuredPayload ?? null,
+          transcript,
+          approvalId: input.approvalId ?? null,
+          replyingAgentId,
+        });
+        if (updated) return updated as ChatMessage;
+      }
+      return svc.addMessage(conversation.id, {
+        orgId: conversation.orgId,
+        role: "assistant",
+        kind: input.kind,
+        body: input.body,
+        structuredPayload: input.structuredPayload ?? null,
+        transcript,
+        approvalId: input.approvalId ?? null,
+        replyingAgentId,
+        chatTurnId,
+        turnVariant,
+      }) as Promise<ChatMessage>;
+    };
 
     if (assistantReply.kind === "issue_proposal") {
       const issueProposalStructuredPayload = withDefaultIssueProposalAssignee(
@@ -532,16 +564,10 @@ export function chatRoutes(db: Db, storage: StorageService) {
       );
       const shouldAutoCreateIssue = conversation.planMode || conversation.issueCreationMode === "auto_create";
       if (shouldAutoCreateIssue) {
-        const proposalMessage = await svc.addMessage(conversation.id, {
-          orgId: conversation.orgId,
-          role: "assistant",
+        const proposalMessage = await saveAssistantMessage({
           kind: "issue_proposal",
           body: assistantReply.body,
           structuredPayload: issueProposalStructuredPayload,
-          transcript,
-          replyingAgentId,
-          chatTurnId,
-          turnVariant,
         });
         createdMessages.push(proposalMessage as ChatMessage);
 
@@ -588,17 +614,11 @@ export function chatRoutes(db: Db, storage: StorageService) {
         },
       });
 
-      const proposalMessage = await svc.addMessage(conversation.id, {
-        orgId: conversation.orgId,
-        role: "assistant",
+      const proposalMessage = await saveAssistantMessage({
         kind: "issue_proposal",
         body: assistantReply.body,
         structuredPayload: issueProposalStructuredPayload,
-        transcript,
         approvalId: approval.id,
-        replyingAgentId,
-        chatTurnId,
-        turnVariant,
       });
       createdMessages.push(proposalMessage as ChatMessage);
       return createdMessages;
@@ -618,9 +638,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
               : assistantReply.structuredPayload,
         },
       });
-      const proposalMessage = await svc.addMessage(conversation.id, {
-        orgId: conversation.orgId,
-        role: "assistant",
+      const proposalMessage = await saveAssistantMessage({
         kind: "operation_proposal",
         body: assistantReply.body,
         structuredPayload: {
@@ -632,26 +650,16 @@ export function chatRoutes(db: Db, storage: StorageService) {
             decidedAt: null,
           },
         },
-        transcript,
         approvalId: approval.id,
-        replyingAgentId,
-        chatTurnId,
-        turnVariant,
       });
       createdMessages.push(proposalMessage as ChatMessage);
       return createdMessages;
     }
 
-    const assistantMessage = await svc.addMessage(conversation.id, {
-      orgId: conversation.orgId,
-      role: "assistant",
+    const assistantMessage = await saveAssistantMessage({
       kind: assistantReply.kind === "routing_suggestion" ? "routing_suggestion" : "message",
       body: assistantReply.body,
       structuredPayload: assistantReply.structuredPayload,
-      transcript,
-      replyingAgentId,
-      chatTurnId,
-      turnVariant,
     });
     createdMessages.push(assistantMessage as ChatMessage);
     return createdMessages;
@@ -664,17 +672,32 @@ export function chatRoutes(db: Db, storage: StorageService) {
     turnContext: ChatTurnContext | null,
     transcript: TranscriptEntry[] = [],
     replyingAgentId = chatReplyingAgentId(conversation),
+    existingMessageId?: string | null,
   ) {
     const trimmed = body.trim();
-    if (!trimmed) return null;
+    const fallbackBody = status === "stopped"
+      ? "Chat run stopped before a final reply. Continue the conversation to resume from the preserved context."
+      : "Chat run failed before a final reply. Continue the conversation to resume from the preserved context.";
+    const durableBody = trimmed || (transcript.length > 0 ? fallbackBody : "");
+    if (!durableBody) return null;
     const chatTurnId = turnContext?.chatTurnId ?? randomUUID();
     const turnVariant = turnContext?.turnVariant ?? 0;
+    if (existingMessageId) {
+      const updated = await svc.updateMessage(conversation.id, existingMessageId, {
+        kind: "message",
+        status,
+        body: durableBody,
+        transcript,
+        replyingAgentId,
+      });
+      if (updated) return updated as ChatMessage;
+    }
     const message = await svc.addMessage(conversation.id, {
       orgId: conversation.orgId,
       role: "assistant",
       kind: "message",
       status,
-      body: trimmed,
+      body: durableBody,
       transcript,
       replyingAgentId,
       chatTurnId,
@@ -820,6 +843,9 @@ export function chatRoutes(db: Db, storage: StorageService) {
     if (!conversation) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
+    }
+    if (!hasActiveChatGeneration(conversation.id)) {
+      await svc.markInterruptedStreamingMessages(conversation.id);
     }
     const messages = await svc.listMessages(conversation.id);
     res.json(messages);
@@ -1052,6 +1078,43 @@ export function chatRoutes(db: Db, storage: StorageService) {
     let chatObservation: ExecutionObservabilityContext | null = null;
     const transcript: TranscriptEntry[] = [];
     const observedTranscript: TranscriptEntry[] = [];
+    let assistantProgressMessage: ChatMessage | null = null;
+    let assistantProgressMessageId: string | null = null;
+    let assistantDraftBody = "";
+    const persistStreamProgress = async (
+      progressConversation: ChatConversation,
+      replyingAgentId = chatReplyingAgentId(progressConversation),
+    ) => {
+      if (!turnContextForPartial) return null;
+      const input = {
+        kind: "message" as const,
+        status: "streaming" as const,
+        body: assistantDraftBody,
+        transcript,
+        replyingAgentId,
+      };
+      if (assistantProgressMessage) {
+        const updated = await svc.updateMessage(progressConversation.id, assistantProgressMessage.id, input);
+        if (updated) {
+          assistantProgressMessage = updated as ChatMessage;
+          assistantProgressMessageId = assistantProgressMessage.id;
+          return assistantProgressMessage;
+        }
+      }
+      assistantProgressMessage = await svc.addMessage(progressConversation.id, {
+        orgId: progressConversation.orgId,
+        role: "assistant",
+        kind: "message",
+        status: "streaming",
+        body: assistantDraftBody,
+        transcript,
+        replyingAgentId,
+        chatTurnId: turnContextForPartial.chatTurnId,
+        turnVariant: turnContextForPartial.turnVariant,
+      }) as ChatMessage;
+      assistantProgressMessageId = assistantProgressMessage.id;
+      return assistantProgressMessage;
+    };
     let clientClosed = false;
     const handleClosed = () => {
       if (clientClosed || res.writableEnded) return;
@@ -1132,12 +1195,16 @@ export function chatRoutes(db: Db, storage: StorageService) {
                 updateExecutionTraceIO(observation, { input: currentChatTraceInput });
               },
               onAssistantDelta: async (delta) => {
+                assistantDraftBody = `${assistantDraftBody}${delta}`;
+                await persistStreamProgress(assistantInput.conversation);
+                if (clientClosed) return;
                 writeStreamEvent(res, {
                   type: "assistant_delta",
                   delta,
                 });
               },
               onAssistantState: async (state) => {
+                await persistStreamProgress(assistantInput.conversation);
                 if (clientClosed) return;
                 writeStreamEvent(res, {
                   type: "assistant_state",
@@ -1146,6 +1213,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
               },
               onTranscriptEntry: async (entry) => {
                 transcript.push(entry);
+                await persistStreamProgress(assistantInput.conversation);
                 if (clientClosed) return;
                 writeStreamEvent(res, {
                   type: "transcript_entry",
@@ -1167,6 +1235,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
                 turnContextForPartial!,
                 transcript,
                 streamed.replyingAgentId,
+                assistantProgressMessageId,
               );
               if (stoppedMessage) {
                 await logChatMessagesAdded(assistantInput.conversation, [stoppedMessage], {
@@ -1201,6 +1270,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
               turnContextForPartial!,
               transcript,
               streamed.replyingAgentId,
+              assistantProgressMessageId,
             );
             finalChatOutput = streamed.reply.body;
             await logChatMessagesAdded(assistantInput.conversation, createdMessages, {
@@ -1272,6 +1342,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         turnContextForPartial!,
         transcript,
         failedReplyingAgentId,
+        assistantProgressMessageId,
       ).catch(() => null);
       if (failedMessage && assistantConversationForPartial) {
         await logChatMessagesAdded(assistantConversationForPartial, [failedMessage], {

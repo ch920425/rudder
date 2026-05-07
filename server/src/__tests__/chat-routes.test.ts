@@ -20,6 +20,8 @@ const mockChatService = vi.hoisted(() => ({
   setPinned: vi.fn(),
   listMessages: vi.fn(),
   addMessage: vi.fn(),
+  updateMessage: vi.fn(),
+  markInterruptedStreamingMessages: vi.fn(),
   addUserChatMessage: vi.fn(),
   addContextLink: vi.fn(),
   setProjectContextLink: vi.fn(),
@@ -223,6 +225,19 @@ describe("chat routes", () => {
     mockChatService.addUserChatMessage.mockImplementation(async (_cid: string, _orgId: string, body: string) =>
       createMessage("message-user", "user", "message", body),
     );
+    mockChatService.updateMessage.mockImplementation(async (_conversationId: string, messageId: string, input: Record<string, unknown>) => ({
+      ...createMessage(
+        messageId,
+        "assistant",
+        typeof input.kind === "string" ? input.kind : "message",
+        typeof input.body === "string" ? input.body : "",
+      ),
+      status: typeof input.status === "string" ? input.status : "completed",
+      structuredPayload: input.structuredPayload ?? null,
+      transcript: Array.isArray(input.transcript) ? input.transcript : [],
+      replyingAgentId: typeof input.replyingAgentId === "string" ? input.replyingAgentId : null,
+    }));
+    mockChatService.markInterruptedStreamingMessages.mockResolvedValue([]);
   });
 
   it("creates a conversation using the organization default issue creation mode", async () => {
@@ -299,6 +314,30 @@ describe("chat routes", () => {
     expect(res.body).toEqual({ error: "Choose a chat agent before sending messages." });
     expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
     expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+  });
+
+  it("marks stale streaming assistant messages interrupted when listing messages", async () => {
+    const conversation = createConversation();
+    const interruptedMessage = {
+      ...createMessage("message-streaming", "assistant", "message", "Partial preserved reply"),
+      status: "interrupted",
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.markInterruptedStreamingMessages.mockResolvedValueOnce([interruptedMessage]);
+    mockChatService.listMessages.mockResolvedValueOnce([interruptedMessage]);
+
+    const res = await request(createApp())
+      .get("/api/chats/chat-1/messages");
+
+    expect(res.status).toBe(200);
+    expect(mockChatService.markInterruptedStreamingMessages).toHaveBeenCalledWith("chat-1");
+    expect(mockChatService.listMessages).toHaveBeenCalledWith("chat-1");
+    expect(res.body[0]).toEqual(expect.objectContaining({
+      id: "message-streaming",
+      status: "interrupted",
+      body: "Partial preserved reply",
+    }));
   });
 
   it("updates a chat project context after validating organization ownership", async () => {
@@ -910,6 +949,19 @@ describe("chat routes", () => {
       expect.objectContaining({
         role: "assistant",
         kind: "message",
+        status: "streaming",
+        body: "",
+        replyingAgentId: "agent-1",
+        transcript: expect.any(Array),
+      }),
+    );
+    expect(mockChatService.updateMessage).toHaveBeenLastCalledWith(
+      "chat-1",
+      "message-assistant",
+      expect.objectContaining({
+        kind: "message",
+        status: "completed",
+        body: "Streaming reply",
         replyingAgentId: "agent-1",
         transcript: [
           expect.objectContaining({ kind: "thinking", text: "Inspecting current request" }),
@@ -1138,10 +1190,11 @@ describe("chat routes", () => {
 
       releaseAssistant();
       await waitUntil(() => {
-        expect(mockChatService.addMessage).toHaveBeenCalledWith(
+        expect(mockChatService.updateMessage).toHaveBeenCalledWith(
           "chat-1",
+          "message-assistant",
           expect.objectContaining({
-            role: "assistant",
+            status: "completed",
             body: "Completed after disconnect",
           }),
         );

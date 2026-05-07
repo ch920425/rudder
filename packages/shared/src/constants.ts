@@ -169,7 +169,7 @@ export const CHAT_MESSAGE_KINDS = [
 ] as const;
 export type ChatMessageKind = (typeof CHAT_MESSAGE_KINDS)[number];
 
-export const CHAT_MESSAGE_STATUSES = ["completed", "stopped", "failed"] as const;
+export const CHAT_MESSAGE_STATUSES = ["streaming", "completed", "stopped", "failed", "interrupted"] as const;
 export type ChatMessageStatus = (typeof CHAT_MESSAGE_STATUSES)[number];
 
 export const CHAT_CONTEXT_ENTITY_TYPES = ["issue", "project", "agent"] as const;
