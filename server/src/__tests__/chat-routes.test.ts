@@ -243,6 +243,38 @@ describe("chat routes", () => {
     );
   });
 
+  it("rejects chat creation when the preferred agent is unknown", async () => {
+    const preferredAgentId = "10000000-0000-4000-8000-000000000001";
+    mockAgentService.getById.mockResolvedValueOnce(null);
+
+    const res = await request(createApp())
+      .post("/api/orgs/organization-1/chats")
+      .send({ preferredAgentId });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Preferred agent must belong to the same organization" });
+    expect(mockAgentService.getById).toHaveBeenCalledWith(preferredAgentId);
+    expect(mockChatService.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects chat creation when the preferred agent belongs to another organization", async () => {
+    const preferredAgentId = "10000000-0000-4000-8000-000000000002";
+    mockAgentService.getById.mockResolvedValueOnce({
+      id: preferredAgentId,
+      orgId: "other-organization",
+      status: "idle",
+    });
+
+    const res = await request(createApp())
+      .post("/api/orgs/organization-1/chats")
+      .send({ preferredAgentId });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Preferred agent must belong to the same organization" });
+    expect(mockAgentService.getById).toHaveBeenCalledWith(preferredAgentId);
+    expect(mockChatService.create).not.toHaveBeenCalled();
+  });
+
   it("rejects message sends before persisting when no preferred agent is available", async () => {
     const conversation = createConversation({
       preferredAgentId: null,

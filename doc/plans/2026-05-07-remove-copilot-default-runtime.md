@@ -20,7 +20,10 @@ related_code:
   - packages/db/src/schema/organizations.ts
   - ui/src/pages/Chat.tsx
   - ui/src/pages/OrganizationSettings.tsx
-commit_refs: []
+commit_refs:
+  - 492c0de
+  - 3c383cb
+  - a3bcd6c
 updated_at: 2026-05-07
 ---
 

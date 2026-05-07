@@ -5,7 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ChatConversation, ChatMessage } from "@rudderhq/shared";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { ChatSystemMessageBody, computeDisplayedChatMessages, withOptimisticPlanMode } from "./Chat";
+import {
+  ChatSystemMessageBody,
+  computeDisplayedChatMessages,
+  isChatAgentSelectionLocked,
+  withOptimisticPlanMode,
+} from "./Chat";
 
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
@@ -175,5 +180,48 @@ describe("withOptimisticPlanMode", () => {
     const original = conversation({ planMode: true });
 
     expect(withOptimisticPlanMode(original, true)).toBe(original);
+  });
+});
+
+describe("isChatAgentSelectionLocked", () => {
+  it("keeps historical unassigned conversations repairable", () => {
+    expect(isChatAgentSelectionLocked({
+      hasConversation: true,
+      preferredAgentId: null,
+      hasLastMessageAt: true,
+      hasMessages: true,
+      hasActiveStream: false,
+      hasActiveSendInFlight: false,
+    })).toBe(false);
+  });
+
+  it("locks historical conversations once a real preferred agent is selected", () => {
+    expect(isChatAgentSelectionLocked({
+      hasConversation: true,
+      preferredAgentId: "agent-1",
+      hasLastMessageAt: true,
+      hasMessages: true,
+      hasActiveStream: false,
+      hasActiveSendInFlight: false,
+    })).toBe(true);
+  });
+
+  it("locks unassigned conversations while a send or stream is active", () => {
+    expect(isChatAgentSelectionLocked({
+      hasConversation: true,
+      preferredAgentId: null,
+      hasLastMessageAt: false,
+      hasMessages: false,
+      hasActiveStream: true,
+      hasActiveSendInFlight: false,
+    })).toBe(true);
+    expect(isChatAgentSelectionLocked({
+      hasConversation: true,
+      preferredAgentId: null,
+      hasLastMessageAt: false,
+      hasMessages: false,
+      hasActiveStream: false,
+      hasActiveSendInFlight: true,
+    })).toBe(true);
   });
 });

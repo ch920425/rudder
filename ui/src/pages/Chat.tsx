@@ -594,6 +594,31 @@ export function withOptimisticPlanMode(conversation: ChatConversation, planMode:
   };
 }
 
+export function isChatAgentSelectionLocked({
+  hasConversation,
+  preferredAgentId,
+  hasLastMessageAt,
+  hasMessages,
+  hasActiveStream,
+  hasActiveSendInFlight,
+}: {
+  hasConversation: boolean;
+  preferredAgentId: string | null | undefined;
+  hasLastMessageAt: boolean;
+  hasMessages: boolean;
+  hasActiveStream: boolean;
+  hasActiveSendInFlight: boolean;
+}) {
+  return Boolean(
+    hasConversation
+    && (
+      hasActiveStream
+      || hasActiveSendInFlight
+      || (preferredAgentId && (hasLastMessageAt || hasMessages))
+    ),
+  );
+}
+
 function approvalNeedsAction(approval: Approval | null | undefined) {
   return approval?.status === "pending" || approval?.status === "revision_requested";
 }
@@ -2391,15 +2416,14 @@ function ChatWorkspace() {
   const showMessagesLoading = Boolean(selectedConversation && conversationId && messagesQuery.isPending && messagesQuery.data === undefined);
   const activeStream = readChatScopedState(streamDrafts, selectedConversation?.id);
   const activeSendInFlight = readChatScopedFlag(sendInFlightByChatId, selectedConversation?.id);
-  const agentSelectionLocked = Boolean(
-    selectedConversation
-    && (
-      selectedConversation.lastMessageAt
-      || rawMessages.length > 0
-      || activeStream
-      || activeSendInFlight
-    ),
-  );
+  const agentSelectionLocked = isChatAgentSelectionLocked({
+    hasConversation: Boolean(selectedConversation),
+    preferredAgentId: selectedConversation?.preferredAgentId,
+    hasLastMessageAt: Boolean(selectedConversation?.lastMessageAt),
+    hasMessages: rawMessages.length > 0,
+    hasActiveStream: Boolean(activeStream),
+    hasActiveSendInFlight: activeSendInFlight,
+  });
   const activeEditCutoffMs = activeStream?.editedFromCreatedAt
     ? activeStream.editedFromCreatedAt.getTime()
     : null;

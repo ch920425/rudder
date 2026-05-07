@@ -716,6 +716,13 @@ export function chatRoutes(db: Db, storage: StorageService) {
 
     const contextLinks = req.body.contextLinks ?? [];
     await assertContextLinksBelongToCompany(orgId, contextLinks);
+    if (req.body.preferredAgentId) {
+      const agent = await agentsSvc.getById(req.body.preferredAgentId);
+      if (!agent || agent.orgId !== orgId) {
+        res.status(422).json({ error: "Preferred agent must belong to the same organization" });
+        return;
+      }
+    }
 
     const actor = getActorInfo(req);
     const conversation = await svc.create(orgId, {
