@@ -208,6 +208,21 @@ describe("MarkdownBody", () => {
     expect(html).toContain('href="https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noreferrer noopener"');
+    expect(html).not.toContain('class="rudder-link-chip"');
+  });
+
+  it("renders bare long URLs as compact link chips", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>{"https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('class="rudder-link-chip"');
+    expect(html).toContain('class="rudder-link-chip-domain"');
+    expect(html).toContain('gingiris.github.io');
+    expect(html).toContain('github readme template guide');
+    expect(html).toContain('target="_blank"');
   });
 
   it("keeps app-relative markdown links in the current window", () => {

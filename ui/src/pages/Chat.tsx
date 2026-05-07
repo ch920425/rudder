@@ -30,6 +30,8 @@ import {
   type ChatOperationProposalDecisionStatus,
   type ChatPrimaryIssueSummary,
   type Issue,
+  formatMessengerPreview,
+  formatMessengerTitle,
   type MessengerThreadSummary,
   type Project,
 } from "@rudderhq/shared";
@@ -527,11 +529,14 @@ function mergeChatConversationsForStatus(
 }
 
 function conversationPreview(conversation: ChatConversation, fallbackPreview?: string | null) {
-  const preview = fallbackPreview?.trim();
-  return preview
-    || conversation.latestReplyPreview
-    || conversation.summary
+  return formatMessengerPreview(fallbackPreview)
+    || formatMessengerPreview(conversation.latestReplyPreview)
+    || formatMessengerPreview(conversation.summary)
     || "Start the conversation";
+}
+
+function conversationDisplayTitle(conversation: Pick<ChatConversation, "title">) {
+  return formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title;
 }
 
 function buildMessengerChatThreadSummary(
@@ -545,7 +550,7 @@ function buildMessengerChatThreadSummary(
   return {
     threadKey: `chat:${conversation.id}`,
     kind: "chat",
-    title: conversation.title,
+    title: conversationDisplayTitle(conversation),
     subtitle: preview,
     preview,
     latestActivityAt: options?.latestActivityAt ?? conversation.lastMessageAt ?? conversation.updatedAt,
@@ -3208,7 +3213,7 @@ function ChatWorkspace() {
                           size="sm"
                           className="h-9 w-full justify-between gap-2 rounded-full px-3 font-normal"
                         >
-                          <span className="truncate text-left text-foreground">{selectedConversation.title}</span>
+                          <span className="truncate text-left text-foreground">{conversationDisplayTitle(selectedConversation)}</span>
                           <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -3236,7 +3241,7 @@ function ChatWorkspace() {
                             }}
                           >
                             <span className="flex min-w-0 items-center gap-2">
-                              <span className="truncate">{c.title}</span>
+                              <span className="truncate">{conversationDisplayTitle(c)}</span>
                               {c.isUnread ? (
                                 <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500" aria-label="Unread chat" />
                               ) : null}

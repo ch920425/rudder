@@ -14,6 +14,7 @@ import {
 } from "@rudderhq/db";
 import {
   formatMessengerPreview,
+  formatMessengerTitle,
   type Approval,
   type BudgetIncident,
   type ChatConversation,
@@ -330,11 +331,11 @@ function issueActions(issue: IssueUniverseRow, currentUserId: string | null) {
 
 function chatSummary(conversation: ChatConversationRow): MessengerThreadSummary {
   const preview =
-    conversation.latestReplyPreview ?? conversation.summary ?? truncate(conversation.title, 140) ?? "Start the conversation";
+    conversation.latestReplyPreview ?? truncate(conversation.summary, 140) ?? truncate(conversation.title, 140) ?? "Start the conversation";
   return {
     threadKey: threadKeyForChat(conversation.id),
     kind: "chat",
-    title: conversation.title,
+    title: formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title,
     subtitle: preview,
     preview,
     latestActivityAt: conversation.lastMessageAt ?? conversation.updatedAt,

@@ -758,7 +758,7 @@ export { API_PREFIX, API } from "./api.js";
 export { normalizeAgentUrlKey, deriveAgentUrlKey, isUuidLike } from "./agent-url-key.js";
 export { normalizeOrganizationUrlKey, deriveOrganizationUrlKey } from "./organization-url-key.js";
 export { deriveProjectUrlKey, normalizeProjectUrlKey } from "./project-url-key.js";
-export { formatMessengerPreview, type MessengerPreviewOptions } from "./messenger-preview.js";
+export { formatMessengerPreview, formatMessengerTitle, type MessengerPreviewOptions } from "./messenger-preview.js";
 export {
   RUDDER_BUNDLED_SKILL_SLUGS,
   getBundledRudderSkillSlug,

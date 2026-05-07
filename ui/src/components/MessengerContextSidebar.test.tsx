@@ -163,6 +163,46 @@ describe("MessengerContextSidebar", () => {
     expect(html).not.toContain("## 需求");
   });
 
+  it("renders URL-heavy chat titles as readable compact titles", () => {
+    const rawTitle = "&#x20;[https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/] 看一下这个 总结下。";
+    chatList = [
+      {
+        id: "chat-1",
+        title: rawTitle,
+        summary: "Start conversation",
+        latestReplyPreview: null,
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        lastMessageAt: "2026-04-11T09:40:00.000Z",
+        unreadCount: 0,
+        needsAttention: false,
+        isUnread: false,
+        isPinned: false,
+        primaryIssue: null,
+        contextLinks: [],
+      },
+    ];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [{
+        threadKey: "chat:chat-1",
+        kind: "chat",
+        title: rawTitle,
+        preview: "Start conversation",
+        subtitle: null,
+        href: "/messenger/chat/chat-1",
+        latestActivityAt: "2026-04-11T09:40:00.000Z",
+        unreadCount: 0,
+        needsAttention: false,
+      }],
+    };
+
+    const html = renderToStaticMarkup(<MessengerContextSidebar />);
+
+    expect(html).toContain("看一下这个 总结下。");
+    expect(html).not.toContain("&#x20;");
+    expect(html).not.toContain("github-readme-template-guide");
+  });
+
   it("renders the thread organization control", () => {
     const html = renderToStaticMarkup(<MessengerContextSidebar />);
 

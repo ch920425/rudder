@@ -19,7 +19,7 @@ import {
   UserPlus,
   XCircle,
 } from "lucide-react";
-import { formatMessengerPreview, type ChatConversation } from "@rudderhq/shared";
+import { formatMessengerPreview, formatMessengerTitle, type ChatConversation } from "@rudderhq/shared";
 import { chatsApi } from "@/api/chats";
 import { messengerApi } from "@/api/messenger";
 import { Link, useLocation, useNavigate } from "@/lib/router";
@@ -149,6 +149,14 @@ function conversationSubtitle(conversation: ChatConversation) {
       : null) ||
     "Start the conversation"
   );
+}
+
+function conversationDisplayTitle(conversation: Pick<ChatConversation, "title">) {
+  return formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title;
+}
+
+function threadDisplayTitle(title: string) {
+  return formatMessengerTitle(title, { max: 80 }) ?? title;
 }
 
 function chatProjectGroupLabel(conversation: ChatConversation | null) {
@@ -318,7 +326,7 @@ function ChatThreadRow({
                     conversation.isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/92",
                   )}
                 >
-                  <span className="truncate">{conversation.title}</span>
+                  <span className="truncate">{conversationDisplayTitle(conversation)}</span>
                   {conversation.isPinned ? (
                     <Pin className="h-3 w-3 shrink-0 text-muted-foreground" />
                   ) : null}
@@ -440,7 +448,7 @@ function ThreadRow({
               thread.unreadCount > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/92",
             )}
           >
-            {thread.title}
+            {threadDisplayTitle(thread.title)}
           </span>
           <span
             data-testid={`messenger-time-${sanitizeThreadKey(thread.threadKey)}`}

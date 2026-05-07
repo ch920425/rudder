@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@rudderhq/db";
-import { formatMessengerPreview, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
+import { formatMessengerPreview, formatMessengerTitle, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
 import {
   agents,
   approvals,
@@ -600,7 +600,7 @@ export function chatService(db: Db) {
     const conversation = await getConversationOrThrow(conversationId);
     const title = conversation.title.trim();
     if (title !== "New chat") return;
-    const nextTitle = body.split(/\r?\n/, 1)[0]?.trim().slice(0, 80);
+    const nextTitle = formatMessengerTitle(body, { max: 80 });
     if (!nextTitle) return;
     await db
       .update(chatConversations)
