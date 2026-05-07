@@ -47,7 +47,7 @@ test.describe("Chat agent selector lock", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto(`/messenger/chat/${conversationId}`);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${conversationId}`);
 
     const agentSelector = page.getByTestId("chat-agent-selector");
     await expect(agentSelector).toBeVisible({ timeout: 15_000 });
