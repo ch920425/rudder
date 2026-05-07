@@ -28,6 +28,17 @@ export interface CostSummary {
   utilizationPercent: number;
 }
 
+export interface CostTrendPoint {
+  /** UTC day bucket formatted as YYYY-MM-DD. */
+  date: string;
+  costCents: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  eventCount: number;
+}
+
 export interface CostByAgent {
   agentId: string;
   agentName: string | null;

@@ -5,6 +5,7 @@ import type {
   CostByAgentModel,
   CostByBiller,
   CostByProviderModel,
+  CostTrendPoint,
   CostWindowSpendRow,
   FinanceEvent,
   QuotaWindow,
@@ -92,6 +93,141 @@ function MetricTile({
         </div>
       </div>
     </div>
+  );
+}
+
+function utcDayKey(value: string | Date): string {
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dayLabel(value: string): string {
+  const date = new Date(`${value}T12:00:00Z`);
+  return `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+}
+
+function fullDayLabel(value: string): string {
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function emptyTrendPoint(date: string): CostTrendPoint {
+  return {
+    date,
+    costCents: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    eventCount: 0,
+  };
+}
+
+function buildTrendSeries(rows: CostTrendPoint[], from?: string, to?: string): CostTrendPoint[] {
+  if (!from || !to) return rows;
+
+  const start = new Date(from);
+  const end = new Date(to);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return rows;
+
+  const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  const dayCount = Math.floor((endUtc - startUtc) / 86_400_000) + 1;
+  if (dayCount <= 0 || dayCount > 62) return rows;
+
+  const rowsByDate = new Map(rows.map((row) => [row.date, row]));
+  return Array.from({ length: dayCount }, (_, index) => {
+    const date = utcDayKey(new Date(startUtc + index * 86_400_000));
+    return rowsByDate.get(date) ?? emptyTrendPoint(date);
+  });
+}
+
+function shouldShowDayLabel(index: number, count: number): boolean {
+  if (count <= 10) return true;
+  return index === 0 || index === count - 1 || index === Math.floor((count - 1) / 2);
+}
+
+function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; from?: string; to?: string }) {
+  const series = buildTrendSeries(rows, from, to);
+  const maxTokens = Math.max(...series.map((row) => row.totalTokens), 1);
+  const maxCost = Math.max(...series.map((row) => row.costCents), 1);
+  const totalTokens = series.reduce((sum, row) => sum + row.totalTokens, 0);
+  const totalCost = series.reduce((sum, row) => sum + row.costCents, 0);
+  const hasData = totalTokens > 0 || totalCost > 0;
+
+  return (
+    <Card data-testid="cost-trend-chart">
+      <CardHeader className="px-5 pt-5 pb-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">Inference trend</CardTitle>
+            <CardDescription>Daily token volume and estimated spend in the selected period.</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
+              Tokens <span className="font-medium text-foreground tabular-nums">{formatTokens(totalTokens)}</span>
+            </span>
+            <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
+              Estimated spend <span className="font-medium text-foreground tabular-nums">{formatCents(totalCost)}</span>
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-5 pt-2">
+        {!hasData ? (
+          <p className="text-sm text-muted-foreground">No cost trend yet.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-sm bg-sky-500" /> Tokens
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Estimated spend
+              </span>
+            </div>
+            <div className="overflow-x-auto pb-1">
+              <div className="flex h-40 min-w-[520px] items-end gap-2">
+                {series.map((row, index) => {
+                  const tokenHeight = Math.max(3, (row.totalTokens / maxTokens) * 100);
+                  const costBottom = Math.max(2, (row.costCents / maxCost) * 100);
+                  const title = `${fullDayLabel(row.date)} · ${formatTokens(row.totalTokens)} tokens · ${formatCents(row.costCents)} estimated spend`;
+                  return (
+                    <div key={row.date} className="group flex min-w-7 flex-1 flex-col justify-end gap-1" title={title}>
+                      <div
+                        aria-label={title}
+                        className="relative h-32 rounded-[calc(var(--radius-sm)-1px)] bg-muted/35"
+                      >
+                        <div
+                          className="absolute inset-x-1 bottom-0 rounded-t-[calc(var(--radius-sm)-1px)] bg-sky-500/60 transition-colors group-hover:bg-sky-500"
+                          style={{ height: `${row.totalTokens > 0 ? tokenHeight : 0}%` }}
+                        />
+                        {row.costCents > 0 ? (
+                          <span
+                            className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-background bg-emerald-500 shadow-sm"
+                            style={{ bottom: `calc(${costBottom}% - 5px)` }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="h-3 text-center text-[10px] tabular-nums text-muted-foreground">
+                        {shouldShowDayLabel(index, series.length) ? dayLabel(row.date) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -232,13 +368,14 @@ export function Costs() {
   const { data: spendData, isLoading: spendLoading, error: spendError } = useQuery({
     queryKey: queryKeys.costs(orgId, from || undefined, to || undefined),
     queryFn: async () => {
-      const [summary, byAgent, byProject, byAgentModel] = await Promise.all([
+      const [summary, trend, byAgent, byProject, byAgentModel] = await Promise.all([
         costsApi.summary(orgId, from || undefined, to || undefined),
+        costsApi.trend(orgId, from || undefined, to || undefined),
         costsApi.byAgent(orgId, from || undefined, to || undefined),
         costsApi.byProject(orgId, from || undefined, to || undefined),
         costsApi.byAgentModel(orgId, from || undefined, to || undefined),
       ]);
-      return { summary, byAgent, byProject, byAgentModel };
+      return { summary, trend, byAgent, byProject, byAgentModel };
     },
     enabled: !!selectedOrganizationId && customReady,
   });
@@ -658,6 +795,12 @@ export function Costs() {
                   ))}
                 </div>
               ) : null}
+
+              <CostTrendChart
+                rows={spendData?.trend ?? []}
+                from={from || undefined}
+                to={to || undefined}
+              />
 
               <div className="grid gap-4 xl:grid-cols-[1.3fr,1fr]">
                 <Card>

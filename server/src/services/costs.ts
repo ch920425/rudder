@@ -166,6 +166,34 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       };
     },
 
+    trend: async (orgId: string, range?: CostDateRange) => {
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.orgId, orgId)];
+      if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
+      if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
+
+      const dateBucket = sql<string>`to_char(date_trunc('day', ${costEvents.occurredAt} at time zone 'UTC'), 'YYYY-MM-DD')`;
+      const costCentsExpr = sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`;
+      const inputTokensExpr = sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`;
+      const cachedInputTokensExpr = sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`;
+      const outputTokensExpr = sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`;
+      const totalTokensExpr = sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}), 0)::int`;
+
+      return db
+        .select({
+          date: dateBucket,
+          costCents: costCentsExpr,
+          inputTokens: inputTokensExpr,
+          cachedInputTokens: cachedInputTokensExpr,
+          outputTokens: outputTokensExpr,
+          totalTokens: totalTokensExpr,
+          eventCount: sql<number>`count(*)::int`,
+        })
+        .from(costEvents)
+        .where(and(...conditions))
+        .groupBy(dateBucket)
+        .orderBy(dateBucket);
+    },
+
     byAgent: async (orgId: string, range?: CostDateRange) => {
       const conditions: ReturnType<typeof eq>[] = [eq(costEvents.orgId, orgId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));

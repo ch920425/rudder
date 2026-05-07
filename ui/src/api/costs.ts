@@ -1,5 +1,6 @@
 import type {
   CostSummary,
+  CostTrendPoint,
   CostByAgent,
   CostByProviderModel,
   CostByBiller,
@@ -27,6 +28,8 @@ export const costsApi = {
     api.get<CostSummary>(`/orgs/${orgId}/costs/summary${dateParams(from, to)}`),
   byAgent: (orgId: string, from?: string, to?: string) =>
     api.get<CostByAgent[]>(`/orgs/${orgId}/costs/by-agent${dateParams(from, to)}`),
+  trend: (orgId: string, from?: string, to?: string) =>
+    api.get<CostTrendPoint[]>(`/orgs/${orgId}/costs/trend${dateParams(from, to)}`),
   byAgentModel: (orgId: string, from?: string, to?: string) =>
     api.get<CostByAgentModel[]>(`/orgs/${orgId}/costs/by-agent-model${dateParams(from, to)}`),
   byProject: (orgId: string, from?: string, to?: string) =>

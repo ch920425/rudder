@@ -128,6 +128,14 @@ export function costRoutes(db: Db) {
     res.json(rows);
   });
 
+  router.get("/orgs/:orgId/costs/trend", async (req, res) => {
+    const orgId = req.params.orgId as string;
+    assertCompanyAccess(req, orgId);
+    const range = parseDateRange(req.query);
+    const rows = await costs.trend(orgId, range);
+    res.json(rows);
+  });
+
   router.get("/orgs/:orgId/costs/by-agent-model", async (req, res) => {
     const orgId = req.params.orgId as string;
     assertCompanyAccess(req, orgId);

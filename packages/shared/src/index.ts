@@ -347,6 +347,7 @@ export type {
   BudgetIncidentResolutionInput,
   CostEvent,
   CostSummary,
+  CostTrendPoint,
   CostByAgent,
   CostByProviderModel,
   CostByBiller,
