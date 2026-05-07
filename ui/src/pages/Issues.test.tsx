@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ISSUE_DRAFTS_STORAGE_KEY } from "@/lib/new-issue-dialog";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { Issues } from "./Issues";
 
 (
@@ -128,7 +129,11 @@ function renderIssues() {
   cleanupFn = () => root.unmount();
 
   act(() => {
-    root.render(<Issues />);
+    root.render(
+      <ThemeProvider>
+        <Issues />
+      </ThemeProvider>,
+    );
   });
 }
 
@@ -141,6 +146,16 @@ beforeEach(() => {
   mockState.pushToast.mockReset();
   mockState.search = "?scope=drafts";
   vi.stubGlobal("confirm", mockState.confirm);
+  vi.stubGlobal("matchMedia", vi.fn(() => ({
+    matches: false,
+    media: "(prefers-color-scheme: dark)",
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
 });
 
 afterEach(() => {
@@ -178,6 +193,23 @@ describe("Issues draft scope", () => {
     });
 
     expect(mockState.openNewIssue).toHaveBeenCalledWith({ draftId: "draft-1" });
+  });
+
+  it("renders markdown and images in the constrained draft card preview", () => {
+    window.localStorage.setItem(ISSUE_DRAFTS_STORAGE_KEY, JSON.stringify([
+      {
+        ...savedDraft,
+        description: "## Screenshot\n![](/api/assets/draft-image/content)\n- **Looks** better",
+      },
+    ]));
+
+    renderIssues();
+
+    const preview = document.querySelector("[data-testid='issue-draft-description-preview']");
+    expect(preview?.className).toContain("max-h-[4.5rem]");
+    expect(preview?.textContent).toContain("Screenshot");
+    expect(preview?.querySelector("strong")?.textContent).toBe("Looks");
+    expect(preview?.querySelector("img")?.getAttribute("src")).toBe("/api/assets/draft-image/content");
   });
 
   it("deletes a draft issue from the main content after confirmation", async () => {

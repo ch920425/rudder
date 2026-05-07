@@ -27,6 +27,7 @@ import { relativeTime } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { IssuesList } from "../components/IssuesList";
 import { LinearIssueSourceBoard } from "../components/LinearIssueSourceBoard";
+import { MarkdownBody } from "../components/MarkdownBody";
 import { CircleDot, Clock3, Flag, FolderKanban, PencilLine, Trash2, UserRound } from "lucide-react";
 import { useIssueFollows } from "@/hooks/useIssueFollows";
 
@@ -52,6 +53,24 @@ function resolveDraftAssigneeLabel(
     return formatAssigneeUserLabel(assignee.assigneeUserId, currentUserId);
   }
   return null;
+}
+
+function DraftDescriptionPreview({ description }: { description: string }) {
+  if (!description) {
+    return (
+      <p className="mt-5 text-sm leading-6 text-muted-foreground">
+        Add description...
+      </p>
+    );
+  }
+
+  return (
+    <div data-testid="issue-draft-description-preview" className="mt-5 max-h-[4.5rem] w-full min-w-0 overflow-hidden">
+      <MarkdownBody className="text-sm leading-6 text-muted-foreground [&_blockquote]:my-0 [&_h1]:my-0 [&_h1]:text-sm [&_h1]:leading-6 [&_h2]:my-0 [&_h2]:text-sm [&_h2]:leading-6 [&_h3]:my-0 [&_h3]:text-sm [&_h3]:leading-6 [&_img]:my-0 [&_img]:max-h-[4.5rem] [&_img]:w-full [&_img]:rounded-[calc(var(--radius-sm)-2px)] [&_img]:object-cover [&_ol]:my-0 [&_p]:my-0 [&_pre]:my-0 [&_ul]:my-0">
+        {description}
+      </MarkdownBody>
+    </div>
+  );
 }
 
 function DraftIssuesView({
@@ -106,9 +125,11 @@ function DraftIssuesView({
             >
               <button
                 type="button"
-                className="flex h-full min-h-36 w-full flex-col items-start px-4 py-3 text-left"
+                aria-label={`Open draft ${draft.title}`}
+                className="absolute inset-0 z-10 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => onOpenDraft(draft)}
-              >
+              />
+              <div className="pointer-events-none flex h-full min-h-36 w-full flex-col items-start px-4 py-3 text-left">
                 <div className="flex w-full min-w-0 items-start gap-2 pr-9">
                   <PencilLine className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
@@ -126,10 +147,8 @@ function DraftIssuesView({
                     </div>
                   </div>
                 </div>
-                <p className="mt-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                  {draft.description || "Add description..."}
-                </p>
-              </button>
+                <DraftDescriptionPreview description={draft.description} />
+              </div>
               <button
                 type="button"
                 data-testid="issue-draft-delete-button"
@@ -139,7 +158,7 @@ function DraftIssuesView({
                   event.stopPropagation();
                   onDeleteDraft(draft);
                 }}
-                className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-[calc(var(--radius-sm)-2px)] text-muted-foreground opacity-100 transition-colors hover:bg-[color:color-mix(in_oklab,var(--destructive)_16%,transparent)] hover:text-destructive"
+                className="absolute right-3 top-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-[calc(var(--radius-sm)-2px)] text-muted-foreground opacity-100 transition-colors hover:bg-[color:color-mix(in_oklab,var(--destructive)_16%,transparent)] hover:text-destructive"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
