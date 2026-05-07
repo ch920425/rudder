@@ -195,4 +195,29 @@ describe("MarkdownBody", () => {
       label: "daily note",
     }));
   });
+
+  it("renders external markdown links with safe new-window attributes", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"Read [the guide](https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/)"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noreferrer noopener"');
+  });
+
+  it("keeps app-relative markdown links in the current window", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>{"Open [the issue](/issues/ZST-9)"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="/issues/ZST-9"');
+    expect(html).not.toContain('target="_blank"');
+  });
 });

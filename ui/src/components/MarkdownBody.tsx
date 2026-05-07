@@ -42,6 +42,20 @@ function normalizeSkillReferenceLookupKey(value: string | null | undefined) {
   return value?.trim().replace(/\/+$/u, "").toLowerCase() ?? "";
 }
 
+function isExternalMarkdownHref(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return false;
+  if (trimmed.startsWith("//")) return true;
+  if (!/^[a-z][a-z\d+.-]*:/iu.test(trimmed)) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:";
+  } catch {
+    return false;
+  }
+}
+
 function extractMermaidSource(children: ReactNode): string | null {
   if (!isValidElement(children)) return null;
   const childProps = children.props as { className?: unknown; children?: ReactNode };
@@ -179,10 +193,12 @@ export function MarkdownBody({ children, className, resolveImageSrc, onLinkClick
           <SkillReferenceToken label={skillReference.label} preview={preview} />
         );
       }
+      const isExternal = isExternalMarkdownHref(href);
       return (
         <a
           href={href}
-          rel="noreferrer"
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noreferrer noopener" : "noreferrer"}
           onClick={(event) => {
             if (!href || !onLinkClick) return;
             onLinkClick({ event, href, label: flattenText(linkChildren) });

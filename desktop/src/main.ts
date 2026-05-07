@@ -11,6 +11,11 @@ import { createBootScreenHtml, createRendererRecoveryScreenHtml } from "./boot-s
 import { DESKTOP_CLI_FLAG, ensureDesktopCliLink, resolveDesktopCliArgv, shouldInstallDesktopCliLink } from "./cli-link.js";
 import type { DesktopCapabilities } from "./desktop-capabilities.js";
 import {
+  canOpenBlockedNavigationExternally,
+  collectDesktopNavigationOrigins,
+  isAllowedDesktopNavigation,
+} from "./navigation-guard.js";
+import {
   listAvailableIdeTargets,
   listWorkspaceLaunchTargets,
   openWorkspace,
@@ -944,9 +949,42 @@ async function promptForUnresponsiveRenderer(): Promise<void> {
   }
 }
 
-function installRendererRecoveryHandlers(window: BrowserWindow): void {
+function installRendererRecoveryHandlers(window: BrowserWindow, initialUrl: string): void {
+  const allowedOrigins = () => collectDesktopNavigationOrigins(
+    initialUrl,
+    resolveDesktopAppBaseUrl(),
+    serverHandle?.apiUrl,
+  );
+  const handleBlockedNavigation = (targetUrl: string) => {
+    if (isAllowedDesktopNavigation(targetUrl, allowedOrigins(), { allowInternalProtocols: false })) return false;
+
+    if (canOpenBlockedNavigationExternally(targetUrl)) {
+      shell.openExternal(targetUrl).catch((error) => {
+        console.warn("[rudder-desktop] failed to open external navigation", targetUrl, error);
+      });
+    }
+    return true;
+  };
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (handleBlockedNavigation(url)) return { action: "deny" };
+
+    window.loadURL(url).catch((error) => {
+      console.warn("[rudder-desktop] failed to load same-origin navigation", url, error);
+    });
+    return { action: "deny" };
+  });
+
+  window.webContents.on("will-navigate", (event, targetUrl) => {
+    if (handleBlockedNavigation(targetUrl)) {
+      event.preventDefault();
+    }
+  });
+
   window.webContents.on("did-navigate", (_event, targetUrl) => {
-    rememberAppUrl(targetUrl);
+    if (isAllowedDesktopNavigation(targetUrl, allowedOrigins())) {
+      rememberAppUrl(targetUrl);
+    }
     rendererRecoveryInFlight = false;
   });
 
@@ -995,7 +1033,7 @@ async function createDesktopWindow(initialUrl: string): Promise<BrowserWindow> {
     window.show();
   });
 
-  installRendererRecoveryHandlers(window);
+  installRendererRecoveryHandlers(window, initialUrl);
 
   window.on("close", (event) => {
     if (!shouldHideToResidentShell() || quitRequested || quitting) return;
