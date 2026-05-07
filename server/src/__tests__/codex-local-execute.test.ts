@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { execute } from "@rudderhq/agent-runtime-codex-local/server";
+
+const execFileAsync = promisify(execFile);
 
 async function writeFakeCodexCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
@@ -135,6 +139,96 @@ process.stdin.on("end", () => {
   await fs.chmod(commandPath, 0o755);
 }
 
+async function writeGitIdentityCaptureCodexCommand(commandPath: string): Promise<void> {
+  const script = `#!/usr/bin/env node
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+
+function runGit(args) {
+  try {
+    return {
+      ok: true,
+      stdout: execFileSync("git", args, { encoding: "utf8" }),
+      stderr: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: error.stdout ? String(error.stdout) : "",
+      stderr: error.stderr ? String(error.stderr) : String(error.message || error),
+    };
+  }
+}
+
+process.stdin.resume();
+process.stdin.on("end", () => {
+  const ident = runGit(["var", "GIT_AUTHOR_IDENT"]);
+  const useConfigOnly = runGit(["config", "--global", "--get", "user.useConfigOnly"]);
+  const email = runGit(["config", "--global", "--get", "user.email"]);
+  const capturePath = process.env.RUDDER_TEST_CAPTURE_PATH;
+  if (capturePath) {
+    fs.writeFileSync(capturePath, JSON.stringify({
+      home: process.env.HOME || null,
+      ident,
+      useConfigOnly,
+      email,
+    }), "utf8");
+  }
+  console.log(JSON.stringify({ type: "thread.started", thread_id: "codex-session-1" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "captured git identity" } }));
+  console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }));
+});
+`;
+  await fs.writeFile(commandPath, script, "utf8");
+  await fs.chmod(commandPath, 0o755);
+}
+
+async function writeGitCommitCodexCommand(commandPath: string): Promise<void> {
+  const script = `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+process.stdin.resume();
+process.stdin.on("end", () => {
+  const result = spawnSync("git", ["commit", "--allow-empty", "-m", "agent commit"], { encoding: "utf8" });
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr || result.stdout || "git commit failed");
+    process.exit(result.status || 1);
+    return;
+  }
+  console.log(JSON.stringify({ type: "thread.started", thread_id: "codex-session-1" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "committed" } }));
+  console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }));
+});
+`;
+  await fs.writeFile(commandPath, script, "utf8");
+  await fs.chmod(commandPath, 0o755);
+}
+
+async function runGit(cwd: string, args: string[], env?: NodeJS.ProcessEnv) {
+  return execFileAsync("git", args, {
+    cwd,
+    env: {
+      ...process.env,
+      ...env,
+    },
+  });
+}
+
+async function initGitRepoWithoutStoredIdentity(workspace: string) {
+  await runGit(workspace, ["init"]);
+  await fs.writeFile(path.join(workspace, "README.md"), "hello\n", "utf8");
+  await runGit(workspace, ["add", "README.md"]);
+  await runGit(workspace, [
+    "-c",
+    "user.name=Setup User",
+    "-c",
+    "user.email=setup@example.com",
+    "commit",
+    "-m",
+    "Initial commit",
+  ]);
+}
+
+
 type CapturePayload = {
   argv: string[];
   prompt: string;
@@ -171,6 +265,171 @@ function managedCodexHomePath(input: {
 }
 
 describe("codex execute", () => {
+  it("prepares isolated HOME Git config from the workspace repository identity", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-git-identity-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "codex");
+    const capturePath = path.join(root, "capture.json");
+    const sharedCodexHome = path.join(root, "shared-codex-home");
+    const paperclipHome = path.join(root, "rudder-home");
+    const managedCodexHome = managedCodexHomePath({ rudderHome: paperclipHome });
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(sharedCodexHome, { recursive: true });
+    await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
+    await fs.writeFile(path.join(sharedCodexHome, "config.toml"), 'model = "codex-mini-latest"\n', "utf8");
+    await runGit(workspace, ["init"]);
+    await runGit(workspace, ["config", "user.name", "Rudder Agent"]);
+    await runGit(workspace, ["config", "user.email", "rudder-agent@example.com"]);
+    await writeGitIdentityCaptureCodexCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousPaperclipHome = process.env.RUDDER_HOME;
+    const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
+    const previousPaperclipInWorktree = process.env.RUDDER_IN_WORKTREE;
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_HOME = paperclipHome;
+    delete process.env.RUDDER_INSTANCE_ID;
+    delete process.env.RUDDER_IN_WORKTREE;
+    process.env.CODEX_HOME = sharedCodexHome;
+
+    try {
+      const result = await execute({
+        runId: "run-git-identity",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Codex Coder",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+            GIT_CONFIG_NOSYSTEM: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        home: string | null;
+        ident: { ok: boolean; stdout: string; stderr: string };
+        useConfigOnly: { ok: boolean; stdout: string; stderr: string };
+        email: { ok: boolean; stdout: string; stderr: string };
+      };
+      expect(capture.home).toBe(path.join(managedCodexHome, "home"));
+      expect(capture.ident.ok).toBe(true);
+      expect(capture.ident.stdout).toContain("Rudder Agent <rudder-agent@example.com>");
+      expect(capture.ident.stdout).not.toContain(".local");
+      expect(capture.useConfigOnly.stdout).toBe("true\n");
+      expect(capture.email.stdout).toBe("rudder-agent@example.com\n");
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousPaperclipHome === undefined) delete process.env.RUDDER_HOME;
+      else process.env.RUDDER_HOME = previousPaperclipHome;
+      if (previousPaperclipInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
+      else process.env.RUDDER_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousPaperclipInWorktree === undefined) delete process.env.RUDDER_IN_WORKTREE;
+      else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = previousCodexHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails fast instead of making fallback .local commits when no Git identity is available", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-missing-git-identity-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "codex");
+    const sharedCodexHome = path.join(root, "shared-codex-home");
+    const paperclipHome = path.join(root, "rudder-home");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(sharedCodexHome, { recursive: true });
+    await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
+    await fs.writeFile(path.join(sharedCodexHome, "config.toml"), 'model = "codex-mini-latest"\n', "utf8");
+    await initGitRepoWithoutStoredIdentity(workspace);
+    await writeGitCommitCodexCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousPaperclipHome = process.env.RUDDER_HOME;
+    const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
+    const previousPaperclipInWorktree = process.env.RUDDER_IN_WORKTREE;
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.HOME = path.join(root, "empty-host-home");
+    process.env.RUDDER_HOME = paperclipHome;
+    delete process.env.RUDDER_INSTANCE_ID;
+    delete process.env.RUDDER_IN_WORKTREE;
+    process.env.CODEX_HOME = sharedCodexHome;
+
+    try {
+      const result = await execute({
+        runId: "run-missing-git-identity",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Codex Coder",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            GIT_AUTHOR_NAME: "Zeeland",
+            GIT_AUTHOR_EMAIL: "zeeland@ZeelanddeMacBook-Pro.local",
+            GIT_COMMITTER_NAME: "Zeeland",
+            GIT_COMMITTER_EMAIL: "zeeland@ZeelanddeMacBook-Pro.local",
+            GIT_CONFIG_NOSYSTEM: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(128);
+      expect(result.errorMessage).toContain("Author identity unknown");
+      expect(result.resultJson?.stderr).toContain("auto-detection is disabled");
+      expect(result.resultJson?.stderr).not.toContain(".local");
+      const count = await runGit(workspace, ["rev-list", "--count", "HEAD"]);
+      expect(count.stdout.trim()).toBe("1");
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousPaperclipHome === undefined) delete process.env.RUDDER_HOME;
+      else process.env.RUDDER_HOME = previousPaperclipHome;
+      if (previousPaperclipInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
+      else process.env.RUDDER_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousPaperclipInWorktree === undefined) delete process.env.RUDDER_IN_WORKTREE;
+      else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = previousCodexHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("uses a Rudder-managed CODEX_HOME outside worktree mode while preserving shared auth and config", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-default-"));
     const workspace = path.join(root, "workspace");

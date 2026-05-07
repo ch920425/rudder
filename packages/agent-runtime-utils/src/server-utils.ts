@@ -1424,6 +1424,16 @@ export async function runChildProcess(
       delete rawMerged[key];
     }
 
+    const GIT_IDENTITY_ENV_VARS = [
+      "GIT_AUTHOR_NAME",
+      "GIT_AUTHOR_EMAIL",
+      "GIT_COMMITTER_NAME",
+      "GIT_COMMITTER_EMAIL",
+    ] as const;
+    for (const key of GIT_IDENTITY_ENV_VARS) {
+      if (rawMerged[key] === "") delete rawMerged[key];
+    }
+
     // When Rudder isolates HOME for child agents, don't let zsh keep using the
     // host user's startup dir via an inherited ZDOTDIR. That mismatch makes
     // child `zsh -lc` invocations source the host `.zshenv` with the agent HOME.

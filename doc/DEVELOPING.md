@@ -212,6 +212,23 @@ and CLI use the isolated `RUDDER_HOME`, instance id, server port, and database p
 If the server has to bind a fallback port because the configured port is busy, the dev runner follows the
 runtime descriptor instead of polling only the requested port.
 
+### Agent Git Identity
+
+Local agent runtimes isolate `HOME`, so Git must not rely on the host user's global `~/.gitconfig`.
+When Rudder prepares Codex local runs, it writes an isolated `$AGENT_HOME/.gitconfig` with
+`user.useConfigOnly=true` and copies a safe identity from explicit `GIT_AUTHOR_*` / `GIT_COMMITTER_*`,
+the workspace repo-local config, or the host global config. Runtime-created git worktrees also get
+repo-local `user.useConfigOnly=true`. If no safe identity is available, `git commit` fails with Git's
+auto-detection-disabled error instead of creating a `*@*.local` fallback commit.
+
+Before asking an agent to commit in a new local workspace, set a safe repo-local identity when possible:
+
+```sh
+git config user.name "Undertone0809"
+git config user.email "72488598+Undertone0809@users.noreply.github.com"
+git config user.useConfigOnly true
+```
+
 For a standalone Vite UI process, `pnpm dev:ui` reads the same worktree-local Rudder config and proxies
 `/api` to the running runtime descriptor when one exists, otherwise to the configured server port.
 Use `RUDDER_UI_PROXY_TARGET=http://127.0.0.1:<port>` or `RUDDER_UI_PORT=<port>` only when you need

@@ -57,6 +57,10 @@ If an issue has a reviewer, moving it to `blocked` is also a reviewer handoff: t
 
 If `RUDDER_WAKE_REASON=issue_passive_followup`, the run is close-out governance for the same issue. Inspect current issue state first, then leave a progress comment, completion, blocker, or explicit handoff.
 
+## Git Identity Policy
+
+Local runtime `HOME` is isolated from the operator home. Codex local runs and runtime-created git worktrees are prepared with `user.useConfigOnly=true` so missing identity fails fast instead of producing `*@*.local` commits. If Git reports missing author or committer identity, configure the repository explicitly with `git config user.name <name>` and `git config user.email <safe-email>`; do not unset the guard or accept auto-detected local-host metadata.
+
 ## Reviewer Close-Out Signals
 
 When the inbox row or wake context says `relationship: "reviewer"`, `role: "reviewer"`, or `wakeSource: "review"`, finish the review with one structured reviewer decision. Reviewer work can be either `in_review` or `blocked`; blocked reviewer work means blocker triage, not implementation takeover.

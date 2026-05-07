@@ -4,6 +4,7 @@ import net from "node:net";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { ensureGitRepositoryIdentityConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import type { AgentRuntimeServiceReport } from "@rudderhq/agent-runtime-utils";
 import type { Db } from "@rudderhq/db";
 import { workspaceRuntimeServices } from "@rudderhq/db";
@@ -464,6 +465,8 @@ async function provisionExecutionWorktree(input: {
   created: boolean;
   recorder?: WorkspaceOperationRecorder | null;
 }) {
+  await ensureGitRepositoryIdentityConfig({ cwd: input.worktreePath });
+
   const provisionCommand = asString(input.strategy.provisionCommand, "").trim();
   if (!provisionCommand) return;
 

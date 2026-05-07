@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
+import { ensureGitIdentityFileConfig, type GitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asString,
   asNumber,
@@ -144,6 +145,15 @@ function resolveCodexBiller(env: Record<string, string>, billingType: "api" | "s
   return billingType === "subscription" ? "chatgpt" : openAiCompatibleBiller ?? "openai";
 }
 
+function applyPreparedGitIdentityEnv(env: Record<string, string>, identity: GitIdentity | null): void {
+  const name = identity?.name ?? "";
+  const email = identity?.email ?? "";
+  env.GIT_AUTHOR_NAME = name;
+  env.GIT_AUTHOR_EMAIL = email;
+  env.GIT_COMMITTER_NAME = name;
+  env.GIT_COMMITTER_EMAIL = email;
+}
+
 export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentRuntimeExecutionResult> {
   const { runId, agent, runtime, config, context, onLog, onMeta, onSpawn, authToken } = ctx;
 
@@ -221,6 +231,12 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   await fs.mkdir(effectiveCodexHome, { recursive: true });
   const isolatedHome = agentHome || path.join(effectiveCodexHome, "home");
   await fs.mkdir(isolatedHome, { recursive: true });
+  const preparedGitIdentity = await ensureGitIdentityFileConfig({
+    cwd,
+    home: isolatedHome,
+    sourceEnv,
+    onLog,
+  });
   const codexSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCodexSkillNames = resolveRudderDesiredSkillNames(config, codexSkillEntries);
   await realizeManagedCodexSkillEntries(
@@ -346,6 +362,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
+  applyPreparedGitIdentityEnv(env, preparedGitIdentity.identity);
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
