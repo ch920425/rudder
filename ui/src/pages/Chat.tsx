@@ -490,7 +490,7 @@ function mergeChatMessages(current: ChatMessage[], incoming: ChatMessage[]) {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
-function computeDisplayedChatMessages(
+export function computeDisplayedChatMessages(
   all: ChatMessage[],
   branchPreview: ChatBranchPreview | null,
 ): ChatMessage[] {
@@ -505,22 +505,13 @@ function computeDisplayedChatMessages(
   if (turnSlice.length === 0) {
     return sorted.filter((m) => !m.supersededAt);
   }
-  const times = turnSlice.map((m) => new Date(m.createdAt).getTime());
-  const tMin = Math.min(...times);
-  const tMax = Math.max(...times);
-  const prefix = sorted.filter(
-    (m) => !m.supersededAt && new Date(m.createdAt).getTime() < tMin,
-  );
-  const suffix = sorted.filter(
-    (m) =>
-      !m.supersededAt
-      && new Date(m.createdAt).getTime() > tMax
-      && m.chatTurnId !== tid,
-  );
+  const outsideTurn = sorted.filter((m) => !m.supersededAt && m.chatTurnId !== tid);
   const mid = [...turnSlice].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-  return [...prefix, ...mid, ...suffix];
+  return [...outsideTurn, ...mid].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 }
 
 function mergeChatConversationsForStatus(
@@ -981,6 +972,58 @@ function ProposalCard({
 const chatMessageHoverBarClass =
   "opacity-0 pointer-events-none transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
+function readStructuredPayloadString(payload: Record<string, unknown> | null, key: string): string | null {
+  const value = payload?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function issueCreatedSystemMessageParts(message: ChatMessage) {
+  const payload = message.structuredPayload;
+  if (!payload || payload.eventType !== "issue_created") return null;
+
+  const issueId = readStructuredPayloadString(payload, "issueId");
+  const issueIdentifier = readStructuredPayloadString(payload, "issueIdentifier");
+  const issueRef = issueIdentifier ?? issueId;
+  if (!issueRef) return null;
+
+  const issueRefIndex = message.body.indexOf(issueRef);
+  if (issueRefIndex < 0) return null;
+
+  return {
+    issueRef,
+    prefix: message.body.slice(0, issueRefIndex),
+    suffix: message.body.slice(issueRefIndex + issueRef.length),
+  };
+}
+
+export function ChatSystemMessageBody({
+  message,
+  skillReferences,
+}: {
+  message: ChatMessage;
+  skillReferences: MarkdownSkillReferencePreview[];
+}) {
+  const issueCreatedParts = issueCreatedSystemMessageParts(message);
+
+  if (issueCreatedParts) {
+    return (
+      <span className="min-w-0 flex-1 leading-5">
+        {issueCreatedParts.prefix}
+        <Link
+          to={`/issues/${issueCreatedParts.issueRef}`}
+          className="chat-system-issue-link"
+          aria-label={`Open issue ${issueCreatedParts.issueRef}`}
+        >
+          {issueCreatedParts.issueRef}
+        </Link>
+        {issueCreatedParts.suffix}
+      </span>
+    );
+  }
+
+  return <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>;
+}
+
 function ChatMessageItem({
   conversation,
   message,
@@ -1041,7 +1084,7 @@ function ChatMessageItem({
       <div className="chat-system-pill rounded-[calc(var(--radius-sm)+2px)] px-4 py-2 text-sm transition-all duration-200">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-[color:var(--accent-strong)]" />
-          <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
+          <ChatSystemMessageBody message={message} skillReferences={skillReferences} />
         </div>
       </div>
     );

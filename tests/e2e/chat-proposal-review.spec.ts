@@ -145,6 +145,11 @@ test.describe("Chat proposal review block", () => {
     await expect(reviewBlock).toHaveAttribute("data-status", "approved", { timeout: 15_000 });
     await expect(reviewBlock.getByTestId("proposal-review-status")).toContainText("approved");
     await expect(reviewBlock).toContainText("Approved. This proposal has been accepted.");
+    const createdIssueLink = page.locator(".chat-system-issue-link").last();
+    await expect(createdIssueLink).toBeVisible({ timeout: 15_000 });
+    await expect(createdIssueLink).toHaveAttribute("href", /\/issues\//);
+    await createdIssueLink.click();
+    await expect(page.getByRole("heading", { name: "Review block approval test" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("proposal-review-gate")).toHaveCount(0);
     await expect(page.locator(".rudder-mdxeditor-content").last()).toBeVisible();
   });
