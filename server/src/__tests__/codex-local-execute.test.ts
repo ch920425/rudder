@@ -100,6 +100,21 @@ process.stdin.on("end", () => {
   await fs.chmod(commandPath, 0o755);
 }
 
+async function writeClosedStdinNoiseCodexCommand(commandPath: string): Promise<void> {
+  const script = `#!/usr/bin/env node
+process.stdin.resume();
+process.stdin.on("end", () => {
+  process.stderr.write("write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open\\n");
+  console.log(JSON.stringify({ type: "thread.started", thread_id: "codex-session-1" }));
+  console.log(JSON.stringify({ type: "error", message: "write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "done despite tool noise" } }));
+  console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }));
+});
+`;
+  await fs.writeFile(commandPath, script, "utf8");
+  await fs.chmod(commandPath, 0o755);
+}
+
 async function writeMissingRolloutResumeCodexCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
 const args = process.argv.slice(2);
@@ -1226,6 +1241,54 @@ describe("codex execute", () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
+      expect(result.resultJson).toMatchObject({
+        stderr: "",
+      });
+      expect(logs.some((entry) => entry.stream === "stderr")).toBe(false);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses closed-stdin Codex tool session noise without failing a successful run", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-closed-stdin-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "codex");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeClosedStdinNoiseCodexCommand(commandPath);
+
+    try {
+      const logs: LogEntry[] = [];
+      const result = await execute({
+        runId: "run-closed-stdin-noise",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Codex Coder",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async (stream, chunk) => {
+          logs.push({ stream, chunk });
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      expect(result.summary).toBe("done despite tool noise");
       expect(result.resultJson).toMatchObject({
         stderr: "",
       });

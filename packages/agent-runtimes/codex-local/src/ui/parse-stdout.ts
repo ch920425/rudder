@@ -1,4 +1,5 @@
 import { type TranscriptEntry, type TranscriptTodoItemStatus } from "@rudderhq/agent-runtime-utils";
+import { isCodexClosedStdinToolSessionError } from "../shared/tool-errors.js";
 
 function safeJsonParse(text: string): unknown {
   try {
@@ -145,6 +146,7 @@ function parseCommandExecutionItem(
     status === "errored" ||
     status === "error" ||
     status === "cancelled";
+  if (isError && isCodexClosedStdinToolSessionError(output)) return [];
 
   return [{
     kind: "tool_result",
@@ -224,11 +226,13 @@ function parseCodexItem(
       asString(item.result) ||
       stringifyUnknown(item.content ?? item.output ?? item.result);
     const isError = item.is_error === true || asString(item.status) === "error";
+    if (isError && isCodexClosedStdinToolSessionError(content)) return [];
     return [{ kind: "tool_result", ts, toolUseId, content, isError }];
   }
 
   if (itemType === "error" && phase === "completed") {
     const text = errorText(item.message ?? item.error ?? item);
+    if (isCodexClosedStdinToolSessionError(text)) return [];
     return [{ kind: "stderr", ts, text: text || "error" }];
   }
 
@@ -303,6 +307,7 @@ export function parseCodexStdoutLine(line: string, ts: string): TranscriptEntry[
     const outputTokens = asNumber(usage?.output_tokens);
     const cachedTokens = asNumber(usage?.cached_input_tokens, asNumber(usage?.cache_read_input_tokens));
     const message = errorText(parsed.error ?? parsed.message);
+    if (isCodexClosedStdinToolSessionError(message)) return [];
     return [{
       kind: "result",
       ts,
@@ -319,6 +324,7 @@ export function parseCodexStdoutLine(line: string, ts: string): TranscriptEntry[
 
   if (type === "error") {
     const message = errorText(parsed.message ?? parsed.error ?? parsed);
+    if (isCodexClosedStdinToolSessionError(message)) return [];
     return [{ kind: "stderr", ts, text: message || line }];
   }
 

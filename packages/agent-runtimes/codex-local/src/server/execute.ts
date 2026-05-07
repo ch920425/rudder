@@ -23,6 +23,7 @@ import {
   selectPromptTemplate,
 } from "@rudderhq/agent-runtime-utils/server-utils";
 import { parseCodexJsonl, isCodexUnknownSessionError } from "./parse.js";
+import { isCodexClosedStdinToolSessionError } from "../shared/tool-errors.js";
 import {
   prepareManagedCodexHome,
   realizeManagedCodexSkillEntries,
@@ -41,6 +42,7 @@ const CODEX_ANALYTICS_FORBIDDEN_HTML_START_RE =
   /^\d{4}-\d{2}-\d{2}T[^\s]+\s+WARN\s+codex_analytics::analytics_client:\s+events failed with status 403 Forbidden:\s+<html>$/i;
 
 function isBenignCodexStderrLine(line: string): boolean {
+  if (isCodexClosedStdinToolSessionError(line)) return true;
   return CODEX_BENIGN_STDERR_RES.some((pattern) => pattern.test(line.trim()));
 }
 
