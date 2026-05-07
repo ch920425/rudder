@@ -741,8 +741,8 @@ Dynamic context inputs:
 - wake-source payloads such as assignment, mention/comment, recovery, and
   passive close-out metadata
 - selected chat project metadata when a conversation is project-linked
-- issue/project/goal summaries and compact heartbeat context fetched through
-  the CLI/API
+- issue/project/goal summaries, issue document prompts, and compact heartbeat
+  context fetched through the CLI/API
 - project resource attachments for the resolved `projectId`
 
 Resource loading contract:

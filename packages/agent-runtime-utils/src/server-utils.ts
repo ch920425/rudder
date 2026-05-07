@@ -256,11 +256,93 @@ export function renderTemplate(template: string, data: Record<string, unknown>) 
   return template.replace(/{{\s*([a-zA-Z0-9_.-]+)\s*}}/g, (_, path) => resolvePathValue(data, path));
 }
 
+const ISSUE_DOCUMENT_PROMPT_BODY_CHAR_LIMIT = 16_000;
+
+type IssueDocumentPromptInput = {
+  planDocument?: {
+    key?: string | null;
+    title?: string | null;
+    body?: string | null;
+    issueId?: string | null;
+  } | null;
+  documentSummaries?: Array<{
+    key?: string | null;
+    title?: string | null;
+    latestRevisionNumber?: number | null;
+    updatedAt?: string | Date | null;
+    issueId?: string | null;
+  }> | null;
+  legacyPlanDocument?: {
+    key?: string | null;
+    body?: string | null;
+    source?: string | null;
+  } | null;
+};
+
+function truncateIssueDocumentBody(body: string) {
+  if (body.length <= ISSUE_DOCUMENT_PROMPT_BODY_CHAR_LIMIT) return body;
+  return `${body.slice(0, ISSUE_DOCUMENT_PROMPT_BODY_CHAR_LIMIT).trimEnd()}\n\n[Document truncated in prompt. Fetch the full document with the Rudder CLI.]`;
+}
+
+function formatDocumentHeading(key: string, title?: string | null) {
+  const cleanTitle = typeof title === "string" ? title.trim() : "";
+  return cleanTitle ? `### ${key} — ${cleanTitle}` : `### ${key}`;
+}
+
+function readIssueDocumentPromptIssueId(input: IssueDocumentPromptInput) {
+  const planIssueId = typeof input.planDocument?.issueId === "string" ? input.planDocument.issueId.trim() : "";
+  if (planIssueId) return planIssueId;
+  for (const summary of input.documentSummaries ?? []) {
+    const issueId = typeof summary.issueId === "string" ? summary.issueId.trim() : "";
+    if (issueId) return issueId;
+  }
+  return "<issue-id>";
+}
+
+export function buildIssueDocumentsPrompt(input: IssueDocumentPromptInput | null | undefined) {
+  if (!input) return "";
+
+  const sections: string[] = [];
+  const planKey = input.planDocument?.key?.trim() || input.legacyPlanDocument?.key?.trim() || "plan";
+  const planBody = input.planDocument?.body?.trim() || input.legacyPlanDocument?.body?.trim() || "";
+  if (planBody) {
+    sections.push([
+      formatDocumentHeading(planKey, input.planDocument?.title),
+      input.legacyPlanDocument ? "Source: legacy `<plan>` block in the issue description." : `Source: issue document \`${planKey}\`.`,
+      "",
+      truncateIssueDocumentBody(planBody),
+    ].join("\n"));
+  }
+
+  const otherDocuments = (input.documentSummaries ?? []).filter((doc) => {
+    const key = typeof doc.key === "string" ? doc.key.trim() : "";
+    return key && key !== planKey;
+  });
+  if (otherDocuments.length > 0) {
+    const issueId = readIssueDocumentPromptIssueId(input);
+    sections.push([
+      "### Additional Issue Documents",
+      ...otherDocuments.map((doc) => {
+        const key = doc.key?.trim() || "document";
+        const title = doc.title?.trim();
+        const revision = typeof doc.latestRevisionNumber === "number" ? `, revision ${doc.latestRevisionNumber}` : "";
+        const titlePart = title ? ` — ${title}` : "";
+        return `- \`${key}\`${titlePart}${revision}. Fetch with \`rudder issue documents get ${issueId} ${key} --json\`.`;
+      }),
+    ].join("\n"));
+  }
+
+  if (sections.length === 0) return "";
+  return ["## Issue Documents", ...sections].join("\n\n");
+}
+
 // Default prompt templates for different wake sources
 export const DEFAULT_AGENT_PROMPT_TEMPLATE =
   `You are agent {{agent.id}} ({{agent.name}}). Continue your Rudder work.
 
-{{context.rudderWorkspace.orgResourcesPrompt}}`;
+{{context.rudderWorkspace.orgResourcesPrompt}}
+
+{{context.issueDocumentsPrompt}}`;
 
 export const ISSUE_ASSIGN_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). You have been assigned to work on an issue.
 
@@ -276,6 +358,8 @@ export const ISSUE_ASSIGN_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent
 **Description:**
 {{issue.description}}
 
+{{context.issueDocumentsPrompt}}
+
 Your task is to review this issue and begin working on it. Use the available tools to explore the codebase, understand the requirements, and implement a solution.`;
 
 export const COMMENT_MENTION_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). You were mentioned in a comment and your attention is needed.
@@ -289,6 +373,8 @@ export const COMMENT_MENTION_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 
 **Issue Description:**
 {{issue.description}}
+
+{{context.issueDocumentsPrompt}}
 
 **Comment:**
 {{comment.body}}
@@ -307,6 +393,8 @@ export const ISSUE_COMMENTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 
 **Issue Description:**
 {{issue.description}}
+
+{{context.issueDocumentsPrompt}}
 
 **Latest Comment:**
 {{comment.body}}
@@ -334,6 +422,8 @@ export const ISSUE_RECOVERY_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{age
 
 - Description:
 {{issue.description}}
+
+{{context.issueDocumentsPrompt}}
 
 Before doing anything else, inspect what the previous run already completed and any side effects it may have caused. Continue the remaining work from the current state. Avoid blindly re-running the whole task.`;
 
@@ -373,6 +463,8 @@ Reason: {{context.passiveFollowup.reason}}
 
 - Description:
 {{issue.description}}
+
+{{context.issueDocumentsPrompt}}
 
 Before changing the issue, inspect the current issue state and any side effects from the previous run. Then do exactly one close-out action: add a progress comment, mark the issue done, block it with a reason, or hand it off explicitly with explanation.`;
 

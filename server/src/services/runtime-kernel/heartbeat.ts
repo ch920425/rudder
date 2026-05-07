@@ -73,6 +73,7 @@ import {
   sanitizeRuntimeServiceBaseEnv,
 } from "../workspace-runtime.js";
 import { issueService } from "../issues.js";
+import { documentService } from "../documents.js";
 import { buildIssueConvergenceReviewWakeupOptions } from "../issue-review-wakeup.js";
 import { executionWorkspaceService } from "../execution-workspaces.js";
 import { buildObservedRunLangfuseScores } from "../run-intelligence.js";
@@ -92,6 +93,7 @@ import {
   resolveSessionCompactionPolicy,
   type SessionCompactionPolicy,
 } from "@rudderhq/agent-runtime-utils";
+import { buildIssueDocumentsPrompt } from "@rudderhq/agent-runtime-utils/server-utils";
 import {
   buildCreateAgentBenchmarkTags,
   coerceCreateAgentBenchmarkMetadata,
@@ -1427,6 +1429,7 @@ export function heartbeatService(db: Db) {
   const runLogStore = getRunLogStore();
   const runContextSvc = agentRunContextService(db);
   const issuesSvc = issueService(db);
+  const documentsSvc = documentService(db);
   const executionWorkspacesSvc = executionWorkspaceService(db);
   const workspaceOperationsSvc = workspaceOperationService(db);
   const activeRunExecutions = new Set<string>();
@@ -3027,6 +3030,7 @@ export function heartbeatService(db: Db) {
             id: issues.id,
             identifier: issues.identifier,
             title: issues.title,
+            description: issues.description,
             projectId: issues.projectId,
             projectWorkspaceId: issues.projectWorkspaceId,
             executionWorkspaceId: issues.executionWorkspaceId,
@@ -3363,6 +3367,18 @@ export function heartbeatService(db: Db) {
     }
     if (executionWorkspace.projectId && !readNonEmptyString(context.projectId)) {
       context.projectId = executionWorkspace.projectId;
+    }
+    if (issueContext) {
+      const issueDocumentPayload = await documentsSvc.getIssueDocumentPayload({
+        id: issueContext.id,
+        description: issueContext.description,
+      });
+      const issueDocumentsPrompt = buildIssueDocumentsPrompt(issueDocumentPayload);
+      if (issueDocumentsPrompt) {
+        context.issueDocumentsPrompt = issueDocumentsPrompt;
+      } else {
+        delete context.issueDocumentsPrompt;
+      }
     }
     const runtimeSessionFallback = taskKey || resetTaskSession ? null : runtime.sessionId;
     let previousSessionDisplayId = truncateDisplayId(

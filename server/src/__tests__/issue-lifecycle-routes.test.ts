@@ -12,7 +12,10 @@ const mockIssueService = vi.hoisted(() => ({
   create: vi.fn(),
   createAttachment: vi.fn(),
   findMentionedAgents: vi.fn(),
+  getAncestors: vi.fn(),
   getById: vi.fn(),
+  getComment: vi.fn(),
+  getCommentCursor: vi.fn(),
   reorder: vi.fn(),
   update: vi.fn(),
 }));
@@ -32,7 +35,18 @@ const mockAgentService = vi.hoisted(() => ({
 }));
 
 const mockDocumentService = vi.hoisted(() => ({
+  getIssueDocumentPayload: vi.fn(),
   upsertIssueDocument: vi.fn(),
+}));
+
+const mockGoalService = vi.hoisted(() => ({
+  getById: vi.fn(),
+  getDefaultCompanyGoal: vi.fn(),
+}));
+
+const mockProjectService = vi.hoisted(() => ({
+  getById: vi.fn(),
+  listByIds: vi.fn(),
 }));
 
 const mockLogActivity = vi.hoisted(() => vi.fn(async () => undefined));
@@ -46,12 +60,12 @@ vi.mock("../services/index.js", () => ({
   agentService: () => mockAgentService,
   documentService: () => mockDocumentService,
   executionWorkspaceService: () => ({}),
-  goalService: () => ({}),
+  goalService: () => mockGoalService,
   heartbeatService: () => mockHeartbeatService,
   issueApprovalService: () => ({}),
   issueService: () => mockIssueService,
   logActivity: mockLogActivity,
-  projectService: () => ({}),
+  projectService: () => mockProjectService,
   automationService: () => ({
     syncRunStatusForIssue: vi.fn(async () => undefined),
   }),
@@ -102,6 +116,8 @@ function makeIssue(overrides?: Partial<{
   boardOrder: number;
   status: "backlog" | "todo" | "in_progress" | "in_review" | "done";
   title: string;
+  description: string | null;
+  priority: string;
 }>) {
   return {
     id: "11111111-1111-4111-8111-111111111111",
@@ -117,6 +133,8 @@ function makeIssue(overrides?: Partial<{
     boardOrder: 1000,
     status: "todo" as const,
     title: "Lifecycle hardening",
+    description: null,
+    priority: "medium",
     ...overrides,
   };
 }
@@ -130,6 +148,22 @@ describe("issue lifecycle routes", () => {
     vi.clearAllMocks();
     mockIssueService.assertCheckoutOwner.mockResolvedValue({ adoptedFromRunId: null });
     mockIssueService.findMentionedAgents.mockResolvedValue([]);
+    mockIssueService.getAncestors.mockResolvedValue([]);
+    mockIssueService.getComment.mockResolvedValue(null);
+    mockIssueService.getCommentCursor.mockResolvedValue({
+      totalComments: 0,
+      latestCommentId: null,
+      latestCommentAt: null,
+    });
+    mockDocumentService.getIssueDocumentPayload.mockResolvedValue({
+      planDocument: null,
+      documentSummaries: [],
+      legacyPlanDocument: null,
+    });
+    mockGoalService.getById.mockResolvedValue(null);
+    mockGoalService.getDefaultCompanyGoal.mockResolvedValue(null);
+    mockProjectService.getById.mockResolvedValue(null);
+    mockProjectService.listByIds.mockResolvedValue([]);
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-1",
       issueId: "11111111-1111-4111-8111-111111111111",
@@ -185,6 +219,69 @@ describe("issue lifecycle routes", () => {
       }),
     );
     expect(mockLogActivity).not.toHaveBeenCalled();
+  });
+
+  it("includes issue documents in heartbeat context", async () => {
+    const issue = makeIssue({
+      description: "Short issue summary",
+      priority: "high",
+    });
+    const documentUpdatedAt = new Date("2026-05-07T00:00:00.000Z");
+    mockIssueService.getById.mockResolvedValue(issue);
+    mockDocumentService.getIssueDocumentPayload.mockResolvedValue({
+      planDocument: {
+        id: "44444444-4444-4444-8444-444444444444",
+        orgId: "organization-1",
+        issueId: issue.id,
+        key: "plan",
+        title: "Investigation Plan",
+        format: "markdown",
+        body: "# Plan\n\nConfirm whether agents can see issue docs.",
+        latestRevisionId: "55555555-5555-4555-8555-555555555555",
+        latestRevisionNumber: 1,
+        createdByAgentId: null,
+        createdByUserId: "local-board",
+        updatedByAgentId: null,
+        updatedByUserId: "local-board",
+        createdAt: documentUpdatedAt,
+        updatedAt: documentUpdatedAt,
+      },
+      documentSummaries: [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          orgId: "organization-1",
+          issueId: issue.id,
+          key: "plan",
+          title: "Investigation Plan",
+          format: "markdown",
+          latestRevisionId: "55555555-5555-4555-8555-555555555555",
+          latestRevisionNumber: 1,
+          createdByAgentId: null,
+          createdByUserId: "local-board",
+          updatedByAgentId: null,
+          updatedByUserId: "local-board",
+          createdAt: documentUpdatedAt,
+          updatedAt: documentUpdatedAt,
+        },
+      ],
+      legacyPlanDocument: null,
+    });
+
+    const res = await request(createApp())
+      .get("/api/issues/11111111-1111-4111-8111-111111111111/heartbeat-context");
+
+    expect(res.status).toBe(200);
+    expect(mockDocumentService.getIssueDocumentPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ id: issue.id }),
+    );
+    expect(res.body.planDocument).toMatchObject({
+      key: "plan",
+      title: "Investigation Plan",
+      body: "# Plan\n\nConfirm whether agents can see issue docs.",
+    });
+    expect(res.body.documentSummaries).toHaveLength(1);
+    expect(res.body.issueDocumentsPrompt).toContain("## Issue Documents");
+    expect(res.body.issueDocumentsPrompt).toContain("Confirm whether agents can see issue docs.");
   });
 
   it("reorders an issue within an organization lane and logs activity", async () => {

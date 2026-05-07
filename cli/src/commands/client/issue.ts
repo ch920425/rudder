@@ -8,6 +8,7 @@ import {
   type DocumentRevision,
   type IssueDocument,
   type IssueDocumentSummary,
+  type LegacyPlanDocument,
   type Issue,
   type IssueComment,
 } from "@rudderhq/shared";
@@ -127,6 +128,10 @@ interface IssueHeartbeatContext {
     latestCommentCreatedAt: string | null;
     commentCount: number;
   };
+  planDocument: IssueDocument | null;
+  documentSummaries: IssueDocumentSummary[];
+  legacyPlanDocument: LegacyPlanDocument | null;
+  issueDocumentsPrompt: string;
   wakeComment: IssueComment | null;
 }
 

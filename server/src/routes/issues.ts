@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import type { Db } from "@rudderhq/db";
+import { buildIssueDocumentsPrompt } from "@rudderhq/agent-runtime-utils/server-utils";
 import {
   addIssueCommentSchema,
   createIssueAttachmentMetadataSchema,
@@ -465,7 +466,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
         ? req.query.wakeCommentId.trim()
         : null;
 
-    const [ancestors, project, goal, commentCursor, wakeComment] = await Promise.all([
+    const [ancestors, project, goal, commentCursor, wakeComment, documentPayload] = await Promise.all([
       svc.getAncestors(issue.id),
       issue.projectId ? projectsSvc.getById(issue.projectId) : null,
       issue.goalId
@@ -475,6 +476,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
           : null,
       svc.getCommentCursor(issue.id),
       wakeCommentId ? svc.getComment(wakeCommentId) : null,
+      documentsSvc.getIssueDocumentPayload(issue),
     ]);
 
     res.json({
@@ -517,6 +519,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
           }
         : null,
       commentCursor,
+      ...documentPayload,
+      issueDocumentsPrompt: buildIssueDocumentsPrompt(documentPayload),
       wakeComment:
         wakeComment && wakeComment.issueId === issue.id
           ? wakeComment

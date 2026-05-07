@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildIssueDocumentsPrompt,
   loadAgentInstructionsPrefix,
   renderTemplate,
   RUDDER_AGENT_OPERATING_CONTRACT,
@@ -128,6 +129,50 @@ describe("selectPromptTemplate", () => {
     expect(rendered).toContain("Continue your Rudder work.");
     expect(rendered).toContain("## Organization Resources");
     expect(rendered).toContain("Locator: `~/projects/rudder`");
+  });
+
+  it("renders issue documents in issue-aware prompts", () => {
+    const issueDocumentsPrompt = buildIssueDocumentsPrompt({
+      planDocument: {
+        issueId: "issue-3",
+        key: "plan",
+        title: "Execution Plan",
+        body: "# Plan\n\nCheck the document-backed requirements.",
+      },
+      documentSummaries: [
+        {
+          issueId: "issue-3",
+          key: "design",
+          title: "Design Notes",
+          latestRevisionNumber: 2,
+        },
+      ],
+    });
+    const context = {
+      wakeReason: "issue_assigned",
+      issueDocumentsPrompt,
+      issue: {
+        id: "issue-3",
+        title: "Use issue docs",
+        status: "todo",
+        priority: "medium",
+        description: "Short description.",
+      },
+    };
+
+    const template = selectPromptTemplate(undefined, context);
+    const rendered = renderTemplate(template, {
+      agent: { id: "agent-4", name: "Builder" },
+      context,
+      issue: context.issue,
+    });
+
+    expect(issueDocumentsPrompt).toContain("## Issue Documents");
+    expect(issueDocumentsPrompt).toContain("Check the document-backed requirements.");
+    expect(issueDocumentsPrompt).toContain("rudder issue documents get issue-3 design --json");
+    expect(rendered).toContain("Use issue docs");
+    expect(rendered).toContain("## Issue Documents");
+    expect(rendered).toContain("Check the document-backed requirements.");
   });
 });
 
