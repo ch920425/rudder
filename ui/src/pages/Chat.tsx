@@ -1375,16 +1375,18 @@ function StreamTranscriptItem({
             {statusHint ? (
               <span className="truncate text-amber-700/90 dark:text-amber-400/85">· {statusHint}</span>
             ) : null}
-            <ChevronRight
-              data-state={showBody ? "open" : "closed"}
-              className="motion-disclosure-icon h-4 w-4 shrink-0 opacity-60"
-              aria-hidden
-            />
+            {streamingActive ? (
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+            ) : showBody ? (
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+            )}
           </button>
           <div className="h-px min-w-[1rem] flex-1 bg-border/45" aria-hidden />
         </div>
         {showBody ? (
-          <div className="motion-disclosure-enter mt-3">
+          <div className="mt-3">
             <RunTranscriptView
               entries={entries}
               mode="nice"

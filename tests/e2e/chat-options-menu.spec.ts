@@ -44,9 +44,10 @@ test.describe("Chat options menu", () => {
     await expect(menuButton).toBeVisible();
 
     await menuButton.click();
+    const planModeMenuItem = page.getByRole("menuitem").filter({ hasText: "Plan mode" });
     const planModeToggle = page.getByRole("switch", { name: "Plan mode" });
     await expect(planModeToggle).toHaveAttribute("aria-checked", "false");
-    await expect(page.getByText("Read-only planning.", { exact: false })).toBeVisible();
+    await expect(page.locator('[title*="Read-only planning."]')).toBeVisible();
     const offTrackColor = await planModeToggle.evaluate((element) => getComputedStyle(element).backgroundColor);
 
     let releasePlanModePatch: (() => void) | null = null;
@@ -68,7 +69,7 @@ test.describe("Chat options menu", () => {
       && response.url().includes(`/api/chats/${chat.id}`),
     );
 
-    await planModeToggle.click();
+    await planModeMenuItem.click();
     await planModePatchStarted;
     await expect(planModeToggle).toHaveAttribute("aria-checked", "true");
     const checkedColors = await planModeToggle.evaluate((element) => ({
