@@ -52,7 +52,7 @@ export function PageTabBar({
   }
 
   return (
-    <div ref={containerRef} className={cn("relative w-fit", align === "center" && "mx-auto")}>
+    <div ref={containerRef} className="relative w-fit">
       <TabsList variant="line" className={cn("relative z-10", align === "start" ? "justify-start" : undefined)}>
         {items.map((item) => (
           <TabsTrigger
