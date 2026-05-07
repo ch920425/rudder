@@ -859,6 +859,46 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Searched 1 location");
   });
 
+  it("decodes shell-escaped search queries in chat activity summaries", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "Searching skill analytics labels.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-1",
+              input: {
+                command:
+                  'zsh -lc "rg \\"Skill Use Distribution|Skill Use Timeline|Skill Invocation Funnel\\" ui/src/fixtures/runTranscriptFixtures.ts ui/src/components/transcript/RunTranscriptView.tsx tests/e2e/run-transcript-detail.spec.ts"',
+              },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "cmd-1",
+              content: "match",
+              isError: false,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain(
+      "Searched &quot;Skill Use Distribution|Skill Use Timeline|Skill…&quot; in 3 locations",
+    );
+    expect(html).not.toContain("\\&quot;Skill");
+  });
+
   it("groups detail transcripts so repeated reads stay collapsed behind one summary", () => {
     const hiddenHeaderTime = new Date("2026-03-12T00:00:02.000Z").toLocaleTimeString("en-US", {
       hour: "2-digit",

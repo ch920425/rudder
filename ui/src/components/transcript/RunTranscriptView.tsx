@@ -340,12 +340,17 @@ function humanizeLabel(value: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function decodeShellEscapes(value: string, options: { includeWhitespace?: boolean } = {}): string {
+  const pattern = options.includeWhitespace ? /\\(["'`\\\s])/g : /\\(["'`\\])/g;
+  return value.replace(pattern, "$1");
+}
+
 function stripWrappedShell(command: string): string {
   const trimmed = compactWhitespace(command);
   const shellWrapped = trimmed.match(/^(?:(?:\/bin\/)?(?:zsh|bash|sh)|cmd(?:\.exe)?(?:\s+\/d)?(?:\s+\/s)?(?:\s+\/c)?)\s+(?:-lc|\/c)\s+(.+)$/i);
   const inner = shellWrapped?.[1] ?? trimmed;
   const quoted = inner.match(/^(['"])([\s\S]*)\1$/);
-  return compactWhitespace(quoted?.[2] ?? inner);
+  return compactWhitespace(decodeShellEscapes(quoted?.[2] ?? inner));
 }
 
 function firstCommandToken(command: string): string {
@@ -459,7 +464,7 @@ function classifyShellCommand(command: string): { category: TranscriptToolCatego
 function unwrapQuotedToken(token: string): string {
   const trimmed = token.trim();
   const quoted = trimmed.match(/^(['"`])([\s\S]*)\1$/);
-  return quoted ? quoted[2] : trimmed;
+  return decodeShellEscapes(quoted ? quoted[2] : trimmed, { includeWhitespace: true });
 }
 
 function cleanShellToken(token: string): string {
@@ -467,7 +472,7 @@ function cleanShellToken(token: string): string {
 }
 
 function tokenizeShell(command: string): string[] {
-  const tokens = stripWrappedShell(command).match(/"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|[^\s]+/g) ?? [];
+  const tokens = stripWrappedShell(command).match(/"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|(?:\\.|[^\s])+/g) ?? [];
   return tokens.map(cleanShellToken).filter(Boolean);
 }
 
