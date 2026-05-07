@@ -46,6 +46,12 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain("transform var(--motion-duration-standard) var(--motion-ease-enter)");
   });
 
+  it("keeps organization structure edges stable while zooming", () => {
+    expect(motionCss).toContain(".motion-org-edge");
+    expect(motionCss).toContain("stroke-linecap: round");
+    expect(motionCss).toContain("vector-effect: non-scaling-stroke");
+  });
+
   it("highlights kanban card borders on hover and keyboard focus", () => {
     expect(motionCss).toContain(".motion-kanban-card:is(:hover, :focus-within)");
     expect(motionCss).toContain("border-color: color-mix(in oklab, var(--accent-base) 58%, var(--border))");

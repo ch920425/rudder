@@ -135,6 +135,11 @@
   transform: translateY(-1px);
 }
 
+.motion-org-edge {
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
 .motion-org-card[data-active="true"] {
   box-shadow:
     0 12px 32px -26px color-mix(in oklab, var(--accent-base) 64%, transparent),

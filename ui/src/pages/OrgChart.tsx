@@ -19,6 +19,7 @@ const CARD_H = 100;
 const GAP_X = 32;
 const GAP_Y = 80;
 const PADDING = 60;
+const ACTIVE_EDGE_NODE_GAP = 10;
 
 // ── Tree layout types ───────────────────────────────────────────────────
 
@@ -379,15 +380,17 @@ export function OrgChart() {
             const y1 = parent.y + CARD_H;
             const x2 = child.x + CARD_W / 2;
             const y2 = child.y;
-            const midY = (y1 + y2) / 2;
             const edgeActive = liveNodeIds.has(child.id);
+            const lineStartY = edgeActive ? y1 + ACTIVE_EDGE_NODE_GAP : y1;
+            const lineEndY = edgeActive ? y2 - ACTIVE_EDGE_NODE_GAP : y2;
+            const midY = (lineStartY + lineEndY) / 2;
 
             return (
               <path
                 key={`${parent.id}-${child.id}`}
                 className="motion-org-edge"
                 data-active={edgeActive ? "true" : "false"}
-                d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
+                d={`M ${x1} ${lineStartY} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${lineEndY}`}
                 fill="none"
                 stroke="var(--border)"
                 strokeWidth={1.5}
