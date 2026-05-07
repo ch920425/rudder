@@ -191,6 +191,83 @@ test.describe("New issue project context", () => {
     await expect(dialog.getByPlaceholder("Issue title")).toHaveValue("Older draft issue");
   });
 
+  test("deletes a saved draft issue from the main issues draft view", async ({ page }) => {
+    const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
+      data: {
+        name: `New-Issue-Draft-Delete-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    await page.goto(E2E_BASE_URL);
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder:issue-drafts", JSON.stringify([
+        {
+          id: "draft-delete-e2e",
+          orgId,
+          title: "Delete me draft issue",
+          description: "This draft should animate before it is removed.",
+          status: "todo",
+          priority: "medium",
+          labelIds: [],
+          assigneeValue: "",
+          projectId: "",
+          projectWorkspaceId: "",
+          assigneeModelOverride: "",
+          assigneeThinkingEffort: "",
+          assigneeChrome: false,
+          createdAt: "2026-04-26T09:00:00.000Z",
+          updatedAt: "2026-04-26T09:00:00.000Z",
+        },
+        {
+          id: "draft-keep-e2e",
+          orgId,
+          title: "Keep me draft issue",
+          description: "This draft should remain visible and stable.",
+          status: "backlog",
+          priority: "low",
+          labelIds: [],
+          assigneeValue: "",
+          projectId: "",
+          projectWorkspaceId: "",
+          assigneeModelOverride: "",
+          assigneeThinkingEffort: "",
+          assigneeChrome: false,
+          createdAt: "2026-04-26T08:00:00.000Z",
+          updatedAt: "2026-04-26T08:00:00.000Z",
+        },
+      ]));
+    }, organization.id);
+
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues`);
+    await page.getByTestId("issue-draft-sidebar-entry").click();
+
+    const deletingDraft = page.getByTestId("issue-draft-card").filter({ hasText: "Delete me draft issue" });
+    const remainingDraft = page.getByTestId("issue-draft-card").filter({ hasText: "Keep me draft issue" });
+    await expect(deletingDraft).toBeVisible();
+    await expect(remainingDraft).toBeVisible();
+    await deletingDraft.getByTestId("issue-draft-delete-button").click();
+
+    const confirmDialog = page.locator('[data-slot="dialog-content"]').filter({
+      has: page.getByText('Delete draft issue "Delete me draft issue"?'),
+    }).first();
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByRole("button", { name: "Delete" }).click();
+
+    await expect(remainingDraft).toBeVisible();
+    await expect(deletingDraft).toHaveCount(0);
+    await expect(page.getByTestId("issue-draft-sidebar-entry")).toContainText("Draft Issues (1)");
+    await expect(page.getByText("Draft issue deleted")).toBeVisible();
+
+    const storedDraftTitles = await page.evaluate(() => {
+      const drafts = JSON.parse(window.localStorage.getItem("rudder:issue-drafts") ?? "[]") as Array<{ title: string }>;
+      return drafts.map((draft) => draft.title);
+    });
+    expect(storedDraftTitles).toEqual(["Keep me draft issue"]);
+  });
+
   test("does not show execution workspace controls in the new issue dialog", async ({ page }) => {
     const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
       data: {

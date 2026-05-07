@@ -19,6 +19,29 @@
   animation: rudder-list-enter var(--motion-duration-standard) var(--motion-ease-enter) both;
 }
 
+.motion-draft-issue-card {
+  overflow: hidden;
+  max-height: 18rem;
+  transform-origin: center top;
+  transition:
+    max-height var(--motion-duration-standard) var(--motion-ease-exit),
+    opacity var(--motion-duration-standard) var(--motion-ease-exit),
+    transform var(--motion-duration-standard) var(--motion-ease-exit),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
+  will-change: max-height, opacity, transform;
+}
+
+.motion-draft-issue-card[data-deleting="true"] {
+  min-height: 0;
+  max-height: 0;
+  pointer-events: none;
+  opacity: 0;
+  border-color: color-mix(in oklab, var(--destructive) 44%, var(--border-soft));
+  background-color: color-mix(in oklab, var(--destructive) 8%, transparent);
+  transform: translateY(8px) scale(0.985);
+}
+
 .motion-state-flash {
   animation: rudder-state-flash 820ms var(--motion-ease-enter) both;
 }
@@ -501,6 +524,7 @@
   .motion-focus-ring,
   .motion-kanban-lane,
   .motion-kanban-card,
+  .motion-draft-issue-card,
   .motion-org-layer,
   .motion-org-card,
   .motion-rail-active-indicator,
@@ -511,6 +535,11 @@
 
   .motion-live-surface::before {
     opacity: 0.48;
+  }
+
+  .motion-draft-issue-card[data-deleting="true"] {
+    max-height: 0 !important;
+    transform: none !important;
   }
 
   .motion-chat-options-pop,

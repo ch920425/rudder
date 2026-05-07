@@ -55,6 +55,13 @@ function resolveDraftAssigneeLabel(
   return null;
 }
 
+const DRAFT_ISSUE_DELETE_EXIT_MS = 220;
+
+function prefersReducedMotion() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+}
+
 function DraftDescriptionPreview({ description }: { description: string }) {
   if (!description) {
     return (
@@ -78,6 +85,7 @@ function DraftIssuesView({
   agents,
   projects,
   currentUserId,
+  deletingDraftIds,
   onOpenDraft,
   onDeleteDraft,
 }: {
@@ -85,6 +93,7 @@ function DraftIssuesView({
   agents?: Agent[];
   projects?: Project[];
   currentUserId?: string | null;
+  deletingDraftIds?: Set<string>;
   onOpenDraft: (draft: IssueDraftSummary) => void;
   onDeleteDraft: (draft: IssueDraftSummary) => void;
 }) {
@@ -107,6 +116,7 @@ function DraftIssuesView({
 
       <section aria-label="Draft issues" className="grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {drafts.map((draft) => {
+          const isDeleting = deletingDraftIds?.has(draft.id) ?? false;
           const projectName = resolveDraftProjectName(draft, projects);
           const assigneeLabel = resolveDraftAssigneeLabel(draft, agents, currentUserId);
           const metadataItems = [
@@ -121,10 +131,13 @@ function DraftIssuesView({
             <article
               key={draft.id}
               data-testid="issue-draft-card"
-              className="group relative min-h-36 rounded-[var(--radius-sm)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_88%,transparent)] transition-[background-color,border-color] hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-elevated)]"
+              data-deleting={isDeleting ? "true" : undefined}
+              aria-busy={isDeleting ? "true" : undefined}
+              className="motion-draft-issue-card group relative min-h-36 rounded-[var(--radius-sm)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_88%,transparent)] hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-elevated)]"
             >
               <button
                 type="button"
+                disabled={isDeleting}
                 aria-label={`Open draft ${draft.title}`}
                 className="absolute inset-0 z-10 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => onOpenDraft(draft)}
@@ -152,6 +165,7 @@ function DraftIssuesView({
               <button
                 type="button"
                 data-testid="issue-draft-delete-button"
+                disabled={isDeleting}
                 aria-label={`Delete draft ${draft.title}`}
                 onClick={(event) => {
                   event.preventDefault();
@@ -255,7 +269,20 @@ export function Issues() {
   const [issueDraftSummaries, setIssueDraftSummaries] = useState<IssueDraftSummary[]>(() =>
     summarizeIssueDrafts(selectedOrganizationId),
   );
+  const [deletingDraftIds, setDeletingDraftIds] = useState<Set<string>>(() => new Set());
+  const deletingDraftIdsRef = useRef<Set<string>>(new Set());
   const { followedIssueIds, toggleFollowIssue } = useIssueFollows(selectedOrganizationId);
+
+  const setDraftDeleting = useCallback((draftId: string, isDeleting: boolean) => {
+    const nextDeletingDraftIds = new Set(deletingDraftIdsRef.current);
+    if (isDeleting) {
+      nextDeletingDraftIds.add(draftId);
+    } else {
+      nextDeletingDraftIds.delete(draftId);
+    }
+    deletingDraftIdsRef.current = nextDeletingDraftIds;
+    setDeletingDraftIds(nextDeletingDraftIds);
+  }, []);
 
   const { data: projects } = useQuery({
     queryKey: queryKeys.projects.list(selectedOrganizationId!),
@@ -371,6 +398,7 @@ export function Issues() {
         agents={agents}
         projects={projects}
         currentUserId={currentUserId}
+        deletingDraftIds={deletingDraftIds}
         onOpenDraft={(draft) => {
           openNewIssue({ draftId: draft.id });
         }}
@@ -382,8 +410,21 @@ export function Issues() {
             tone: "destructive",
           });
           if (!confirmed) return;
-          deleteIssueDraft(draft.id);
-          pushToast({ title: "Draft issue deleted", tone: "success" });
+          if (deletingDraftIdsRef.current.has(draft.id)) return;
+          setDraftDeleting(draft.id, true);
+
+          const completeDeletion = () => {
+            deleteIssueDraft(draft.id);
+            setDraftDeleting(draft.id, false);
+            pushToast({ title: "Draft issue deleted", tone: "success" });
+          };
+
+          if (prefersReducedMotion()) {
+            completeDeletion();
+            return;
+          }
+
+          window.setTimeout(completeDeletion, DRAFT_ISSUE_DELETE_EXIT_MS);
         }}
       />
     );
