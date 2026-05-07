@@ -109,7 +109,7 @@ notes, or the full organization resource catalog.
 Each run has a scene:
 
 - `heartbeat`: normal agent work loop
-- `chat`: Messenger/Copilot conversation loop
+- `chat`: Messenger selected-agent conversation loop
 
 Scene prompts hold invariant rules for that surface. For example, chat includes
 reply-envelope and same-language rules, while heartbeat includes work-loop

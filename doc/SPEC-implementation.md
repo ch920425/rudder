@@ -642,12 +642,13 @@ Chat behavior requirements:
 
 - Chat is organization-scoped
 - Chat is rendered inside the broader `Messenger` board communication shell alongside inbox-style attention streams
-- the built-in assistant asks clarifying questions before proposing work when requirements are incomplete
+- the selected chat agent asks clarifying questions before proposing work when requirements are incomplete
 - a conversation can exist without any issue
 - a conversation can convert into at most one primary issue
 - chat-driven issue creation and lightweight operations reuse the approval system
 - board users can optionally store a personal chat profile with `nickname` and `more_about_you`
-- the built-in assistant may use that per-user profile as prompt context only when at least one profile field is non-empty
+- the selected chat agent may use that per-user profile as prompt context only when at least one profile field is non-empty
+- assistant turns require an explicit `preferred_agent_id`; conversations without a selected chat agent remain discussable/editable but cannot invoke a runtime until one is chosen
 
 ## 10.10 Error Semantics
 
