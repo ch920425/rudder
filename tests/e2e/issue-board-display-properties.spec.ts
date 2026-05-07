@@ -54,6 +54,15 @@ test.describe("Issue board display properties", () => {
       },
     );
 
+    const reviewer = await apiPost<{ id: string; name: string }>(
+      page,
+      `/api/orgs/${organization.id}/agents`,
+      {
+        name: "Review Bot",
+        role: "qa",
+      },
+    );
+
     const issue = await apiPost<{ identifier: string | null }>(
       page,
       `/api/orgs/${organization.id}/issues`,
@@ -64,6 +73,7 @@ test.describe("Issue board display properties", () => {
         status: "todo",
         priority: "high",
         labelIds: [label.id],
+        reviewerAgentId: reviewer.id,
       },
     );
 
@@ -75,6 +85,7 @@ test.describe("Issue board display properties", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText(project.name);
     await expect(card).toContainText(label.name);
+    await expect(card).toContainText(reviewer.name);
     await expect(card).toContainText("Created");
     await expect(card).not.toContainText("Updated");
     if (issue.identifier) {
@@ -86,6 +97,7 @@ test.describe("Issue board display properties", () => {
     await expect(displayOption("Identifier")).toBeChecked();
     await expect(displayOption("Priority")).toBeChecked();
     await expect(displayOption("Assignee")).toBeChecked();
+    await expect(displayOption("Reviewer")).toBeChecked();
     await expect(displayOption("Labels")).toBeChecked();
     await expect(displayOption("Project")).toBeChecked();
     await expect(displayOption("Updated")).not.toBeChecked();
@@ -104,6 +116,7 @@ test.describe("Issue board display properties", () => {
       return raw ? JSON.parse(raw).displayProperties : null;
     }, organization.id);
     expect(savedDisplayProperties).toContain("labels");
+    expect(savedDisplayProperties).toContain("reviewer");
     expect(savedDisplayProperties).toContain("created");
     expect(savedDisplayProperties).not.toContain("project");
     expect(savedDisplayProperties).not.toContain("updated");

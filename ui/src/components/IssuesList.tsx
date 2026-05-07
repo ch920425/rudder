@@ -60,6 +60,7 @@ const displayPropertyOptions: Array<{ value: IssueDisplayProperty; label: string
   { value: "identifier", label: "Identifier" },
   { value: "priority", label: "Priority" },
   { value: "assignee", label: "Assignee" },
+  { value: "reviewer", label: "Reviewer" },
   { value: "labels", label: "Labels" },
   { value: "project", label: "Project" },
   { value: "updated", label: "Updated" },

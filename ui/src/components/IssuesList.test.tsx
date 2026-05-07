@@ -499,6 +499,7 @@ describe("IssuesList", () => {
         <IssuesList
           issues={[{
             ...baseIssue,
+            reviewerAgentId: "agent-1",
             labels: [label],
             labelIds: [label.id],
             projectId: "project-1",
@@ -515,6 +516,7 @@ describe("IssuesList", () => {
     expect(container.textContent).toContain("Backend");
     expect(container.textContent).toContain("Operator console");
     expect(container.textContent).toContain("Updated");
+    expect(container.textContent).not.toContain("Alice");
     expect(container.textContent).not.toContain("RUD-1");
   });
 
@@ -540,11 +542,15 @@ describe("IssuesList", () => {
         <IssuesList
           issues={[{
             ...baseIssue,
+            reviewerAgentId: "agent-2",
             labels: [label],
             labelIds: [label.id],
             projectId: "project-1",
           }]}
-          agents={[{ id: "agent-1", name: "Alice", role: "engineer", title: null }]}
+          agents={[
+            { id: "agent-1", name: "Alice", role: "engineer", title: null },
+            { id: "agent-2", name: "Review Bot", role: "qa", title: null },
+          ]}
           projects={[{ id: "project-1", name: "Operator console" }]}
           viewStateKey="test:issues"
           toolbarMode="hidden"
@@ -554,6 +560,7 @@ describe("IssuesList", () => {
     });
 
     expect(container.textContent).toContain("RUD-1");
+    expect(container.textContent).toContain("Review Bot");
     expect(container.textContent).toContain("Backend");
     expect(container.textContent).toContain("Operator console");
     expect(container.textContent).toContain("Created");
@@ -583,7 +590,7 @@ describe("IssuesList", () => {
     act(() => {
       root.render(
         <IssuesList
-          issues={[{ ...baseIssue, projectId: "project-1" }]}
+          issues={[{ ...baseIssue, projectId: "project-1", reviewerAgentId: "agent-1" }]}
           agents={[{ id: "agent-1", name: "Alice", role: "engineer", title: null }]}
           projects={[{ id: "project-1", name: "Operator console" }]}
           viewStateKey="test:issues"
@@ -594,6 +601,7 @@ describe("IssuesList", () => {
     });
 
     expect(container.textContent).not.toContain("Operator console");
+    expect(container.textContent).not.toContain("Alice");
 
     const displayButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("Display"),
@@ -609,13 +617,24 @@ describe("IssuesList", () => {
     );
     expect(projectLabel).toBeTruthy();
 
+    const reviewerLabel = Array.from(document.body.querySelectorAll("label")).find(
+      (entry) => entry.textContent?.trim() === "Reviewer",
+    );
+    expect(reviewerLabel).toBeTruthy();
+
+    act(() => {
+      reviewerLabel?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.textContent).toContain("Alice");
+
     act(() => {
       projectLabel?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
     expect(container.textContent).toContain("Operator console");
     expect(JSON.parse(window.localStorage.getItem("test:issues:org-1") ?? "{}")).toMatchObject({
-      displayProperties: ["identifier", "project"],
+      displayProperties: ["identifier", "reviewer", "project"],
     });
   });
 

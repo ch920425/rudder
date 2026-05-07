@@ -28,7 +28,7 @@ import { formatAssigneeUserLabel } from "@/lib/assignees";
 import { sortIssues, type IssueSortState } from "@/lib/issue-sort";
 import { IssueLabelChip } from "./IssueLabelChip";
 import { timeAgo } from "@/lib/timeAgo";
-import { CalendarClock, FolderKanban, Plus, User } from "lucide-react";
+import { CalendarClock, FolderKanban, Plus, User, UserCheck } from "lucide-react";
 import type { AgentRole, Issue, IssueStatus, ReorderIssue } from "@rudderhq/shared";
 
 const boardStatuses: IssueStatus[] = [
@@ -145,6 +145,7 @@ export type IssueDisplayProperty =
   | "identifier"
   | "priority"
   | "assignee"
+  | "reviewer"
   | "labels"
   | "project"
   | "updated"
@@ -154,6 +155,7 @@ export const DEFAULT_ISSUE_DISPLAY_PROPERTIES: IssueDisplayProperty[] = [
   "identifier",
   "priority",
   "assignee",
+  "reviewer",
   "labels",
   "project",
   "created",
@@ -350,12 +352,17 @@ function KanbanCard({
   const agent = issue.assigneeAgentId
     ? agents?.find((candidate) => candidate.id === issue.assigneeAgentId) ?? null
     : null;
+  const reviewerAgent = issue.reviewerAgentId
+    ? agents?.find((candidate) => candidate.id === issue.reviewerAgentId) ?? null
+    : null;
   const projectName = issue.projectId
     ? projects?.find((project) => project.id === issue.projectId)?.name ?? issue.project?.name ?? null
     : null;
   const showIdentifier = visibleProperties.has("identifier");
   const showPriority = visibleProperties.has("priority");
   const showAssignee = visibleProperties.has("assignee");
+  const showReviewer = visibleProperties.has("reviewer") &&
+    Boolean(issue.reviewerAgentId || issue.reviewerUserId);
   const showLabels = visibleProperties.has("labels") && (issue.labels ?? []).length > 0;
   const showProject = visibleProperties.has("project") && Boolean(projectName);
   const showUpdated = visibleProperties.has("updated");
@@ -404,7 +411,7 @@ function KanbanCard({
           </div>
         ) : null}
         <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
-        {(showPriority || showAssignee) && (
+        {(showPriority || showAssignee || showReviewer) && (
           <div data-slot="kanban-card-metadata" className="flex min-w-0 items-center gap-2 overflow-hidden">
             {showPriority ? <PriorityIcon priority={issue.priority} /> : null}
             {showAssignee && issue.assigneeAgentId ? (
@@ -427,6 +434,45 @@ function KanbanCard({
                 <User className="h-3 w-3 shrink-0" />
                 <span className="truncate">
                   {formatAssigneeUserLabel(issue.assigneeUserId, currentUserId) ?? "User"}
+                </span>
+              </span>
+            ) : null}
+            {showReviewer && issue.reviewerAgentId ? (
+              reviewerAgent ? (
+                <span
+                  data-slot="kanban-card-reviewer"
+                  title="Reviewer"
+                  className="inline-flex min-w-0 flex-1 items-center gap-1 text-muted-foreground"
+                >
+                  <UserCheck className="h-3 w-3 shrink-0" />
+                  <AgentIdentity
+                    name={formatChatAgentLabel(reviewerAgent)}
+                    icon={reviewerAgent.icon}
+                    role={reviewerAgent.role}
+                    size="xs"
+                    className="min-w-0 flex-1"
+                  />
+                </span>
+              ) : (
+                <span
+                  data-slot="kanban-card-reviewer"
+                  title="Reviewer"
+                  className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
+                >
+                  <UserCheck className="h-3 w-3 shrink-0" />
+                  <span className="truncate font-mono">{issue.reviewerAgentId.slice(0, 8)}</span>
+                </span>
+              )
+            ) : null}
+            {showReviewer && issue.reviewerUserId ? (
+              <span
+                data-slot="kanban-card-reviewer"
+                title="Reviewer"
+                className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
+              >
+                <UserCheck className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {formatAssigneeUserLabel(issue.reviewerUserId, currentUserId) ?? "User"}
                 </span>
               </span>
             ) : null}
