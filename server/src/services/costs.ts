@@ -175,6 +175,8 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .select({
           agentId: costEvents.agentId,
           agentName: agents.name,
+          agentIcon: agents.icon,
+          agentRole: agents.role,
           agentStatus: agents.status,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
@@ -194,7 +196,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .from(costEvents)
         .leftJoin(agents, eq(costEvents.agentId, agents.id))
         .where(and(...conditions))
-        .groupBy(costEvents.agentId, agents.name, agents.status)
+        .groupBy(costEvents.agentId, agents.name, agents.icon, agents.role, agents.status)
         .orderBy(desc(sql`coalesce(sum(${costEvents.costCents}), 0)::int`));
     },
 

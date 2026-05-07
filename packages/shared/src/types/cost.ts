@@ -1,4 +1,4 @@
-import type { BillingType } from "../constants.js";
+import type { AgentRole, BillingType } from "../constants.js";
 
 export interface CostEvent {
   id: string;
@@ -31,6 +31,8 @@ export interface CostSummary {
 export interface CostByAgent {
   agentId: string;
   agentName: string | null;
+  agentIcon: string | null;
+  agentRole: AgentRole | null;
   agentStatus: string | null;
   costCents: number;
   inputTokens: number;

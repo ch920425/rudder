@@ -19,7 +19,7 @@ import { EmptyState } from "../components/EmptyState";
 import { FinanceBillerCard } from "../components/FinanceBillerCard";
 import { FinanceKindCard } from "../components/FinanceKindCard";
 import { FinanceTimelineCard } from "../components/FinanceTimelineCard";
-import { Identity } from "../components/Identity";
+import { AgentIdentity } from "../components/AgentAvatar";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PageTabBar } from "../components/PageTabBar";
 import { ProviderQuotaCard } from "../components/ProviderQuotaCard";
@@ -741,7 +741,12 @@ export function Costs() {
                                 ) : (
                                   <span className="h-3 w-3 shrink-0" />
                                 )}
-                                <Identity name={row.agentName ?? row.agentId} size="sm" />
+                                <AgentIdentity
+                                  name={row.agentName ?? row.agentId}
+                                  icon={row.agentIcon}
+                                  role={row.agentRole}
+                                  size="sm"
+                                />
                                 {row.agentStatus === "terminated" ? <StatusBadge status="terminated" /> : null}
                               </div>
                               <div className="text-right text-sm tabular-nums">
