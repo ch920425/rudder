@@ -772,43 +772,20 @@
   }
 
   .chat-review-block {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--surface-proposal) 82%, var(--surface-elevated)),
-        color-mix(in oklab, var(--surface-elevated) 98%, transparent)
-      );
+    background: var(--surface-elevated);
     border: 1px solid color-mix(in oklab, var(--accent-base) 18%, var(--border-base));
     box-shadow: var(--shadow-sm);
   }
 
   .chat-review-block[data-status="approved"] {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--surface-elevated) 64%, rgb(22 163 74 / 0.14)),
-        color-mix(in oklab, var(--surface-elevated) 96%, transparent)
-      );
     border-color: color-mix(in oklab, rgb(22 163 74) 35%, var(--border-base));
   }
 
   .chat-review-block[data-status="rejected"] {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--surface-elevated) 64%, rgb(220 38 38 / 0.16)),
-        color-mix(in oklab, var(--surface-elevated) 96%, transparent)
-      );
     border-color: color-mix(in oklab, rgb(220 38 38) 35%, var(--border-base));
   }
 
   .chat-review-block[data-status="revision_requested"] {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--surface-elevated) 64%, rgb(217 119 6 / 0.14)),
-        color-mix(in oklab, var(--surface-elevated) 96%, transparent)
-      );
     border-color: color-mix(in oklab, rgb(217 119 6) 35%, var(--border-base));
   }
 
