@@ -42,6 +42,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { findOrganizationByPrefix } from "../lib/organization-routes";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
 import { AgentConfigForm } from "../components/AgentConfigForm";
+import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { PageTabBar } from "../components/PageTabBar";
 import { roleLabels, help } from "../components/agent-config-primitives";
 import { MarkdownEditor } from "../components/MarkdownEditor";
@@ -98,7 +99,6 @@ import {
   FolderOpen,
   Search,
   MessageSquare,
-  CalendarDays,
   Maximize2,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -162,13 +162,6 @@ const REDACTED_ENV_VALUE = "***REDACTED***";
 const SECRET_ENV_KEY_RE =
   /(api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
 const JWT_VALUE_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)?$/;
-type DashboardDatePreset = "7d" | "15d" | "30d" | "custom";
-
-const DASHBOARD_DATE_PRESETS: Array<{ key: DashboardDatePreset; label: string }> = [
-  { key: "7d", label: "7D" },
-  { key: "15d", label: "15D" },
-  { key: "30d", label: "1M" },
-];
 
 function formatDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -225,99 +218,6 @@ function isWithinRange(value: string | Date | null | undefined, from: string, to
   if (from && timestamp < new Date(from).getTime()) return false;
   if (to && timestamp > new Date(to).getTime()) return false;
   return true;
-}
-
-function DashboardDateRangeControl({
-  preset,
-  customFrom,
-  customTo,
-  customOpen,
-  onCustomOpenChange,
-  onPresetSelect,
-  onCustomFromChange,
-  onCustomToChange,
-}: {
-  preset: DashboardDatePreset;
-  customFrom: string;
-  customTo: string;
-  customOpen: boolean;
-  onCustomOpenChange: (open: boolean) => void;
-  onPresetSelect: (preset: DashboardDatePreset) => void;
-  onCustomFromChange: (value: string) => void;
-  onCustomToChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex justify-end">
-      <div className="flex items-center gap-1 rounded-full border border-border/70 bg-background/90 p-1 shadow-sm">
-        {DASHBOARD_DATE_PRESETS.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => onPresetSelect(option.key)}
-            className={cn(
-              "h-8 rounded-full px-3 text-xs font-medium transition-colors",
-              preset === option.key
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-            aria-pressed={preset === option.key}
-          >
-            {option.label}
-          </button>
-        ))}
-        <Popover open={customOpen} onOpenChange={onCustomOpenChange}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              onClick={() => onPresetSelect("custom")}
-              className={cn(
-                "flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
-                preset === "custom"
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              )}
-              aria-pressed={preset === "custom"}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              Custom
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-[24rem] p-3">
-            <div className="space-y-3">
-              <div>
-                <div className="text-sm font-medium text-foreground">Custom range</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Filter dashboard charts and skills analytics by a specific date window.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
-                  <span>From</span>
-                  <input
-                    aria-label="From"
-                    type="date"
-                    value={customFrom}
-                    onChange={(event) => onCustomFromChange(event.target.value)}
-                    className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                  />
-                </label>
-                <label className="grid min-w-0 gap-1.5 text-xs text-muted-foreground">
-                  <span>To</span>
-                  <input
-                    aria-label="To"
-                    type="date"
-                    value={customTo}
-                    onChange={(event) => onCustomToChange(event.target.value)}
-                    className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                  />
-                </label>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
-  );
 }
 
 function compactSkillText(value: string | null | undefined) {

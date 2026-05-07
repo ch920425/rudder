@@ -31,7 +31,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { billingTypeDisplayName, cn, formatCents, formatTokens, providerDisplayName } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 const NO_ORGANIZATION = "__none__";
 
@@ -618,13 +618,18 @@ export function Costs() {
       </div>
 
       <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as typeof mainTab)}>
-        <TabsList variant="line" className="justify-start">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="budgets">Budgets</TabsTrigger>
-          <TabsTrigger value="providers">Providers</TabsTrigger>
-          <TabsTrigger value="billers">Billers</TabsTrigger>
-          <TabsTrigger value="finance">Finance</TabsTrigger>
-        </TabsList>
+        <PageTabBar
+          items={[
+            { value: "overview", label: "Overview" },
+            { value: "budgets", label: "Budgets" },
+            { value: "providers", label: "Providers" },
+            { value: "billers", label: "Billers" },
+            { value: "finance", label: "Finance" },
+          ]}
+          value={mainTab}
+          onValueChange={(value) => setMainTab(value as typeof mainTab)}
+          align="start"
+        />
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           {showCustomPrompt ? (
