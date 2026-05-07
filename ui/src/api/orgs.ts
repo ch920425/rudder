@@ -49,8 +49,6 @@ export const organizationsApi = {
         | "budgetMonthlyCents"
         | "requireBoardApprovalForNewAgents"
         | "defaultChatIssueCreationMode"
-        | "defaultChatAgentRuntimeType"
-        | "defaultChatAgentRuntimeConfig"
         | "brandColor"
         | "logoAssetId"
       >

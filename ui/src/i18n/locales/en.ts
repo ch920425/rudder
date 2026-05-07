@@ -186,25 +186,16 @@ export const en = {
   "organizationSettings.labels.failedDelete": "Failed to delete label",
   "organizationSettings.hiring.requireApproval.label": "Require board approval for new hires",
   "organizationSettings.hiring.requireApproval.hint": "New agent hires stay pending until approved by board.",
-  "organizationSettings.chat.copilot.title": "Rudder Copilot",
-  "organizationSettings.chat.copilot.description":
-    "Conversations without a preferred agent use Rudder Copilot. Preferred-agent chats inherit that agent's own runtime, skills, and instructions.",
-  "organizationSettings.chat.runtime.label": "Copilot runtime",
-  "organizationSettings.chat.runtime.hint": "Used only when a conversation has no preferred agent.",
-  "organizationSettings.chat.runtime.none": "Copilot not configured",
-  "organizationSettings.chat.model.label": "Copilot model",
-  "organizationSettings.chat.model.hint":
-    "Keep this aligned with the model family you want Rudder Copilot to use for unassigned chats.",
-  "organizationSettings.chat.model.chooseRuntime": "Choose a runtime first",
-  "organizationSettings.chat.model.loading": "Loading models...",
-  "organizationSettings.chat.model.default": "Use runtime default",
+  "organizationSettings.chat.assistant.title": "Chat assistant",
+  "organizationSettings.chat.assistant.description":
+    "Chat replies run through the conversation's selected agent, using that agent's runtime, skills, and instructions. Choose an agent in the composer before sending.",
   "organizationSettings.chat.issueMode.label": "Default issue creation mode",
   "organizationSettings.chat.issueMode.hint":
     "Controls whether chat-generated issue proposals wait for approval or create issues immediately.",
   "organizationSettings.chat.issueMode.manual": "Manual approval",
   "organizationSettings.chat.issueMode.auto": "Auto-create issue",
-  "organizationSettings.chat.save": "Save Copilot settings",
-  "organizationSettings.chat.failed": "Failed to update Copilot settings",
+  "organizationSettings.chat.save": "Save chat settings",
+  "organizationSettings.chat.failed": "Failed to update chat settings",
   "organizationSettings.chat.archived.title": "Archived conversations",
   "organizationSettings.chat.archived.description":
     "Archived chats stay out of the main sidebar. Restore them here if they need to become active again.",

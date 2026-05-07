@@ -98,7 +98,7 @@ function createConversation(overrides: Partial<Record<string, unknown>> = {}) {
     title: "New chat",
     summary: null,
     latestReplyPreview: null,
-    preferredAgentId: null,
+    preferredAgentId: "agent-1",
     routedAgentId: null,
     primaryIssueId: null,
     primaryIssue: null,
@@ -113,9 +113,9 @@ function createConversation(overrides: Partial<Record<string, unknown>> = {}) {
     needsAttention: false,
     resolvedAt: null,
     chatRuntime: {
-      sourceType: "copilot",
-      sourceLabel: "Rudder Copilot",
-      runtimeAgentId: "copilot-agent",
+      sourceType: "agent",
+      sourceLabel: "Chat Specialist",
+      runtimeAgentId: "agent-1",
       agentRuntimeType: "codex_local",
       model: "gpt-5",
       available: true,
@@ -200,9 +200,9 @@ describe("chat routes", () => {
     mockChatAssistantService.enrichConversations.mockImplementation(async (conversations) => conversations);
     mockChatAssistantService.getChatAssistantAvailability.mockResolvedValue({
       available: true,
-      sourceType: "copilot",
-      sourceLabel: "Rudder Copilot",
-      runtimeAgentId: "copilot-agent",
+      sourceType: "agent",
+      sourceLabel: "Chat Specialist",
+      runtimeAgentId: "agent-1",
       agentRuntimeType: "codex_local",
       model: "gpt-5",
       error: null,
@@ -346,12 +346,12 @@ describe("chat routes", () => {
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "completed",
       partialBody: "This should become an issue.",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "issue_proposal",
         body: "This should become an issue.",
         structuredPayload: proposalMessage.structuredPayload,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
 
@@ -532,12 +532,12 @@ describe("chat routes", () => {
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "completed",
       partialBody: "I mapped the rollout plan.",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "issue_proposal",
         body: "I mapped the rollout plan.",
         structuredPayload: proposalMessage.structuredPayload,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
 
@@ -597,12 +597,12 @@ describe("chat routes", () => {
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "completed",
       partialBody: "Working on it",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "message",
         body: "Working on it",
         structuredPayload: null,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
 
@@ -712,21 +712,21 @@ describe("chat routes", () => {
             description: "Verification helpers",
           },
         ],
-        prompt: "You are Rudder Copilot, the system-managed chat copilot for this Rudder organization.\n\nConversation input:\n{}",
+        prompt: "You are Chat Specialist, replying inside Rudder's chat scene.\n\nConversation input:\n{}",
         promptMetrics: {
-          promptChars: 64,
+          promptChars: 85,
         },
         context: {},
       });
       return {
         outcome: "completed",
         partialBody: "Working on it",
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
         reply: {
           kind: "message",
           body: "Working on it",
           structuredPayload: null,
-          replyingAgentId: "copilot-agent",
+          replyingAgentId: "agent-1",
         },
       };
     });
@@ -764,9 +764,9 @@ describe("chat routes", () => {
       expect.objectContaining({
         input: expect.objectContaining({
           body: "Need help",
-          instruction: "You are Rudder Copilot, the system-managed chat copilot for this Rudder organization.\n\nConversation input:\n{}",
+          instruction: "You are Chat Specialist, replying inside Rudder's chat scene.\n\nConversation input:\n{}",
           promptMetrics: {
-            promptChars: 64,
+            promptChars: 85,
           },
         }),
       }),
@@ -802,12 +802,12 @@ describe("chat routes", () => {
       return {
         outcome: "completed",
         partialBody: "Streaming reply",
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
         reply: {
           kind: "message",
           body: "Streaming reply",
           structuredPayload: null,
-          replyingAgentId: "copilot-agent",
+          replyingAgentId: "agent-1",
         },
       };
     });
@@ -852,7 +852,7 @@ describe("chat routes", () => {
       expect.objectContaining({
         role: "assistant",
         kind: "message",
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
         transcript: [
           expect.objectContaining({ kind: "thinking", text: "Inspecting current request" }),
           expect.objectContaining({ kind: "tool_call", name: "read_file" }),
@@ -896,12 +896,12 @@ describe("chat routes", () => {
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "completed",
       partialBody: "Yes.",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "message",
         body: "Yes.",
         structuredPayload: null,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
 
@@ -972,7 +972,7 @@ describe("chat routes", () => {
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "stopped",
       partialBody: "Partial reply",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
     });
 
     const res = await request(createApp())
@@ -1005,7 +1005,7 @@ describe("chat routes", () => {
         role: "assistant",
         kind: "message",
         status: "stopped",
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
         transcript: [],
       }),
     );
@@ -1028,12 +1028,12 @@ describe("chat routes", () => {
         return {
           outcome: "completed",
           partialBody: "Completed after disconnect",
-          replyingAgentId: "copilot-agent",
+          replyingAgentId: "agent-1",
           reply: {
             kind: "message",
             body: "Completed after disconnect",
             structuredPayload: null,
-            replyingAgentId: "copilot-agent",
+            replyingAgentId: "agent-1",
           },
         };
       });
@@ -1113,7 +1113,7 @@ describe("chat routes", () => {
         return {
           outcome: "stopped",
           partialBody: "Partial reply",
-          replyingAgentId: "copilot-agent",
+          replyingAgentId: "agent-1",
         };
       });
     });

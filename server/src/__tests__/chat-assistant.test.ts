@@ -56,13 +56,8 @@ const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
-const mockOrganizationService = vi.hoisted(() => ({
-  getById: vi.fn(),
-}));
-
 const mockRunContextService = vi.hoisted(() => ({
   prepareRuntimeConfig: vi.fn(),
-  ensureChatCopilotAgent: vi.fn(),
   resolveWorkspaceForRun: vi.fn(),
   buildSceneContext: vi.fn(),
 }));
@@ -75,12 +70,7 @@ vi.mock("../services/agents.js", () => ({
   agentService: () => mockAgentService,
 }));
 
-vi.mock("../services/orgs.js", () => ({
-  organizationService: () => mockOrganizationService,
-}));
-
 vi.mock("../services/agent-run-context.js", () => ({
-  RUDDER_COPILOT_LABEL: "Rudder Copilot",
   agentRunContextService: () => mockRunContextService,
 }));
 
@@ -95,7 +85,7 @@ function makeConversation(overrides: Partial<ChatConversation> = {}): ChatConver
     title: "Profile prompt test",
     summary: null,
     latestReplyPreview: null,
-    preferredAgentId: null,
+    preferredAgentId: "agent-1",
     routedAgentId: null,
     primaryIssueId: null,
     primaryIssue: null,
@@ -110,9 +100,9 @@ function makeConversation(overrides: Partial<ChatConversation> = {}): ChatConver
     needsAttention: false,
     resolvedAt: null,
     chatRuntime: {
-      sourceType: "copilot",
-      sourceLabel: "Rudder Copilot",
-      runtimeAgentId: "copilot-agent",
+      sourceType: "agent",
+      sourceLabel: "Chat Specialist",
+      runtimeAgentId: "agent-1",
       agentRuntimeType: "codex_local",
       model: "gpt-5.4",
       available: true,
@@ -175,19 +165,14 @@ describe("chatAssistantService operator profile prompt injection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindServerAdapter.mockImplementation(() => mockAdapter);
-    mockOrganizationService.getById.mockResolvedValue({
-      id: "organization-1",
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-5.4",
-      },
-    });
-    mockRunContextService.ensureChatCopilotAgent.mockResolvedValue({
-      id: "copilot-agent",
+    mockAgentService.getById.mockResolvedValue({
+      id: "agent-1",
       orgId: "organization-1",
+      name: "Chat Specialist",
       status: "idle",
       agentRuntimeType: "codex_local",
       agentRuntimeConfig: { model: "gpt-5.4" },
+      metadata: null,
     });
     mockRunContextService.prepareRuntimeConfig.mockResolvedValue({
       resolvedConfig: { model: "gpt-5.4" },
@@ -233,7 +218,35 @@ describe("chatAssistantService operator profile prompt injection", () => {
     vi.clearAllMocks();
   });
 
-  it("injects nickname and more-about-you into the Copilot chat prompt when present", async () => {
+  it("reports chat as unavailable until a preferred agent is selected", async () => {
+    const svc = chatAssistantService({} as any);
+
+    const availability = await svc.getChatAssistantAvailability(makeConversation({
+      preferredAgentId: null,
+      chatRuntime: {
+        sourceType: "unconfigured",
+        sourceLabel: "Choose an agent",
+        runtimeAgentId: null,
+        agentRuntimeType: null,
+        model: null,
+        available: false,
+        error: "Choose a chat agent before sending messages.",
+      },
+    }));
+
+    expect(availability).toEqual({
+      sourceType: "unconfigured",
+      sourceLabel: "Choose an agent",
+      runtimeAgentId: null,
+      agentRuntimeType: null,
+      model: null,
+      available: false,
+      error: "Choose a chat agent before sending messages.",
+    });
+    expect(mockAgentService.getById).not.toHaveBeenCalled();
+  });
+
+  it("injects nickname and more-about-you into the selected agent chat prompt when present", async () => {
     const svc = chatAssistantService({} as any);
 
     await svc.generateChatAssistantReply({
@@ -248,7 +261,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
 
     const prompt = mockAdapter.execute.mock.calls[0]?.[0]?.context?.chatPrompt as string;
     expect(prompt).toContain("Always reply in the same language as the user's most recent substantive message unless they explicitly ask for a different language.");
-    expect(prompt).toContain("You are Rudder Copilot");
+    expect(prompt).toContain("You are Chat Specialist, replying inside Rudder's chat scene.");
     expect(prompt).toContain("Current board operator profile:");
     expect(prompt).toContain("- Preferred form of address: Zee");
     expect(prompt).toContain("- Background about the operator: Prefers concise, implementation-first responses.");
@@ -471,7 +484,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
     }));
   });
 
-  it("uses provider-aware model fallbacks for the organization chat runtime", async () => {
+  it("uses provider-aware model fallbacks for the selected chat agent runtime", async () => {
     const fallbackAdapter = {
       type: "claude_local",
       supportsLocalAgentJwt: true,
@@ -497,21 +510,6 @@ describe("chatAssistantService operator profile prompt injection", () => {
     mockFindServerAdapter.mockImplementation((agentRuntimeType: string) =>
       agentRuntimeType === "claude_local" ? fallbackAdapter : mockAdapter,
     );
-    mockOrganizationService.getById.mockResolvedValueOnce({
-      id: "organization-1",
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-primary",
-        modelFallbacks,
-      },
-    });
-    mockRunContextService.ensureChatCopilotAgent.mockResolvedValueOnce({
-      id: "copilot-agent",
-      orgId: "organization-1",
-      status: "idle",
-      agentRuntimeType: "codex_local",
-      agentRuntimeConfig: { model: "gpt-primary", modelFallbacks },
-    });
     mockRunContextService.prepareRuntimeConfig.mockResolvedValueOnce({
       resolvedConfig: { model: "gpt-primary", modelFallbacks },
       runtimeConfig: {
@@ -708,12 +706,12 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(result).toEqual({
       outcome: "completed",
       partialBody: "Clarify the success criteria first.",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "message",
         body: "Clarify the success criteria first.",
         structuredPayload: null,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
     expect(entries).toEqual([
@@ -858,12 +856,12 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(result).toEqual({
       outcome: "completed",
       partialBody: "Hello Zeeland! I'm here to help clarify and route work requests. How can I assist you today?",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
       reply: {
         kind: "message",
         body: "Hello Zeeland! I'm here to help clarify and route work requests. How can I assist you today?",
         structuredPayload: null,
-        replyingAgentId: "copilot-agent",
+        replyingAgentId: "agent-1",
       },
     });
     expect(entries).toEqual([
@@ -921,7 +919,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(result).toEqual({
       outcome: "stopped",
       partialBody: "Partial streamed reply",
-      replyingAgentId: "copilot-agent",
+      replyingAgentId: "agent-1",
     });
     expect(states).toEqual(["streaming", "stopped"]);
   });

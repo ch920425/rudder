@@ -13,21 +13,10 @@ import type {
 import { findServerAdapter } from "../agent-runtimes/index.js";
 import type { AgentRuntimeInvocationMeta, AgentRuntimeLoadedSkillMeta } from "../agent-runtimes/index.js";
 import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "../agent-runtimes/types.js";
-import { agentRunContextService, RUDDER_COPILOT_LABEL, type AgentRunContextAgent } from "./agent-run-context.js";
+import { agentRunContextService, type AgentRunContextAgent } from "./agent-run-context.js";
 import { agentService } from "./agents.js";
-import { organizationService } from "./orgs.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { executeAdapterWithModelFallbacks } from "./runtime-kernel/model-fallback.js";
-
-const ORGANIZATION_DEFAULT_CHAT_ADAPTER_TYPES = new Set<AgentRuntimeType>([
-  "claude_local",
-  "codex_local",
-  "cursor",
-  "gemini_local",
-  "opencode_local",
-  "pi_local",
-  "openclaw_gateway",
-]);
 
 const CHAT_UNSUPPORTED_ADAPTER_TYPES = new Set<AgentRuntimeType>(["process", "http"]);
 const CHAT_RESULT_SENTINEL_PREFIX = "__RUDDER_RESULT_";
@@ -105,7 +94,7 @@ function modelLabel(config: Record<string, unknown> | null | undefined) {
 function unconfiguredDescriptor(error: string): ChatRuntimeDescriptor {
   return {
     sourceType: "unconfigured",
-    sourceLabel: "Configure Rudder Copilot",
+    sourceLabel: "Choose an agent",
     runtimeAgentId: null,
     agentRuntimeType: null,
     model: null,
@@ -244,14 +233,11 @@ function buildChatSpeakerPromptSection(runtimeSource: ResolvedChatRuntimeSource)
     return [
       `You are ${name}, replying inside Rudder's chat scene.`,
       "Speak as this agent, using the agent's own instructions and enabled skills as your working context.",
-      "Do not claim to be Rudder Copilot or a generic assistant.",
+      "Do not claim to be a generic assistant or any agent other than the selected chat agent.",
     ].join("\n");
   }
 
-  return [
-    `You are ${name}, the system-managed chat copilot for this Rudder organization.`,
-    "Stay inside the chat scene. Clarify, structure, and propose work, but do not hand off or dispatch to another agent on your own.",
-  ].join("\n");
+  return "A preferred agent must be selected before the chat assistant can reply.";
 }
 
 function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource, resultSentinel: string) {
@@ -781,7 +767,6 @@ function shouldSuppressChatTranscriptEntry(entry: TranscriptEntry, resultSentine
 
 export function chatAssistantService(db: Db) {
   const agentsSvc = agentService(db);
-  const organizationsSvc = organizationService(db);
   const runContextSvc = agentRunContextService(db);
 
   async function resolveChatInvocation(input: {
@@ -875,7 +860,7 @@ export function chatAssistantService(db: Db) {
           runtimeAgentId: null,
           agentRuntimeType: null,
           model: null,
-          error: "The selected chat agent is unavailable. Choose another agent or switch back to Rudder Copilot.",
+          error: "The selected chat agent is unavailable. Choose another agent before sending messages.",
         }),
         runtimeAgent: null,
         agentRuntimeType: null,
@@ -944,86 +929,6 @@ export function chatAssistantService(db: Db) {
     };
   }
 
-  async function resolveOrganizationDefaultRuntime(orgId: string): Promise<ResolvedChatRuntimeSource> {
-    const organization = await organizationsSvc.getById(orgId);
-    if (!organization?.defaultChatAgentRuntimeType) {
-      return {
-        descriptor: unconfiguredDescriptor(
-          "Chat is not configured. Configure Rudder Copilot in Organization Settings, or assign an agent to this conversation.",
-        ),
-        runtimeAgent: null,
-        agentRuntimeType: null,
-        agentRuntimeConfig: null,
-        runtimeSkills: [],
-      };
-    }
-
-    const organizationAdapterType = organization.defaultChatAgentRuntimeType as AgentRuntimeType;
-
-    if (!ORGANIZATION_DEFAULT_CHAT_ADAPTER_TYPES.has(organizationAdapterType)) {
-      return {
-        descriptor: unconfiguredDescriptor(
-          `${organizationAdapterType} is not available as a Rudder Copilot runtime.`,
-        ),
-        runtimeAgent: null,
-        agentRuntimeType: null,
-        agentRuntimeConfig: null,
-        runtimeSkills: [],
-      };
-    }
-
-    const copilot = await runContextSvc.ensureChatCopilotAgent({
-      id: organization.id,
-      defaultChatAgentRuntimeType: organization.defaultChatAgentRuntimeType,
-      defaultChatAgentRuntimeConfig: (organization.defaultChatAgentRuntimeConfig ?? {}) as Record<string, unknown>,
-    });
-    if (!copilot) {
-      return {
-        descriptor: unconfiguredDescriptor(
-          "Chat is not configured. Configure Rudder Copilot in Organization Settings, or assign an agent to this conversation.",
-        ),
-        runtimeAgent: null,
-        agentRuntimeType: null,
-        agentRuntimeConfig: null,
-        runtimeSkills: [],
-      };
-    }
-
-    const { runtimeConfig, runtimeSkillEntries } = await runContextSvc.prepareRuntimeConfig({
-      scene: "chat",
-      agent: {
-        id: copilot.id,
-        orgId: copilot.orgId,
-        name: RUDDER_COPILOT_LABEL,
-        status: copilot.status,
-        agentRuntimeType: copilot.agentRuntimeType,
-        agentRuntimeConfig: copilot.agentRuntimeConfig ?? {},
-        metadata: copilot.metadata ?? null,
-      },
-    });
-    return {
-      descriptor: {
-        sourceType: "copilot",
-        sourceLabel: RUDDER_COPILOT_LABEL,
-        runtimeAgentId: copilot.id,
-        agentRuntimeType: organizationAdapterType,
-        model: modelLabel(runtimeConfig) ?? "Default model",
-        available: true,
-        error: null,
-      },
-      runtimeAgent: {
-        id: copilot.id,
-        orgId: copilot.orgId,
-        name: RUDDER_COPILOT_LABEL,
-        agentRuntimeType: organizationAdapterType,
-        agentRuntimeConfig: runtimeConfig,
-      },
-      agentRuntimeType: organizationAdapterType,
-      agentRuntimeConfig: runtimeConfig,
-      runtimeSkills: summarizeRuntimeSkills(runtimeSkillEntries),
-    };
-  }
-
   async function resolveConversationRuntime(
     conversation: Pick<ChatConversation, "orgId" | "preferredAgentId">,
   ) {
@@ -1031,7 +936,14 @@ export function chatAssistantService(db: Db) {
       const agentRuntime = await resolveAgentRuntime(conversation.orgId, conversation.preferredAgentId);
       if (agentRuntime) return agentRuntime;
     }
-    return resolveOrganizationDefaultRuntime(conversation.orgId);
+
+    return {
+      descriptor: unconfiguredDescriptor("Choose a chat agent before sending messages."),
+      runtimeAgent: null,
+      agentRuntimeType: null,
+      agentRuntimeConfig: null,
+      runtimeSkills: [],
+    } satisfies ResolvedChatRuntimeSource;
   }
 
   async function enrichConversation<T extends ChatConversation>(conversation: T): Promise<T> {
@@ -1064,10 +976,17 @@ export function chatAssistantService(db: Db) {
       linkedProjectId,
       sceneContext,
     } = resolvedInvocation;
-    if (!adapter || !config || !sceneContext || !runtimeSource.agentRuntimeType) {
+    if (
+      !adapter ||
+      !config ||
+      !sceneContext ||
+      !runtimeSource.agentRuntimeType ||
+      !runtimeSource.descriptor.runtimeAgentId
+    ) {
       throw new Error("Chat runtime is not configured");
     }
     const runtimeAgentType = runtimeSource.agentRuntimeType;
+    const runtimeAgentId = runtimeSource.descriptor.runtimeAgentId;
     const resultSentinel = `${CHAT_RESULT_SENTINEL_PREFIX}${randomUUID()}__`;
     const runId = `chat-${input.conversation.id}-${randomUUID()}`;
     const assistantTextAccumulator = createAssistantTextAccumulator();
@@ -1143,7 +1062,7 @@ export function chatAssistantService(db: Db) {
         agentRuntimeType: runtimeAgentType,
         agentRuntimeConfig: config,
         sourceLabel: runtimeSource.descriptor.sourceLabel,
-        sourceId: runtimeSource.descriptor.runtimeAgentId ?? `org-chat:${input.conversation.orgId}`,
+        sourceId: runtimeAgentId,
       }),
       runtime: {
         sessionId: null,
@@ -1172,7 +1091,7 @@ export function chatAssistantService(db: Db) {
       },
       authToken: adapter.supportsLocalAgentJwt
         ? createLocalAgentJwt(
-          runtimeSource.descriptor.runtimeAgentId ?? `org-chat:${input.conversation.orgId}`,
+          runtimeAgentId,
           input.conversation.orgId,
           runtimeAgentType,
           runId,
@@ -1198,7 +1117,7 @@ export function chatAssistantService(db: Db) {
       resolveAdapter: findServerAdapter,
       createAuthToken: (agentRuntimeType) =>
         createLocalAgentJwt(
-          runtimeSource.descriptor.runtimeAgentId ?? `org-chat:${input.conversation.orgId}`,
+          runtimeAgentId,
           input.conversation.orgId,
           agentRuntimeType,
           runId,
@@ -1223,7 +1142,7 @@ export function chatAssistantService(db: Db) {
       return {
         outcome: "stopped",
         partialBody,
-        replyingAgentId: runtimeSource.descriptor.runtimeAgentId,
+        replyingAgentId: runtimeAgentId,
       };
     }
 
@@ -1239,7 +1158,7 @@ export function chatAssistantService(db: Db) {
     const raw = resultText(result) || assistantTextAccumulator.fullText;
     const reply = parseCompletedAssistantReply(raw, resultSentinel);
     const finalBody = reply.body;
-    reply.replyingAgentId = runtimeSource.descriptor.runtimeAgentId;
+    reply.replyingAgentId = runtimeAgentId;
 
     const streamedBody = safeTrim(sentinelStream.visibleText) ?? "";
     if (finalBody && finalBody !== streamedBody) {
@@ -1250,7 +1169,7 @@ export function chatAssistantService(db: Db) {
       outcome: "completed",
       reply,
       partialBody: finalBody,
-      replyingAgentId: runtimeSource.descriptor.runtimeAgentId,
+      replyingAgentId: runtimeAgentId,
     };
   }
 

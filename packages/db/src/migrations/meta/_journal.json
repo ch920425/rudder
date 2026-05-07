@@ -491,6 +491,13 @@
       "when": 1778092607738,
       "tag": "0069_calm_cargill",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1778146334281,
+      "tag": "0070_talented_infant_terrible",
+      "breakpoints": true
     }
   ]
 }

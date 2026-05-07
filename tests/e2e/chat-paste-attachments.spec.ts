@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { createE2EChatAgent } from "./support/chat-agent";
 
 async function createStreamingOrg(
   page: Page,
@@ -11,12 +12,15 @@ async function createStreamingOrg(
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: runtimeConfig,
     },
   });
   expect(orgRes.ok()).toBe(true);
-  return orgRes.json();
+  const organization = await orgRes.json();
+  const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+    name: "Attachment Agent",
+    agentRuntimeConfig: runtimeConfig,
+  });
+  return { ...organization, chatAgent };
 }
 
 async function createAttachmentAwareCodexStub() {
@@ -79,7 +83,7 @@ test("pastes clipboard images and files into chat as pending attachments and exp
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto("/chat");
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });

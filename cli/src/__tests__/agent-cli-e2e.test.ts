@@ -414,9 +414,7 @@ describe("agent CLI e2e", () => {
         budget_monthly_cents,
         spent_monthly_cents,
         require_board_approval_for_new_agents,
-        default_chat_issue_creation_mode,
-        default_chat_agent_runtime_type,
-        default_chat_agent_runtime_config
+        default_chat_issue_creation_mode
       ) values (
         ${orgId},
         ${"cli-migration-org"},
@@ -428,9 +426,7 @@ describe("agent CLI e2e", () => {
         ${0},
         ${0},
         ${false},
-        ${"manual_approval"},
-        ${null},
-        ${null}
+        ${"manual_approval"}
       )
     `);
 

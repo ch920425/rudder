@@ -223,16 +223,12 @@ describe("organization skill references", () => {
       description: null,
       budgetMonthlyCents: 0,
       defaultChatIssueCreationMode: "manual_approval",
-      defaultChatAgentRuntimeType: null,
-      defaultChatAgentRuntimeConfig: null,
     });
     const second = await orgSvc.create({
       name: "Alpha Beta",
       description: "Second org",
       budgetMonthlyCents: 0,
       defaultChatIssueCreationMode: "manual_approval",
-      defaultChatAgentRuntimeType: null,
-      defaultChatAgentRuntimeConfig: null,
     });
 
     expect(first.urlKey).toBe("alpha-beta");

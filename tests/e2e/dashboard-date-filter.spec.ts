@@ -17,10 +17,6 @@ test.describe("Dashboard date filter", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Dashboard-Date-Filter-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);

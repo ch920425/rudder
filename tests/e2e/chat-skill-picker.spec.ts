@@ -22,15 +22,10 @@ async function createSkill(request: APIRequestContext, orgId: string, name: stri
 }
 
 test.describe("Chat skill picker", () => {
-  test("hides the skill picker while Rudder Copilot is selected", async ({ page }) => {
+  test("hides the skill picker until a chat agent is selected", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
-        name: `Skill-Copilot-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
+        name: `Skill-Explicit-Agent-${Date.now()}`,
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -59,11 +54,11 @@ test.describe("Chat skill picker", () => {
 
     await page.goto("/chat");
 
-    await expect(page.getByRole("button", { name: "Rudder Copilot" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Choose agent" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: "Skills" })).toHaveCount(0);
 
     const composerSurface = page.locator(".chat-composer").first();
-    await page.getByRole("button", { name: "Rudder Copilot" }).click();
+    await page.getByRole("button", { name: "Choose agent" }).click();
     const agentMenu = page.getByTestId("chat-agent-menu");
     await expect(agentMenu).toBeVisible();
     const composerSurfaceBox = await composerSurface.boundingBox();
@@ -81,11 +76,6 @@ test.describe("Chat skill picker", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Skill-Chat-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -199,11 +189,6 @@ test.describe("Chat skill picker", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Mention-Skill-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -276,11 +261,6 @@ test.describe("Chat skill picker", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Mention-Menu-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);

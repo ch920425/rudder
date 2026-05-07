@@ -18,15 +18,24 @@ async function createConfiguredOrganization(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
+    },
+  });
+  expect(orgRes.ok()).toBe(true);
+  const organization = await orgRes.json();
+  const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+    data: {
+      name: "Messenger Chat Agent",
+      role: "engineer",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {
         model: "gpt-5.4",
         command: E2E_CODEX_STUB,
       },
     },
   });
-  expect(orgRes.ok()).toBe(true);
-  return orgRes.json();
+  expect(agentRes.ok()).toBe(true);
+  const chatAgent = await agentRes.json();
+  return { ...organization, chatAgent };
 }
 
 function threadTestId(threadKey: string) {
@@ -868,6 +877,7 @@ test.describe("Messenger unified threads contract", () => {
       data: {
         title: "Unread chat",
         summary: "Unread badge regression check",
+        preferredAgentId: organization.chatAgent.id,
         issueCreationMode: "manual_approval",
         planMode: false,
       },
@@ -943,6 +953,7 @@ test.describe("Messenger unified threads contract", () => {
       data: {
         title: "Preview thread",
         summary: "Fallback preview text that should be replaced by the assistant reply.",
+        preferredAgentId: organization.chatAgent.id,
         issueCreationMode: "manual_approval",
         planMode: false,
       },

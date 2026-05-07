@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createE2EChatAgent } from "./support/chat-agent";
 import { E2E_CODEX_STUB } from "./support/e2e-env";
 
 const ORG_NAME = `Plan-Mode-Chat-${Date.now()}`;
@@ -14,18 +15,19 @@ test.describe("Chat options menu", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: ORG_NAME,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
     const organization = await orgRes.json();
+    const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+      name: "Planner",
+      command: E2E_CODEX_STUB,
+    });
 
     const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
       data: {
         title: "Plan mode persistence",
+        preferredAgentId: chatAgent.id,
       },
     });
     expect(chatRes.ok()).toBe(true);
@@ -96,15 +98,14 @@ test.describe("Chat options menu", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Project-Context-Chat-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
     const organization = await orgRes.json();
+    const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+      name: "Project Agent",
+      command: E2E_CODEX_STUB,
+    });
 
     const projectRes = await page.request.post(`/api/orgs/${organization.id}/projects`, {
       data: {
@@ -119,6 +120,7 @@ test.describe("Chat options menu", () => {
     const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
       data: {
         title: "Project-backed chat",
+        preferredAgentId: chatAgent.id,
         contextLinks: [{ entityType: "project", entityId: project.id }],
       },
     });
@@ -133,15 +135,15 @@ test.describe("Chat options menu", () => {
     const selector = page.getByTestId("chat-project-selector");
     await expect(selector).toContainText("Launch Context", { timeout: 15_000 });
 
-    await page.goto("/chat");
+    await page.goto(`/chat?agentId=${chatAgent.id}`);
     await expect(selector).toContainText("Launch Context", { timeout: 15_000 });
     const toolbar = page.getByTestId("chat-composer-toolbar");
     await expect(toolbar.getByTestId("chat-project-selector")).toBeVisible();
-    await expect(toolbar.getByRole("button", { name: "Rudder Copilot", exact: true })).toBeVisible();
+    await expect(toolbar.getByRole("button", { name: /Project Agent/ })).toBeVisible();
 
     const composerBox = await page.locator(".rudder-mdxeditor-content").first().boundingBox();
     const selectorBox = await selector.boundingBox();
-    const agentBox = await toolbar.getByRole("button", { name: "Rudder Copilot", exact: true }).boundingBox();
+    const agentBox = await toolbar.getByRole("button", { name: /Project Agent/ }).boundingBox();
     expect(composerBox).not.toBeNull();
     expect(selectorBox).not.toBeNull();
     expect(agentBox).not.toBeNull();

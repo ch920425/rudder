@@ -5,11 +5,6 @@ async function createStreamingOrg(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-5.4",
-        command: E2E_CODEX_STUB,
-      },
     },
   });
   expect(orgRes.ok()).toBe(true);

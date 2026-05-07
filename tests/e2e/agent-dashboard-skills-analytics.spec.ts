@@ -43,10 +43,6 @@ test.describe("Agent dashboard skills analytics", () => {
     const orgRes = await request.post("/api/orgs", {
       data: {
         name: `Agent-Skills-Analytics-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -208,10 +204,6 @@ test.describe("Agent dashboard skills analytics", () => {
     const orgRes = await request.post("/api/orgs", {
       data: {
         name: `Dashboard-Skills-Analytics-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -349,10 +341,6 @@ test.describe("Agent dashboard skills analytics", () => {
     const orgRes = await request.post("/api/orgs", {
       data: {
         name: `Agent-Skills-Hidden-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);

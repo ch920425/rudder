@@ -107,8 +107,8 @@ test.describe("Onboarding wizard", () => {
       (org: { name: string }) => org.name === updatedOrganizationName
     );
     expect(organization).toBeTruthy();
-    expect(organization.defaultChatAgentRuntimeType).toBe("codex_local");
-    expect(organization.defaultChatAgentRuntimeConfig?.model).toBe("gpt-5.4");
+    expect(organization).not.toHaveProperty("defaultChatAgentRuntimeType");
+    expect(organization).not.toHaveProperty("defaultChatAgentRuntimeConfig");
 
     const agentsRes = await page.request.get(
       `${baseUrl}/api/orgs/${organization.id}/agents`
@@ -145,7 +145,7 @@ test.describe("Onboarding wizard", () => {
     expect(onboardingProjects).toHaveLength(1);
     expect(task.projectId).toBe(onboardingProjects[0].id);
 
-    await page.goto(`/${organization.issuePrefix}/messenger/chat`, {
+    await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}`, {
       waitUntil: "commit",
     });
     await expect(page.locator(".chat-composer")).toBeVisible({ timeout: 15_000 });

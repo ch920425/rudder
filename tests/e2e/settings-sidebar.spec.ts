@@ -875,15 +875,10 @@ test.describe("Settings sidebar", () => {
     await expect(page.getByTestId("settings-modal-shell")).toHaveCount(0);
   });
 
-  test("hides the system-managed Rudder Copilot row from heartbeat settings", async ({ page }) => {
+  test("hides legacy system-managed chat agents from heartbeat settings", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
-        name: `Heartbeat Copilot Hidden ${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
+        name: `Heartbeat Hidden Chat Agent ${Date.now()}`,
       },
     });
     expect(orgRes.ok()).toBe(true);
@@ -906,19 +901,28 @@ test.describe("Settings sidebar", () => {
     });
     expect(agentRes.ok()).toBe(true);
 
+    const hiddenAgentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Rudder Copilot (system)",
+        title: "System-managed chat copilot",
+        role: "general",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          heartbeat: {
+            enabled: true,
+            intervalSec: 300,
+          },
+        },
+        metadata: { hidden: true, systemManaged: "rudder_copilot" },
+      },
+    });
+    expect(hiddenAgentRes.ok()).toBe(true);
+
     await page.goto("/");
     await page.evaluate((orgId) => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
-
-    await page.goto("/chat");
-    const composer = page.locator(".rudder-mdxeditor-content").first();
-    await expect(composer).toBeVisible();
-    await composer.fill("Wake up the default copilot once.");
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByTestId("chat-assistant-message").last()).toContainText("Rudder Copilot", {
-      timeout: 15_000,
-    });
 
     await page.goto(`/${organization.issuePrefix}/dashboard`);
     await page.getByRole("button", { name: "System settings" }).click();

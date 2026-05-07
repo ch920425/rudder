@@ -50,7 +50,7 @@ export interface ChatPrimaryIssueSummary {
 }
 
 export interface ChatRuntimeDescriptor {
-  sourceType: "agent" | "copilot" | "unconfigured";
+  sourceType: "agent" | "unconfigured";
   sourceLabel: string;
   runtimeAgentId: string | null;
   agentRuntimeType: string | null;
@@ -104,7 +104,7 @@ export interface ChatMessage {
   approval: Approval | null;
   attachments: ChatAttachment[];
   transcript?: ChatStreamTranscriptEntry[];
-  /** Agent whose runtime produced this assistant message, including the hidden Copilot agent when used. */
+  /** Agent whose runtime produced this assistant message. */
   replyingAgentId: string | null;
   /** Groups user+assistant rows for one logical turn; new variant on edit/regenerate. */
   chatTurnId: string | null;

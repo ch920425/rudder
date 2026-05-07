@@ -1,19 +1,20 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createE2EChatAgent } from "./support/chat-agent";
 import { E2E_CODEX_STUB } from "./support/e2e-env";
 
 async function createStreamingOrg(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-5.4",
-        command: E2E_CODEX_STUB,
-      },
     },
   });
   expect(orgRes.ok()).toBe(true);
-  return orgRes.json();
+  const organization = await orgRes.json();
+  const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+    name: "Chat Agent",
+    command: E2E_CODEX_STUB,
+  });
+  return { ...organization, chatAgent };
 }
 
 function currentChatId(pageUrl: string) {
@@ -45,7 +46,7 @@ test("allows sending a new chat while another chat is still streaming", async ({
     window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
   }, organization.id);
 
-  await page.goto("/messenger");
+  await page.goto(`/messenger/chat?agentId=${organization.chatAgent.id}`);
 
   const composer = page.locator(".rudder-mdxeditor-content").first();
   await expect(composer).toBeVisible({ timeout: 15_000 });
@@ -105,7 +106,7 @@ test("keeps a streaming chat visible after navigating to issue detail and back",
     window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
   }, organization.id);
 
-  await page.goto("/messenger");
+  await page.goto(`/messenger/chat?agentId=${organization.chatAgent.id}`);
 
   const composer = page.locator(".rudder-mdxeditor-content").first();
   await expect(composer).toBeVisible({ timeout: 15_000 });

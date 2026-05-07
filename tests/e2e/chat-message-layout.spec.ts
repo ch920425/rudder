@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createE2EChatAgent } from "./support/chat-agent";
 import { E2E_CODEX_STUB } from "./support/e2e-env";
 
 test.describe("Chat message layout", () => {
@@ -6,22 +7,21 @@ test.describe("Chat message layout", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Layout-Chat-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);
     const organization = await orgRes.json();
+    const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+      name: "Layout Agent",
+      command: E2E_CODEX_STUB,
+    });
 
     await page.goto("/");
     await page.evaluate((orgId) => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto("/chat");
+    await page.goto(`/chat?agentId=${chatAgent.id}`);
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });

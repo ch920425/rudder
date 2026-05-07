@@ -10,10 +10,6 @@ test.describe("Agent avatar", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Agent-Avatar-${Date.now()}`,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);

@@ -5,11 +5,6 @@ async function createOrganization(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-5.4",
-        command: "/bin/true",
-      },
     },
   });
   expect(orgRes.ok()).toBe(true);

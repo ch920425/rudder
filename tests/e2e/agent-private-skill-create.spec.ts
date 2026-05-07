@@ -31,11 +31,6 @@ test.describe("Agent private skill creation", () => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: organizationName,
-        defaultChatAgentRuntimeType: "codex_local",
-        defaultChatAgentRuntimeConfig: {
-          model: "gpt-5.4",
-          command: E2E_CODEX_STUB,
-        },
       },
     });
     expect(orgRes.ok()).toBe(true);

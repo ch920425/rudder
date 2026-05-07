@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { createE2EChatAgent } from "./support/chat-agent";
 import { E2E_BIN_DIR } from "./support/e2e-env";
 
 async function writeProposalStub(
@@ -52,20 +53,19 @@ async function createProposalOrg(page: Page, name: string, command: string) {
   const orgRes = await page.request.post("/api/orgs", {
     data: {
       name,
-      defaultChatAgentRuntimeType: "codex_local",
-      defaultChatAgentRuntimeConfig: {
-        model: "gpt-5.4",
-        command,
-      },
     },
   });
   expect(orgRes.ok()).toBe(true);
   const organization = await orgRes.json();
+  const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+    name: "Proposal Agent",
+    command,
+  });
   await page.goto("/");
   await page.evaluate((orgId) => {
     window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
   }, organization.id);
-  return organization;
+  return { ...organization, chatAgent };
 }
 
 test.describe("Chat proposal review block", () => {
@@ -81,9 +81,9 @@ test.describe("Chat proposal review block", () => {
         },
       },
     });
-    await createProposalOrg(page, `Reject-${Date.now()}`, command);
+    const organization = await createProposalOrg(page, `Reject-${Date.now()}`, command);
 
-    await page.goto("/chat");
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });
     await composer.fill("please draft an issue");
@@ -126,9 +126,9 @@ test.describe("Chat proposal review block", () => {
         },
       },
     });
-    await createProposalOrg(page, `Approve-${Date.now()}`, command);
+    const organization = await createProposalOrg(page, `Approve-${Date.now()}`, command);
 
-    await page.goto("/chat");
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });
     await composer.fill("please draft another issue");

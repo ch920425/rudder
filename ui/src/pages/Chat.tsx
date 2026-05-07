@@ -458,7 +458,7 @@ function ChatAttachmentPreviewDialog({
   );
 }
 
-const RUDDER_COPILOT_LABEL = "Rudder Copilot";
+const NO_CHAT_AGENT_LABEL = "Choose agent";
 const PLAN_MODE_HELP_TEXT =
   "Read-only planning. The agent should investigate, produce a plan, and create an issue with that plan attached.";
 
@@ -738,9 +738,7 @@ function ChatAssistantAttributionRow({
   agents: Agent[] | undefined;
 }) {
   const agent = replyingAgentId ? agents?.find((a) => a.id === replyingAgentId) : null;
-  const sourceType = conversation.chatRuntime?.sourceType;
-  const fallbackLabel =
-    conversation.chatRuntime?.sourceLabel ?? (sourceType === "copilot" ? RUDDER_COPILOT_LABEL : "Rudder");
+  const fallbackLabel = replyingAgentId ? conversation.chatRuntime?.sourceLabel ?? "Unknown agent" : "Assistant";
   const label = agent?.name ?? fallbackLabel;
 
   return (
@@ -748,8 +746,6 @@ function ChatAssistantAttributionRow({
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/90 text-foreground shadow-sm">
         {agent ? (
           <AgentIcon icon={agent.icon} role={agent.role} className="h-4 w-4" />
-        ) : sourceType === "copilot" ? (
-          <Sparkles className="h-4 w-4 text-muted-foreground" />
         ) : replyingAgentId ? (
           <Bot className="h-4 w-4 text-muted-foreground" />
         ) : (
@@ -2459,11 +2455,10 @@ function ChatWorkspace() {
         ? "Failed to load chat data."
         : null;
   const controlsDisabled = activeSendInFlight || newConversationSendInFlight;
-  const organizationDefaultConfigured = Boolean(selectedOrganization?.defaultChatAgentRuntimeType);
   const composerUnavailable =
     selectedConversation
       ? !selectedConversation.chatRuntime.available
-      : activeAgentId === "__none__" && !organizationDefaultConfigured;
+      : activeAgentId === "__none__";
   const hasPendingLightweightProposal = rawMessages.some(
     (message) =>
       !message.supersededAt
@@ -2477,7 +2472,7 @@ function ChatWorkspace() {
 
   const agentPillLabel =
     activeAgentId === "__none__"
-      ? RUDDER_COPILOT_LABEL
+      ? NO_CHAT_AGENT_LABEL
       : (() => {
           const activeAgent = (agents ?? []).find((agent) => agent.id === activeAgentId);
           return activeAgent ? formatChatAgentLabel(activeAgent) : "Unknown agent";
@@ -2848,8 +2843,8 @@ function ChatWorkspace() {
             >
               <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{RUDDER_COPILOT_LABEL}</span>
-                <span className="block truncate text-xs text-muted-foreground">Default chat runtime</span>
+                <span className="block truncate font-medium">No agent selected</span>
+                <span className="block truncate text-xs text-muted-foreground">Choose an agent to send messages</span>
               </span>
             </button>
             {liveAgents.map((agent) => (
@@ -2964,9 +2959,9 @@ function ChatWorkspace() {
       {composerUnavailable ? (
         <div className="chat-warning mt-2.5 rounded-[var(--radius-md)] px-3 py-2.5 text-sm">
           {selectedConversation?.chatRuntime.error ??
-            `Choose ${RUDDER_COPILOT_LABEL} or a specific agent, or configure Copilot in Company Settings before sending messages.`}{" "}
-          <Link to="/organization/settings" className="underline underline-offset-4 hover:text-foreground">
-            Open settings
+            "Choose a specific agent before sending messages."}{" "}
+          <Link to="/agents" className="underline underline-offset-4 hover:text-foreground">
+            Open agents
           </Link>
         </div>
       ) : null}
