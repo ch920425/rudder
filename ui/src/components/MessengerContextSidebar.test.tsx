@@ -328,7 +328,17 @@ describe("MessengerContextSidebar", () => {
 
     expect(html).toContain('data-testid="messenger-generating-chat-chat-1"');
     expect(html).toContain('aria-label="Chat reply in progress"');
-    expect(html).toContain('class="absolute right-2 top-1/2');
+    expect(html).toContain("pointer-events-none absolute right-2 top-1/2");
     expect(html).toContain("20m ago");
+  });
+
+  it("keeps chat actions available while a chat is generating", () => {
+    activeGeneratingChatIds = new Set(["chat-1"]);
+
+    const html = renderToStaticMarkup(<MessengerContextSidebar />);
+
+    expect(html).toContain('aria-label="Chat actions"');
+    expect(html).toContain("group-hover:opacity-100");
+    expect(html).toContain("group-hover:opacity-0");
   });
 });
