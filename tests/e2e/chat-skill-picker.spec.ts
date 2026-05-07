@@ -1,5 +1,8 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { E2E_CODEX_STUB } from "./support/e2e-env";
+import { E2E_CODEX_STUB, E2E_HOME } from "./support/e2e-env";
 
 function organizationSkillMarkdownTarget(skill: { sourceLocator?: string | null; sourcePath?: string | null }) {
   const candidate = skill.sourceLocator ?? skill.sourcePath ?? null;
@@ -183,6 +186,94 @@ test.describe("Chat skill picker", () => {
     expect(userMessage.body).toContain(userMessageAlphaRef);
     expect(userMessage.body).toContain(userMessageBetaRef);
     expect(userMessage.body).not.toContain("\n\n");
+  });
+
+  test("renders external skill names with source badges in the skill picker", async ({ page }) => {
+    const unique = Date.now();
+    const globalSkillName = `global-picker-${unique}`;
+    const adapterSkillName = `adapter-picker-${unique}`;
+    const codexHome = path.join(E2E_HOME, ".codex", `picker-${unique}`);
+
+    const globalSkillDir = path.join(E2E_HOME, ".agents", "skills", globalSkillName);
+    const adapterSkillDir = path.join(codexHome, "skills", adapterSkillName);
+    await fs.mkdir(globalSkillDir, { recursive: true });
+    await fs.mkdir(adapterSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(globalSkillDir, "SKILL.md"),
+      `---\nname: ${globalSkillName}\ndescription: Global picker helper.\n---\n`,
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(adapterSkillDir, "SKILL.md"),
+      `---\nname: ${adapterSkillName}\ndescription: Adapter picker helper.\n---\n`,
+      "utf8",
+    );
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Skill-Picker-Badges-${unique}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Badge Builder",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          command: E2E_CODEX_STUB,
+          env: {
+            HOME: E2E_HOME,
+            CODEX_HOME: codexHome,
+          },
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json();
+
+    const syncRes = await page.request.post(`/api/agents/${agent.id}/skills/sync?orgId=${encodeURIComponent(organization.id)}`, {
+      data: {
+        desiredSkills: [globalSkillName, adapterSkillName],
+      },
+    });
+    expect(syncRes.ok()).toBe(true);
+
+    const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Skill picker badges",
+        preferredAgentId: agent.id,
+      },
+    });
+    expect(chatRes.ok()).toBe(true);
+    const chat = await chatRes.json();
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/chat/${chat.id}`);
+    await expect(page.locator(".rudder-mdxeditor-content").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Skills" }).click();
+    const skillMenu = page.getByTestId("chat-skill-menu");
+    await expect(skillMenu).toBeVisible({ timeout: 15_000 });
+
+    const globalRow = skillMenu.getByRole("menuitem").filter({ hasText: globalSkillName });
+    await expect(globalRow).toBeVisible();
+    await expect(globalRow.getByText("Global skill", { exact: true })).toBeVisible();
+    await expect(globalRow).toContainText("Global picker helper.");
+    await expect(globalRow).not.toContainText("Global skill · ~/.agents/skills");
+
+    const adapterRow = skillMenu.getByRole("menuitem").filter({ hasText: adapterSkillName });
+    await expect(adapterRow).toBeVisible();
+    await expect(adapterRow.getByText("Adapter skill", { exact: true })).toBeVisible();
+    await expect(adapterRow).toContainText("Adapter picker helper.");
+    await expect(adapterRow).not.toContainText("Adapter skill · ~/.codex/skills");
   });
 
   test("surfaces skills inside @ mentions and inserts a skill token", async ({ page }) => {

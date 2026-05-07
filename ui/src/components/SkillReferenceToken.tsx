@@ -6,6 +6,8 @@ export interface MarkdownSkillReferencePreview {
   label?: string | null;
   displayName?: string | null;
   description?: string | null;
+  categoryLabel?: string | null;
+  locationLabel?: string | null;
   detailsHref?: string | null;
 }
 
@@ -17,8 +19,10 @@ interface SkillReferenceTokenProps {
 export function SkillReferenceToken({ label, preview }: SkillReferenceTokenProps) {
   const displayName = preview?.displayName?.trim() || label;
   const description = preview?.description?.trim() || null;
+  const categoryLabel = preview?.categoryLabel?.trim() || null;
+  const locationLabel = preview?.locationLabel?.trim() || null;
   const detailsHref = preview?.detailsHref?.trim() || null;
-  const hasPreview = Boolean(description || detailsHref);
+  const hasPreview = Boolean(description || categoryLabel || locationLabel || detailsHref);
 
   return (
     <span className={cn("rudder-skill-token-wrap", hasPreview && "rudder-skill-token-wrap--preview")}>
@@ -38,6 +42,20 @@ export function SkillReferenceToken({ label, preview }: SkillReferenceTokenProps
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium text-foreground">{displayName}</span>
+              {(categoryLabel || locationLabel) ? (
+                <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                  {categoryLabel ? (
+                    <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
+                      {categoryLabel}
+                    </span>
+                  ) : null}
+                  {locationLabel ? (
+                    <span className="min-w-0 truncate text-[11px] leading-none text-muted-foreground">
+                      {locationLabel}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
               {description ? (
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">
                   {description}

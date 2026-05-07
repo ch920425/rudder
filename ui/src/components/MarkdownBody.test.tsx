@@ -136,6 +136,8 @@ describe("MarkdownBody", () => {
               label: "build-advisor",
               displayName: "Build Advisor",
               description: "Turn vague build feedback into expert diagnosis.",
+              categoryLabel: "Global skill",
+              locationLabel: "~/.agents/skills",
               detailsHref: "/skills/skill-1",
             },
           ]}
@@ -146,6 +148,8 @@ describe("MarkdownBody", () => {
     );
 
     expect(html).toContain('class="rudder-skill-hover-card"');
+    expect(html).toContain("Global skill");
+    expect(html).toContain("~/.agents/skills");
     expect(html).toContain("Turn vague build feedback into expert diagnosis.");
     expect(html).toContain('href="/skills/skill-1"');
     expect(html).toContain(">build-advisor</span>");

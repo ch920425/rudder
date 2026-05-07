@@ -92,6 +92,8 @@ export interface MentionOption {
   skillMarkdownTarget?: string | null;
   skillDisplayName?: string | null;
   skillDescription?: string | null;
+  skillCategoryLabel?: string | null;
+  skillLocationLabel?: string | null;
   skillDetailsHref?: string | null;
 }
 
@@ -1405,8 +1407,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                               </div>
                             ) : null}
                             {option.kind === "skill" ? (
-                              <div className="truncate text-[11px] text-muted-foreground">
-                                {option.skillDescription ?? option.skillDisplayName}
+                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                {option.skillCategoryLabel ? (
+                                  <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 leading-none">
+                                    {option.skillCategoryLabel}
+                                  </span>
+                                ) : null}
+                                <span className="min-w-0 truncate">
+                                  {option.skillDescription ?? option.skillLocationLabel ?? option.skillDisplayName}
+                                </span>
                               </div>
                             ) : null}
                           </div>

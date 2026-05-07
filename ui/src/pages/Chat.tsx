@@ -2528,6 +2528,8 @@ function ChatWorkspace() {
       label: skill.skillRefLabel,
       displayName: skill.skillDisplayName,
       description: skill.skillDescription,
+      categoryLabel: skill.skillCategoryLabel,
+      locationLabel: skill.skillLocationLabel,
       detailsHref: skill.skillDetailsHref,
     })),
     [availableChatSkills],
@@ -2603,6 +2605,8 @@ function ChatWorkspace() {
         skillMarkdownTarget: skill.skillMarkdownTarget,
         skillDisplayName: skill.skillDisplayName,
         skillDescription: skill.skillDescription,
+        skillCategoryLabel: skill.skillCategoryLabel,
+        skillLocationLabel: skill.skillLocationLabel,
         skillDetailsHref: skill.skillDetailsHref,
       });
     }
@@ -2933,12 +2937,17 @@ function ChatWorkspace() {
                       onClick={() => insertSkillReference(entry)}
                     >
                       <Boxes className="h-4 w-4 shrink-0 text-[#2f80ed]" />
-                      <span className="flex min-w-0 flex-1 items-baseline gap-3">
-                        <span className="shrink-0 truncate font-medium text-foreground">
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="min-w-0 shrink truncate font-medium text-foreground">
                           {entry.skillDisplayName}
                         </span>
-                        <span className="min-w-0 truncate text-muted-foreground">
-                          {entry.skillDescription ?? entry.skillRefLabel}
+                        {entry.skillCategoryLabel ? (
+                          <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
+                            {entry.skillCategoryLabel}
+                          </span>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                          {entry.skillDescription ?? entry.skillLocationLabel ?? entry.skillRefLabel}
                         </span>
                       </span>
                     </button>
