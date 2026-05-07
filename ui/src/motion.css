@@ -262,6 +262,21 @@
   animation-delay: var(--motion-org-menu-item-delay, 54ms);
 }
 
+.motion-disclosure-enter {
+  transform-origin: top;
+  animation: rudder-disclosure-enter var(--motion-duration-standard) var(--motion-ease-enter) both;
+  will-change: opacity, transform, clip-path;
+}
+
+.motion-disclosure-icon {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+  will-change: transform;
+}
+
+.motion-disclosure-icon[data-state="open"] {
+  transform: rotate(90deg);
+}
+
 @keyframes rudder-list-enter {
   from {
     opacity: 0;
@@ -451,6 +466,19 @@
   }
 }
 
+@keyframes rudder-disclosure-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px) scaleY(0.985);
+    clip-path: inset(0 0 100% 0 round var(--radius-md));
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    clip-path: inset(0 0 0 0 round var(--radius-md));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-list-enter,
   .motion-state-flash,
@@ -465,7 +493,8 @@
   .motion-chat-composer-menu-pop,
   .motion-chat-composer-menu-pop [data-chat-composer-menu-item],
   .motion-organization-menu-pop,
-  .motion-organization-menu-pop [data-org-menu-item] {
+  .motion-organization-menu-pop [data-org-menu-item],
+  .motion-disclosure-enter {
     animation: none !important;
   }
 
@@ -475,7 +504,8 @@
   .motion-org-layer,
   .motion-org-card,
   .motion-rail-active-indicator,
-  .motion-context-active-indicator {
+  .motion-context-active-indicator,
+  .motion-disclosure-icon {
     transition: none !important;
   }
 
@@ -488,7 +518,8 @@
   .motion-chat-composer-menu-pop,
   .motion-chat-composer-menu-pop [data-chat-composer-menu-item],
   .motion-organization-menu-pop,
-  .motion-organization-menu-pop [data-org-menu-item] {
+  .motion-organization-menu-pop [data-org-menu-item],
+  .motion-disclosure-enter {
     opacity: 1 !important;
     transform: none !important;
     clip-path: none !important;

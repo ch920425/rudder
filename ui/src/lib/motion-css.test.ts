@@ -12,6 +12,7 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain(".motion-chat-options-pop");
     expect(motionCss).toContain(".motion-chat-composer-menu-pop");
     expect(motionCss).toContain(".motion-organization-menu-pop");
+    expect(motionCss).toContain(".motion-disclosure-enter");
     expect(motionCss).toContain(".motion-rail-active-indicator");
     expect(motionCss).toContain(".motion-context-active-indicator");
     expect(motionCss).toContain("animation: none !important");
@@ -58,5 +59,13 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain("[data-org-menu-item]");
     expect(motionCss).toContain("--motion-org-menu-item-delay");
     expect(motionCss).toContain("clip-path: inset(0 16% 100% 0 round var(--radius-md))");
+  });
+
+  it("defines motion for transcript disclosure controls", () => {
+    expect(motionCss).toContain(".motion-disclosure-enter");
+    expect(motionCss).toContain(".motion-disclosure-icon");
+    expect(motionCss).toContain("@keyframes rudder-disclosure-enter");
+    expect(motionCss).toContain("clip-path: inset(0 0 100% 0 round var(--radius-md))");
+    expect(motionCss).toContain('.motion-disclosure-icon[data-state="open"]');
   });
 });

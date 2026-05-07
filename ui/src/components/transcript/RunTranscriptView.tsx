@@ -6,7 +6,6 @@ import { readDesktopShell } from "../../lib/desktop-shell";
 import { useOptionalToast } from "../../context/ToastContext";
 import {
   Check,
-  ChevronDown,
   ChevronRight,
   CircleAlert,
   Loader2,
@@ -1595,17 +1594,13 @@ function TranscriptMessageBlock({
         aria-expanded={open}
         aria-label={open ? "Collapse user message" : "Expand user message"}
       >
-        {open ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        )}
+        <DisclosureChevron open={open} className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground">
           <User className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
           <span>User</span>
         </div>
       </button>
-      {open && <div className="border-t border-border/20 px-2.5 pb-2.5 pt-2">{body}</div>}
+      {open && <div className="motion-disclosure-enter border-t border-border/20 px-2.5 pb-2.5 pt-2">{body}</div>}
     </div>
   );
 }
@@ -1662,10 +1657,8 @@ function TranscriptThinkingBlock({
       >
         {block.streaming ? (
           <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden />
-        ) : open ? (
-          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         ) : (
-          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <DisclosureChevron open={open} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-medium tracking-wide text-muted-foreground">Thinking</div>
@@ -1675,7 +1668,7 @@ function TranscriptThinkingBlock({
         </div>
       </button>
       {(open || block.streaming) && (
-        <div className="border-t border-border/20 px-2.5 pb-2.5 pt-2">{body}</div>
+        <div className="motion-disclosure-enter border-t border-border/20 px-2.5 pb-2.5 pt-2">{body}</div>
       )}
     </div>
   );
@@ -1873,11 +1866,11 @@ function TranscriptToolCard({
           aria-expanded={open}
           aria-label={open ? `Collapse ${isCommand ? "command" : "tool"} details` : `Expand ${isCommand ? "command" : "tool"} details`}
         >
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <DisclosureChevron open={open} className="h-4 w-4" />
         </button>
       </div>
       {open && (
-        <div className="mt-3">
+        <div className="motion-disclosure-enter mt-3">
           {command ? (
             <CommandTerminalDetail command={requestText} output={responseText} status={block.status} />
           ) : (
@@ -1914,6 +1907,16 @@ function TranscriptToolCard({
 function hasSelectedText() {
   if (typeof window === "undefined") return false;
   return (window.getSelection()?.toString().length ?? 0) > 0;
+}
+
+function DisclosureChevron({ open, className }: { open: boolean; className?: string }) {
+  return (
+    <ChevronRight
+      data-state={open ? "open" : "closed"}
+      className={cn("motion-disclosure-icon", className)}
+      aria-hidden
+    />
+  );
 }
 
 function formatTranscriptLabel(label: string) {
@@ -1991,11 +1994,11 @@ function TranscriptCommandGroup({
           }}
           aria-label={open ? "Collapse command details" : "Expand command details"}
         >
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <DisclosureChevron open={open} className="h-4 w-4" />
         </button>
       </div>
       {open && (
-        <div className={cn("mt-3 space-y-3", hasError && "rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3")}>
+        <div className={cn("motion-disclosure-enter mt-3 space-y-3", hasError && "rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3")}>
           {block.items.map((item, index) => (
             <TranscriptToolCard
               key={`${item.ts}-${index}`}
@@ -2151,7 +2154,7 @@ function TranscriptEventRow({
               aria-expanded={open}
               aria-label={open ? "Collapse stderr details" : "Expand stderr details"}
             >
-              {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+              <DisclosureChevron open={open} className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 truncate">
                 {formatTranscriptLabel(block.label)}: {preview || "Details"}
               </span>
@@ -2162,11 +2165,11 @@ function TranscriptEventRow({
               {block.text}
             </div>
           ) : collapsible && !open ? null : detail ? (
-            <div className={cn("whitespace-pre-wrap break-words", compact ? "text-[11px]" : "text-xs")}>
+            <div className={cn(collapsible && open && "motion-disclosure-enter", "whitespace-pre-wrap break-words", compact ? "text-[11px]" : "text-xs")}>
               {block.text}
             </div>
           ) : (
-            <div className={cn("whitespace-pre-wrap break-words", compact ? "text-[11px]" : "text-xs")}>
+            <div className={cn(collapsible && open && "motion-disclosure-enter", "whitespace-pre-wrap break-words", compact ? "text-[11px]" : "text-xs")}>
               <span className="text-[10px] font-semibold tracking-[0.05em] text-muted-foreground/70">
                 {formatTranscriptLabel(block.label)}
               </span>
@@ -2174,7 +2177,7 @@ function TranscriptEventRow({
             </div>
           )}
           {block.detail && (!collapsible || open) && (
-            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/75">
+            <pre className={cn(block.collapseByDefault && open && "motion-disclosure-enter", "mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/75")}>
               {block.detail}
             </pre>
           )}
@@ -2208,7 +2211,7 @@ function TranscriptStdoutRow({
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Collapse stdout details" : "Expand stdout details"}
           >
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <DisclosureChevron open={open} className="h-4 w-4" />
           </button>
           <span className="text-[10px] font-semibold tracking-[0.06em] text-muted-foreground">
             details
@@ -2225,12 +2228,13 @@ function TranscriptStdoutRow({
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Collapse stdout" : "Expand stdout"}
           >
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <DisclosureChevron open={open} className="h-4 w-4" />
           </button>
         </div>
       )}
       {open && (
         <pre className={cn(
+          "motion-disclosure-enter",
           detail ? "overflow-x-auto whitespace-pre-wrap break-words font-mono text-foreground/80" : "mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-foreground/80",
           density === "compact" ? "text-[11px]" : "text-xs",
         )}>
@@ -2343,11 +2347,12 @@ function TranscriptChatStdoutActionRow({
           {preview}
         </span>
         <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center text-muted-foreground">
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <DisclosureChevron open={open} className="h-4 w-4" />
         </span>
       </button>
       {open ? (
         <pre className={cn(
+          "motion-disclosure-enter",
           "mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border/35 bg-muted/10 p-2.5 font-mono text-foreground/80",
           density === "compact" ? "text-[11px]" : "text-xs",
         )}>
@@ -2445,7 +2450,7 @@ function TranscriptChatToolActionRow({
         ) : null}
         {canExpand && !inline ? (
           <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center text-muted-foreground">
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <DisclosureChevron open={open} className="h-4 w-4" />
           </span>
         ) : null}
       </button>
@@ -2455,10 +2460,10 @@ function TranscriptChatToolActionRow({
             command={requestText}
             output={responseText}
             status={block.status}
-            className="ml-5 mt-2"
+            className="motion-disclosure-enter ml-5 mt-2"
           />
         ) : (
-          <div className="ml-5 mt-2 space-y-2 rounded-lg border border-border/35 bg-muted/10 p-2.5">
+          <div className="motion-disclosure-enter ml-5 mt-2 space-y-2 rounded-lg border border-border/35 bg-muted/10 p-2.5">
             <div>
               <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
                 Input
@@ -2673,12 +2678,12 @@ function TranscriptChatActionGroup({
           </span>
         </span>
         <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center text-muted-foreground">
-          {detailsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <DisclosureChevron open={detailsOpen} className="h-4 w-4" />
         </span>
       </button>
 
       {detailsOpen ? (
-        <div className="mt-2 divide-y divide-border/30 border-l border-border/35 pl-3">
+        <div className="motion-disclosure-enter mt-2 divide-y divide-border/30 border-l border-border/35 pl-3">
           {actions.map((action) => (
             <TranscriptChatActionRow
               key={action.key}
