@@ -2264,6 +2264,12 @@ function ChatWorkspace() {
     let newConversationLockAcquired = false;
     let chatSendLockAcquired = false;
     try {
+      if (!conversation && conversationId) {
+        conversation = await chatsApi.get(conversationId);
+        upsertConversation(conversation);
+        upsertMessengerThreadSummary(conversation);
+      }
+
       if (!conversation) {
         if (!acquireNewConversationSendLock()) return;
         newConversationLockAcquired = true;
