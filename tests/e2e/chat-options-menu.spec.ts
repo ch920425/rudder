@@ -47,12 +47,34 @@ test.describe("Chat options menu", () => {
     await expect(page.getByText("Read-only planning.", { exact: false })).toBeVisible();
     const offTrackColor = await planModeToggle.evaluate((element) => getComputedStyle(element).backgroundColor);
 
+    let releasePlanModePatch: (() => void) | null = null;
+    const planModePatchStarted = new Promise<void>((resolve) => {
+      void page.route(`**/api/chats/${chat.id}`, async (route) => {
+        if (route.request().method() !== "PATCH") {
+          await route.continue();
+          return;
+        }
+        resolve();
+        await new Promise<void>((release) => {
+          releasePlanModePatch = release;
+        });
+        await route.continue();
+      });
+    });
+    const planModePatchResponse = page.waitForResponse((response) =>
+      response.request().method() === "PATCH"
+      && response.url().includes(`/api/chats/${chat.id}`),
+    );
+
     await planModeToggle.click();
+    await planModePatchStarted;
     await expect(planModeToggle).toHaveAttribute("aria-checked", "true");
     const checkedColors = await planModeToggle.evaluate((element) => ({
       track: getComputedStyle(element).backgroundColor,
       thumb: getComputedStyle(element.firstElementChild as HTMLElement).backgroundColor,
     }));
+    releasePlanModePatch?.();
+    expect((await planModePatchResponse).ok()).toBe(true);
     expect(checkedColors.track).not.toBe(offTrackColor);
     expect(checkedColors.track).not.toBe(checkedColors.thumb);
 

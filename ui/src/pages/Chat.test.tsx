@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ChatMessage } from "@rudderhq/shared";
+import type { ChatConversation, ChatMessage } from "@rudderhq/shared";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { ChatSystemMessageBody, computeDisplayedChatMessages } from "./Chat";
+import { ChatSystemMessageBody, computeDisplayedChatMessages, withOptimisticPlanMode } from "./Chat";
 
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
@@ -37,6 +37,44 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
     supersededAt: null,
     createdAt: new Date("2026-05-07T00:00:00.000Z"),
     updatedAt: new Date("2026-05-07T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function conversation(overrides: Partial<ChatConversation>): ChatConversation {
+  return {
+    id: "chat-1",
+    orgId: "org-1",
+    status: "active",
+    title: "Plan mode chat",
+    summary: null,
+    latestReplyPreview: null,
+    preferredAgentId: null,
+    routedAgentId: null,
+    primaryIssueId: null,
+    primaryIssue: null,
+    issueCreationMode: "manual_approval",
+    planMode: false,
+    createdByUserId: null,
+    lastMessageAt: null,
+    lastReadAt: null,
+    isPinned: false,
+    isUnread: false,
+    unreadCount: 0,
+    needsAttention: false,
+    resolvedAt: null,
+    contextLinks: [],
+    chatRuntime: {
+      sourceType: "unconfigured",
+      sourceLabel: "No chat runtime",
+      runtimeAgentId: null,
+      agentRuntimeType: null,
+      model: null,
+      available: false,
+      error: null,
+    },
+    createdAt: new Date("2020-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2020-01-01T00:00:00.000Z"),
     ...overrides,
   };
 }
@@ -119,5 +157,23 @@ describe("computeDisplayedChatMessages", () => {
 
     expect(computeDisplayedChatMessages(messages, { chatTurnId: "turn-1", turnVariant: 0 }).map((row) => row.id))
       .toEqual(["user-1", "proposal-1", "system-1"]);
+  });
+});
+
+describe("withOptimisticPlanMode", () => {
+  it("updates plan mode before the server refetch completes", () => {
+    const original = conversation({ planMode: false });
+
+    const optimistic = withOptimisticPlanMode(original, true);
+
+    expect(optimistic).not.toBe(original);
+    expect(optimistic.planMode).toBe(true);
+    expect(optimistic.updatedAt.getTime()).toBeGreaterThan(original.updatedAt.getTime());
+  });
+
+  it("keeps the same conversation object when plan mode is already current", () => {
+    const original = conversation({ planMode: true });
+
+    expect(withOptimisticPlanMode(original, true)).toBe(original);
   });
 });
