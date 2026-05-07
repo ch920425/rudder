@@ -163,7 +163,7 @@ Completed on 2026-05-07:
 
 Also attempted on 2026-05-07:
 
-- `pnpm test:run` ran 1485 passing tests and then failed in unrelated
+- `pnpm test:run` ran 1484 passing tests and then failed in unrelated
   `heartbeat-run-concurrency` and `cli-auth-routes` checks. The exact failed
   files were rerun directly and passed.
 
