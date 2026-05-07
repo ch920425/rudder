@@ -24,8 +24,20 @@ async function createSkill(request: APIRequestContext, orgId: string, name: stri
   return skillRes.json();
 }
 
+async function syncAgentSkills(
+  request: APIRequestContext,
+  agentId: string,
+  orgId: string,
+  desiredSkills: string[],
+) {
+  const syncRes = await request.post(`/api/agents/${agentId}/skills/sync?orgId=${encodeURIComponent(orgId)}`, {
+    data: { desiredSkills },
+  });
+  expect(syncRes.ok()).toBe(true);
+}
+
 test.describe("Chat skill picker", () => {
-  test("hides the skill picker until a chat agent is selected", async ({ page }) => {
+  test("shows the skill picker for the default selected chat agent", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Skill-Explicit-Agent-${Date.now()}`,
@@ -49,19 +61,20 @@ test.describe("Chat skill picker", () => {
     const agent = await agentRes.json();
 
     await createSkill(page.request, organization.id, "Build Advisor", "build-advisor");
+    await syncAgentSkills(page.request, agent.id, organization.id, ["build-advisor"]);
 
     await page.goto("/");
     await page.evaluate((orgId) => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto("/chat");
+    await page.goto(`/${organization.issuePrefix}/messenger/chat`);
 
-    await expect(page.getByRole("button", { name: "Choose agent" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("button", { name: "Skills" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: new RegExp(agent.name) })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Skills" })).toBeVisible();
 
     const composerSurface = page.locator(".chat-composer").first();
-    await page.getByRole("button", { name: "Choose agent" }).click();
+    await page.getByTestId("chat-agent-selector").click();
     const agentMenu = page.getByTestId("chat-agent-menu");
     await expect(agentMenu).toBeVisible();
     const composerSurfaceBox = await composerSurface.boundingBox();
@@ -69,10 +82,7 @@ test.describe("Chat skill picker", () => {
     expect(composerSurfaceBox).not.toBeNull();
     expect(agentMenuBox).not.toBeNull();
     expect(agentMenuBox!.y + agentMenuBox!.height).toBeLessThanOrEqual(composerSurfaceBox!.y + 1);
-    await page.getByRole("menuitemradio", { name: new RegExp(agent.name) }).click();
-
-    await expect(page.getByRole("button", { name: new RegExp(agent.name) })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Skills" })).toBeVisible();
+    await expect(page.getByRole("menuitemradio", { name: "No agent selected" })).toHaveCount(0);
   });
 
   test("searches installed skills, inserts immediately, and keeps readable markdown", async ({ page }) => {
@@ -100,6 +110,7 @@ test.describe("Chat skill picker", () => {
 
     await createSkill(page.request, organization.id, "Alpha Test", "alpha-test");
     await createSkill(page.request, organization.id, "Beta Search", "beta-search");
+    await syncAgentSkills(page.request, agent.id, organization.id, ["alpha-test", "beta-search"]);
 
     const skillsRes = await page.request.get(`/api/orgs/${organization.id}/skills`);
     expect(skillsRes.ok()).toBe(true);
@@ -125,7 +136,7 @@ test.describe("Chat skill picker", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto(`/chat/${chat.id}`);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });
@@ -144,12 +155,15 @@ test.describe("Chat skill picker", () => {
 
     await searchInput.fill("beta");
     await expect(page.getByRole("menuitem", { name: "Insert selected skills" })).toHaveCount(0);
-    await page.getByRole("menuitem").filter({ hasText: "beta-search" }).click();
+    await page.getByRole("menuitem").filter({ hasText: /Beta Search|beta-search/ }).click();
 
     await page.getByRole("button", { name: "Skills" }).click();
-    await expect(searchInput).toBeVisible();
-    await searchInput.fill("alpha");
-    await page.getByRole("menuitem").filter({ hasText: "alpha-test" }).click();
+    const reopenedSkillMenu = page.getByTestId("chat-skill-menu");
+    await expect(reopenedSkillMenu).toBeVisible();
+    const reopenedSearchInput = reopenedSkillMenu.getByPlaceholder("Search skills...");
+    await expect(reopenedSearchInput).toBeVisible();
+    await reopenedSearchInput.fill("alpha");
+    await reopenedSkillMenu.getByRole("menuitem").filter({ hasText: /Alpha Test|alpha-test/ }).click();
 
     const insertedLabels = (await page.locator(".rudder-mdxeditor-content [data-skill-token='true']").allInnerTexts()).map((value) => value.trim());
     const alphaSkillLabel = insertedLabels.find((value) => value.includes("alpha-test"));
@@ -256,7 +270,7 @@ test.describe("Chat skill picker", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto(`/chat/${chat.id}`);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
     await expect(page.locator(".rudder-mdxeditor-content").first()).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole("button", { name: "Skills" }).click();
@@ -300,6 +314,7 @@ test.describe("Chat skill picker", () => {
     const agent = await agentRes.json();
 
     const skill = await createSkill(page.request, organization.id, "Build Advisor", "build-advisor");
+    await syncAgentSkills(page.request, agent.id, organization.id, ["build-advisor"]);
     const skillTarget = organizationSkillMarkdownTarget(skill);
     expect(skillTarget).toBeTruthy();
 
@@ -319,14 +334,17 @@ test.describe("Chat skill picker", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto(`/chat/${chat.id}`);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });
     await composer.fill("Use @advisor");
 
-    await expect(page.getByTestId(`markdown-mention-option-skill:${skill.id}`)).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId(`markdown-mention-option-skill:${skill.id}`).click();
+    const mentionMenu = page.getByTestId("markdown-mention-menu");
+    await expect(mentionMenu).toBeVisible({ timeout: 15_000 });
+    const skillOption = mentionMenu.locator('[data-testid^="markdown-mention-option-skill:"]').first();
+    await expect(skillOption).toContainText("build-advisor", { timeout: 15_000 });
+    await skillOption.click();
 
     const insertedSkillToken = page.locator(".rudder-mdxeditor-content [data-skill-token='true']").first();
     await expect(insertedSkillToken).toBeVisible({ timeout: 15_000 });
@@ -338,12 +356,13 @@ test.describe("Chat skill picker", () => {
     const userBubble = page.getByTestId("chat-user-message-bubble").filter({ hasText: "Use" }).last();
     await expect(userBubble.getByText(insertedSkillLabel, { exact: true })).toBeVisible({ timeout: 15_000 });
 
-    const messagesRes = await page.request.get(`/api/chats/${chat.id}/messages`);
-    expect(messagesRes.ok()).toBe(true);
-    const messages = await messagesRes.json();
-    const userMessage = messages.find((message: { role: string; kind: string }) => message.role === "user" && message.kind === "message");
-    expect(userMessage).toBeTruthy();
-    expect(userMessage.body).toContain(`[${insertedSkillLabel}](${skillTarget})`);
+    await expect.poll(async () => {
+      const messagesRes = await page.request.get(`/api/chats/${chat.id}/messages`);
+      expect(messagesRes.ok()).toBe(true);
+      const messages = await messagesRes.json();
+      const userMessage = messages.find((message: { role: string; kind: string }) => message.role === "user" && message.kind === "message");
+      return userMessage?.body ?? "";
+    }).toContain(`[${insertedSkillLabel}](${skillTarget})`);
   });
 
   test("keeps mention suggestions fully visible near the bottom composer", async ({ page }) => {
@@ -387,7 +406,7 @@ test.describe("Chat skill picker", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto(`/chat/${chat.id}`);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });

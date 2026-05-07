@@ -24,7 +24,7 @@ test.describe("Explicit chat agent settings", () => {
     await expect(page.getByRole("button", { name: "Test Copilot runtime chain", exact: true })).toHaveCount(0);
   });
 
-  test("asks the operator to choose an agent before sending", async ({ page }) => {
+  test("asks the operator to create an agent when no chat agent is available", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Explicit-Agent-Warning-${Date.now()}`,
@@ -38,10 +38,10 @@ test.describe("Explicit chat agent settings", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto("/chat");
+    await page.goto(`/${organization.issuePrefix}/messenger/chat`);
 
-    await expect(page.getByRole("button", { name: "Choose agent", exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Choose a specific agent before sending messages.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "No agents available", exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Create or activate an agent before sending messages.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 });

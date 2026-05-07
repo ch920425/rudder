@@ -52,18 +52,18 @@ The current chat runtime path falls back to a system-managed Rudder Copilot agen
 1. Update shared chat/runtime descriptors to support only selected-agent or unconfigured states.
 2. Remove organization default runtime fields from schema, validators, services, and UI API types.
 3. Remove Copilot fallback creation from agent run context and chat assistant runtime resolution.
-4. Update Chat UI copy and composer disablement so users must choose an agent before sending.
+4. Update Chat UI copy and composer behavior so users always have a real selected agent when one is available.
 5. Update tests around chat runtime availability, org defaults, and settings copy.
 
 ## Design Notes
 
-- Conversations may still exist without `preferredAgentId`, but assistant execution is unavailable until one is selected.
+- Conversations may still exist without `preferredAgentId`; the composer defaults to the last selected available agent, or the first available agent, and persists that selection before assistant execution.
 - The organization settings Chat section remains the home for default issue creation mode and archived conversations.
 - Existing database columns are dropped by migration; historical migration snapshots remain as history.
 
 ## Success Criteria
 
-- Unassigned chat turns return an unavailable runtime descriptor and do not invoke adapters.
+- Unassigned chat turns return an unavailable runtime descriptor and do not invoke adapters unless the UI first persists a real selected agent.
 - Preferred-agent chat turns preserve agent instructions, skills, workspace context, and `replyingAgentId`.
 - Organization responses no longer expose default chat runtime type/config.
 - Settings no longer offers Copilot runtime configuration.

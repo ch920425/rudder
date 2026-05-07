@@ -72,6 +72,13 @@ import { projectsApi } from "@/api/projects";
 import { organizationSkillsApi } from "@/api/organizationSkills";
 import { prefetchChatConversation } from "@/lib/chat-prefetch";
 import { readChatDraft, saveChatDraft } from "@/lib/chat-draft-storage";
+import {
+  NO_CHAT_AGENT_ID,
+  isSelectableChatAgentId,
+  rememberChatAgentId,
+  resolveDefaultChatAgentId,
+  selectableChatAgents,
+} from "@/lib/chat-agent-selection";
 import { resolveRequestedPreferredAgentId } from "@/lib/chat-route-state";
 import { buildChatSkillOptions, filterChatSkillOptions } from "@/lib/chat-skill-options";
 import { formatChatAgentLabel } from "@/lib/agent-labels";
@@ -458,7 +465,7 @@ function ChatAttachmentPreviewDialog({
   );
 }
 
-const NO_CHAT_AGENT_LABEL = "Choose agent";
+const NO_CHAT_AGENT_LABEL = "No agents available";
 const PLAN_MODE_HELP_TEXT =
   "Read-only planning. The agent should investigate, produce a plan, and create an issue with that plan attached.";
 
@@ -1541,7 +1548,7 @@ function ChatWorkspace() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [newConversationSendInFlight, setNewConversationSendInFlight] = useState(false);
   const [openProcessMessageIds, setOpenProcessMessageIds] = useState<Record<string, true>>({});
-  const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>("__none__");
+  const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>(NO_CHAT_AGENT_ID);
   const [draftProjectId, setDraftProjectId] = useState<string>(NO_PROJECT_ID);
   const [draftPlanMode, setDraftPlanMode] = useState(false);
   const [decisionNotesByMessageId, setDecisionNotesByMessageId] = useState<Record<string, string>>({});
@@ -1692,6 +1699,7 @@ function ChatWorkspace() {
     queryFn: () => agentsApi.list(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
   });
+  const liveAgents = useMemo(() => selectableChatAgents(agents), [agents]);
 
   const { data: projects, error: projectsError } = useQuery({
     queryKey: queryKeys.projects.list(selectedOrganizationId ?? "__none__"),
@@ -1742,6 +1750,9 @@ function ChatWorkspace() {
     const requestedAgentId = resolveRequestedPreferredAgentId(pendingAgentPrefill, agents);
     if (requestedAgentId) {
       setDraftPreferredAgentId(requestedAgentId);
+      if (selectedOrganizationId) {
+        rememberChatAgentId(selectedOrganizationId, requestedAgentId);
+      }
     }
     consumePendingAgentPrefill();
   }, [
@@ -1753,6 +1764,7 @@ function ChatWorkspace() {
     pendingPrefill,
     pendingAgentPrefill,
     searchParams,
+    selectedOrganizationId,
   ]);
 
   const selectedConversation = conversationQuery.data
@@ -1762,7 +1774,7 @@ function ChatWorkspace() {
   const selectedConversationProjectId = projectContextId(selectedConversation);
   const activeProjectId = selectedConversation ? (selectedConversationProjectId ?? NO_PROJECT_ID) : draftProjectId;
   const activePlanMode = selectedConversation?.planMode ?? draftPlanMode;
-  const activeSkillAgentId = activeAgentId === "__none__" ? null : activeAgentId;
+  const activeSkillAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
   const activeSkillAgent = activeSkillAgentId
     ? (agents ?? []).find((agent) => agent.id === activeSkillAgentId) ?? null
     : null;
@@ -1875,12 +1887,32 @@ function ChatWorkspace() {
 
   useEffect(() => {
     if (!selectedConversation) return;
-    setDraftPreferredAgentId(selectedConversation.preferredAgentId ?? "__none__");
     setDraftPlanMode(selectedConversation.planMode);
   }, [
     selectedConversation?.id,
-    selectedConversation?.preferredAgentId,
     selectedConversation?.planMode,
+  ]);
+
+  useEffect(() => {
+    if (!selectedOrganizationId || !agents) return;
+
+    if (selectedConversation?.preferredAgentId) {
+      setDraftPreferredAgentId(selectedConversation.preferredAgentId);
+      if (isSelectableChatAgentId(selectedConversation.preferredAgentId, agents)) {
+        rememberChatAgentId(selectedOrganizationId, selectedConversation.preferredAgentId);
+      }
+      return;
+    }
+
+    const defaultAgentId = resolveDefaultChatAgentId(selectedOrganizationId, agents);
+    setDraftPreferredAgentId((current) => (
+      isSelectableChatAgentId(current, agents) ? current : defaultAgentId
+    ));
+  }, [
+    agents,
+    selectedConversation?.id,
+    selectedConversation?.preferredAgentId,
+    selectedOrganizationId,
   ]);
 
   useEffect(() => {
@@ -2235,8 +2267,19 @@ function ChatWorkspace() {
       if (!conversation) {
         if (!acquireNewConversationSendLock()) return;
         newConversationLockAcquired = true;
+        const selectedDraftAgentId = draftPreferredAgentId === NO_CHAT_AGENT_ID ? null : draftPreferredAgentId;
+        if (!selectedDraftAgentId) {
+          pushToast({
+            title: "No chat agent available",
+            body: "Create or activate an agent before sending.",
+            tone: "error",
+          });
+          releaseNewConversationSendLock();
+          newConversationLockAcquired = false;
+          return;
+        }
         const createdConversation = await chatsApi.create(selectedOrganizationId, {
-          preferredAgentId: draftPreferredAgentId === "__none__" ? null : draftPreferredAgentId,
+          preferredAgentId: selectedDraftAgentId,
           issueCreationMode: "manual_approval",
           planMode: draftPlanMode,
           contextLinks: draftProjectId === NO_PROJECT_ID
@@ -2245,6 +2288,7 @@ function ChatWorkspace() {
         });
         const startedAt = new Date();
         conversation = upsertOptimisticConversation(createdConversation, body, startedAt);
+        rememberChatAgentId(selectedOrganizationId, selectedDraftAgentId);
         setDraft("");
         setPendingFiles([]);
         setEditForkUserMessageId(null);
@@ -2256,6 +2300,14 @@ function ChatWorkspace() {
       if (!acquireChatSendLock(chatId)) return;
       chatSendLockAcquired = true;
       activeChatId = chatId;
+      const selectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
+      if (!conversation.preferredAgentId && selectedAgentId) {
+        conversation = await chatsApi.update(conversation.id, { preferredAgentId: selectedAgentId });
+        setDraftPreferredAgentId(selectedAgentId);
+        rememberChatAgentId(selectedOrganizationId, selectedAgentId);
+        upsertConversation(conversation);
+        upsertMessengerThreadSummary(conversation);
+      }
       if (newConversationLockAcquired || newConversationSendLockRef.current) {
         releaseNewConversationSendLock();
         newConversationLockAcquired = false;
@@ -2481,10 +2533,19 @@ function ChatWorkspace() {
         ? "Failed to load chat data."
         : null;
   const controlsDisabled = activeSendInFlight || newConversationSendInFlight;
+  const activeSelectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
+  const canPersistSelectedAgentForConversation = Boolean(
+    selectedConversation
+    && !selectedConversation.preferredAgentId
+    && activeSelectedAgentId,
+  );
   const composerUnavailable =
     selectedConversation
-      ? !selectedConversation.chatRuntime.available
-      : activeAgentId === "__none__";
+      ? !selectedConversation.chatRuntime.available && !canPersistSelectedAgentForConversation
+      : !activeSelectedAgentId;
+  const composerUnavailableMessage = activeSelectedAgentId
+    ? selectedConversation?.chatRuntime.error ?? "Selected chat agent is unavailable."
+    : "Create or activate an agent before sending messages.";
   const hasPendingLightweightProposal = rawMessages.some(
     (message) =>
       !message.supersededAt
@@ -2497,8 +2558,8 @@ function ChatWorkspace() {
     .some((message) => approvalNeedsAction(message.approval));
 
   const agentPillLabel =
-    activeAgentId === "__none__"
-      ? NO_CHAT_AGENT_LABEL
+    activeAgentId === NO_CHAT_AGENT_ID
+      ? (agents ? NO_CHAT_AGENT_LABEL : "Loading agents")
       : (() => {
           const activeAgent = (agents ?? []).find((agent) => agent.id === activeAgentId);
           return activeAgent ? formatChatAgentLabel(activeAgent) : "Unknown agent";
@@ -2643,13 +2704,20 @@ function ChatWorkspace() {
       setAgentMenuOpen(false);
       return;
     }
+    if (!isSelectableChatAgentId(value, agents)) {
+      setAgentMenuOpen(false);
+      return;
+    }
 
     setDraftPreferredAgentId(value);
     setAgentMenuOpen(false);
+    if (selectedOrganizationId) {
+      rememberChatAgentId(selectedOrganizationId, value);
+    }
     if (selectedConversation) {
       updateConversationMutation.mutate({
         chatId: selectedConversation.id,
-        data: { preferredAgentId: value === "__none__" ? null : value },
+        data: { preferredAgentId: value },
       });
     }
   };
@@ -2806,7 +2874,6 @@ function ChatWorkspace() {
     if (!composerContextMenuOpen || !composerMenuPosition || typeof document === "undefined") return null;
 
     const activeMenu = projectMenuOpen ? "project" : agentMenuOpen ? "agent" : "skill";
-    const liveAgents = (agents ?? []).filter((agent) => agent.status !== "terminated");
 
     return createPortal(
       <div
@@ -2863,21 +2930,12 @@ function ChatWorkspace() {
         {agentMenuOpen && !agentSelectionLocked ? (
           <>
             <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">Agents</div>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={activeAgentId === "__none__"}
-              data-chat-composer-menu-item
-              className="chat-composer-menu-row"
-              onClick={() => applyPreferredAgent("__none__")}
-            >
-              <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">No agent selected</span>
-                <span className="block truncate text-xs text-muted-foreground">Choose an agent to send messages</span>
-              </span>
-            </button>
-            {liveAgents.map((agent) => (
+            {liveAgents.length === 0 ? (
+              <div className="flex items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm text-muted-foreground">
+                <Bot className="h-4 w-4 shrink-0" />
+                <span>Create or activate an agent before sending messages.</span>
+              </div>
+            ) : liveAgents.map((agent) => (
               <button
                 key={agent.id}
                 type="button"
@@ -2993,8 +3051,7 @@ function ChatWorkspace() {
 
       {composerUnavailable ? (
         <div className="chat-warning mt-2.5 rounded-[var(--radius-md)] px-3 py-2.5 text-sm">
-          {selectedConversation?.chatRuntime.error ??
-            "Choose a specific agent before sending messages."}{" "}
+          {composerUnavailableMessage}{" "}
           <Link to="/agents" className="underline underline-offset-4 hover:text-foreground">
             Open agents
           </Link>

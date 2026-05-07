@@ -51,7 +51,7 @@ test.describe("Chat agent selector lock", () => {
 
     const agentSelector = page.getByTestId("chat-agent-selector");
     await expect(agentSelector).toBeVisible({ timeout: 15_000 });
-    await expect(agentSelector).toContainText("Choose agent");
+    await expect(agentSelector).toContainText("Migration Agent");
     await expect(agentSelector).toBeEnabled();
     await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
@@ -105,7 +105,7 @@ test.describe("Chat agent selector lock", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
 
-    await page.goto("/chat");
+    await page.goto(`/${organization.issuePrefix}/messenger/chat`);
 
     const agentSelector = page.getByTestId("chat-agent-selector");
     await expect(agentSelector).toBeVisible({ timeout: 15_000 });
