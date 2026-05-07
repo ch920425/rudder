@@ -13,6 +13,7 @@ async function writeProposalStub(
         title: string;
         description: string;
         priority: string;
+        assigneeAgentId?: string;
       };
     };
   },
@@ -152,5 +153,60 @@ test.describe("Chat proposal review block", () => {
     await expect(page.getByRole("heading", { name: "Review block approval test" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("proposal-review-gate")).toHaveCount(0);
     await expect(page.locator(".rudder-mdxeditor-content").last()).toBeVisible();
+  });
+
+  test("assigns approved chat-created issues to the selected chat agent", async ({ page }) => {
+    const command = await writeProposalStub("proposal-review-assignee", {
+      kind: "issue_proposal",
+      body: "Create a scoped issue for the selected chat agent.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Selected chat agent assignment test",
+          description: "Verify approved chat issue proposals default to the selected conversation agent.",
+          priority: "medium",
+        },
+      },
+    });
+    const organization = await createProposalOrg(page, `Assign-${Date.now()}`, command);
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Proposal Owner",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          command,
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json();
+    const conversationRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Selected agent proposal",
+        preferredAgentId: agent.id,
+        issueCreationMode: "manual_approval",
+      },
+    });
+    expect(conversationRes.ok()).toBe(true);
+    const conversation = await conversationRes.json();
+
+    await page.goto(`/chat/${conversation.id}`);
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill("please draft an owned issue");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    const reviewBlock = page.getByTestId("proposal-review-block").last();
+    await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
+    await expect(reviewBlock).toHaveAttribute("data-status", "pending");
+    await reviewBlock.getByRole("button", { name: "Approve" }).click();
+
+    await expect(reviewBlock).toHaveAttribute("data-status", "approved", { timeout: 15_000 });
+    const createdIssueLink = page.locator(".chat-system-issue-link").last();
+    await expect(createdIssueLink).toBeVisible({ timeout: 15_000 });
+    await createdIssueLink.click();
+    await expect(page.getByRole("heading", { name: "Selected chat agent assignment test" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Proposal Owner").first()).toBeVisible({ timeout: 15_000 });
   });
 });

@@ -455,6 +455,65 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return conversation?.chatRuntime?.runtimeAgentId ?? conversation?.preferredAgentId ?? null;
   }
 
+  async function defaultIssueAssigneeAgentId(conversation: ChatConversation | null | undefined) {
+    const candidateAgentIds = [conversation?.preferredAgentId, conversation?.routedAgentId]
+      .filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+    if (!conversation) return null;
+    for (const candidateAgentId of candidateAgentIds) {
+      const agent = await agentsSvc.getById(candidateAgentId);
+      if (!agent || agent.orgId !== conversation.orgId) continue;
+      if (agent.status === "pending_approval" || agent.status === "terminated") continue;
+      return agent.id;
+    }
+    return null;
+  }
+
+  function hasIssueProposalAssignee(proposal: Record<string, unknown>) {
+    return Boolean(
+      (typeof proposal.assigneeAgentId === "string" && proposal.assigneeAgentId.trim().length > 0)
+      || (typeof proposal.assigneeUserId === "string" && proposal.assigneeUserId.trim().length > 0),
+    );
+  }
+
+  function withDefaultIssueProposalAssignee(
+    structuredPayload: Record<string, unknown> | null | undefined,
+    assigneeAgentId: string | null | undefined,
+  ) {
+    if (!structuredPayload || !assigneeAgentId) return structuredPayload ?? null;
+    const nestedProposal =
+      structuredPayload.issueProposal
+      && typeof structuredPayload.issueProposal === "object"
+      && !Array.isArray(structuredPayload.issueProposal)
+        ? (structuredPayload.issueProposal as Record<string, unknown>)
+        : null;
+    const proposal = nestedProposal ?? structuredPayload;
+    if (hasIssueProposalAssignee(proposal)) return structuredPayload;
+
+    if (nestedProposal) {
+      return {
+        ...structuredPayload,
+        issueProposal: {
+          ...nestedProposal,
+          assigneeAgentId,
+        },
+      };
+    }
+    return {
+      ...structuredPayload,
+      assigneeAgentId,
+    };
+  }
+
+  function proposedIssuePayload(structuredPayload: Record<string, unknown> | null | undefined) {
+    if (!structuredPayload) return structuredPayload ?? null;
+    return structuredPayload.issueProposal
+      && typeof structuredPayload.issueProposal === "object"
+      && !Array.isArray(structuredPayload.issueProposal)
+      && structuredPayload.issueProposal !== null
+        ? structuredPayload.issueProposal as Record<string, unknown>
+        : structuredPayload;
+  }
+
   async function persistAssistantReply(
     conversation: ChatConversation,
     actor: ActorInfo,
@@ -467,6 +526,10 @@ export function chatRoutes(db: Db, storage: StorageService) {
     const { chatTurnId, turnVariant } = turnContext;
 
     if (assistantReply.kind === "issue_proposal") {
+      const issueProposalStructuredPayload = withDefaultIssueProposalAssignee(
+        assistantReply.structuredPayload,
+        await defaultIssueAssigneeAgentId(conversation),
+      );
       const shouldAutoCreateIssue = conversation.planMode || conversation.issueCreationMode === "auto_create";
       if (shouldAutoCreateIssue) {
         const proposalMessage = await svc.addMessage(conversation.id, {
@@ -474,7 +537,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
           role: "assistant",
           kind: "issue_proposal",
           body: assistantReply.body,
-          structuredPayload: assistantReply.structuredPayload,
+          structuredPayload: issueProposalStructuredPayload,
           transcript,
           replyingAgentId,
           chatTurnId,
@@ -521,12 +584,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         requestedByUserId: actor.actorType === "user" ? actor.actorId : null,
         payload: {
           chatConversationId: conversation.id,
-          proposedIssue:
-            assistantReply.structuredPayload &&
-            typeof assistantReply.structuredPayload.issueProposal === "object" &&
-            assistantReply.structuredPayload.issueProposal !== null
-              ? assistantReply.structuredPayload.issueProposal
-              : assistantReply.structuredPayload,
+          proposedIssue: proposedIssuePayload(issueProposalStructuredPayload),
         },
       });
 
@@ -535,7 +593,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         role: "assistant",
         kind: "issue_proposal",
         body: assistantReply.body,
-        structuredPayload: assistantReply.structuredPayload,
+        structuredPayload: issueProposalStructuredPayload,
         transcript,
         approvalId: approval.id,
         replyingAgentId,

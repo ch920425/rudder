@@ -404,6 +404,93 @@ describe("chat routes", () => {
     expect(res.body.messages).toHaveLength(2);
   });
 
+  it("defaults manual approval-backed issue proposals to the selected chat agent", async () => {
+    const conversation = createConversation({
+      preferredAgentId: "agent-1",
+      chatRuntime: {
+        sourceType: "agent",
+        sourceLabel: "Chat Specialist",
+        runtimeAgentId: "agent-1",
+        agentRuntimeType: "codex_local",
+        model: "gpt-5",
+        available: true,
+        error: null,
+      },
+    });
+    const userMessage = createMessage("message-user", "user", "message", "Need the selected agent to own this");
+    const proposalMessage = {
+      ...createMessage("message-proposal", "assistant", "issue_proposal", "This should become an assigned issue.", "approval-1"),
+      structuredPayload: {
+        issueProposal: {
+          title: "Implement owned flow",
+          description: "Create a tracked implementation task for the selected agent.",
+          priority: "medium",
+          assigneeAgentId: "agent-1",
+        },
+      },
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockAgentService.getById.mockResolvedValue({ id: "agent-1", orgId: "organization-1", status: "idle" });
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(proposalMessage);
+    mockChatService.createProposalApproval.mockResolvedValue({
+      id: "approval-1",
+      orgId: "organization-1",
+      type: "chat_issue_creation",
+      status: "pending",
+      payload: {},
+      requestedByAgentId: null,
+      requestedByUserId: "user-1",
+      decisionNote: null,
+      decidedByUserId: null,
+      decidedAt: null,
+      createdAt: new Date("2026-03-26T08:01:00.000Z"),
+      updatedAt: new Date("2026-03-26T08:01:00.000Z"),
+    });
+    mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
+      outcome: "completed",
+      partialBody: "This should become an assigned issue.",
+      replyingAgentId: "agent-1",
+      reply: {
+        kind: "issue_proposal",
+        body: "This should become an assigned issue.",
+        structuredPayload: {
+          issueProposal: {
+            title: "Implement owned flow",
+            description: "Create a tracked implementation task for the selected agent.",
+            priority: "medium",
+          },
+        },
+        replyingAgentId: "agent-1",
+      },
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "Need the selected agent to own this" });
+
+    expect(res.status).toBe(201);
+    expect(mockChatService.createProposalApproval).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          proposedIssue: expect.objectContaining({ assigneeAgentId: "agent-1" }),
+        }),
+      }),
+    );
+    expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
+      1,
+      "chat-1",
+      expect.objectContaining({
+        structuredPayload: expect.objectContaining({
+          issueProposal: expect.objectContaining({ assigneeAgentId: "agent-1" }),
+        }),
+      }),
+    );
+  });
+
   it("auto-creates an issue from a plan-mode proposal without approval", async () => {
     const conversation = createConversation({ planMode: true });
     const userMessage = createMessage("message-user", "user", "message", "Plan the auth rollout");

@@ -4,6 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import {
   activityLog,
   applyPendingMigrations,
@@ -267,6 +268,73 @@ describe("messengerService and issue follows", () => {
     expect(editedAfterEdit?.attachments).toHaveLength(1);
     expect(editedAfterEdit?.attachments[0]?.assetId).toBe(originalAfterEdit?.attachments[0]?.assetId);
     expect(editedAfterEdit?.attachments[0]?.contentPath).toBe(originalAfterEdit?.attachments[0]?.contentPath);
+  });
+
+  it("assigns approved chat issue proposals to the selected chat agent by default", async () => {
+    const orgId = randomUUID();
+    const agentId = randomUUID();
+    const userId = "board-user-approval";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Chat Approval Assignee Org",
+      urlKey: deriveOrganizationUrlKey("Chat Approval Assignee Org"),
+      issuePrefix: `A${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Selected Engineer",
+      role: "engineer",
+      status: "idle",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    const conversation = await chatSvc.create(orgId, {
+      title: "Plan selected work",
+      preferredAgentId: agentId,
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+
+    const approval = await db
+      .insert(approvals)
+      .values({
+        orgId,
+        type: "chat_issue_creation",
+        status: "approved",
+        requestedByUserId: userId,
+        payload: {
+          chatConversationId: conversation!.id,
+          proposedIssue: {
+            title: "Implement selected work",
+            description: "The chat-selected agent should receive this approved issue.",
+            priority: "medium",
+          },
+        },
+      })
+      .returning()
+      .then((rows) => rows[0]!);
+
+    const issue = await chatSvc.applyApprovedApproval(approval, userId);
+    const persistedIssue = await db
+      .select({ assigneeAgentId: issues.assigneeAgentId })
+      .from(issues)
+      .where(eq(issues.id, (issue as { id: string }).id))
+      .then((rows) => rows[0]);
+
+    expect(issue).toMatchObject({
+      title: "Implement selected work",
+      assigneeAgentId: agentId,
+      createdByUserId: userId,
+    });
+    expect(persistedIssue?.assigneeAgentId).toBe(agentId);
   });
 
   it("includes reviewer issues in Messenger attention when they are in review", async () => {

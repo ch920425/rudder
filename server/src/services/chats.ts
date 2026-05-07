@@ -32,6 +32,25 @@ type ApprovalRow = typeof approvals.$inferSelect;
 
 const CHAT_TRANSCRIPT_KEY = "__chatTranscript";
 
+const ISSUE_PROPOSAL_PRIORITIES = ["critical", "high", "medium", "low"] as const;
+
+type ChatIssueProposalPriority = typeof ISSUE_PROPOSAL_PRIORITIES[number];
+
+type ChatIssueProposalPayload = {
+  title: string;
+  description: string;
+  priority: ChatIssueProposalPriority;
+  projectId: string | null;
+  goalId: string | null;
+  parentId: string | null;
+  assigneeAgentId: string | null;
+  assigneeUserId: string | null;
+};
+
+function isIssueProposalPriority(value: unknown): value is ChatIssueProposalPriority {
+  return typeof value === "string" && ISSUE_PROPOSAL_PRIORITIES.includes(value as ChatIssueProposalPriority);
+}
+
 function contentPath(assetId: string) {
   return `/api/assets/${assetId}/content`;
 }
@@ -73,7 +92,7 @@ function withPersistedTranscript(
   };
 }
 
-function issueProposalFromPayload(payload: Record<string, unknown> | null | undefined) {
+function issueProposalFromPayload(payload: Record<string, unknown> | null | undefined): ChatIssueProposalPayload | null {
   const root = payload ?? {};
   const proposal =
     root.issueProposal && typeof root.issueProposal === "object" && !Array.isArray(root.issueProposal)
@@ -87,17 +106,33 @@ function issueProposalFromPayload(payload: Record<string, unknown> | null | unde
   return {
     title,
     description,
-    priority:
-      typeof proposal.priority === "string" &&
-      ["critical", "high", "medium", "low"].includes(proposal.priority)
-        ? proposal.priority
-        : "medium",
+    priority: isIssueProposalPriority(proposal.priority) ? proposal.priority : "medium",
     projectId: safeTrim(typeof proposal.projectId === "string" ? proposal.projectId : null),
     goalId: safeTrim(typeof proposal.goalId === "string" ? proposal.goalId : null),
     parentId: safeTrim(typeof proposal.parentId === "string" ? proposal.parentId : null),
     assigneeAgentId: safeTrim(typeof proposal.assigneeAgentId === "string" ? proposal.assigneeAgentId : null),
     assigneeUserId: safeTrim(typeof proposal.assigneeUserId === "string" ? proposal.assigneeUserId : null),
   };
+}
+
+function issueProposalHasAssignee(proposal: ChatIssueProposalPayload) {
+  return Boolean(proposal.assigneeAgentId || proposal.assigneeUserId);
+}
+
+async function defaultIssueAssigneeAgentId(db: Db, conversation: ConversationRow) {
+  const candidateAgentIds = [conversation.preferredAgentId, conversation.routedAgentId]
+    .filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+  for (const candidateAgentId of candidateAgentIds) {
+    const agent = await db
+      .select({ id: agents.id, orgId: agents.orgId, status: agents.status })
+      .from(agents)
+      .where(eq(agents.id, candidateAgentId))
+      .then((rows) => rows[0] ?? null);
+    if (!agent || agent.orgId !== conversation.orgId) continue;
+    if (agent.status === "pending_approval" || agent.status === "terminated") continue;
+    return agent.id;
+  }
+  return null;
 }
 
 function planDocumentFromPayload(
@@ -1129,6 +1164,14 @@ export function chatService(db: Db) {
 
       if (!issueProposal) {
         throw unprocessable("Issue proposal payload was incomplete");
+      }
+
+      const fallbackAssigneeAgentId = await defaultIssueAssigneeAgentId(db, conversation);
+      if (!issueProposalHasAssignee(issueProposal) && fallbackAssigneeAgentId) {
+        issueProposal = {
+          ...issueProposal,
+          assigneeAgentId: fallbackAssigneeAgentId,
+        };
       }
 
       const issue = await issuesSvc.create(conversation.orgId, {
