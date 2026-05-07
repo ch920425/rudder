@@ -243,6 +243,32 @@ describe("chat routes", () => {
     );
   });
 
+  it("rejects message sends before persisting when no preferred agent is available", async () => {
+    const conversation = createConversation({
+      preferredAgentId: null,
+      chatRuntime: {
+        sourceType: "unconfigured",
+        sourceLabel: "Choose an agent",
+        runtimeAgentId: null,
+        agentRuntimeType: null,
+        model: null,
+        available: false,
+        error: "Choose a chat agent before sending messages.",
+      },
+    });
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatAssistantService.getChatAssistantAvailability.mockResolvedValueOnce(conversation.chatRuntime);
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "Need help" });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ error: "Choose a chat agent before sending messages." });
+    expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+  });
+
   it("updates a chat project context after validating organization ownership", async () => {
     const conversation = createConversation();
     const updatedConversation = createConversation({

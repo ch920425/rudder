@@ -246,6 +246,29 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(mockAgentService.getById).not.toHaveBeenCalled();
   });
 
+  it("refuses to generate a reply without a preferred agent", async () => {
+    const svc = chatAssistantService({} as any);
+
+    await expect(svc.generateChatAssistantReply({
+      conversation: makeConversation({
+        preferredAgentId: null,
+        chatRuntime: {
+          sourceType: "unconfigured",
+          sourceLabel: "Choose an agent",
+          runtimeAgentId: null,
+          agentRuntimeType: null,
+          model: null,
+          available: false,
+          error: "Choose a chat agent before sending messages.",
+        },
+      }),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toThrow("Choose a chat agent before sending messages.");
+    expect(mockAgentService.getById).not.toHaveBeenCalled();
+    expect(mockAdapter.execute).not.toHaveBeenCalled();
+  });
+
   it("injects nickname and more-about-you into the selected agent chat prompt when present", async () => {
     const svc = chatAssistantService({} as any);
 
