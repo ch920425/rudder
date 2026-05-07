@@ -498,6 +498,10 @@ function mergeChatMessages(current: ChatMessage[], incoming: ChatMessage[]) {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
+export function scrollChatMessagesToBottom(element: Pick<HTMLElement, "scrollHeight" | "scrollTo">) {
+  element.scrollTo({ top: element.scrollHeight, behavior: "auto" });
+}
+
 export function computeDisplayedChatMessages(
   all: ChatMessage[],
   branchPreview: ChatBranchPreview | null,
@@ -1574,8 +1578,14 @@ function ChatWorkspace() {
   const lastAppliedPrefillRef = useRef<string | null>(null);
   const lastAppliedAgentPrefillRef = useRef<string | null>(null);
   const projectDefaultInitializedRef = useRef(false);
+  const chatMessagesScrollElementRef = useRef<HTMLDivElement | null>(null);
+  const initialScrolledConversationRef = useRef<string | null>(null);
   const { isMobile } = useSidebar();
-  const chatMessagesScrollRef = useScrollbarActivityRef();
+  const chatMessagesActivityRef = useScrollbarActivityRef();
+  const chatMessagesScrollRef = useCallback((element: HTMLDivElement | null) => {
+    chatMessagesScrollElementRef.current = element;
+    chatMessagesActivityRef(element);
+  }, [chatMessagesActivityRef]);
   const pendingPrefill = searchParams.get("prefill")?.trim() ?? "";
   const pendingAgentPrefill = searchParams.get("agentId")?.trim() ?? "";
   const relativePath = toOrganizationRelativePath(location.pathname);
@@ -2492,6 +2502,20 @@ function ChatWorkspace() {
     ? activeStreamFilteredMessages.filter((message) => shouldShowMessageDuringActiveStream(message, activeStream))
     : activeStreamFilteredMessages;
   const lastMarkedReadKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const chatId = selectedConversation?.id ?? null;
+    if (!chatId || showMessagesLoading) return;
+    if (initialScrolledConversationRef.current === chatId) return;
+
+    initialScrolledConversationRef.current = chatId;
+    const frame = requestAnimationFrame(() => {
+      const scrollElement = chatMessagesScrollElementRef.current;
+      if (!scrollElement) return;
+      scrollChatMessagesToBottom(scrollElement);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedConversation?.id, showMessagesLoading, visibleMessages.length]);
 
   useEffect(() => {
     if (!selectedConversation?.id || !latestIncomingMessageId) return;

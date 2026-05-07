@@ -9,6 +9,7 @@ import {
   ChatSystemMessageBody,
   computeDisplayedChatMessages,
   isChatAgentSelectionLocked,
+  scrollChatMessagesToBottom,
   withOptimisticPlanMode,
 } from "./Chat";
 
@@ -162,6 +163,20 @@ describe("computeDisplayedChatMessages", () => {
 
     expect(computeDisplayedChatMessages(messages, { chatTurnId: "turn-1", turnVariant: 0 }).map((row) => row.id))
       .toEqual(["user-1", "proposal-1", "system-1"]);
+  });
+});
+
+describe("scrollChatMessagesToBottom", () => {
+  it("scrolls the message region to its full height without animation", () => {
+    const scrollTo = vi.fn();
+    const element = {
+      scrollHeight: 1248,
+      scrollTo,
+    } as unknown as Pick<HTMLElement, "scrollHeight" | "scrollTo">;
+
+    scrollChatMessagesToBottom(element);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1248, behavior: "auto" });
   });
 });
 
