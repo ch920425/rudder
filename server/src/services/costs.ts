@@ -10,6 +10,11 @@ export interface CostDateRange {
   to?: Date;
 }
 
+export interface CostTrendFilter {
+  agentId?: string;
+  projectId?: string;
+}
+
 const METERED_BILLING_TYPE = "metered_api";
 const SUBSCRIPTION_BILLING_TYPES = ["subscription_included", "subscription_overage"] as const;
 
@@ -166,10 +171,11 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       };
     },
 
-    trend: async (orgId: string, range?: CostDateRange) => {
+    trend: async (orgId: string, range?: CostDateRange, filter: CostTrendFilter = {}) => {
       const conditions: ReturnType<typeof eq>[] = [eq(costEvents.orgId, orgId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
+      if (filter.agentId) conditions.push(eq(costEvents.agentId, filter.agentId));
 
       const dateBucket = sql<string>`to_char(date_trunc('day', ${costEvents.occurredAt} at time zone 'UTC'), 'YYYY-MM-DD')`;
       const costCentsExpr = sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`;
@@ -177,6 +183,51 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       const cachedInputTokensExpr = sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`;
       const outputTokensExpr = sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`;
       const totalTokensExpr = sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}), 0)::int`;
+
+      if (filter.projectId) {
+        const issueIdAsText = sql<string>`${issues.id}::text`;
+        const runProjectLinks = db
+          .selectDistinctOn([activityLog.runId, issues.projectId], {
+            runId: activityLog.runId,
+            projectId: issues.projectId,
+          })
+          .from(activityLog)
+          .innerJoin(
+            issues,
+            and(
+              eq(activityLog.entityType, "issue"),
+              eq(activityLog.entityId, issueIdAsText),
+            ),
+          )
+          .where(
+            and(
+              eq(activityLog.orgId, orgId),
+              eq(issues.orgId, orgId),
+              isNotNull(activityLog.runId),
+              isNotNull(issues.projectId),
+            ),
+          )
+          .orderBy(activityLog.runId, issues.projectId, desc(activityLog.createdAt))
+          .as("run_project_links");
+        const effectiveProjectId = sql<string | null>`coalesce(${costEvents.projectId}, ${runProjectLinks.projectId})`;
+        conditions.push(sql`${effectiveProjectId} = ${filter.projectId}` as ReturnType<typeof eq>);
+
+        return db
+          .select({
+            date: dateBucket,
+            costCents: costCentsExpr,
+            inputTokens: inputTokensExpr,
+            cachedInputTokens: cachedInputTokensExpr,
+            outputTokens: outputTokensExpr,
+            totalTokens: totalTokensExpr,
+            eventCount: sql<number>`count(*)::int`,
+          })
+          .from(costEvents)
+          .leftJoin(runProjectLinks, eq(costEvents.heartbeatRunId, runProjectLinks.runId))
+          .where(and(...conditions))
+          .groupBy(dateBucket)
+          .orderBy(dateBucket);
+      }
 
       return db
         .select({

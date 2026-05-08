@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CostByAgent,
   BudgetPolicySummary,
   CostByAgentModel,
   CostByBiller,
+  CostByProject,
   CostByProviderModel,
   CostTrendPoint,
   CostWindowSpendRow,
@@ -36,6 +38,8 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const NO_ORGANIZATION = "__none__";
+
+type CostTrendFilterKind = "all" | "agent" | "project";
 
 function currentWeekRange(): { from: string; to: string } {
   const now = new Date();
@@ -159,13 +163,55 @@ function formatExactCount(value: number): string {
   return Math.round(value).toLocaleString("en-US");
 }
 
-export function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; from?: string; to?: string }) {
+function trendAgentLabel(row: CostByAgent): string {
+  return row.agentName ?? row.agentId;
+}
+
+function trendProjectLabel(row: CostByProject): string {
+  return row.projectName ?? row.projectId ?? "Unattributed";
+}
+
+export function CostTrendChart({
+  rows,
+  from,
+  to,
+  agentOptions = [],
+  projectOptions = [],
+  filterKind = "all",
+  selectedAgentId = "",
+  selectedProjectId = "",
+  onFilterKindChange,
+  onAgentChange,
+  onProjectChange,
+  isLoading = false,
+}: {
+  rows: CostTrendPoint[];
+  from?: string;
+  to?: string;
+  agentOptions?: CostByAgent[];
+  projectOptions?: CostByProject[];
+  filterKind?: CostTrendFilterKind;
+  selectedAgentId?: string;
+  selectedProjectId?: string;
+  onFilterKindChange?: (kind: CostTrendFilterKind) => void;
+  onAgentChange?: (agentId: string) => void;
+  onProjectChange?: (projectId: string) => void;
+  isLoading?: boolean;
+}) {
   const series = buildTrendSeries(rows, from, to);
   const maxTokens = Math.max(...series.map((row) => row.totalTokens), 1);
   const maxCost = Math.max(...series.map((row) => row.costCents), 1);
   const totalTokens = series.reduce((sum, row) => sum + row.totalTokens, 0);
   const totalCost = series.reduce((sum, row) => sum + row.costCents, 0);
   const hasData = totalTokens > 0 || totalCost > 0;
+  const activeAgentId = agentOptions.some((row) => row.agentId === selectedAgentId)
+    ? selectedAgentId
+    : agentOptions[0]?.agentId ?? "";
+  const activeProjectId = projectOptions.some((row) => row.projectId === selectedProjectId)
+    ? selectedProjectId
+    : projectOptions[0]?.projectId ?? "";
+  const hasAgentOptions = agentOptions.length > 0;
+  const hasProjectOptions = projectOptions.length > 0;
 
   return (
     <Card data-testid="cost-trend-chart">
@@ -175,18 +221,70 @@ export function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; fro
             <CardTitle className="text-base">Inference trend</CardTitle>
             <CardDescription>Daily token volume and estimated spend in the selected period.</CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
-              Tokens <span className="font-medium text-foreground tabular-nums">{formatTokens(totalTokens)}</span>
-            </span>
-            <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
-              Estimated spend <span className="font-medium text-foreground tabular-nums">{formatCents(totalCost)}</span>
-            </span>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground sm:justify-end">
+              <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
+                Tokens <span className="font-medium text-foreground tabular-nums">{formatTokens(totalTokens)}</span>
+              </span>
+              <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
+                Estimated spend <span className="font-medium text-foreground tabular-nums">{formatCents(totalCost)}</span>
+              </span>
+            </div>
+            {onFilterKindChange ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {(["all", "agent", "project"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    disabled={(kind === "agent" && !hasAgentOptions) || (kind === "project" && !hasProjectOptions)}
+                    onClick={() => onFilterKindChange(kind)}
+                    className={cn(
+                      "rounded-[calc(var(--radius-sm)-1px)] border px-2.5 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                      filterKind === kind
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground",
+                    )}
+                  >
+                    {kind === "all" ? "All" : kind === "agent" ? "Agent" : "Project"}
+                  </button>
+                ))}
+                {filterKind === "agent" && hasAgentOptions ? (
+                  <select
+                    aria-label="Filter trend by agent"
+                    value={activeAgentId}
+                    onChange={(event) => onAgentChange?.(event.target.value)}
+                    className="h-7 max-w-48 rounded-[calc(var(--radius-sm)-1px)] border border-border bg-background px-2 text-xs text-foreground"
+                  >
+                    {agentOptions.map((row) => (
+                      <option key={row.agentId} value={row.agentId}>
+                        {trendAgentLabel(row)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {filterKind === "project" && hasProjectOptions ? (
+                  <select
+                    aria-label="Filter trend by project"
+                    value={activeProjectId ?? ""}
+                    onChange={(event) => onProjectChange?.(event.target.value)}
+                    className="h-7 max-w-48 rounded-[calc(var(--radius-sm)-1px)] border border-border bg-background px-2 text-xs text-foreground"
+                  >
+                    {projectOptions.map((row, index) => (
+                      <option key={row.projectId ?? `project-${index}`} value={row.projectId ?? ""}>
+                        {trendProjectLabel(row)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </CardHeader>
       <CardContent className="px-5 pb-5 pt-2">
-        {!hasData ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading trend…</p>
+        ) : !hasData ? (
           <p className="text-sm text-muted-foreground">No cost trend yet.</p>
         ) : (
           <div className="space-y-3">
@@ -322,6 +420,9 @@ export function Costs() {
   const [mainTab, setMainTab] = useState<"overview" | "budgets" | "providers" | "billers" | "finance">("overview");
   const [activeProvider, setActiveProvider] = useState("all");
   const [activeBiller, setActiveBiller] = useState("all");
+  const [trendFilterKind, setTrendFilterKind] = useState<CostTrendFilterKind>("all");
+  const [trendAgentId, setTrendAgentId] = useState("");
+  const [trendProjectId, setTrendProjectId] = useState("");
 
   const {
     preset,
@@ -400,14 +501,13 @@ export function Costs() {
   const { data: spendData, isLoading: spendLoading, error: spendError } = useQuery({
     queryKey: queryKeys.costs(orgId, from || undefined, to || undefined),
     queryFn: async () => {
-      const [summary, trend, byAgent, byProject, byAgentModel] = await Promise.all([
+      const [summary, byAgent, byProject, byAgentModel] = await Promise.all([
         costsApi.summary(orgId, from || undefined, to || undefined),
-        costsApi.trend(orgId, from || undefined, to || undefined),
         costsApi.byAgent(orgId, from || undefined, to || undefined),
         costsApi.byProject(orgId, from || undefined, to || undefined),
         costsApi.byAgentModel(orgId, from || undefined, to || undefined),
       ]);
-      return { summary, trend, byAgent, byProject, byAgentModel };
+      return { summary, byAgent, byProject, byAgentModel };
     },
     enabled: !!selectedOrganizationId && customReady,
   });
@@ -457,6 +557,55 @@ export function Costs() {
     }
     return map;
   }, [spendData?.byAgentModel]);
+
+  const trendAgentOptions = useMemo(
+    () => (spendData?.byAgent ?? []).filter((row) => row.inputTokens + row.cachedInputTokens + row.outputTokens > 0 || row.costCents > 0),
+    [spendData?.byAgent],
+  );
+  const trendProjectOptions = useMemo(
+    () => (spendData?.byProject ?? []).filter((row) => row.projectId && (row.inputTokens + row.cachedInputTokens + row.outputTokens > 0 || row.costCents > 0)),
+    [spendData?.byProject],
+  );
+  const effectiveTrendAgentId = trendAgentOptions.some((row) => row.agentId === trendAgentId)
+    ? trendAgentId
+    : trendAgentOptions[0]?.agentId ?? "";
+  const effectiveTrendProjectId = trendProjectOptions.some((row) => row.projectId === trendProjectId)
+    ? trendProjectId
+    : trendProjectOptions[0]?.projectId ?? "";
+  const effectiveTrendFilterKind =
+    trendFilterKind === "agent" && effectiveTrendAgentId
+      ? "agent"
+      : trendFilterKind === "project" && effectiveTrendProjectId
+        ? "project"
+        : "all";
+  const trendFilterId =
+    effectiveTrendFilterKind === "agent"
+      ? effectiveTrendAgentId
+      : effectiveTrendFilterKind === "project"
+        ? effectiveTrendProjectId
+        : "";
+
+  const { data: trendData, isLoading: trendLoading, error: trendError } = useQuery({
+    queryKey: queryKeys.costTrend(
+      orgId,
+      from || undefined,
+      to || undefined,
+      effectiveTrendFilterKind,
+      trendFilterId,
+    ),
+    queryFn: () =>
+      costsApi.trend(
+        orgId,
+        from || undefined,
+        to || undefined,
+        effectiveTrendFilterKind === "agent"
+          ? { agentId: trendFilterId }
+          : effectiveTrendFilterKind === "project"
+            ? { projectId: trendFilterId }
+            : undefined,
+      ),
+    enabled: !!selectedOrganizationId && customReady,
+  });
 
   const { data: providerData } = useQuery({
     queryKey: queryKeys.usageByProvider(orgId, from || undefined, to || undefined),
@@ -703,7 +852,7 @@ export function Costs() {
 
   const showCustomPrompt = preset === "custom" && !customReady;
   const showOverviewLoading = (spendLoading || financeLoading) && customReady;
-  const overviewError = spendError ?? financeError;
+  const overviewError = spendError ?? financeError ?? trendError;
 
   return (
     <div className="space-y-6">
@@ -829,9 +978,28 @@ export function Costs() {
               ) : null}
 
               <CostTrendChart
-                rows={spendData?.trend ?? []}
+                rows={trendData ?? []}
                 from={from || undefined}
                 to={to || undefined}
+                agentOptions={trendAgentOptions}
+                projectOptions={trendProjectOptions}
+                filterKind={effectiveTrendFilterKind}
+                selectedAgentId={effectiveTrendAgentId}
+                selectedProjectId={effectiveTrendProjectId}
+                onFilterKindChange={(kind) => {
+                  if (kind === "agent" && effectiveTrendAgentId) setTrendAgentId(effectiveTrendAgentId);
+                  if (kind === "project" && effectiveTrendProjectId) setTrendProjectId(effectiveTrendProjectId);
+                  setTrendFilterKind(kind);
+                }}
+                onAgentChange={(agentId) => {
+                  setTrendAgentId(agentId);
+                  setTrendFilterKind("agent");
+                }}
+                onProjectChange={(projectId) => {
+                  setTrendProjectId(projectId);
+                  setTrendFilterKind("project");
+                }}
+                isLoading={trendLoading}
               />
 
               <div className="grid gap-4 xl:grid-cols-[1.3fr,1fr]">

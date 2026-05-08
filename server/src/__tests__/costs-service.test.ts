@@ -170,6 +170,26 @@ describe("cost routes", () => {
     expect(mockCostService.trend).toHaveBeenCalledWith("organization-1", {
       from: new Date("2026-03-01T00:00:00.000Z"),
       to: new Date("2026-03-07T23:59:59.999Z"),
+    }, undefined);
+  });
+
+  it("passes agent and project filters to cost trend routes", async () => {
+    const app = await createApp();
+    const res = await request(app)
+      .get("/api/orgs/organization-1/costs/trend")
+      .query({
+        from: "2026-03-01T00:00:00.000Z",
+        agentId: "agent-1",
+        projectId: "project-1",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockCostService.trend).toHaveBeenCalledWith("organization-1", {
+      from: new Date("2026-03-01T00:00:00.000Z"),
+      to: undefined,
+    }, {
+      agentId: "agent-1",
+      projectId: "project-1",
     });
   });
 

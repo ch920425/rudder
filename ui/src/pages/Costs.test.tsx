@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { CostTrendPoint } from "@rudderhq/shared";
+import type { CostByAgent, CostByProject, CostTrendPoint } from "@rudderhq/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CostTrendChart } from "./Costs";
@@ -29,5 +29,53 @@ describe("CostTrendChart", () => {
     expect(html).toContain("data-slot=\"tooltip-trigger\"");
     expect(html).toContain("Tokens");
     expect(html).toContain("Estimated spend");
+  });
+
+  it("renders agent and project trend filters when options are available", () => {
+    const agentOptions = [
+      {
+        agentId: "agent-1",
+        agentName: "Ella",
+        agentIcon: null,
+        agentRole: "engineer",
+        agentStatus: "active",
+        costCents: 0,
+        inputTokens: 10,
+        cachedInputTokens: 0,
+        outputTokens: 5,
+        apiRunCount: 1,
+        subscriptionRunCount: 0,
+        subscriptionCachedInputTokens: 0,
+        subscriptionInputTokens: 0,
+        subscriptionOutputTokens: 0,
+      },
+    ] satisfies CostByAgent[];
+    const projectOptions = [
+      {
+        projectId: "project-1",
+        projectName: "Rudder mkt",
+        costCents: 0,
+        inputTokens: 20,
+        cachedInputTokens: 0,
+        outputTokens: 4,
+      },
+    ] satisfies CostByProject[];
+
+    const html = renderToStaticMarkup(
+      <CostTrendChart
+        rows={[]}
+        agentOptions={agentOptions}
+        projectOptions={projectOptions}
+        filterKind="agent"
+        selectedAgentId="agent-1"
+        onFilterKindChange={() => {}}
+      />,
+    );
+
+    expect(html).toContain(">All</button>");
+    expect(html).toContain(">Agent</button>");
+    expect(html).toContain(">Project</button>");
+    expect(html).toContain('aria-label="Filter trend by agent"');
+    expect(html).toContain("Ella");
   });
 });

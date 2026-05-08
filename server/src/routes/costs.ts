@@ -112,6 +112,19 @@ export function costRoutes(db: Db) {
     return limit;
   }
 
+  function firstQueryValue(value: unknown): string | undefined {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (typeof raw !== "string") return undefined;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  function parseTrendFilter(query: Record<string, unknown>) {
+    const agentId = firstQueryValue(query.agentId);
+    const projectId = firstQueryValue(query.projectId);
+    return agentId || projectId ? { agentId, projectId } : undefined;
+  }
+
   router.get("/orgs/:orgId/costs/summary", async (req, res) => {
     const orgId = req.params.orgId as string;
     assertCompanyAccess(req, orgId);
@@ -132,7 +145,8 @@ export function costRoutes(db: Db) {
     const orgId = req.params.orgId as string;
     assertCompanyAccess(req, orgId);
     const range = parseDateRange(req.query);
-    const rows = await costs.trend(orgId, range);
+    const filter = parseTrendFilter(req.query);
+    const rows = await costs.trend(orgId, range, filter);
     res.json(rows);
   });
 
