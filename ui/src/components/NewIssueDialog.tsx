@@ -281,6 +281,7 @@ export function NewIssueDialog() {
 
   const effectiveCompanyId = dialogCompanyId ?? selectedOrganizationId;
   const dialogCompany = organizations.find((c) => c.id === effectiveCompanyId) ?? selectedOrganization;
+  const requestedSavedIssueDraftId = newIssueDefaults.draftId ?? null;
 
   // Popover states
   const [statusOpen, setStatusOpen] = useState(false);
@@ -519,6 +520,10 @@ export function NewIssueDialog() {
   // Save draft on meaningful changes
   useEffect(() => {
     if (!newIssueOpen) return;
+    if (requestedSavedIssueDraftId) {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      return;
+    }
     if (!hasMeaningfulIssueDraft({
       title,
       description,
@@ -565,6 +570,7 @@ export function NewIssueDialog() {
     assigneeChrome,
     effectiveCompanyId,
     newIssueOpen,
+    requestedSavedIssueDraftId,
     scheduleSave,
   ]);
 
@@ -583,8 +589,8 @@ export function NewIssueDialog() {
       projects: orderedProjects,
     });
 
-    const savedDraft = readSavedIssueDraft(newIssueDefaults.draftId, selectedOrganizationId);
-    const draft = savedDraft ?? readIssueAutosave(selectedOrganizationId);
+    const savedDraft = readSavedIssueDraft(requestedSavedIssueDraftId, selectedOrganizationId);
+    const draft = savedDraft ?? (requestedSavedIssueDraftId ? null : readIssueAutosave(selectedOrganizationId));
     if (savedDraft) {
       setActiveSavedIssueDraftId(savedDraft.id);
     } else {
@@ -679,7 +685,7 @@ export function NewIssueDialog() {
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
     }
-  }, [newIssueOpen, newIssueDefaults, orderedProjects, selectedOrganizationId]);
+  }, [newIssueOpen, newIssueDefaults, orderedProjects, requestedSavedIssueDraftId, selectedOrganizationId]);
 
   useEffect(() => {
     if (!supportsAssigneeOverrides) {

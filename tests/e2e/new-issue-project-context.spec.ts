@@ -166,6 +166,16 @@ test.describe("New issue project context", () => {
     const dialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByPlaceholder("Issue title")).toHaveValue("Recovered draft issue");
+    await page.waitForTimeout(900);
+    await expect.poll(async () => page.evaluate(() => window.localStorage.getItem("rudder:issue-autosave"))).toBeNull();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await page.getByTestId("workspace-main-header").getByRole("button", { name: "Create Issue" }).click();
+
+    const newIssueDialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
+    await expect(newIssueDialog).toBeVisible();
+    await expect(newIssueDialog.getByPlaceholder("Issue title")).toHaveValue("");
   });
 
   test("opens the main draft issues view for multiple saved issue drafts", async ({ page }) => {
