@@ -216,6 +216,111 @@ describe("messengerService and issue follows", () => {
     expect(issuesSummary?.preview).toBe("Followed issue — Review Summary: render enough comment body to judge the issue update");
   });
 
+  it("includes issue status transitions in Messenger issue update cards", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-status-transition";
+    const issueId = randomUUID();
+    const activityAt = new Date("2026-04-20T10:00:00.000Z");
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Status Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Status Org"),
+      issuePrefix: `S${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Status transition issue",
+      status: "in_review",
+      priority: "medium",
+      createdByUserId: userId,
+      updatedAt: activityAt,
+    });
+
+    await db.insert(activityLog).values({
+      orgId,
+      actorType: "system",
+      actorId: "system",
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: issueId,
+      details: {
+        status: "in_review",
+        _previous: { status: "todo" },
+      },
+      createdAt: activityAt,
+    });
+
+    const thread = await messengerSvc.getIssuesThread(orgId, userId);
+    const item = thread.detail.items.find((entry) => entry.issueId === issueId);
+    const summaries = await messengerSvc.listThreadSummaries(orgId, userId);
+    const issuesSummary = summaries.find((entry) => entry.threadKey === "issues");
+
+    expect(item?.preview).toBe("Status changed to in review");
+    expect(item?.metadata).toMatchObject({
+      status: "in_review",
+      statusChange: { from: "todo", to: "in_review" },
+    });
+    expect(issuesSummary?.preview).toBe("Status transition issue — Status changed to in review");
+  });
+
+  it("keeps status transition metadata on comment-backed issue update cards", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-comment-status";
+    const issueId = randomUUID();
+    const activityAt = new Date("2026-04-20T11:00:00.000Z");
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Comment Status Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Comment Status Org"),
+      issuePrefix: `C${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Comment-backed status issue",
+      status: "blocked",
+      priority: "medium",
+      createdByUserId: userId,
+      updatedAt: activityAt,
+    });
+
+    const comment = await issueSvc.addComment(issueId, "Blocked on design review.", { authorAgentId: null });
+    await db.update(issueComments).set({ createdAt: activityAt }).where(eq(issueComments.id, comment.id));
+
+    await db.insert(activityLog).values({
+      orgId,
+      actorType: "system",
+      actorId: "system",
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: issueId,
+      details: {
+        status: "blocked",
+        source: "comment",
+        _previous: { status: "in_review" },
+      },
+      createdAt: activityAt,
+    });
+
+    const thread = await messengerSvc.getIssuesThread(orgId, userId);
+    const item = thread.detail.items.find((entry) => entry.issueId === issueId);
+
+    expect(item?.sourceCommentId).toBe(comment.id);
+    expect(item?.sourceCommentBody).toBe("Blocked on design review.");
+    expect(item?.preview).toBe("Blocked on design review.");
+    expect(item?.metadata).toMatchObject({
+      status: "blocked",
+      statusChange: { from: "in_review", to: "blocked" },
+    });
+  });
+
   it("preserves chat attachments when editing a user message into a new turn variant", async () => {
     const orgId = randomUUID();
     const conversationId = randomUUID();

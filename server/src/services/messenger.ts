@@ -89,6 +89,11 @@ type IssueActivityRow = {
   runId: string | null;
 };
 
+type IssueStatusChange = {
+  from: string | null;
+  to: string;
+};
+
 type ApprovalRow = {
   id: string;
   orgId: string;
@@ -228,6 +233,37 @@ function issueThreadPreview(issue: IssueUniverseRow, preview: string | null) {
   return truncate(`${label} — ${normalizedPreview}`, 180);
 }
 
+function humanizeIssueStatus(status: string) {
+  return status.replaceAll("_", " ");
+}
+
+function issueStatusChangeFromActivity(activity: IssueActivityRow | null | undefined): IssueStatusChange | null {
+  if (!activity || activity.action !== "issue.updated") return null;
+  const details = activity.details ?? {};
+  if (typeof details.status !== "string") return null;
+
+  const previous = details._previous && typeof details._previous === "object"
+    ? details._previous as Record<string, unknown>
+    : null;
+  const from = typeof previous?.status === "string" ? previous.status : null;
+  return { from, to: details.status };
+}
+
+function issueStatusActivityMatchesSourceComment(
+  activity: IssueActivityRow | null | undefined,
+  sourceComment: Pick<IssueCommentRow, "createdAt"> | null | undefined,
+) {
+  if (!activity || !sourceComment) return false;
+  const details = activity.details ?? {};
+  if (details.source !== "comment") return false;
+  if (!issueStatusChangeFromActivity(activity)) return false;
+
+  const activityAt = normalizeDate(activity.createdAt)?.getTime();
+  const commentAt = normalizeDate(sourceComment.createdAt)?.getTime();
+  if (activityAt === undefined || commentAt === undefined) return false;
+  return Math.abs(commentAt - activityAt) <= 5_000;
+}
+
 function issueBodyFromSnapshot(
   issue: IssueUniverseRow,
   latestPreview: string | null,
@@ -253,7 +289,7 @@ function summarizeIssueActivity(activity: IssueActivityRow, issue: IssueUniverse
   switch (activity.action) {
     case "issue.updated": {
       if (typeof details.status === "string") {
-        const status = details.status.replaceAll("_", " ");
+        const status = humanizeIssueStatus(details.status);
         if (details.status === "done") return "Completed";
         if (details.status === "cancelled") return "Cancelled";
         return `Status changed to ${status}`;
@@ -436,10 +472,12 @@ function issueCard(
   latestPreview: string | null,
   latestActivityAt: Date,
   sourceComment: Pick<IssueCommentRow, "id" | "body"> | null,
+  latestActivity: IssueActivityRow | null,
 ): MessengerIssueThreadItem {
   const createdByMe = issue.createdByUserId === currentUserId;
   const assignedToMe = issue.assigneeUserId === currentUserId;
   const reviewerForMe = issue.reviewerUserId === currentUserId && issue.status === "in_review";
+  const statusChange = issueStatusChangeFromActivity(latestActivity);
   return {
     id: issue.id,
     threadKey: "issues",
@@ -455,6 +493,7 @@ function issueCard(
       issueId: issue.id,
       issueIdentifier: issue.identifier,
       status: issue.status,
+      ...(statusChange ? { statusChange } : {}),
       priority: issue.priority,
       followed,
       createdByMe,
@@ -726,6 +765,9 @@ export function messengerService(db: Db) {
         : latestActivity
           ? summarizeIssueActivity(latestActivity, issue)
           : null;
+      const statusChangeActivity = latestSourceIsComment
+        ? (issueStatusActivityMatchesSourceComment(latestActivity, latestComment) ? latestActivity : null)
+        : latestActivity;
 
       const latestExternalComment = latestExternalCommentByIssue.get(issue.id) ?? null;
       const latestExternalActivity = latestExternalActivityByIssue.get(issue.id) ?? null;
@@ -770,6 +812,7 @@ export function messengerService(db: Db) {
           latestPreview,
           latestActivityAt ?? issue.updatedAt,
           latestSourceIsComment ? latestComment : null,
+          statusChangeActivity,
         ),
         attentionActivityAt,
         attentionPreview: summaryPreview,

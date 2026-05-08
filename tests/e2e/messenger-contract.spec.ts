@@ -594,6 +594,7 @@ test.describe("Messenger unified threads contract", () => {
     await expect(issueCard).toContainText("created by me");
     await expect(issueCard).not.toContainText("assigned to me");
     await expect(issueCard).toContainText("Status changed to blocked");
+    await expect(issueCard.locator('[aria-label="Status changed from todo to blocked"]')).toBeVisible();
   });
 
   test("shows the completed issue title in Messenger issue previews", async ({ page }) => {

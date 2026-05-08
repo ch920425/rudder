@@ -122,6 +122,36 @@ function issueContextLabel(item: MessengerIssueThreadItem) {
   return labels.join(" · ");
 }
 
+function issueStatusLabel(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function readIssueStatusChange(metadata: Record<string, unknown>) {
+  const value = metadata.statusChange;
+  if (!value || typeof value !== "object") return null;
+  const change = value as Record<string, unknown>;
+  const to = typeof change.to === "string" ? change.to : null;
+  if (!to) return null;
+
+  const from = typeof change.from === "string" ? change.from : null;
+  return { from, to };
+}
+
+function IssueStatusTransition({ change }: { change: { from: string | null; to: string } }) {
+  if (!change.from) return <StatusBadge status={change.to} />;
+
+  return (
+    <div
+      className="inline-flex shrink-0 items-center gap-1.5"
+      aria-label={`Status changed from ${issueStatusLabel(change.from)} to ${issueStatusLabel(change.to)}`}
+    >
+      <StatusBadge status={change.from} />
+      <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">→</span>
+      <StatusBadge status={change.to} />
+    </div>
+  );
+}
+
 function failedRunIssueTitle(metadata: Record<string, unknown>) {
   if (!metadata.contextSnapshot || typeof metadata.contextSnapshot !== "object") return null;
   const snapshot = metadata.contextSnapshot as Record<string, unknown>;
@@ -359,8 +389,10 @@ function MessengerIssueCard({
   const [draft, setDraft] = useState("");
   const metadata = item.metadata as {
     status?: string;
+    statusChange?: unknown;
     priority?: string;
   };
+  const statusChange = readIssueStatusChange(metadata);
   const contextLabel = issueContextLabel(item);
   const sourceCommentBody = item.sourceCommentBody?.trim() ? item.sourceCommentBody : null;
 
@@ -409,7 +441,9 @@ function MessengerIssueCard({
             firstNonEmptyLine(item.body) ?? firstNonEmptyLine(item.preview) ?? "New issue activity in your watched scope."
           )
         }
-        status={typeof metadata.status === "string" ? <StatusBadge status={metadata.status} /> : undefined}
+        status={statusChange
+          ? <IssueStatusTransition change={statusChange} />
+          : typeof metadata.status === "string" ? <StatusBadge status={metadata.status} /> : undefined}
         testId={`messenger-issue-card-${item.issueId}`}
         footer={
           <div className="flex flex-col gap-3">

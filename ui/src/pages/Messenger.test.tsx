@@ -170,6 +170,45 @@ describe("Messenger page headers", () => {
     expect(html).toContain('href="/issues/RUD-4#comment-comment-4"');
   });
 
+  it("renders issue update cards with from and to status badges", () => {
+    messengerModel.issueThreadDetail = {
+      title: "Issues",
+      description: "Followed issues, issues I created, and issues assigned to me.",
+      unreadCount: 1,
+      items: [
+        {
+          id: "issue-item-status-change",
+          issueId: "issue-status-change",
+          issueIdentifier: "RUD-5",
+          sourceCommentId: null,
+          sourceCommentBody: "Ready for review.",
+          title: "RUD-5 · Review status handoff",
+          subtitle: "Status changed from todo to in review",
+          body: "Ready for review.",
+          preview: "Ready for review.",
+          href: "/issues/RUD-5",
+          latestActivityAt: "2026-04-19T04:00:00.000Z",
+          actions: [],
+          metadata: {
+            status: "in_review",
+            statusChange: { from: "todo", to: "in_review" },
+            priority: "medium",
+            followed: true,
+            createdByMe: false,
+            assignedToMe: false,
+          },
+        },
+      ],
+    };
+
+    const html = renderIssueThread();
+
+    expect(html).toContain('aria-label="Status changed from todo to in review"');
+    expect(html).toContain("todo");
+    expect(html).toContain("in review");
+    expect(html).toContain("→");
+  });
+
   it("suppresses the self-assigned label when the issue was also created by me", () => {
     messengerModel.issueThreadDetail = {
       title: "Issues",
