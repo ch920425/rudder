@@ -826,7 +826,7 @@ function ChatAssistantAttributionRow({
   );
 }
 
-function ProposalCard({
+export function ProposalCard({
   conversation,
   message,
   agents,
@@ -864,35 +864,18 @@ function ProposalCard({
   const showDecisionNote = showApprovalActions || showOperationActions;
   const showRevisionAction = message.approval?.status === "pending";
   const decisionNoteId = `proposal-review-note-${message.id}`;
+  const showReviewControls = showDecisionNote || canConvertDirectly || Boolean(message.approval?.decisionNote);
 
   return (
-    <div
-      data-testid="proposal-review-block"
-      data-status={reviewStatus ?? "default"}
-      className="chat-review-block rounded-[var(--radius-xl)] p-5 text-foreground transition-all duration-200"
-    >
+    <div className="text-foreground">
       <ChatAssistantAttributionRow
         replyingAgentId={message.replyingAgentId ?? null}
         conversation={conversation}
         agents={agents}
       />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
-            {message.kind === "issue_proposal" ? <Sparkles className="h-3.5 w-3.5" /> : <Settings2 className="h-3.5 w-3.5" />}
-            <span>{proposalReviewTitle(message)}</span>
-          </div>
-          {reviewBanner ? (
-            <p className="mt-3 text-sm leading-6 text-foreground/90">
-              {reviewBanner}
-            </p>
-          ) : null}
-        </div>
-        {reviewStatus ? (
-          <div data-testid="proposal-review-status">
-            <StatusBadge status={reviewStatus} />
-          </div>
-        ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
+        {message.kind === "issue_proposal" ? <Sparkles className="h-3.5 w-3.5" /> : <Settings2 className="h-3.5 w-3.5" />}
+        <span>{proposalReviewTitle(message)}</span>
       </div>
 
       {message.body.trim().length > 0 ? (
@@ -901,145 +884,171 @@ function ProposalCard({
         </div>
       ) : null}
 
-      {issueProposal ? (
-        <div className="chat-proposal-inset mt-4 rounded-[var(--radius-lg)] p-4">
-          <div className="text-base font-medium text-foreground">{String(issueProposal.title)}</div>
-          <div className="mt-1 text-xs font-medium text-muted-foreground">
-            Priority · {String(issueProposal.priority ?? "medium")}
+      <div
+        data-testid="proposal-review-block"
+        data-status={reviewStatus ?? "default"}
+        className="chat-review-block mt-4 rounded-[var(--radius-xl)] p-5 text-foreground transition-all duration-200"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {issueProposal ? (
+              <>
+                <div className="text-base font-medium text-foreground">{String(issueProposal.title)}</div>
+                <div className="mt-1 text-xs font-medium text-muted-foreground">
+                  Priority · {String(issueProposal.priority ?? "medium")}
+                </div>
+              </>
+            ) : operationProposal ? (
+              <>
+                <div className="text-base font-medium text-foreground">{String(operationProposal.summary)}</div>
+                <div className="mt-1 text-xs font-medium text-muted-foreground">
+                  Target · {String(operationProposal.targetType)}:{String(operationProposal.targetId)}
+                </div>
+              </>
+            ) : planDocument ? (
+              <div className="text-base font-medium text-foreground">{planDocument.title}</div>
+            ) : null}
+            {reviewBanner ? (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {reviewBanner}
+              </p>
+            ) : null}
           </div>
-          <div className="mt-3 text-sm leading-6 text-muted-foreground">
-            <MarkdownBody skillReferences={skillReferences}>{String(issueProposal.description)}</MarkdownBody>
-          </div>
-        </div>
-      ) : null}
-
-      {planDocument ? (
-        <div className="chat-proposal-inset mt-4 rounded-[var(--radius-lg)] p-4">
-          <div className="text-[11px] font-medium text-muted-foreground">{planDocument.title}</div>
-          <div className="mt-3 text-sm leading-6 text-foreground">
-            <MarkdownBody skillReferences={skillReferences}>{planDocument.body}</MarkdownBody>
-          </div>
-        </div>
-      ) : null}
-
-      {operationProposal ? (
-        <div className="chat-proposal-inset mt-4 rounded-[var(--radius-lg)] p-4">
-          <div className="text-base font-medium text-foreground">{String(operationProposal.summary)}</div>
-          <div className="mt-1 text-xs font-medium text-muted-foreground">
-            Target · {String(operationProposal.targetType)}:{String(operationProposal.targetId)}
-          </div>
-          {operationProposal.patch && typeof operationProposal.patch === "object" ? (
-            <pre className="chat-proposal-inset mt-3 overflow-x-auto rounded-2xl p-3 text-xs text-muted-foreground">
-              {JSON.stringify(operationProposal.patch, null, 2)}
-            </pre>
-          ) : null}
-        </div>
-      ) : null}
-
-      {(showDecisionNote || showApprovalActions || showOperationActions || canConvertDirectly || message.approval?.decisionNote) ? (
-        <div className="mt-5 border-t border-[color:var(--border-soft)] pt-4">
-          {showDecisionNote ? (
-            <label className="block space-y-2">
-              <span className="text-xs font-medium text-muted-foreground">Decision note</span>
-              <Textarea
-                id={decisionNoteId}
-                data-testid="proposal-review-note"
-                value={decisionNote}
-                onChange={(event) => onDecisionNoteChange(event.target.value)}
-                placeholder={
-                  reviewStatus === "revision_requested"
-                    ? "Add context for what still needs to change."
-                    : "Optional note for approval, rejection, or requested changes."
-                }
-              className="chat-field min-h-[88px] rounded-[var(--radius-lg)]"
-              />
-            </label>
-          ) : null}
-
-          {!showDecisionNote && message.approval?.decisionNote ? (
-            <div className="chat-review-note mt-1 rounded-[var(--radius-lg)] px-4 py-3">
-              <div className="text-[11px] font-medium text-muted-foreground">Decision note</div>
-              <p className="mt-2 text-sm leading-6 text-foreground/90">{message.approval.decisionNote}</p>
+          {reviewStatus ? (
+            <div data-testid="proposal-review-status">
+              <StatusBadge status={reviewStatus} />
             </div>
           ) : null}
+        </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-          {showApprovalActions && message.approval ? (
-            <>
-              <Button
-                size="sm"
-                className="bg-green-700 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
-                disabled={actionPending}
-              onClick={() => onApprovalAction(message.approval!.id, "approve", message.id)}
-              >
-                Approve
-              </Button>
-              {showRevisionAction ? (
+        {issueProposal ? (
+          <div className="mt-4 border-t border-[color:var(--border-soft)] pt-4 text-sm leading-6 text-muted-foreground">
+            <MarkdownBody skillReferences={skillReferences}>{String(issueProposal.description)}</MarkdownBody>
+          </div>
+        ) : null}
+
+        {planDocument ? (
+          <div className="mt-4 border-t border-[color:var(--border-soft)] pt-4">
+            {issueProposal ? (
+              <div className="text-[11px] font-medium text-muted-foreground">{planDocument.title}</div>
+            ) : null}
+            <div className="mt-3 text-sm leading-6 text-foreground">
+              <MarkdownBody skillReferences={skillReferences}>{planDocument.body}</MarkdownBody>
+            </div>
+          </div>
+        ) : null}
+
+        {operationProposal?.patch && typeof operationProposal.patch === "object" ? (
+          <pre className="mt-4 overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-shell)_88%,transparent)] p-3 text-xs text-muted-foreground">
+            {JSON.stringify(operationProposal.patch, null, 2)}
+          </pre>
+        ) : null}
+
+        {showReviewControls ? (
+          <div className="mt-5 border-t border-[color:var(--border-soft)] pt-4">
+            {showDecisionNote ? (
+              <label className="block space-y-2">
+                <span className="text-xs font-medium text-muted-foreground">Decision note</span>
+                <Textarea
+                  id={decisionNoteId}
+                  data-testid="proposal-review-note"
+                  value={decisionNote}
+                  onChange={(event) => onDecisionNoteChange(event.target.value)}
+                  placeholder={
+                    reviewStatus === "revision_requested"
+                      ? "Add context for what still needs to change."
+                      : "Optional note for approval, rejection, or requested changes."
+                  }
+                  className="chat-field min-h-[88px] rounded-[var(--radius-lg)]"
+                />
+              </label>
+            ) : null}
+
+            {!showDecisionNote && message.approval?.decisionNote ? (
+              <div className="chat-review-note mt-1 rounded-[var(--radius-lg)] px-4 py-3">
+                <div className="text-[11px] font-medium text-muted-foreground">Decision note</div>
+                <p className="mt-2 text-sm leading-6 text-foreground/90">{message.approval.decisionNote}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {showApprovalActions && message.approval ? (
+                <>
+                  <Button
+                    size="sm"
+                    className="bg-green-700 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
+                    disabled={actionPending}
+                    onClick={() => onApprovalAction(message.approval!.id, "approve", message.id)}
+                  >
+                    Approve
+                  </Button>
+                  {showRevisionAction ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-foreground"
+                      disabled={actionPending}
+                      onClick={() => onApprovalAction(message.approval!.id, "requestRevision", message.id)}
+                    >
+                      Request revision
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                    disabled={actionPending}
+                    onClick={() => onApprovalAction(message.approval!.id, "reject", message.id)}
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : null}
+              {showOperationActions ? (
+                <>
+                  <Button
+                    size="sm"
+                    className="bg-green-700 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
+                    disabled={actionPending}
+                    onClick={() => onResolveOperationProposal(message.id, "approve", decisionNote)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-foreground"
+                    disabled={actionPending}
+                    onClick={() => onResolveOperationProposal(message.id, "requestRevision", decisionNote)}
+                  >
+                    Request changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                    disabled={actionPending}
+                    onClick={() => onResolveOperationProposal(message.id, "reject", decisionNote)}
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : null}
+              {canConvertDirectly ? (
                 <Button
                   size="sm"
                   variant="outline"
                   className="text-foreground"
                   disabled={actionPending}
-                  onClick={() => onApprovalAction(message.approval!.id, "requestRevision", message.id)}
+                  onClick={() => onConvertToIssue(message)}
                 >
-                  Request revision
+                  Create issue
                 </Button>
               ) : null}
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                disabled={actionPending}
-                onClick={() => onApprovalAction(message.approval!.id, "reject", message.id)}
-              >
-                Reject
-              </Button>
-            </>
-          ) : null}
-          {showOperationActions ? (
-            <>
-              <Button
-                size="sm"
-                className="bg-green-700 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
-                disabled={actionPending}
-                onClick={() => onResolveOperationProposal(message.id, "approve", decisionNote)}
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-foreground"
-                disabled={actionPending}
-                onClick={() => onResolveOperationProposal(message.id, "requestRevision", decisionNote)}
-              >
-                Request changes
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                disabled={actionPending}
-                onClick={() => onResolveOperationProposal(message.id, "reject", decisionNote)}
-              >
-                Reject
-              </Button>
-            </>
-          ) : null}
-          {canConvertDirectly ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-foreground"
-              disabled={actionPending}
-              onClick={() => onConvertToIssue(message)}
-            >
-              Create issue
-            </Button>
-          ) : null}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

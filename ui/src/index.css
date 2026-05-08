@@ -803,11 +803,6 @@
     border-color: color-mix(in oklab, rgb(217 119 6) 35%, var(--border-base));
   }
 
-  .chat-proposal-inset {
-    background: color-mix(in oklab, var(--surface-shell) 92%, transparent);
-    border: 1px solid color-mix(in oklab, var(--border-soft) 90%, transparent);
-  }
-
   .chat-review-note {
     background: color-mix(in oklab, var(--surface-shell) 90%, transparent);
     border: 1px solid color-mix(in oklab, var(--border-soft) 88%, transparent);

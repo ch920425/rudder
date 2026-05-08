@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import {
   ChatSystemMessageBody,
   INTERRUPTED_CHAT_CONTINUATION_PROMPT,
+  ProposalCard,
   assistantStateLabel,
   canContinueInterruptedChatMessage,
   computeDisplayedChatMessages,
@@ -99,6 +100,25 @@ function renderSystemMessageBody(message: ChatMessage) {
   );
 }
 
+function renderProposalCard(message: ChatMessage, chat: ChatConversation = conversation({})) {
+  return renderToStaticMarkup(
+    <ThemeProvider>
+      <ProposalCard
+        conversation={chat}
+        message={message}
+        agents={undefined}
+        decisionNote=""
+        onDecisionNoteChange={vi.fn()}
+        onApprovalAction={vi.fn()}
+        onResolveOperationProposal={vi.fn()}
+        onConvertToIssue={vi.fn()}
+        actionPending={false}
+        skillReferences={[]}
+      />
+    </ThemeProvider>,
+  );
+}
+
 describe("ChatSystemMessageBody", () => {
   it("highlights issue-created identifiers as issue links", () => {
     const html = renderSystemMessageBody(message({
@@ -128,6 +148,33 @@ describe("ChatSystemMessageBody", () => {
     expect(html).toContain("rudder-markdown");
     expect(html).toContain("<strong>approved</strong>");
     expect(html).not.toContain("chat-system-issue-link");
+  });
+});
+
+describe("ProposalCard", () => {
+  it("keeps assistant rationale outside the structured review card", () => {
+    const assistantBody = "结论：不通过，需要修。这个应该作为普通回复正文。";
+    const issueTitle = "Fix issue Chat entry";
+    const issueDescription = "Only this structured issue description belongs in the review card.";
+    const html = renderProposalCard(message({
+      role: "assistant",
+      kind: "issue_proposal",
+      body: assistantBody,
+      structuredPayload: {
+        title: issueTitle,
+        priority: "high",
+        description: issueDescription,
+      },
+    }));
+
+    const reviewBlockIndex = html.indexOf('data-testid="proposal-review-block"');
+    expect(reviewBlockIndex).toBeGreaterThan(0);
+    expect(html.indexOf(assistantBody)).toBeLessThan(reviewBlockIndex);
+
+    const reviewBlockHtml = html.slice(reviewBlockIndex);
+    expect(reviewBlockHtml).toContain(issueTitle);
+    expect(reviewBlockHtml).toContain(issueDescription);
+    expect(reviewBlockHtml).not.toContain(assistantBody);
   });
 });
 
