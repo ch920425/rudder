@@ -62,9 +62,9 @@ vi.mock("../context/I18nContext", () => ({
         "general.updates.loadFailed": "Failed to load desktop update settings.",
         "general.updates.updateFailed": "Failed to update desktop update settings.",
         "general.updates.unavailable": "Desktop update settings are unavailable.",
-        "general.updates.canary.title": "Receive canary desktop updates",
+        "general.updates.canary.title": "Receive early desktop updates",
         "general.updates.canary.disabledDescription": "Stable update channel selected",
-        "general.updates.canary.enabledDescription": "Canary update channel selected",
+        "general.updates.canary.enabledDescription": "Early update channel selected",
         "general.appearance.title": "Appearance",
         "general.appearance.description": "Appearance section",
         "general.appearance.colorMode": "Color mode",
@@ -154,8 +154,8 @@ describe("InstanceGeneralSettings", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("Receive canary desktop updates");
-    expect(container.textContent).toContain("Canary update channel selected");
+    expect(container.textContent).toContain("Receive early desktop updates");
+    expect(container.textContent).toContain("Early update channel selected");
     expect(container.textContent).not.toContain("Desktop updates");
     expect(container.textContent).not.toContain("Update channel section");
   });
@@ -175,7 +175,7 @@ describe("InstanceGeneralSettings", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).not.toContain("Receive canary desktop updates");
+    expect(container.textContent).not.toContain("Receive early desktop updates");
     expect(container.textContent).not.toContain("No handler registered");
     expect(container.textContent).not.toContain("Failed to load desktop update settings.");
   });

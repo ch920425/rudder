@@ -282,9 +282,11 @@ export const en = {
   "general.updates.loadFailed": "Failed to load desktop update settings.",
   "general.updates.updateFailed": "Failed to update desktop update settings.",
   "general.updates.unavailable": "Desktop update settings are unavailable in this environment.",
-  "general.updates.canary.title": "Receive canary desktop updates",
-  "general.updates.canary.disabledDescription": "Allow update checks to install canary builds on this machine.",
-  "general.updates.canary.enabledDescription": "Canary builds are enabled for update checks on this machine.",
+  "general.updates.canary.title": "Receive early desktop updates",
+  "general.updates.canary.disabledDescription":
+    "Install test versions before the regular desktop release.",
+  "general.updates.canary.enabledDescription":
+    "This machine checks for test versions before the regular desktop release.",
   "general.appearance.title": "Appearance",
   "general.appearance.description":
     "Choose how Rudder should look on this machine. The visual treatment follows Claude-style low-glare surfaces and restrained chrome.",
