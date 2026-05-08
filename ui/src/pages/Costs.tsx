@@ -33,6 +33,7 @@ import { billingTypeDisplayName, cn, formatCents, formatTokens, providerDisplayN
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const NO_ORGANIZATION = "__none__";
 
@@ -154,7 +155,11 @@ function shouldShowDayLabel(index: number, count: number): boolean {
   return index === 0 || index === count - 1 || index === Math.floor((count - 1) / 2);
 }
 
-function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; from?: string; to?: string }) {
+function formatExactCount(value: number): string {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+export function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; from?: string; to?: string }) {
   const series = buildTrendSeries(rows, from, to);
   const maxTokens = Math.max(...series.map((row) => row.totalTokens), 1);
   const maxCost = Math.max(...series.map((row) => row.costCents), 1);
@@ -198,28 +203,55 @@ function CostTrendChart({ rows, from, to }: { rows: CostTrendPoint[]; from?: str
                 {series.map((row, index) => {
                   const tokenHeight = Math.max(3, (row.totalTokens / maxTokens) * 100);
                   const costBottom = Math.max(2, (row.costCents / maxCost) * 100);
-                  const title = `${fullDayLabel(row.date)} · ${formatTokens(row.totalTokens)} tokens · ${formatCents(row.costCents)} estimated spend`;
+                  const dateLabel = fullDayLabel(row.date);
+                  const accessibleLabel = `${dateLabel}: ${formatExactCount(row.totalTokens)} tokens (${formatExactCount(row.inputTokens)} input, ${formatExactCount(row.cachedInputTokens)} cached, ${formatExactCount(row.outputTokens)} output), ${formatCents(row.costCents)} estimated spend, ${formatExactCount(row.eventCount)} events`;
                   return (
-                    <div key={row.date} className="group flex min-w-7 flex-1 flex-col justify-end gap-1" title={title}>
-                      <div
-                        aria-label={title}
-                        className="relative h-32 rounded-[calc(var(--radius-sm)-1px)] bg-muted/35"
-                      >
-                        <div
-                          className="absolute inset-x-1 bottom-0 rounded-t-[calc(var(--radius-sm)-1px)] bg-sky-500/60 transition-colors group-hover:bg-sky-500"
-                          style={{ height: `${row.totalTokens > 0 ? tokenHeight : 0}%` }}
-                        />
-                        {row.costCents > 0 ? (
-                          <span
-                            className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-background bg-emerald-500 shadow-sm"
-                            style={{ bottom: `calc(${costBottom}% - 5px)` }}
-                          />
-                        ) : null}
-                      </div>
-                      <div className="h-3 text-center text-[10px] tabular-nums text-muted-foreground">
-                        {shouldShowDayLabel(index, series.length) ? dayLabel(row.date) : null}
-                      </div>
-                    </div>
+                    <TooltipProvider key={row.date}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={accessibleLabel}
+                            className="group flex min-w-7 flex-1 flex-col justify-end gap-1 rounded-[calc(var(--radius-sm)-1px)] bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          >
+                            <span className="relative h-32 w-full rounded-[calc(var(--radius-sm)-1px)] bg-muted/35">
+                              <span
+                                className="absolute inset-x-1 bottom-0 rounded-t-[calc(var(--radius-sm)-1px)] bg-sky-500/60 transition-colors group-hover:bg-sky-500 group-focus-visible:bg-sky-500"
+                                style={{ height: `${row.totalTokens > 0 ? tokenHeight : 0}%` }}
+                              />
+                              {row.costCents > 0 ? (
+                                <span
+                                  className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-background bg-emerald-500 shadow-sm"
+                                  style={{ bottom: `calc(${costBottom}% - 5px)` }}
+                                />
+                              ) : null}
+                            </span>
+                            <span className="h-3 w-full text-center text-[10px] tabular-nums text-muted-foreground">
+                              {shouldShowDayLabel(index, series.length) ? dayLabel(row.date) : null}
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={8} className="w-56 p-3 text-xs">
+                          <div className="space-y-2">
+                            <div className="font-medium text-background">{dateLabel}</div>
+                            <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+                              <dt className="text-background/70">Tokens</dt>
+                              <dd className="font-mono tabular-nums">{formatExactCount(row.totalTokens)}</dd>
+                              <dt className="text-background/70">Input</dt>
+                              <dd className="font-mono tabular-nums">{formatExactCount(row.inputTokens)}</dd>
+                              <dt className="text-background/70">Cached</dt>
+                              <dd className="font-mono tabular-nums">{formatExactCount(row.cachedInputTokens)}</dd>
+                              <dt className="text-background/70">Output</dt>
+                              <dd className="font-mono tabular-nums">{formatExactCount(row.outputTokens)}</dd>
+                              <dt className="text-background/70">Estimated spend</dt>
+                              <dd className="font-mono tabular-nums">{formatCents(row.costCents)}</dd>
+                              <dt className="text-background/70">Events</dt>
+                              <dd className="font-mono tabular-nums">{formatExactCount(row.eventCount)}</dd>
+                            </dl>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   );
                 })}
               </div>
