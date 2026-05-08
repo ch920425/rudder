@@ -264,6 +264,14 @@ function shouldShowThinkingEffort(agentRuntimeType: string) {
   return agentRuntimeType !== "gemini_local";
 }
 
+function hasClearedConfigValue(configPatch: Record<string, unknown>) {
+  return Object.values(configPatch).some((value) => value === undefined);
+}
+
+function omitClearedConfigValues(config: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(config).filter(([, value]) => value !== undefined));
+}
+
 export function primaryModelFallbackKey(agentRuntimeType: string, model: string) {
   return { agentRuntimeType, model };
 }
@@ -387,6 +395,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     }));
   }
 
+  function markAgentRuntimeConfigPatch(patch: Record<string, unknown>) {
+    setOverlay((prev) => ({
+      ...prev,
+      agentRuntimeConfig: { ...prev.agentRuntimeConfig, ...patch },
+    }));
+  }
+
   /** Build accumulated patch and send to parent */
   const handleCancel = useCallback(() => {
     setOverlay({ ...emptyOverlay });
@@ -404,10 +419,14 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       patch.agentRuntimeType = overlay.agentRuntimeType;
       // When adapter type changes, send only the new config — don't merge
       // with old config since old adapter fields are meaningless for the new type
-      patch.agentRuntimeConfig = overlay.agentRuntimeConfig;
+      patch.agentRuntimeConfig = omitClearedConfigValues(overlay.agentRuntimeConfig);
     } else if (Object.keys(overlay.agentRuntimeConfig).length > 0) {
       const existing = (agent.agentRuntimeConfig ?? {}) as Record<string, unknown>;
-      patch.agentRuntimeConfig = { ...existing, ...overlay.agentRuntimeConfig };
+      const nextAgentRuntimeConfig = { ...existing, ...overlay.agentRuntimeConfig };
+      patch.agentRuntimeConfig = omitClearedConfigValues(nextAgentRuntimeConfig);
+      if (hasClearedConfigValue(overlay.agentRuntimeConfig)) {
+        patch.replaceAgentRuntimeConfig = true;
+      }
     }
     if (Object.keys(overlay.heartbeat).length > 0) {
       const existingRc = (agent.runtimeConfig ?? {}) as Record<string, unknown>;
@@ -808,6 +827,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   ? set!({ [field]: value } as Partial<CreateConfigValues>)
                   : mark("agentRuntimeConfig", field, value)
               }
+              onConfigPatchChange={(patch) => {
+                if (isCreate) {
+                  set!(patch as Partial<CreateConfigValues>);
+                } else {
+                  markAgentRuntimeConfigPatch(patch);
+                }
+              }}
               environmentStatus={runtimeEnvironmentStatusFor("primary")}
               triggerTestId="agent-primary-model"
             />
@@ -857,6 +883,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                     config: {
                       ...(fallback.config ?? {}),
                       [field]: value,
+                    },
+                  };
+                  updateFallbackModels(next);
+                }}
+                onConfigPatchChange={(configPatch) => {
+                  const next = [...currentFallbackModels];
+                  next[index] = {
+                    ...fallback,
+                    config: {
+                      ...(fallback.config ?? {}),
+                      ...configPatch,
                     },
                   };
                   updateFallbackModels(next);
@@ -1126,6 +1163,7 @@ export function RuntimeProviderCard({
   onRuntimeTypeChange,
   onModelChange,
   onConfigFieldChange,
+  onConfigPatchChange,
   onRemove,
   hideRuntimeType = false,
   hideInstructionsFile = false,
@@ -1146,6 +1184,7 @@ export function RuntimeProviderCard({
   onRuntimeTypeChange: (runtimeType: string) => void;
   onModelChange: (model: string) => void;
   onConfigFieldChange: (field: string, value: unknown) => void;
+  onConfigPatchChange?: (patch: Record<string, unknown>) => void;
   onRemove?: () => void;
   hideRuntimeType?: boolean;
   hideInstructionsFile?: boolean;
@@ -1236,6 +1275,8 @@ export function RuntimeProviderCard({
               onChange={(value) => {
                 if (createSet) {
                   createSet({ thinkingEffort: value });
+                } else if (runtimeType === "codex_local") {
+                  onConfigPatchChange?.({ modelReasoningEffort: value || undefined, reasoningEffort: undefined });
                 } else {
                   onConfigFieldChange(thinkingEffortKey, value || undefined);
                 }
