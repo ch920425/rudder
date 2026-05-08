@@ -21,8 +21,7 @@ test.describe("Issue activity", () => {
       },
     });
     expect(agentRes.ok()).toBe(true);
-    const agentPayload = await agentRes.json();
-    const agent = agentPayload.agent;
+    const agent = await agentRes.json();
 
     const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
       data: {
@@ -49,8 +48,14 @@ test.describe("Issue activity", () => {
       data: { title: "Activity note", format: "markdown", body: "# First revision" },
     });
     expect(createDocumentRes.ok()).toBe(true);
+    const createdDocument = await createDocumentRes.json();
     const updateDocumentRes = await page.request.put(`/api/issues/${issue.id}/documents/note`, {
-      data: { title: "Activity note", format: "markdown", body: "# Second revision" },
+      data: {
+        title: "Activity note",
+        format: "markdown",
+        body: "# Second revision",
+        baseRevisionId: createdDocument.latestRevisionId,
+      },
     });
     expect(updateDocumentRes.ok()).toBe(true);
 
