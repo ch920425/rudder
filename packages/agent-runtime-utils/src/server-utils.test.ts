@@ -511,4 +511,54 @@ describe("syncLocalCliCredentialHomeEntries", () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+
+  it("repairs empty pre-existing credential directories into host symlinks", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-creds-repair-"));
+    const sourceHome = path.join(root, "host-home");
+    const targetHome = path.join(root, "agent-home");
+    const sourceGh = path.join(sourceHome, ".config", "gh");
+    const targetGh = path.join(targetHome, ".config", "gh");
+    await fs.mkdir(sourceGh, { recursive: true });
+    await fs.writeFile(path.join(sourceGh, "hosts.yml"), "github.com:\n  oauth_token: redacted\n", "utf8");
+    await fs.mkdir(targetGh, { recursive: true });
+
+    try {
+      const result = await syncLocalCliCredentialHomeEntries({
+        sourceHome,
+        targetHome,
+        entries: [".config/gh"],
+      });
+
+      expect(result).toEqual({ linked: [".config/gh"], skipped: [] });
+      const linkedGh = await fs.readlink(targetGh);
+      expect(path.resolve(path.dirname(targetGh), linkedGh)).toBe(sourceGh);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not replace non-empty credential directories", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-creds-non-empty-"));
+    const sourceHome = path.join(root, "host-home");
+    const targetHome = path.join(root, "agent-home");
+    const sourceGh = path.join(sourceHome, ".config", "gh");
+    const targetGh = path.join(targetHome, ".config", "gh");
+    await fs.mkdir(sourceGh, { recursive: true });
+    await fs.writeFile(path.join(sourceGh, "hosts.yml"), "github.com:\n  oauth_token: redacted\n", "utf8");
+    await fs.mkdir(targetGh, { recursive: true });
+    await fs.writeFile(path.join(targetGh, "hosts.yml"), "stale-but-user-owned\n", "utf8");
+
+    try {
+      const result = await syncLocalCliCredentialHomeEntries({
+        sourceHome,
+        targetHome,
+        entries: [".config/gh"],
+      });
+
+      expect(result).toEqual({ linked: [], skipped: [".config/gh"] });
+      await expect(fs.readFile(path.join(targetGh, "hosts.yml"), "utf8")).resolves.toBe("stale-but-user-owned\n");
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });

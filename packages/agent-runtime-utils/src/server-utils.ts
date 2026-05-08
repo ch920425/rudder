@@ -1339,6 +1339,11 @@ async function localCliPathExists(candidate: string): Promise<boolean> {
   return fs.access(candidate).then(() => true).catch(() => false);
 }
 
+async function directoryIsEmpty(target: string): Promise<boolean> {
+  const entries = await fs.readdir(target).catch(() => null);
+  return Array.isArray(entries) && entries.length === 0;
+}
+
 async function ensureSymlinkToSource(target: string, source: string): Promise<"created" | "repaired" | "skipped"> {
   const existing = await fs.lstat(target).catch(() => null);
   if (!existing) {
@@ -1347,7 +1352,14 @@ async function ensureSymlinkToSource(target: string, source: string): Promise<"c
     return "created";
   }
 
-  if (!existing.isSymbolicLink()) return "skipped";
+  if (!existing.isSymbolicLink()) {
+    if (existing.isDirectory() && await directoryIsEmpty(target)) {
+      await fs.rmdir(target);
+      await fs.symlink(source, target);
+      return "repaired";
+    }
+    return "skipped";
+  }
 
   const linkedPath = await fs.readlink(target).catch(() => null);
   if (!linkedPath) return "skipped";

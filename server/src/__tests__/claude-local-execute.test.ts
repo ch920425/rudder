@@ -3,10 +3,18 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { execute } from "@rudderhq/agent-runtime-claude-local/server";
+import {
+  clearInheritedGitIdentityEnv,
+  confirmedRudderGitIdentity,
+  expectConfirmedGitIdentityCapture,
+  gitIdentityCaptureSnippet,
+  type GitIdentityCapture,
+} from "./local-runtime-git-identity-helpers";
 
 async function writeFakeClaudeCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
 const fs = require("node:fs");
+${gitIdentityCaptureSnippet}
 const path = require("node:path");
 
 const capturePath = process.env.RUDDER_TEST_CAPTURE_PATH;
@@ -37,6 +45,7 @@ const payload = {
     addDirSkillsPath && fs.existsSync(addDirSkillsPath)
       ? fs.readdirSync(addDirSkillsPath).sort()
       : [],
+  gitIdentity: captureGitIdentityEnv(),
 };
 if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
@@ -113,12 +122,13 @@ describe("claude execute", () => {
           command: commandPath,
           cwd: workspace,
           env: {
+            ...clearInheritedGitIdentityEnv,
             RUDDER_TEST_CAPTURE_PATH: capturePath,
           },
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: { rudderGitIdentity: confirmedRudderGitIdentity },
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
@@ -147,7 +157,9 @@ describe("claude execute", () => {
       );
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
         appendedSystemPrompt: string | null;
+        gitIdentity: GitIdentityCapture;
       };
+      expectConfirmedGitIdentityCapture(capture);
       expect(capture.appendedSystemPrompt).toContain("# Agent Instructions");
       expect(capture.appendedSystemPrompt).toContain("# Tacit Memory");
     } finally {

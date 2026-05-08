@@ -3,10 +3,18 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { execute } from "@rudderhq/agent-runtime-cursor-local/server";
+import {
+  clearInheritedGitIdentityEnv,
+  confirmedRudderGitIdentity,
+  expectConfirmedGitIdentityCapture,
+  gitIdentityCaptureSnippet,
+  type GitIdentityCapture,
+} from "./local-runtime-git-identity-helpers";
 
 async function writeFakeCursorCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
 const fs = require("node:fs");
+${gitIdentityCaptureSnippet}
 
 const capturePath = process.env.RUDDER_TEST_CAPTURE_PATH;
 const payload = {
@@ -15,6 +23,7 @@ const payload = {
   rudderEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("RUDDER_"))
     .sort(),
+  gitIdentity: captureGitIdentityEnv(),
 };
 if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
@@ -44,6 +53,7 @@ type CapturePayload = {
   argv: string[];
   prompt: string;
   rudderEnvKeys: string[];
+  gitIdentity: GitIdentityCapture;
 };
 
 function setManagedCursorEnv(root: string) {
@@ -117,12 +127,13 @@ describe("cursor execute", () => {
           cwd: workspace,
           model: "auto",
           env: {
+            ...clearInheritedGitIdentityEnv,
             RUDDER_TEST_CAPTURE_PATH: capturePath,
           },
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: { rudderGitIdentity: confirmedRudderGitIdentity },
         authToken: "run-jwt-token",
         onLog: async () => {},
         onMeta: async (meta) => {
@@ -136,6 +147,7 @@ describe("cursor execute", () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expectConfirmedGitIdentityCapture(capture);
       expect(capture.argv).not.toContain("Follow the rudder heartbeat.");
       expect(capture.argv).not.toContain("--mode");
       expect(capture.argv).not.toContain("ask");

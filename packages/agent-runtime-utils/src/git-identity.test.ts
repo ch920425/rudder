@@ -201,6 +201,47 @@ describe("git identity guard", () => {
     }
   });
 
+  it("does not reuse stale managed HOME Git identity when current sources are missing", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-git-identity-stale-managed-"));
+    try {
+      const repo = await createRepoWithoutStoredIdentity(root);
+      const isolatedHome = path.join(root, "agent-home");
+      await fs.mkdir(isolatedHome, { recursive: true });
+      await fs.writeFile(
+        path.join(isolatedHome, ".gitconfig"),
+        [
+          "[user]",
+          "\tname = Old Operator",
+          "\temail = old@example.com",
+          "\tuseConfigOnly = true",
+        ].join("\n") + "\n",
+        "utf8",
+      );
+
+      const result = await ensureGitIdentityFileConfig({
+        cwd: repo,
+        home: isolatedHome,
+        sourceEnv: baseGitTestEnv({
+          HOME: path.join(root, "empty-home"),
+          GIT_CONFIG_NOSYSTEM: "1",
+        }),
+      });
+
+      expect(result.identity).toBeNull();
+      const managedConfig = await fs.readFile(path.join(isolatedHome, ".gitconfig"), "utf8");
+      expect(managedConfig).toContain("useConfigOnly = true");
+      expect(managedConfig).not.toContain("old@example.com");
+      await expect(gitAuthorIdent(repo, {
+        HOME: isolatedHome,
+        GIT_CONFIG_NOSYSTEM: "1",
+      })).rejects.toMatchObject({
+        stderr: expect.not.stringContaining("old@example.com"),
+      });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("applies an isolated Git config and blanks unsafe inherited identity env when identity is missing", async () => {
     const env = {
       GIT_AUTHOR_NAME: "Host User",

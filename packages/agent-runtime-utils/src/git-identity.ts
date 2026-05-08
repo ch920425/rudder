@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export type GitIdentitySource = "environment" | "repository" | "rudder_confirmed" | "global" | "target_config";
+export type GitIdentitySource = "environment" | "repository" | "rudder_confirmed" | "global";
 
 export type GitIdentity = {
   name: string;
@@ -222,8 +222,6 @@ async function writeFallbackGitConfigFile(configPath: string, identity: GitIdent
 async function resolveBestGitIdentity(input: {
   cwd: string;
   sourceEnv: NodeJS.ProcessEnv;
-  targetConfigArgs?: string[];
-  targetCwd?: string | null;
   confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentity | null> {
   return (
@@ -236,13 +234,7 @@ async function resolveBestGitIdentity(input: {
     (await readIdentityFromGitConfig(["config", "--global"], "global", {
       cwd: input.cwd,
       env: input.sourceEnv,
-    })) ??
-    (input.targetConfigArgs
-      ? await readIdentityFromGitConfig(input.targetConfigArgs, "target_config", {
-        cwd: input.targetCwd ?? input.cwd,
-        env: input.sourceEnv,
-      })
-      : null)
+    }))
   );
 }
 
@@ -262,8 +254,6 @@ export async function ensureGitIdentityFileConfig(input: {
   const identity = await resolveBestGitIdentity({
     cwd: input.cwd,
     sourceEnv,
-    targetConfigArgs: configArgs,
-    targetCwd: input.cwd,
     confirmedIdentity: input.confirmedIdentity,
   });
   const includePaths = identity
@@ -316,8 +306,6 @@ export async function ensureGitRepositoryIdentityConfig(input: {
   const identity = await resolveBestGitIdentity({
     cwd,
     sourceEnv,
-    targetConfigArgs: configArgs,
-    targetCwd: cwd,
     confirmedIdentity: input.confirmedIdentity,
   });
   const warnings: string[] = [];
