@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildIssueDocumentsPrompt,
+  syncLocalCliCredentialHomeEntries,
   loadAgentInstructionsPrefix,
   renderTemplate,
   RUDDER_AGENT_OPERATING_CONTRACT,
@@ -13,12 +14,18 @@ import {
 
 const ORIGINAL_HOME = process.env.HOME;
 const ORIGINAL_ZDOTDIR = process.env.ZDOTDIR;
+const ORIGINAL_GIT_AUTHOR_EMAIL = process.env.GIT_AUTHOR_EMAIL;
+const ORIGINAL_GIT_COMMITTER_EMAIL = process.env.GIT_COMMITTER_EMAIL;
 
 afterEach(() => {
   if (ORIGINAL_HOME === undefined) delete process.env.HOME;
   else process.env.HOME = ORIGINAL_HOME;
   if (ORIGINAL_ZDOTDIR === undefined) delete process.env.ZDOTDIR;
   else process.env.ZDOTDIR = ORIGINAL_ZDOTDIR;
+  if (ORIGINAL_GIT_AUTHOR_EMAIL === undefined) delete process.env.GIT_AUTHOR_EMAIL;
+  else process.env.GIT_AUTHOR_EMAIL = ORIGINAL_GIT_AUTHOR_EMAIL;
+  if (ORIGINAL_GIT_COMMITTER_EMAIL === undefined) delete process.env.GIT_COMMITTER_EMAIL;
+  else process.env.GIT_COMMITTER_EMAIL = ORIGINAL_GIT_COMMITTER_EMAIL;
 });
 
 describe("selectPromptTemplate", () => {
@@ -306,6 +313,48 @@ describe("loadAgentInstructionsPrefix", () => {
 });
 
 describe("runChildProcess", () => {
+  it("preserves explicit blank Git identity env overrides", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-run-child-process-git-env-"));
+    const capturePath = path.join(root, "env.json");
+    const scriptPath = path.join(root, "capture-env.mjs");
+    await fs.writeFile(
+      scriptPath,
+      [
+        "import fs from 'node:fs';",
+        "fs.writeFileSync(process.argv[2], JSON.stringify({",
+        "  authorEmail: process.env.GIT_AUTHOR_EMAIL ?? null,",
+        "  committerEmail: process.env.GIT_COMMITTER_EMAIL ?? null,",
+        "}));",
+      ].join("\n"),
+      "utf8",
+    );
+
+    process.env.GIT_AUTHOR_EMAIL = "host@machine.local";
+    process.env.GIT_COMMITTER_EMAIL = "host@machine.local";
+
+    try {
+      const result = await runChildProcess("run-child-process-git-env", process.execPath, [scriptPath, capturePath], {
+        cwd: root,
+        env: { GIT_AUTHOR_EMAIL: "", GIT_COMMITTER_EMAIL: "" },
+        timeoutSec: 5,
+        graceSec: 1,
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        authorEmail: string | null;
+        committerEmail: string | null;
+      };
+      expect(capture.authorEmail).toBe("");
+      expect(capture.committerEmail).toBe("");
+    } finally {
+      delete process.env.GIT_AUTHOR_EMAIL;
+      delete process.env.GIT_COMMITTER_EMAIL;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("drops inherited ZDOTDIR when HOME is isolated for the child process", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-run-child-process-"));
     const capturePath = path.join(root, "env.json");
@@ -429,6 +478,36 @@ describe("runChildProcess", () => {
       expect(() => process.kill(spawnedPid!, 0)).toThrow();
     } finally {
       controller.abort();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("syncLocalCliCredentialHomeEntries", () => {
+  it("links selected host CLI credential entries into a managed runtime home", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-creds-"));
+    const sourceHome = path.join(root, "host-home");
+    const targetHome = path.join(root, "agent-home");
+    const ghHosts = path.join(sourceHome, ".config", "gh", "hosts.yml");
+    const sshKey = path.join(sourceHome, ".ssh", "id_ed25519");
+    await fs.mkdir(path.dirname(ghHosts), { recursive: true });
+    await fs.mkdir(path.dirname(sshKey), { recursive: true });
+    await fs.writeFile(ghHosts, "github.com:\n  oauth_token: redacted\n", "utf8");
+    await fs.writeFile(sshKey, "redacted-key\n", "utf8");
+
+    try {
+      const result = await syncLocalCliCredentialHomeEntries({
+        sourceHome,
+        targetHome,
+        entries: [".config/gh", ".ssh"],
+      });
+
+      expect(result.linked.sort()).toEqual([".config/gh", ".ssh"]);
+      const linkedGh = await fs.readlink(path.join(targetHome, ".config", "gh"));
+      const linkedSsh = await fs.readlink(path.join(targetHome, ".ssh"));
+      expect(path.resolve(path.join(targetHome, ".config"), linkedGh)).toBe(path.join(sourceHome, ".config", "gh"));
+      expect(path.resolve(targetHome, linkedSsh)).toBe(path.join(sourceHome, ".ssh"));
+    } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
   });

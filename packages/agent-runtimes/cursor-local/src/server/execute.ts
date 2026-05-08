@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asString,
   asNumber,
@@ -15,6 +16,7 @@ import {
   ensureRudderSkillSymlink,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  syncLocalCliCredentialHomeEntries,
   readRudderRuntimeSkillEntries,
   resolveRudderDesiredSkillNames,
   removeMaintainerOnlySkillSymlinks,
@@ -272,18 +274,22 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
   const envConfig = parseObject(config.env);
-  const managedHome = await prepareManagedCursorHome(
-    {
-      ...process.env,
-      ...Object.fromEntries(
-        Object.entries(envConfig).filter(
-          (entry): entry is [string, string] => typeof entry[1] === "string",
-        ),
+  const sourceEnv = {
+    ...process.env,
+    ...Object.fromEntries(
+      Object.entries(envConfig).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
       ),
-    },
+    ),
+  };
+  const managedHome = await prepareManagedCursorHome(sourceEnv, onLog, agent.orgId);
+  await syncLocalCliCredentialHomeEntries({ sourceHome: sourceEnv.HOME, targetHome: managedHome, onLog });
+  const preparedGitIdentity = await ensureGitIdentityFileConfig({
+    cwd,
+    home: managedHome,
+    sourceEnv,
     onLog,
-    agent.orgId,
-  );
+  });
   const cursorSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCursorSkillNames = resolveRudderDesiredSkillNames(config, cursorSkillEntries);
   await ensureCursorSkillsInjected(onLog, {
@@ -372,6 +378,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
+  applyGitIdentityPreparationEnv(env, preparedGitIdentity);
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

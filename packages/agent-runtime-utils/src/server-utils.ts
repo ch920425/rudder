@@ -58,6 +58,26 @@ const RUDDER_SKILL_ROOT_RELATIVE_CANDIDATES = [
   "../../skills",
   "../../../../../server/resources/bundled-skills",
 ];
+const DEFAULT_LOCAL_CLI_CREDENTIAL_HOME_ENTRIES = [
+  ".aws",
+  ".azure",
+  ".config/gh",
+  ".config/gcloud",
+  ".config/op",
+  ".config/vercel",
+  ".config/configstore",
+  ".docker",
+  ".fly",
+  ".git-credentials",
+  ".gnupg",
+  ".kube",
+  ".netrc",
+  ".npmrc",
+  ".ssh",
+  ".vercel",
+  "Library/Application Support/gh",
+  "Library/Application Support/com.heroku.cli",
+] as const;
 
 export interface RudderSkillEntry {
   key: string;
@@ -1296,6 +1316,89 @@ export function writeRudderSkillSyncPreference(
   return next;
 }
 
+function nonEmptyEnvPath(value: string | undefined): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? path.resolve(value.trim()) : null;
+}
+
+export function applyLocalCliHomeEnv(
+  targetEnv: Record<string, string>,
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+): void {
+  const home = nonEmptyEnvPath(sourceEnv.HOME) ?? path.resolve(os.homedir());
+  targetEnv.HOME = home;
+
+  const userProfile = nonEmptyEnvPath(sourceEnv.USERPROFILE);
+  if (userProfile) {
+    targetEnv.USERPROFILE = userProfile;
+  } else if (process.platform === "win32") {
+    targetEnv.USERPROFILE = home;
+  }
+}
+
+async function localCliPathExists(candidate: string): Promise<boolean> {
+  return fs.access(candidate).then(() => true).catch(() => false);
+}
+
+async function ensureSymlinkToSource(target: string, source: string): Promise<"created" | "repaired" | "skipped"> {
+  const existing = await fs.lstat(target).catch(() => null);
+  if (!existing) {
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.symlink(source, target);
+    return "created";
+  }
+
+  if (!existing.isSymbolicLink()) return "skipped";
+
+  const linkedPath = await fs.readlink(target).catch(() => null);
+  if (!linkedPath) return "skipped";
+
+  const resolvedLinkedPath = path.isAbsolute(linkedPath)
+    ? linkedPath
+    : path.resolve(path.dirname(target), linkedPath);
+  if (resolvedLinkedPath === source) return "skipped";
+
+  await fs.unlink(target);
+  await fs.symlink(source, target);
+  return "repaired";
+}
+
+export async function syncLocalCliCredentialHomeEntries(input: {
+  sourceHome?: string | null;
+  targetHome: string;
+  entries?: readonly string[];
+  onLog?: ((stream: "stdout" | "stderr", chunk: string) => Promise<void>) | null;
+}): Promise<{ linked: string[]; skipped: string[] }> {
+  const sourceHome = nonEmptyEnvPath(input.sourceHome ?? undefined) ?? path.resolve(os.homedir());
+  const targetHome = path.resolve(input.targetHome);
+  const linked: string[] = [];
+  const skipped: string[] = [];
+  if (sourceHome === targetHome) return { linked, skipped };
+
+  const entries = input.entries ?? DEFAULT_LOCAL_CLI_CREDENTIAL_HOME_ENTRIES;
+  for (const relativeEntry of entries) {
+    const source = path.join(sourceHome, relativeEntry);
+    if (!(await localCliPathExists(source))) continue;
+
+    const target = path.join(targetHome, relativeEntry);
+    try {
+      const result = await ensureSymlinkToSource(target, source);
+      if (result === "skipped") skipped.push(relativeEntry);
+      else linked.push(relativeEntry);
+    } catch {
+      skipped.push(relativeEntry);
+    }
+  }
+
+  if (input.onLog && linked.length > 0) {
+    await input.onLog(
+      "stdout",
+      `[rudder] Shared ${linked.length} local CLI credential entr${linked.length === 1 ? "y" : "ies"} into managed HOME ${targetHome}: ${linked.join(", ")}\n`,
+    );
+  }
+
+  return { linked, skipped };
+}
+
 export async function ensureRudderSkillSymlink(
   source: string,
   target: string,
@@ -1431,7 +1534,9 @@ export async function runChildProcess(
       "GIT_COMMITTER_EMAIL",
     ] as const;
     for (const key of GIT_IDENTITY_ENV_VARS) {
-      if (rawMerged[key] === "") delete rawMerged[key];
+      if (rawMerged[key] === "" && !Object.prototype.hasOwnProperty.call(opts.env, key)) {
+        delete rawMerged[key];
+      }
     }
 
     // When Rudder isolates HOME for child agents, don't let zsh keep using the

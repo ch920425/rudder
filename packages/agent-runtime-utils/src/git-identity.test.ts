@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+  applyGitIdentityPreparationEnv,
   ensureGitIdentityFileConfig,
   ensureGitRepositoryIdentityConfig,
   isUnsafeGitIdentityEmail,
@@ -94,6 +95,63 @@ describe("git identity guard", () => {
     }
   });
 
+  it("includes host global Git config when a safe identity is resolved", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-git-identity-include-"));
+    try {
+      const repo = await createRepoWithoutStoredIdentity(root);
+      const hostHome = path.join(root, "host-home");
+      const isolatedHome = path.join(root, "agent-home");
+      await fs.mkdir(hostHome, { recursive: true });
+      await fs.writeFile(
+        path.join(hostHome, ".gitconfig"),
+        [
+          "[user]",
+          "\tname = Host Operator",
+          "\temail = operator@example.com",
+          "[credential]",
+          "\thelper = store",
+        ].join("\n") + "\n",
+        "utf8",
+      );
+
+      const result = await ensureGitIdentityFileConfig({
+        cwd: repo,
+        home: isolatedHome,
+        sourceEnv: {
+          ...process.env,
+          HOME: hostHome,
+          GIT_CONFIG_NOSYSTEM: "1",
+        },
+      });
+
+      expect(result.identity).toMatchObject({
+        name: "Host Operator",
+        email: "operator@example.com",
+        source: "global",
+      });
+      await expect(runGit(repo, [
+        "config",
+        "--get",
+        "credential.helper",
+      ], {
+        HOME: isolatedHome,
+        GIT_CONFIG_GLOBAL: path.join(isolatedHome, ".gitconfig"),
+        GIT_CONFIG_NOSYSTEM: "1",
+      })).resolves.toMatchObject({ stdout: "store\n" });
+      await expect(runGit(repo, [
+        "config",
+        "--get",
+        "user.email",
+      ], {
+        HOME: isolatedHome,
+        GIT_CONFIG_GLOBAL: path.join(isolatedHome, ".gitconfig"),
+        GIT_CONFIG_NOSYSTEM: "1",
+      })).resolves.toMatchObject({ stdout: "operator@example.com\n" });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prevents Git fallback commits when isolated HOME has no usable identity", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-git-identity-missing-"));
     try {
@@ -132,6 +190,53 @@ describe("git identity guard", () => {
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("applies an isolated Git config and blanks unsafe inherited identity env when identity is missing", async () => {
+    const env = {
+      GIT_AUTHOR_NAME: "Host User",
+      GIT_AUTHOR_EMAIL: "host@machine.local",
+      GIT_COMMITTER_NAME: "Host User",
+      GIT_COMMITTER_EMAIL: "host@machine.local",
+    };
+
+    applyGitIdentityPreparationEnv(env, {
+      identity: null,
+      configTarget: "/tmp/rudder-agent-home/.gitconfig",
+      configuredUseConfigOnly: true,
+      warnings: [],
+    });
+
+    expect(env).toMatchObject({
+      GIT_CONFIG_GLOBAL: "/tmp/rudder-agent-home/.gitconfig",
+      GIT_AUTHOR_NAME: "",
+      GIT_AUTHOR_EMAIL: "",
+      GIT_COMMITTER_NAME: "",
+      GIT_COMMITTER_EMAIL: "",
+    });
+  });
+
+  it("applies isolated Git config and confirmed identity env when identity is available", async () => {
+    const env: Record<string, string> = {};
+
+    applyGitIdentityPreparationEnv(env, {
+      identity: {
+        name: "Rudder Operator",
+        email: "operator@example.com",
+        source: "global",
+      },
+      configTarget: "/tmp/rudder-agent-home/.gitconfig",
+      configuredUseConfigOnly: true,
+      warnings: [],
+    });
+
+    expect(env).toMatchObject({
+      GIT_CONFIG_GLOBAL: "/tmp/rudder-agent-home/.gitconfig",
+      GIT_AUTHOR_NAME: "Rudder Operator",
+      GIT_AUTHOR_EMAIL: "operator@example.com",
+      GIT_COMMITTER_NAME: "Rudder Operator",
+      GIT_COMMITTER_EMAIL: "operator@example.com",
+    });
   });
 
   it("configures repository useConfigOnly without inventing a fallback identity", async () => {

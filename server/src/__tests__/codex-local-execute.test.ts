@@ -410,8 +410,8 @@ describe("codex execute", () => {
       });
 
       expect(result.exitCode).toBe(128);
-      expect(result.errorMessage).toContain("Author identity unknown");
-      expect(result.resultJson?.stderr).toContain("auto-detection is disabled");
+      expect(result.errorMessage).toContain("empty ident name");
+      expect(result.resultJson?.stderr).toContain("empty ident name");
       expect(result.resultJson?.stderr).not.toContain(".local");
       const count = await runGit(workspace, ["rev-list", "--count", "HEAD"]);
       expect(count.stdout.trim()).toBe("1");

@@ -266,6 +266,14 @@ That means:
 - prompt instructions matter
 - configured credentials/env vars are sensitive
 - working directory permissions matter
+- managed local runtime homes must not break normal operator CLI login state;
+  when a runtime uses a managed HOME for skill/session isolation, Rudder bridges
+  common local CLI credential directories such as `gh`, `ssh`, `npm`, Docker,
+  Kubernetes, and cloud CLIs into that managed HOME
+- Git author identity is still protected separately: Rudder prepares a managed
+  Git config with `user.useConfigOnly=true` and injects `GIT_CONFIG_GLOBAL` plus
+  explicit author/committer env vars so CLI credential sharing does not allow
+  hostname `.local` fallback commit authors
 
 Start with least privilege where possible, and avoid exposing secrets in broad reusable prompts unless intentionally required.
 

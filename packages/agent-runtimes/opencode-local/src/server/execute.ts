@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asString,
   asNumber,
@@ -16,6 +17,7 @@ import {
   ensureRudderSkillSymlink,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  syncLocalCliCredentialHomeEntries,
   renderTemplate,
   runChildProcess,
   readRudderRuntimeSkillEntries,
@@ -249,11 +251,20 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;
   }
-  const managedHome = await prepareManagedOpenCodeHome({ ...process.env, ...env }, onLog, agent.orgId);
+  const sourceEnv = { ...process.env, ...env };
+  const managedHome = await prepareManagedOpenCodeHome(sourceEnv, onLog, agent.orgId);
+  await syncLocalCliCredentialHomeEntries({ sourceHome: sourceEnv.HOME, targetHome: managedHome, onLog });
+  const preparedGitIdentity = await ensureGitIdentityFileConfig({
+    cwd,
+    home: managedHome,
+    sourceEnv,
+    onLog,
+  });
   env.HOME = managedHome;
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
+  applyGitIdentityPreparationEnv(env, preparedGitIdentity);
   const openCodeSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredOpenCodeSkillNames = resolveRudderDesiredSkillNames(config, openCodeSkillEntries);
   await ensureOpenCodeSkillsInjected(

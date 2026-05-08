@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import type { RunProcessResult } from "@rudderhq/agent-runtime-utils/server-utils";
 import {
   asString,
@@ -19,6 +20,7 @@ import {
   ensureCommandResolvable,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  syncLocalCliCredentialHomeEntries,
   renderTemplate,
   loadAgentInstructionsPrefix,
   runChildProcess,
@@ -344,15 +346,28 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     if (typeof value === "string") env[key] = value;
   }
 
+  const sourceEnv = { ...process.env, ...env };
   env.HOME = await prepareManagedClaudeHome(
-    { ...process.env, ...env },
+    sourceEnv,
     input.onLog ?? (async () => {}),
     agent.orgId,
   );
+  await syncLocalCliCredentialHomeEntries({
+    sourceHome: sourceEnv.HOME,
+    targetHome: env.HOME,
+    onLog: input.onLog,
+  });
+  const preparedGitIdentity = await ensureGitIdentityFileConfig({
+    cwd,
+    home: env.HOME,
+    sourceEnv,
+    onLog: input.onLog,
+  });
 
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
+  applyGitIdentityPreparationEnv(env, preparedGitIdentity);
 
   const runtimeEnv = ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env }));
   await ensureCommandResolvable(command, cwd, runtimeEnv);

@@ -17,6 +17,13 @@ export type GitIdentityPreparationResult = {
   warnings: string[];
 };
 
+const GIT_IDENTITY_ENV_KEYS = [
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+] as const;
+
 type GitCommandResult = {
   code: number | null;
   stdout: string;
@@ -47,6 +54,22 @@ export function isUnsafeGitIdentityEmail(email: string | null | undefined): bool
   if (!normalized) return true;
   if (!EMAIL_RE.test(normalized)) return true;
   return LOCAL_EMAIL_RE.test(normalized);
+}
+
+export function applyGitIdentityPreparationEnv(
+  env: Record<string, string>,
+  preparation: GitIdentityPreparationResult,
+): void {
+  env.GIT_CONFIG_GLOBAL = preparation.configTarget;
+  if (!preparation.identity) {
+    for (const key of GIT_IDENTITY_ENV_KEYS) env[key] = "";
+    return;
+  }
+
+  env.GIT_AUTHOR_NAME = preparation.identity.name;
+  env.GIT_AUTHOR_EMAIL = preparation.identity.email;
+  env.GIT_COMMITTER_NAME = preparation.identity.name;
+  env.GIT_COMMITTER_EMAIL = preparation.identity.email;
 }
 
 function buildIdentity(
@@ -135,8 +158,48 @@ async function unsetGitConfigValue(args: string[], key: string, opts: { cwd?: st
   await runGit([...args, "--unset-all", key], opts);
 }
 
-async function writeFallbackGitConfigFile(configPath: string, identity: GitIdentity | null): Promise<void> {
-  const lines = ["[user]", "\tuseConfigOnly = true"];
+async function existingGitConfigPaths(candidates: string[]): Promise<string[]> {
+  const seen = new Set<string>();
+  const existing: string[] = [];
+  for (const candidate of candidates) {
+    const normalized = nonEmpty(candidate);
+    if (!normalized) continue;
+    const resolved = path.resolve(normalized);
+    if (seen.has(resolved)) continue;
+    const stat = await fs.stat(resolved).catch(() => null);
+    if (!stat?.isFile()) continue;
+    seen.add(resolved);
+    existing.push(resolved);
+  }
+  return existing;
+}
+
+async function resolveHostGlobalGitConfigIncludes(sourceEnv: NodeJS.ProcessEnv, targetConfigPath: string): Promise<string[]> {
+  const home = nonEmpty(sourceEnv.HOME);
+  const xdgConfigHome = nonEmpty(sourceEnv.XDG_CONFIG_HOME);
+  const candidates = [
+    nonEmpty(sourceEnv.GIT_CONFIG_GLOBAL) ?? "",
+    home ? path.join(home, ".gitconfig") : "",
+    xdgConfigHome ? path.join(xdgConfigHome, "git", "config") : "",
+    home ? path.join(home, ".config", "git", "config") : "",
+  ].filter(Boolean);
+  const target = path.resolve(targetConfigPath);
+  return (await existingGitConfigPaths(candidates)).filter((candidate) => candidate !== target);
+}
+
+function renderGitConfigIncludes(includePaths: string[]): string[] {
+  if (includePaths.length === 0) return [];
+  return ["[include]", ...includePaths.map((includePath) => `\tpath = ${includePath}`), ""];
+}
+
+async function writeGitConfigSeed(configPath: string, includePaths: string[]): Promise<void> {
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+  const lines = renderGitConfigIncludes(includePaths);
+  await fs.writeFile(configPath, lines.length > 0 ? `${lines.join("\n")}\n` : "", "utf8");
+}
+
+async function writeFallbackGitConfigFile(configPath: string, identity: GitIdentity | null, includePaths: string[] = []): Promise<void> {
+  const lines = [...renderGitConfigIncludes(includePaths), "[user]", "\tuseConfigOnly = true"];
   if (identity) {
     lines.push(`\tname = ${identity.name}`);
     lines.push(`\temail = ${identity.email}`);
@@ -188,9 +251,13 @@ export async function ensureGitIdentityFileConfig(input: {
     targetConfigArgs: configArgs,
     targetCwd: input.cwd,
   });
+  const includePaths = identity
+    ? await resolveHostGlobalGitConfigIncludes(sourceEnv, gitConfigPath)
+    : [];
   const warnings: string[] = [];
 
   try {
+    await writeGitConfigSeed(gitConfigPath, includePaths);
     await setGitConfigValue(configArgs, "user.useConfigOnly", "true", { cwd: input.cwd, env: sourceEnv });
     if (identity) {
       await setGitConfigValue(configArgs, "user.name", identity.name, { cwd: input.cwd, env: sourceEnv });
@@ -201,7 +268,7 @@ export async function ensureGitIdentityFileConfig(input: {
     }
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : String(error));
-    await writeFallbackGitConfigFile(gitConfigPath, identity);
+    await writeFallbackGitConfigFile(gitConfigPath, identity, includePaths);
   }
 
   if (input.onLog) {
