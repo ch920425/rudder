@@ -70,7 +70,17 @@ async function getAvailablePort(): Promise<number> {
   });
 }
 
+function getExternalDatabaseUrl(): string | null {
+  return process.env.RUDDER_MESSENGER_SERVICE_TEST_DATABASE_URL?.trim() || null;
+}
+
 async function startTempDatabase() {
+  const externalDatabaseUrl = getExternalDatabaseUrl();
+  if (externalDatabaseUrl) {
+    await applyPendingMigrations(externalDatabaseUrl);
+    return { connectionString: externalDatabaseUrl, dataDir: "", instance: null };
+  }
+
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudder-messenger-service-"));
   const port = await getAvailablePort();
   const EmbeddedPostgres = await getEmbeddedPostgresCtor();
