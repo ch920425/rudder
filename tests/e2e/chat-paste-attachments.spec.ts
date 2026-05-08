@@ -66,6 +66,26 @@ process.stdin.on("end", async () => {
   return { tempDir, stubPath, capturePath };
 }
 
+async function pasteTextAttachment(page: Page, fileName: string, contents: string) {
+  const composer = page.locator(".rudder-mdxeditor-content").first();
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await composer.evaluate(
+    async (element, payload) => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(
+        new File([payload.contents], payload.fileName, { type: "text/plain" }),
+      );
+
+      const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: dataTransfer,
+      });
+      element.dispatchEvent(pasteEvent);
+    },
+    { fileName, contents },
+  );
+}
+
 test("pastes clipboard images and files into chat as pending attachments and exposes them to the assistant", async ({ page }) => {
   const { tempDir, stubPath, capturePath } = await createAttachmentAwareCodexStub();
   try {
@@ -245,4 +265,61 @@ test("pastes clipboard images and files into chat as pending attachments and exp
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("keeps pending pasted attachments scoped to the active chat conversation", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const organization = await createStreamingOrg(page, `Paste-Scope-${Date.now()}`, {
+    model: "gpt-5.4",
+  });
+
+  const firstChatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+    data: {
+      title: "Attachment scope A",
+      preferredAgentId: organization.chatAgent.id,
+      issueCreationMode: "manual_approval",
+      planMode: false,
+    },
+  });
+  expect(firstChatRes.ok()).toBe(true);
+  const firstChat = await firstChatRes.json();
+
+  const secondChatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+    data: {
+      title: "Attachment scope B",
+      preferredAgentId: organization.chatAgent.id,
+      issueCreationMode: "manual_approval",
+      planMode: false,
+    },
+  });
+  expect(secondChatRes.ok()).toBe(true);
+  const secondChat = await secondChatRes.json();
+
+  await page.goto("/");
+  await page.evaluate((orgId) => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+  }, organization.id);
+
+  await page.goto(`/${organization.issuePrefix}/messenger/chat/${firstChat.id}`);
+  await pasteTextAttachment(page, "scope-a.txt", "Attachment for the first chat only.");
+
+  const pendingAttachments = page.getByTestId("chat-pending-attachment");
+  await expect(pendingAttachments).toHaveCount(1);
+  await expect(pendingAttachments.filter({ hasText: "scope-a.txt" })).toBeVisible();
+  await expect(pendingAttachments.filter({ hasText: "scope-b.txt" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: /Attachment scope B/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/${organization.issuePrefix}/messenger/chat/${secondChat.id}$`));
+  await expect(pendingAttachments).toHaveCount(0);
+
+  await pasteTextAttachment(page, "scope-b.txt", "Attachment for the second chat only.");
+  await expect(pendingAttachments).toHaveCount(1);
+  await expect(pendingAttachments.filter({ hasText: "scope-b.txt" })).toBeVisible();
+  await expect(pendingAttachments.filter({ hasText: "scope-a.txt" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: /Attachment scope A/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/${organization.issuePrefix}/messenger/chat/${firstChat.id}$`));
+  await expect(pendingAttachments).toHaveCount(1);
+  await expect(pendingAttachments.filter({ hasText: "scope-a.txt" })).toBeVisible();
+  await expect(pendingAttachments.filter({ hasText: "scope-b.txt" })).toHaveCount(0);
 });
