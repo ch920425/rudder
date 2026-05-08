@@ -22,6 +22,8 @@ type TranscriptToolCategory =
   | "tool"
   | "bash"
   | "script"
+  | "help"
+  | "install"
   | "read"
   | "edit"
   | "grep"
@@ -355,17 +357,114 @@ function stripWrappedShell(command: string): string {
   return compactWhitespace(decodeShellEscapes(quoted?.[2] ?? inner));
 }
 
-function firstCommandToken(command: string): string {
-  return stripWrappedShell(command).split(/\s+/)[0]?.toLowerCase() ?? "";
+function tokenizeShellForClassification(command: string): string[] {
+  const tokens = stripWrappedShell(command).match(/&&|\|\||[|;&]|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|(?:\\.|[^\s|;&])+/g) ?? [];
+  return tokens.map((token) => {
+    if (isShellControlToken(token)) return token;
+    return unwrapQuotedToken(token).trim();
+  }).filter(Boolean);
+}
+
+function shellTokensForCommand(command: string): string[] {
+  return tokenizeShellForClassification(command);
+}
+
+function isShellControlToken(token: string): boolean {
+  return /^(?:&&|\|\||[|;&])$/.test(token);
+}
+
+function commandSegmentFrom(tokens: string[], startIndex: number): string[] {
+  const segment: string[] = [];
+  for (const token of tokens.slice(startIndex)) {
+    if (isShellControlToken(token)) break;
+    segment.push(token);
+  }
+  return segment;
+}
+
+function hasHelpSignal(tokens: string[]): boolean {
+  return tokens.some((token) => token === "--help" || token === "-h" || token === "help");
+}
+
+function hasStdoutWriteRedirect(command: string): boolean {
+  const normalized = stripWrappedShell(command);
+  const redirect = normalized.match(/(?:^|\s)(?:1?>{1,2}|&>)\s*([^\s|&;]+)/);
+  const target = redirect?.[1] ? cleanShellToken(redirect[1]) : null;
+  return Boolean(target && target !== "/dev/null");
+}
+
+function commandUsesInPlaceSed(tokens: string[]): boolean {
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index] !== "sed") continue;
+    const segment = commandSegmentFrom(tokens, index + 1);
+    if (segment.some((token) => token === "--in-place" || token.startsWith("--in-place=") || /^-[^-]*i/.test(token))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function commandUsesInPlacePerl(tokens: string[]): boolean {
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index] !== "perl") continue;
+    const segment = commandSegmentFrom(tokens, index + 1);
+    if (segment.some((token) => /^-[^-]*p[^-]*i|^-[^-]*i[^-]*p/.test(token))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isPackageInstallCommand(firstToken: string, tokens: string[]): boolean {
+  const args = commandSegmentFrom(tokens, 1).filter((token) => token !== "--" && !token.startsWith("-"));
+  const action = args[0];
+  if (!action) return false;
+
+  if (["npm", "pnpm", "yarn", "bun"].includes(firstToken)) {
+    return action === "install" || action === "i" || action === "add";
+  }
+  if (["pip", "pip3", "uv", "poetry"].includes(firstToken)) {
+    return action === "install" || action === "add";
+  }
+  if (firstToken === "bundle") return action === "install" || action === "add";
+  if (firstToken === "composer") return action === "install" || action === "require";
+  return false;
 }
 
 function classifyShellCommand(command: string): { category: TranscriptToolCategory; label: string } {
   const normalized = stripWrappedShell(command);
-  const firstToken = firstCommandToken(command);
+  const tokens = shellTokensForCommand(command);
+  const firstToken = tokens[0]?.toLowerCase() ?? "";
   const normalizedLower = normalized.toLowerCase();
 
   if (!firstToken) {
     return { category: "bash", label: "Command" };
+  }
+
+  if (
+    firstToken === "apply_patch" ||
+    firstToken === "patch" ||
+    firstToken === "ed" ||
+    firstToken === "tee" ||
+    firstToken === "mv" ||
+    firstToken === "cp" ||
+    firstToken === "rm" ||
+    firstToken === "mkdir" ||
+    firstToken === "touch" ||
+    commandUsesInPlaceSed(tokens) ||
+    commandUsesInPlacePerl(tokens) ||
+    /\btee\b/.test(normalizedLower) ||
+    hasStdoutWriteRedirect(command)
+  ) {
+    return { category: "edit", label: "Edit" };
+  }
+
+  if (isPackageInstallCommand(firstToken, tokens)) {
+    return { category: "install", label: "Install" };
+  }
+
+  if (hasHelpSignal(commandSegmentFrom(tokens, 0))) {
+    return { category: "help", label: "Help" };
   }
 
   if (firstToken === "rg" && /\s--files(?:\s|$)/.test(normalizedLower)) {
@@ -396,26 +495,6 @@ function classifyShellCommand(command: string): { category: TranscriptToolCatego
     firstToken === "wc"
   ) {
     return { category: "read", label: "Read" };
-  }
-  if (
-    firstToken === "apply_patch" ||
-    firstToken === "patch" ||
-    firstToken === "ed" ||
-    firstToken === "tee" ||
-    firstToken === "mv" ||
-    firstToken === "cp" ||
-    firstToken === "rm" ||
-    firstToken === "mkdir" ||
-    firstToken === "touch" ||
-    firstToken === "printf" ||
-    firstToken === "perl" ||
-    /\b-sed\b/.test(normalizedLower) ||
-    /\bsed\s+-i\b/.test(normalizedLower) ||
-    /\bperl\b.*-0?pi\b/.test(normalizedLower) ||
-    /\btee\b/.test(normalizedLower) ||
-    /\s>\s|\s>>\s/.test(normalized)
-  ) {
-    return { category: "edit", label: "Edit" };
   }
   if (firstToken === "git") {
     if (/\b(diff|show|status|log|blame|grep)\b/.test(normalizedLower)) {
@@ -506,6 +585,11 @@ function isLikelyPathToken(token: string): boolean {
   if (COMMON_FILENAME_TOKENS.has(value)) return true;
   if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+$/.test(value)) return true;
   return false;
+}
+
+function isLikelySedExpressionToken(token: string): boolean {
+  const value = normalizePathTarget(token);
+  return Boolean(value && /^(?:s|y|tr)\/.*\/[a-z]*$/i.test(value));
 }
 
 function getShellPositionalArgs(command: string): string[] {
@@ -832,6 +916,12 @@ function extractShellFlagValue(tokens: string[], flag: string): string | null {
   return value;
 }
 
+function formatRudderTarget(target: string | undefined): string | null {
+  if (!target || target.startsWith("-")) return null;
+  const normalized = target.replace(/^#/, "");
+  return isShellControlToken(normalized) ? null : normalized;
+}
+
 function summarizeIssueComment(command: string): string | null {
   const tokens = tokenizeShell(command);
   const comment = extractShellFlagValue(tokens, "--comment");
@@ -849,29 +939,92 @@ function summarizeIssueComment(command: string): string | null {
 }
 
 function describeRudderCommandSemanticInfo(command: string): TranscriptToolSemanticInfo | null {
-  const tokens = tokenizeShell(command);
+  const tokens = shellTokensForCommand(command);
   const rudderIndex = tokens.findIndex((token) => token === "rudder");
   if (rudderIndex === -1) return null;
 
   const subcommand = tokens[rudderIndex + 1];
   const action = tokens[rudderIndex + 2];
-  const target = tokens[rudderIndex + 3];
-  if (subcommand !== "issue" || !action || !target) return null;
+  if (!subcommand || hasHelpSignal(commandSegmentFrom(tokens, rudderIndex))) {
+    return {
+      category: "help",
+      label: "Rudder help",
+      summary: subcommand ? `Checked rudder ${subcommand} help` : "Checked rudder help",
+      bucket: "run",
+      quantity: 1,
+      noun: "command",
+    };
+  }
 
-  const issueKey = target.replace(/^#/, "");
-  const commentSummary = summarizeIssueComment(command);
-  const suffix = commentSummary ? ` · ${commentSummary}` : "";
-  const actionLabel =
-    action === "done" || action === "close" || action === "complete"
-      ? `Marked ${issueKey} done`
-      : action === "comment"
-        ? `Commented on ${issueKey}`
-        : `Updated ${issueKey}`;
+  if (subcommand === "issue") {
+    if (!action) return null;
+
+    if (action === "comments") {
+      const commentsAction = tokens[rudderIndex + 3];
+      const commentsTarget = formatRudderTarget(tokens[rudderIndex + 4]);
+      return {
+        category: "inspect",
+        label: "Rudder issue",
+        summary: commentsTarget
+          ? `Inspected comments for ${commentsTarget}`
+          : commentsAction
+            ? "Inspected issue comments"
+            : "Inspected issues",
+        bucket: "run",
+        quantity: 1,
+        noun: "command",
+      };
+    }
+
+    const target = formatRudderTarget(tokens[rudderIndex + 3]);
+
+    if (["context", "get", "list"].includes(action)) {
+      return {
+        category: "inspect",
+        label: "Rudder issue",
+        summary: target ? `Inspected ${target}` : "Inspected issues",
+        bucket: "run",
+        quantity: 1,
+        noun: "command",
+      };
+    }
+
+    if (["done", "close", "complete", "comment", "checkout"].includes(action) && target) {
+      const commentSummary = summarizeIssueComment(command);
+      const suffix = commentSummary ? ` · ${commentSummary}` : "";
+      const actionLabel =
+        action === "done" || action === "close" || action === "complete"
+          ? `Marked ${target} done`
+          : action === "comment"
+            ? `Commented on ${target}`
+            : `Checked out ${target}`;
+
+      return {
+        category: "script",
+        label: "Issue update",
+        summary: `${actionLabel}${suffix}`,
+        bucket: "run",
+        quantity: 1,
+        noun: "command",
+      };
+    }
+  }
+
+  if (["agent", "approval", "org", "project", "goal"].includes(subcommand)) {
+    return {
+      category: "script",
+      label: "Rudder command",
+      summary: `Ran rudder ${subcommand} command`,
+      bucket: "run",
+      quantity: 1,
+      noun: "command",
+    };
+  }
 
   return {
     category: "script",
-    label: "Issue update",
-    summary: `${actionLabel}${suffix}`,
+    label: "Rudder command",
+    summary: "Ran rudder command",
     bucket: "run",
     quantity: 1,
     noun: "command",
@@ -884,8 +1037,34 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
 
   const invocation = classifyShellCommand(command);
   const normalized = stripWrappedShell(command);
+  const classificationTokens = shellTokensForCommand(command);
   const positionalArgs = getShellPositionalArgs(command);
   const pathTargets = dedupeTargets(positionalArgs.filter(isLikelyPathToken));
+
+  if (invocation.category === "help") {
+    const segment = commandSegmentFrom(classificationTokens, 0);
+    const helpIndex = segment.findIndex((token) => token === "--help" || token === "-h" || token === "help");
+    const helpSubject = segment.slice(0, helpIndex === -1 ? Math.min(segment.length, 2) : helpIndex).join(" ");
+    return {
+      category: invocation.category,
+      label: invocation.label,
+      summary: helpSubject ? `Checked ${helpSubject} help` : "Checked command help",
+      bucket: "run",
+      quantity: 1,
+      noun: "command",
+    };
+  }
+
+  if (invocation.category === "install") {
+    return {
+      category: invocation.category,
+      label: invocation.label,
+      summary: "Installed packages",
+      bucket: "edit",
+      quantity: 1,
+      noun: "item",
+    };
+  }
 
   if (invocation.category === "read") {
     const fallbackTarget = positionalArgs[positionalArgs.length - 1];
@@ -934,8 +1113,11 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
   if (invocation.category === "edit") {
     const redirectTarget = normalized.match(/(?:^|\s)(?:>>?|tee)\s+([^\s]+)/);
     const fallbackTarget = redirectTarget?.[1] ?? positionalArgs[positionalArgs.length - 1];
-    const targets = pathTargets.length > 0
-      ? pathTargets
+    const editPathTargets = commandUsesInPlaceSed(classificationTokens)
+      ? pathTargets.filter((target) => !isLikelySedExpressionToken(target))
+      : pathTargets;
+    const targets = editPathTargets.length > 0
+      ? editPathTargets
       : fallbackTarget
         ? dedupeTargets([fallbackTarget])
         : [];
@@ -970,7 +1152,9 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
   return {
     category: invocation.category,
     label: invocation.label,
-    summary: `Ran ${truncate(summarizeCommandPhrase(command), 64)}`,
+    summary: classificationTokens.some((token) => token === "|" || token === ";" || token === "&&" || token === "||")
+      ? "Ran shell command"
+      : `Ran ${truncate(summarizeCommandPhrase(command), 64)}`,
     bucket: "run",
     quantity: 1,
     noun: "command",

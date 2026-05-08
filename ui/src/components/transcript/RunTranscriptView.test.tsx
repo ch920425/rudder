@@ -10,6 +10,33 @@ function countOccurrences(value: string, needle: string) {
   return value.split(needle).length - 1;
 }
 
+function renderCommandSummary(command: string) {
+  return renderToStaticMarkup(
+    <ThemeProvider>
+      <RunTranscriptView
+        density="compact"
+        presentation="chat"
+        entries={[
+          {
+            kind: "tool_call",
+            ts: "2026-03-12T00:00:01.000Z",
+            name: "command_execution",
+            toolUseId: "cmd-summary-1",
+            input: { command },
+          },
+          {
+            kind: "tool_result",
+            ts: "2026-03-12T00:00:02.000Z",
+            toolUseId: "cmd-summary-1",
+            content: "command completed",
+            isError: false,
+          },
+        ]}
+      />
+    </ThemeProvider>,
+  );
+}
+
 describe("RunTranscriptView", () => {
   it("recognizes only local file targets for transcript links", () => {
     expect(resolveTranscriptLocalFileTarget("/Users/zeeland/work/result.md")).toBe("/Users/zeeland/work/result.md");
@@ -487,6 +514,41 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Command activity");
     expect(html).not.toContain("Review Summary\\n\\n");
     expect(html).not.toContain("data-testid=\"command-terminal-detail\"");
+  });
+
+  it("summarizes Rudder help pipelines neutrally instead of as issue mutations", () => {
+    const html = renderCommandSummary("rudder issue --help | sed -n '1,120p'");
+
+    expect(html).toContain("Checked rudder issue help");
+    expect(html).not.toContain("Updated sed");
+    expect(html).not.toContain("Updated --help");
+  });
+
+  it("customizes read-only Rudder issue commands separately from issue updates", () => {
+    const html = renderCommandSummary("rudder issue context RUD-38 --json | sed -n '1,80p'");
+    const commentsHtml = renderCommandSummary("rudder issue comments list RUD-38 --json");
+
+    expect(html).toContain("Inspected RUD-38");
+    expect(html).not.toContain("Updated RUD-38");
+    expect(commentsHtml).toContain("Inspected comments for RUD-38");
+    expect(commentsHtml).not.toContain("Updated list");
+  });
+
+  it("keeps sed pipelines neutral or read-only unless a strong write signal exists", () => {
+    const readPipeline = renderCommandSummary("cat README.md | sed -n '1,40p'");
+    const writeCommand = renderCommandSummary("sed -i '' 's/old/new/' README.md");
+
+    expect(readPipeline).toContain("Read README.md");
+    expect(readPipeline).not.toContain("Edited");
+    expect(writeCommand).toContain("Edited README.md");
+  });
+
+  it("degrades unknown complex shell pipelines to a neutral fallback", () => {
+    const html = renderCommandSummary("foo --bar | sed -n '1,20p'");
+
+    expect(html).toContain("Ran shell command");
+    expect(html).not.toContain("Updated sed");
+    expect(html).not.toContain("Edited");
   });
 
   it("filters routine Rudder-managed runtime home logs from nice transcript views", () => {
