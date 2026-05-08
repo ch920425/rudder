@@ -12,8 +12,10 @@ import {
   canContinueInterruptedChatMessage,
   computeDisplayedChatMessages,
   isChatAgentSelectionLocked,
+  readChatScopedPendingFiles,
   scrollChatMessagesToBottom,
   statusChipClassName,
+  updateChatScopedPendingFiles,
   withOptimisticPlanMode,
 } from "./Chat";
 
@@ -202,6 +204,36 @@ describe("scrollChatMessagesToBottom", () => {
     scrollChatMessagesToBottom(element);
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 1248, behavior: "auto" });
+  });
+});
+
+describe("chat scoped pending files", () => {
+  it("keeps pending attachments scoped by conversation", () => {
+    const chatOneFiles = [{ name: "chat-one.png" }];
+    const chatTwoFiles = [{ name: "chat-two.txt" }];
+    let scopes: Record<string, Array<{ name: string }>> = {};
+
+    scopes = updateChatScopedPendingFiles(scopes, "org-1:chat-1", () => chatOneFiles);
+    scopes = updateChatScopedPendingFiles(scopes, "org-1:chat-2", () => chatTwoFiles);
+
+    expect(readChatScopedPendingFiles(scopes, "org-1:chat-1")).toBe(chatOneFiles);
+    expect(readChatScopedPendingFiles(scopes, "org-1:chat-2")).toBe(chatTwoFiles);
+    expect(readChatScopedPendingFiles(scopes, "org-1:chat-3")).toEqual([]);
+  });
+
+  it("clears only the active conversation attachment scope", () => {
+    const chatOneFiles = [{ name: "chat-one.png" }];
+    const chatTwoFiles = [{ name: "chat-two.txt" }];
+    let scopes: Record<string, Array<{ name: string }>> = {
+      "org-1:chat-1": chatOneFiles,
+      "org-1:chat-2": chatTwoFiles,
+    };
+
+    scopes = updateChatScopedPendingFiles(scopes, "org-1:chat-1", () => []);
+
+    expect(readChatScopedPendingFiles(scopes, "org-1:chat-1")).toEqual([]);
+    expect(readChatScopedPendingFiles(scopes, "org-1:chat-2")).toBe(chatTwoFiles);
+    expect(scopes).not.toHaveProperty("org-1:chat-1");
   });
 });
 

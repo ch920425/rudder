@@ -282,6 +282,32 @@ function pendingAttachmentKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
+export function readChatScopedPendingFiles<T>(
+  pendingFilesByScopeKey: Record<string, T[]>,
+  scopeKey: string,
+): T[] {
+  return pendingFilesByScopeKey[scopeKey] ?? [];
+}
+
+export function updateChatScopedPendingFiles<T>(
+  pendingFilesByScopeKey: Record<string, T[]>,
+  scopeKey: string,
+  updater: (current: T[]) => T[],
+): Record<string, T[]> {
+  const currentFiles = readChatScopedPendingFiles(pendingFilesByScopeKey, scopeKey);
+  const nextFiles = updater(currentFiles);
+
+  if (nextFiles.length === 0) {
+    if (!(scopeKey in pendingFilesByScopeKey)) return pendingFilesByScopeKey;
+    const remainingScopes = { ...pendingFilesByScopeKey };
+    delete remainingScopes[scopeKey];
+    return remainingScopes;
+  }
+
+  if (nextFiles === currentFiles) return pendingFilesByScopeKey;
+  return { ...pendingFilesByScopeKey, [scopeKey]: nextFiles };
+}
+
 function isImageAttachmentContentType(contentType: string | null | undefined) {
   return Boolean(contentType?.toLowerCase().startsWith("image/"));
 }
@@ -1568,7 +1594,14 @@ function ChatWorkspace() {
   const setDraft = useCallback((nextDraft: string) => {
     setDraftState((current) => ({ ...current, value: nextDraft }));
   }, []);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFilesByScopeKey, setPendingFilesByScopeKey] = useState<Record<string, File[]>>({});
+  const pendingFiles = readChatScopedPendingFiles(pendingFilesByScopeKey, draftStorageScopeKey);
+  const setPendingFilesForCurrentScope = useCallback((updater: (current: File[]) => File[]) => {
+    setPendingFilesByScopeKey((current) => updateChatScopedPendingFiles(current, draftStorageScopeKey, updater));
+  }, [draftStorageScopeKey]);
+  const clearPendingFilesForCurrentScope = useCallback(() => {
+    setPendingFilesForCurrentScope(() => []);
+  }, [setPendingFilesForCurrentScope]);
   const [newConversationSendInFlight, setNewConversationSendInFlight] = useState(false);
   const [openProcessMessageIds, setOpenProcessMessageIds] = useState<Record<string, true>>({});
   const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>(NO_CHAT_AGENT_ID);
@@ -1642,7 +1675,7 @@ function ChatWorkspace() {
         const safeFiles = await Promise.all(
           files.map((file, index) => materializePendingAttachment(file, index)),
         );
-        setPendingFiles((current) => [...current, ...safeFiles]);
+        setPendingFilesForCurrentScope((current) => [...current, ...safeFiles]);
       } catch (error) {
         pushToast({
           title: "Failed to stage attachment",
@@ -1651,12 +1684,12 @@ function ChatWorkspace() {
         });
       }
     },
-    [pushToast],
+    [pushToast, setPendingFilesForCurrentScope],
   );
 
   const removePendingFile = useCallback((targetKey: string) => {
-    setPendingFiles((current) => current.filter((file) => pendingAttachmentKey(file) !== targetKey));
-  }, []);
+    setPendingFilesForCurrentScope((current) => current.filter((file) => pendingAttachmentKey(file) !== targetKey));
+  }, [setPendingFilesForCurrentScope]);
 
   const handleComposerPasteCapture = useCallback((event: ReactClipboardEvent<HTMLDivElement>) => {
     const files = Array.from(event.clipboardData?.items ?? [])
@@ -2327,7 +2360,7 @@ function ChatWorkspace() {
         rememberChatAgentId(selectedOrganizationId, selectedDraftAgentId);
         if (usesComposerState) {
           setDraft("");
-          setPendingFiles([]);
+          clearPendingFilesForCurrentScope();
           setEditForkUserMessageId(null);
           setBranchPreview(null);
         }
@@ -2355,7 +2388,7 @@ function ChatWorkspace() {
         setEditForkUserMessageId(null);
         setBranchPreview(null);
         setDraft("");
-        setPendingFiles([]);
+        clearPendingFilesForCurrentScope();
       }
       setChatSendInFlight(chatId, true);
       stopRequestedChatIdsRef.current.delete(chatId);
@@ -2829,11 +2862,11 @@ function ChatWorkspace() {
   const beginEditUserMessage = useCallback((message: ChatMessage) => {
     setEditForkUserMessageId(message.id);
     setDraft(message.body);
-    setPendingFiles([]);
+    clearPendingFilesForCurrentScope();
     requestAnimationFrame(() => {
       composerEditorRef.current?.focus();
     });
-  }, []);
+  }, [clearPendingFilesForCurrentScope]);
 
   const editDraftOnly = useCallback((text: string) => {
     setEditForkUserMessageId(null);
@@ -3417,7 +3450,7 @@ function ChatWorkspace() {
                         <DropdownMenuItem
                           onClick={() => {
                             setDraft("");
-                            setPendingFiles([]);
+                            clearPendingFilesForCurrentScope();
                             navigate(chatRootPath);
                           }}
                         >
