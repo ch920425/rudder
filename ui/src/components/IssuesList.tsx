@@ -94,6 +94,56 @@ const quickFilterPresets = [
   { label: "Done", statuses: ["done", "cancelled"] },
 ];
 
+const ONBOARDING_PROJECT_NAME = "Getting Started";
+
+const onboardingGroupOrder = ["welcome", "core", "recommended", "advanced", "other"] as const;
+
+const onboardingGroupCopy: Record<(typeof onboardingGroupOrder)[number], { label: string; description: string }> = {
+  welcome: {
+    label: "Welcome",
+    description: "Reference issue for Rudder’s collaboration model."
+  },
+  core: {
+    label: "Core loop",
+    description: "Complete these four issues to experience chat → issue → execution → review."
+  },
+  recommended: {
+    label: "Recommended next",
+    description: "Bring real context and one real task into Rudder."
+  },
+  advanced: {
+    label: "Advanced",
+    description: "Optional next steps for goals, reusable workflows, agent roles, and recurring loops."
+  },
+  other: {
+    label: "Other",
+    description: "Additional issues in this project."
+  }
+};
+
+function onboardingIssueGroup(issue: Issue): (typeof onboardingGroupOrder)[number] {
+  if (issue.title.startsWith("👋 Welcome to Rudder")) return "welcome";
+  if (/^[1-4]\./.test(issue.title)) return "core";
+  if (/^[5-6]\./.test(issue.title)) return "recommended";
+  if (/^(?:[7-9]|10)\./.test(issue.title)) return "advanced";
+  return "other";
+}
+
+function onboardingIssueSortValue(issue: Issue): number {
+  if (issue.title.startsWith("👋 Welcome to Rudder")) return 0;
+  const match = /^(\d+)\./.exec(issue.title);
+  if (match) return Number(match[1]);
+  return 99;
+}
+
+function sortOnboardingIssues(issues: Issue[]): Issue[] {
+  return [...issues].sort((a, b) => {
+    const numeric = onboardingIssueSortValue(a) - onboardingIssueSortValue(b);
+    if (numeric !== 0) return numeric;
+    return a.title.localeCompare(b.title);
+  });
+}
+
 function getViewState(key: string): IssueViewState {
   try {
     const raw = localStorage.getItem(key);
@@ -217,6 +267,13 @@ interface IssuesListProps {
   onReorderIssue?: (data: ReorderIssue) => void;
 }
 
+type GroupedIssueContent = {
+  key: string;
+  label: string | null;
+  description?: string;
+  items: Issue[];
+};
+
 export function IssuesList({
   issues,
   isLoading,
@@ -325,6 +382,7 @@ export function IssuesList({
     () => projects?.find((project) => project.id === projectId)?.name ?? null,
     [projectId, projects],
   );
+  const isGettingStartedProject = selectedProjectName === ONBOARDING_PROJECT_NAME;
   const emptyStateMessage = useMemo(() => {
     if (normalizedIssueSearch.length > 0) {
       return `No issues match “${normalizedIssueSearch}”. Try a different search or clear some filters.`;
@@ -350,7 +408,18 @@ export function IssuesList({
     return "No issues match the current board. Use a lane + button to create a new issue in the right status.";
   }, [activeFilterCount, normalizedIssueSearch, selectedProjectName]);
 
-  const groupedContent = useMemo(() => {
+  const groupedContent = useMemo<GroupedIssueContent[]>(() => {
+    if (isGettingStartedProject && viewState.groupBy === "none") {
+      const groups = groupBy(filtered, onboardingIssueGroup);
+      return onboardingGroupOrder
+        .filter((key) => groups[key]?.length)
+        .map((key) => ({
+          key: `onboarding:${key}`,
+          label: onboardingGroupCopy[key].label,
+          description: onboardingGroupCopy[key].description,
+          items: sortOnboardingIssues(groups[key]!),
+        }));
+    }
     if (viewState.groupBy === "none") {
       return [{ key: "__all", label: null as string | null, items: filtered }];
     }
@@ -399,7 +468,7 @@ export function IssuesList({
             : (agentLabel(key) ?? key.slice(0, 8)),
       items: groups[key]!,
     }));
-  }, [agentLabel, currentUserId, filtered, projects, viewState.groupBy]);
+  }, [agentLabel, currentUserId, filtered, isGettingStartedProject, projects, viewState.groupBy]);
 
   const contextNewIssueDefaults = useMemo<NewIssueDefaults>(() => {
     const defaults: NewIssueDefaults = {};
@@ -845,8 +914,15 @@ export function IssuesList({
               <div className="flex items-center py-1.5 pl-1 pr-3">
                 <CollapsibleTrigger className="flex items-center gap-1.5">
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-90" />
-                  <span className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    {group.label}
+                  <span className="flex flex-col items-start gap-0.5 text-left">
+                    <span className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      {group.label}
+                    </span>
+                    {group.description ? (
+                      <span className="max-w-[68ch] text-xs font-normal normal-case tracking-normal text-muted-foreground/80">
+                        {group.description}
+                      </span>
+                    ) : null}
                   </span>
                 </CollapsibleTrigger>
                 <Button

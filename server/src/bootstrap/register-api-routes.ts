@@ -16,6 +16,7 @@ import { goalRoutes } from "../routes/goals.js";
 import { healthRoutes } from "../routes/health.js";
 import { issueRoutes } from "../routes/issues.js";
 import { messengerRoutes } from "../routes/messenger.js";
+import { onboardingRoutes } from "../routes/onboarding.js";
 import { organizationSkillRoutes } from "../routes/organization-skills.js";
 import { organizationRoutes } from "../routes/orgs.js";
 import { pluginRoutes } from "../routes/plugins.js";
@@ -52,6 +53,7 @@ export function registerApiRoutes(
   api.use(agentRoutes(db, opts.storageService));
   api.use(assetRoutes(db, opts.storageService));
   api.use(projectRoutes(db));
+  api.use(onboardingRoutes(db));
   api.use(issueRoutes(db, opts.storageService));
   api.use(messengerRoutes(db));
   api.use(chatRoutes(db, opts.storageService));

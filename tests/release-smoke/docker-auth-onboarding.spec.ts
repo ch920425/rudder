@@ -10,6 +10,19 @@ const ADMIN_PASSWORD =
   "rudder-smoke-password";
 
 const COMPANY_NAME = `Release-Smoke-${Date.now()}`;
+const GETTING_STARTED_TITLES = [
+  "👋 Welcome to Rudder — work with agents like a team",
+  "1. Understand how Rudder work happens",
+  "2. Ask your agent one quick question",
+  "3. Create and run your first agent issue",
+  "4. Review the result and close the loop",
+  "5. Add shared context your agent should remember",
+  "6. Bring one real task into Rudder",
+  "7. Link this work to a goal",
+  "8. Capture one reusable workflow",
+  "9. Add a second agent with a different role",
+  "10. Set up a recurring loop or automation",
+];
 async function signIn(page: Page) {
   await page.goto("/");
   await expect(page).toHaveURL(/\/auth/);
@@ -84,18 +97,6 @@ test.describe("Docker authenticated onboarding smoke", () => {
     expect(ceoAgent!.role).toBe("ceo");
     expect(ceoAgent!.agentRuntimeType).not.toBe("process");
 
-    const issuesRes = await page.request.get(
-      `${baseUrl}/api/companies/${company!.id}/issues`
-    );
-    expect(issuesRes.ok()).toBe(true);
-    const issues = (await issuesRes.json()) as Array<{
-      id: string;
-      title: string;
-      assigneeAgentId: string | null;
-      projectId: string | null;
-    }>;
-    expect(issues).toEqual([]);
-
     const projectsRes = await page.request.get(
       `${baseUrl}/api/companies/${company!.id}/projects`
     );
@@ -109,5 +110,28 @@ test.describe("Docker authenticated onboarding smoke", () => {
       (project) => project.name === "Getting Started" && !project.archivedAt
     );
     expect(gettingStartedProjects).toHaveLength(1);
+
+    const issuesRes = await page.request.get(
+      `${baseUrl}/api/companies/${company!.id}/issues?projectId=${gettingStartedProjects[0]!.id}`
+    );
+    expect(issuesRes.ok()).toBe(true);
+    const issues = (await issuesRes.json()) as Array<{
+      title: string;
+      status: string;
+      assigneeAgentId: string | null;
+      assigneeUserId: string | null;
+      projectId: string | null;
+    }>;
+    expect(issues.map((issue) => issue.title).sort()).toEqual(
+      [...GETTING_STARTED_TITLES].sort()
+    );
+    expect(issues.find((issue) => issue.title === GETTING_STARTED_TITLES[0])?.status).toBe("done");
+    expect(issues.filter((issue) => issue.status === "todo")).toHaveLength(4);
+    expect(issues.filter((issue) => issue.status === "backlog")).toHaveLength(6);
+    for (const issue of issues) {
+      expect(issue.assigneeAgentId).toBeNull();
+      expect(issue.assigneeUserId).toBeTruthy();
+      expect(issue.projectId).toBe(gettingStartedProjects[0]!.id);
+    }
   });
 });

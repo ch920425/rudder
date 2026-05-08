@@ -13,6 +13,7 @@ import { ApiError } from "../api/client";
 import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
+import { onboardingApi } from "../api/onboarding";
 import { projectsApi } from "../api/projects";
 import { queryKeys } from "../lib/queryKeys";
 import { Dialog, DialogPortal } from "@/components/ui/dialog";
@@ -702,6 +703,20 @@ export function OnboardingWizard() {
     return project;
   }
 
+  async function seedGettingStartedOnboarding(organizationId: string) {
+    const result = await onboardingApi.seedGettingStarted(organizationId);
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.projects.list(organizationId)
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.issues.list(organizationId)
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.issues.follows(organizationId)
+    });
+    return result;
+  }
+
   async function handleStep2Next() {
     if (!createdCompanyId) {
       setError("Complete organization setup before creating an agent.");
@@ -781,7 +796,7 @@ export function OnboardingWizard() {
       });
 
       if (createdNewOrganizationInSession) {
-        await ensureGettingStartedProject(createdCompanyId);
+        await seedGettingStartedOnboarding(createdCompanyId);
         shouldCleanupDraftOrganizationRef.current = false;
         draftOrganizationIdRef.current = null;
         if (typeof window !== "undefined") {

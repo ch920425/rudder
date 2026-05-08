@@ -2,6 +2,20 @@ import { test, expect, type Page } from "@playwright/test";
 
 const SKIP_LLM = process.env.RUDDER_E2E_SKIP_LLM !== "false";
 
+const GETTING_STARTED_TITLES = [
+  "👋 Welcome to Rudder — work with agents like a team",
+  "1. Understand how Rudder work happens",
+  "2. Ask your agent one quick question",
+  "3. Create and run your first agent issue",
+  "4. Review the result and close the loop",
+  "5. Add shared context your agent should remember",
+  "6. Bring one real task into Rudder",
+  "7. Link this work to a goal",
+  "8. Capture one reusable workflow",
+  "9. Add a second agent with a different role",
+  "10. Set up a recurring loop or automation",
+];
+
 function onboardingHeading(page: Page, text: string) {
   return page.locator("h3", { hasText: text });
 }
@@ -93,13 +107,6 @@ test.describe("Onboarding wizard", () => {
     expect(ceoAgent.agentRuntimeType).toBe("codex_local");
     expect(ceoAgent.agentRuntimeConfig.model).toBe(selectedCodexModel);
 
-    const issuesRes = await page.request.get(
-      `${baseUrl}/api/orgs/${organization.id}/issues`
-    );
-    expect(issuesRes.ok()).toBe(true);
-    const issues = await issuesRes.json();
-    expect(issues).toEqual([]);
-
     const projectsRes = await page.request.get(
       `${baseUrl}/api/orgs/${organization.id}/projects`
     );
@@ -110,6 +117,43 @@ test.describe("Onboarding wizard", () => {
         project.name === "Getting Started" && !project.archivedAt
     );
     expect(gettingStartedProjects).toHaveLength(1);
+    const gettingStartedProject = gettingStartedProjects[0];
+
+    const issuesRes = await page.request.get(
+      `${baseUrl}/api/orgs/${organization.id}/issues?projectId=${gettingStartedProject.id}`
+    );
+    expect(issuesRes.ok()).toBe(true);
+    const issues = await issuesRes.json() as Array<{
+      title: string;
+      status: string;
+      priority: string;
+      assigneeAgentId: string | null;
+      assigneeUserId: string | null;
+      projectId: string | null;
+    }>;
+    expect(issues.map((issue) => issue.title).sort()).toEqual(
+      [...GETTING_STARTED_TITLES].sort()
+    );
+    const issueByTitle = new Map(issues.map((issue) => [issue.title, issue]));
+    expect(issueByTitle.get(GETTING_STARTED_TITLES[0]!)?.status).toBe("done");
+    for (const title of GETTING_STARTED_TITLES.slice(1, 5)) {
+      expect(issueByTitle.get(title)?.status).toBe("todo");
+      expect(issueByTitle.get(title)?.priority).toBe("high");
+    }
+    for (const title of GETTING_STARTED_TITLES.slice(5)) {
+      expect(issueByTitle.get(title)?.status).toBe("backlog");
+    }
+    for (const issue of issues) {
+      expect(issue.projectId).toBe(gettingStartedProject.id);
+      expect(issue.assigneeAgentId).toBeNull();
+      expect(issue.assigneeUserId).toBeTruthy();
+    }
+
+    await page.goto(`/${organization.issuePrefix}/issues?projectId=${gettingStartedProject.id}`);
+    await expect(page.getByText("Welcome", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Core loop", { exact: true })).toBeVisible();
+    await expect(page.getByText("Recommended next", { exact: true })).toBeVisible();
+    await expect(page.getByText("Advanced", { exact: true })).toBeVisible();
 
     await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}`, {
       waitUntil: "commit",
