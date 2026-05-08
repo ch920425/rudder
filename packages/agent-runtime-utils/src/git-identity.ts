@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export type GitIdentitySource = "environment" | "repository" | "global" | "target_config";
+export type GitIdentitySource = "environment" | "repository" | "rudder_confirmed" | "global" | "target_config";
 
 export type GitIdentity = {
   name: string;
@@ -92,6 +92,17 @@ function identityFromEnv(env: NodeJS.ProcessEnv): GitIdentity | null {
   return (
     buildIdentity(env.GIT_AUTHOR_NAME, env.GIT_AUTHOR_EMAIL, "environment") ??
     buildIdentity(env.GIT_COMMITTER_NAME, env.GIT_COMMITTER_EMAIL, "environment")
+  );
+}
+
+export function normalizeConfirmedRudderGitIdentity(input: unknown): GitIdentity | null {
+  if (!input || typeof input !== "object") return null;
+  const record = input as { name?: unknown; email?: unknown; confirmed?: unknown };
+  if (record.confirmed === false) return null;
+  return buildIdentity(
+    typeof record.name === "string" ? record.name : null,
+    typeof record.email === "string" ? record.email : null,
+    "rudder_confirmed",
   );
 }
 
@@ -213,6 +224,7 @@ async function resolveBestGitIdentity(input: {
   sourceEnv: NodeJS.ProcessEnv;
   targetConfigArgs?: string[];
   targetCwd?: string | null;
+  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentity | null> {
   return (
     identityFromEnv(input.sourceEnv) ??
@@ -220,6 +232,7 @@ async function resolveBestGitIdentity(input: {
       cwd: input.cwd,
       env: input.sourceEnv,
     })) ??
+    input.confirmedIdentity ??
     (await readIdentityFromGitConfig(["config", "--global"], "global", {
       cwd: input.cwd,
       env: input.sourceEnv,
@@ -238,6 +251,7 @@ export async function ensureGitIdentityFileConfig(input: {
   home: string;
   sourceEnv?: NodeJS.ProcessEnv;
   onLog?: LogFn | null;
+  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentityPreparationResult> {
   const sourceEnv = normalizeEnv(input.sourceEnv);
   const home = path.resolve(input.home);
@@ -250,6 +264,7 @@ export async function ensureGitIdentityFileConfig(input: {
     sourceEnv,
     targetConfigArgs: configArgs,
     targetCwd: input.cwd,
+    confirmedIdentity: input.confirmedIdentity,
   });
   const includePaths = identity
     ? await resolveHostGlobalGitConfigIncludes(sourceEnv, gitConfigPath)
@@ -293,6 +308,7 @@ export async function ensureGitRepositoryIdentityConfig(input: {
   cwd: string;
   sourceEnv?: NodeJS.ProcessEnv;
   onLog?: LogFn | null;
+  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentityPreparationResult> {
   const sourceEnv = normalizeEnv(input.sourceEnv);
   const cwd = path.resolve(input.cwd);
@@ -302,6 +318,7 @@ export async function ensureGitRepositoryIdentityConfig(input: {
     sourceEnv,
     targetConfigArgs: configArgs,
     targetCwd: cwd,
+    confirmedIdentity: input.confirmedIdentity,
   });
   const warnings: string[] = [];
 

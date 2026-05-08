@@ -4,7 +4,7 @@ import net from "node:net";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { ensureGitRepositoryIdentityConfig } from "@rudderhq/agent-runtime-utils/git-identity";
+import { ensureGitRepositoryIdentityConfig, type GitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
 import type { AgentRuntimeServiceReport } from "@rudderhq/agent-runtime-utils";
 import type { Db } from "@rudderhq/db";
 import { workspaceRuntimeServices } from "@rudderhq/db";
@@ -464,8 +464,9 @@ async function provisionExecutionWorktree(input: {
   agent: ExecutionWorkspaceAgentRef;
   created: boolean;
   recorder?: WorkspaceOperationRecorder | null;
+  confirmedGitIdentity?: GitIdentity | null;
 }) {
-  await ensureGitRepositoryIdentityConfig({ cwd: input.worktreePath });
+  await ensureGitRepositoryIdentityConfig({ cwd: input.worktreePath, confirmedIdentity: input.confirmedGitIdentity });
 
   const provisionCommand = asString(input.strategy.provisionCommand, "").trim();
   if (!provisionCommand) return;
@@ -549,6 +550,7 @@ export async function realizeExecutionWorkspace(input: {
   issue: ExecutionWorkspaceIssueRef | null;
   agent: ExecutionWorkspaceAgentRef;
   recorder?: WorkspaceOperationRecorder | null;
+  confirmedGitIdentity?: GitIdentity | null;
 }): Promise<RealizedExecutionWorkspace> {
   const rawStrategy = parseObject(input.config.workspaceStrategy);
   const strategyType = asString(rawStrategy.type, "project_primary");
@@ -615,6 +617,7 @@ export async function realizeExecutionWorkspace(input: {
         agent: input.agent,
         created: false,
         recorder: input.recorder ?? null,
+        confirmedGitIdentity: input.confirmedGitIdentity ?? null,
       });
       return {
         ...input.base,
@@ -674,6 +677,7 @@ export async function realizeExecutionWorkspace(input: {
     agent: input.agent,
     created: true,
     recorder: input.recorder ?? null,
+    confirmedGitIdentity: input.confirmedGitIdentity ?? null,
   });
 
   return {

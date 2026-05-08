@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockInstanceSettingsService = vi.hoisted(() => ({
   getGeneral: vi.fn(),
   getNotifications: vi.fn(),
+  getGitIdentity: vi.fn(),
+  detectGitIdentity: vi.fn(),
+  updateGitIdentity: vi.fn(),
+  clearGitIdentity: vi.fn(),
   updateGeneral: vi.fn(),
   updateNotifications: vi.fn(),
   listCompanyIds: vi.fn(),
@@ -75,6 +79,43 @@ describe("instance settings routes", () => {
       desktopDockBadge: true,
       desktopIssueNotifications: true,
       desktopChatNotifications: true,
+    });
+    mockInstanceSettingsService.getGitIdentity.mockResolvedValue({
+      saved: null,
+      detected: {
+        name: "Host Operator",
+        email: "host@example.com",
+        source: "host_global",
+        unsafe: false,
+      },
+      effective: {
+        name: "Host Operator",
+        email: "host@example.com",
+        source: "host_global",
+        unsafe: false,
+      },
+      status: "detected",
+      warning: "Confirm this detected host Git identity before Rudder uses it as the managed runtime identity.",
+    });
+    mockInstanceSettingsService.detectGitIdentity.mockResolvedValue({
+      name: "Host Operator",
+      email: "host@example.com",
+      source: "host_global",
+      unsafe: false,
+    });
+    mockInstanceSettingsService.updateGitIdentity.mockImplementation(async (identity) => ({
+      saved: identity,
+      detected: null,
+      effective: identity,
+      status: "confirmed",
+      warning: null,
+    }));
+    mockInstanceSettingsService.clearGitIdentity.mockResolvedValue({
+      saved: null,
+      detected: null,
+      effective: null,
+      status: "missing",
+      warning: "No safe host Git identity was detected. Configure user.name and user.email or save an override.",
     });
     mockInstanceSettingsService.updateGeneral.mockResolvedValue({
       id: "instance-settings-1",
@@ -187,6 +228,103 @@ describe("instance settings routes", () => {
     });
     expect(mockLogActivity).toHaveBeenCalledTimes(2);
   });
+
+
+  it("returns and confirms local Git identity settings", async () => {
+    const app = await createApp({
+      type: "board",
+      userId: "local-board",
+      source: "local_implicit",
+      isInstanceAdmin: true,
+    });
+
+    const getRes = await request(app).get("/api/instance/settings/git-identity");
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.status).toBe("detected");
+    expect(getRes.body.detected).toMatchObject({
+      name: "Host Operator",
+      email: "host@example.com",
+      source: "host_global",
+    });
+
+    const patchRes = await request(app)
+      .patch("/api/instance/settings/git-identity")
+      .send({ confirmDetected: true });
+
+    expect(patchRes.status).toBe(200);
+    expect(mockInstanceSettingsService.updateGitIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Host Operator",
+      email: "host@example.com",
+      confirmed: true,
+      source: "detected_global",
+    }));
+    expect(mockLogActivity).toHaveBeenCalledTimes(2);
+  });
+
+  it("saves and clears a Git identity override", async () => {
+    const app = await createApp({
+      type: "board",
+      userId: "local-board",
+      source: "local_implicit",
+      isInstanceAdmin: true,
+    });
+
+    const saveRes = await request(app)
+      .patch("/api/instance/settings/git-identity")
+      .send({ name: "Override Operator", email: "override@example.com" });
+
+    expect(saveRes.status).toBe(200);
+    expect(mockInstanceSettingsService.updateGitIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Override Operator",
+      email: "override@example.com",
+      confirmed: true,
+      source: "override",
+      lastDetectedAt: null,
+    }));
+
+    const clearRes = await request(app)
+      .patch("/api/instance/settings/git-identity")
+      .send({ clear: true });
+
+    expect(clearRes.status).toBe(200);
+    expect(mockInstanceSettingsService.clearGitIdentity).toHaveBeenCalled();
+  });
+
+  it("rejects unsafe Git identity emails", async () => {
+    const app = await createApp({
+      type: "board",
+      userId: "local-board",
+      source: "local_implicit",
+      isInstanceAdmin: true,
+    });
+
+    const res = await request(app)
+      .patch("/api/instance/settings/git-identity")
+      .send({ name: "Local User", email: "local@machine.local" });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      error: "Git identity email must be a valid non-local email address.",
+    });
+    expect(mockInstanceSettingsService.updateGitIdentity).not.toHaveBeenCalled();
+  });
+
+  it("rejects Git identity settings outside local_trusted mode", async () => {
+    const app = await createApp({
+      type: "board",
+      userId: "admin-1",
+      source: "session",
+      isInstanceAdmin: true,
+    }, "authenticated");
+
+    const res = await request(app).get("/api/instance/settings/git-identity");
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      error: "Git identity settings are only available in local_trusted mode.",
+    });
+  });
+
 
   it("returns sanitized local langfuse settings", async () => {
     const app = await createApp({

@@ -19,6 +19,30 @@ import type { WorkspaceOperationRecorder } from "../services/workspace-operation
 const execFileAsync = promisify(execFile);
 const leasedRunIds = new Set<string>();
 
+const GIT_IDENTITY_TEST_ENV_KEYS = [
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+  "GIT_CONFIG_GLOBAL",
+  "XDG_CONFIG_HOME",
+] as const;
+
+function clearInheritedGitIdentityEnv(): () => void {
+  const previous = new Map<string, string | undefined>();
+  for (const key of GIT_IDENTITY_TEST_ENV_KEYS) {
+    previous.set(key, process.env[key]);
+    delete process.env[key];
+  }
+
+  return () => {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
 async function runGit(cwd: string, args: string[]) {
   await execFileAsync("git", args, { cwd });
 }
@@ -148,6 +172,7 @@ afterEach(async () => {
 describe("realizeExecutionWorkspace", () => {
   it("prevents fallback .local commits in runtime-created worktrees without identity", async () => {
     const repoRoot = await createTempRepoWithoutStoredIdentity();
+    const restoreGitEnv = clearInheritedGitIdentityEnv();
     const previousHome = process.env.HOME;
     const previousGitConfigNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
     process.env.HOME = path.join(repoRoot, "empty-home");
@@ -203,6 +228,7 @@ describe("realizeExecutionWorkspace", () => {
       else process.env.HOME = previousHome;
       if (previousGitConfigNoSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM;
       else process.env.GIT_CONFIG_NOSYSTEM = previousGitConfigNoSystem;
+      restoreGitEnv();
       await fs.rm(repoRoot, { recursive: true, force: true });
     }
   });

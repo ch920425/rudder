@@ -142,6 +142,7 @@ export const queryKeys = {
   instance: {
     profileSettings: ["instance", "profile-settings"] as const,
     generalSettings: ["instance", "general-settings"] as const,
+    gitIdentitySettings: ["instance", "git-identity-settings"] as const,
     notificationSettings: ["instance", "notification-settings"] as const,
     langfuseSettings: ["instance", "langfuse-settings"] as const,
     schedulerHeartbeats: ["instance", "scheduler-heartbeats"] as const,

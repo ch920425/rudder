@@ -8,6 +8,30 @@ import { execute } from "@rudderhq/agent-runtime-codex-local/server";
 
 const execFileAsync = promisify(execFile);
 
+const GIT_IDENTITY_TEST_ENV_KEYS = [
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+  "GIT_CONFIG_GLOBAL",
+  "XDG_CONFIG_HOME",
+] as const;
+
+function clearInheritedGitIdentityEnv(): () => void {
+  const previous = new Map<string, string | undefined>();
+  for (const key of GIT_IDENTITY_TEST_ENV_KEYS) {
+    previous.set(key, process.env[key]);
+    delete process.env[key];
+  }
+
+  return () => {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
 async function writeFakeCodexCommand(commandPath: string): Promise<void> {
   const script = `#!/usr/bin/env node
 const fs = require("node:fs");
@@ -282,6 +306,7 @@ describe("codex execute", () => {
     await runGit(workspace, ["config", "user.email", "rudder-agent@example.com"]);
     await writeGitIdentityCaptureCodexCommand(commandPath);
 
+    const restoreGitEnv = clearInheritedGitIdentityEnv();
     const previousHome = process.env.HOME;
     const previousPaperclipHome = process.env.RUDDER_HOME;
     const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
@@ -348,6 +373,7 @@ describe("codex execute", () => {
       else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
+      restoreGitEnv();
       await fs.rm(root, { recursive: true, force: true });
     }
   });
@@ -365,6 +391,7 @@ describe("codex execute", () => {
     await initGitRepoWithoutStoredIdentity(workspace);
     await writeGitCommitCodexCommand(commandPath);
 
+    const restoreGitEnv = clearInheritedGitIdentityEnv();
     const previousHome = process.env.HOME;
     const previousPaperclipHome = process.env.RUDDER_HOME;
     const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
@@ -426,6 +453,7 @@ describe("codex execute", () => {
       else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
+      restoreGitEnv();
       await fs.rm(root, { recursive: true, force: true });
     }
   });

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
-import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig, normalizeConfirmedRudderGitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asString,
   asNumber,
@@ -233,6 +233,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     home: isolatedHome,
     sourceEnv,
     onLog,
+    confirmedIdentity: normalizeConfirmedRudderGitIdentity(context.rudderGitIdentity),
   });
   const codexSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCodexSkillNames = resolveRudderDesiredSkillNames(config, codexSkillEntries);

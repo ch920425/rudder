@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
+import type { InstanceGitIdentityState } from "@rudderhq/shared";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import {
   SettingsChoiceCard,
@@ -10,6 +11,9 @@ import {
   SettingsToggle,
 } from "@/components/settings/SettingsScaffold";
 import { SettingsPageSkeleton } from "@/components/settings/SettingsPageSkeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useI18n } from "../context/I18nContext";
 import { useTheme } from "../context/ThemeContext";
@@ -92,6 +96,20 @@ function LanguagePreview({
   );
 }
 
+function formatGitIdentity(identity: InstanceGitIdentityState["effective"] | InstanceGitIdentityState["saved"] | InstanceGitIdentityState["detected"]): string {
+  if (!identity) return "—";
+  const name = identity.name?.trim() || "—";
+  const email = identity.email?.trim() || "—";
+  return `${name} <${email}>`;
+}
+
+function gitIdentityStatusClass(status: InstanceGitIdentityState["status"] | undefined): string {
+  if (status === "confirmed") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  if (status === "detected") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (status === "unsafe") return "border-destructive/30 bg-destructive/10 text-destructive";
+  return "border-[color:var(--border-soft)] bg-[color:var(--surface-inset)] text-muted-foreground";
+}
+
 export function InstanceGeneralSettings() {
   const { t } = useI18n();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -100,6 +118,8 @@ export function InstanceGeneralSettings() {
   const [desktopUpdatesSupported, setDesktopUpdatesSupported] = useState(false);
   const [updateChannel, setUpdateChannel] = useState<DesktopUpdateChannel>("stable");
   const [updateChannelPending, setUpdateChannelPending] = useState(false);
+  const [gitIdentityName, setGitIdentityName] = useState("");
+  const [gitIdentityEmail, setGitIdentityEmail] = useState("");
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -114,6 +134,23 @@ export function InstanceGeneralSettings() {
     queryFn: () => instanceSettingsApi.getGeneral(),
     staleTime: SETTINGS_PREFETCH_STALE_TIME_MS,
   });
+
+  const gitIdentityQuery = useQuery({
+    queryKey: queryKeys.instance.gitIdentitySettings,
+    queryFn: () => instanceSettingsApi.getGitIdentity(),
+    staleTime: SETTINGS_PREFETCH_STALE_TIME_MS,
+  });
+
+  useEffect(() => {
+    const identity = gitIdentityQuery.data?.saved ?? gitIdentityQuery.data?.detected ?? null;
+    setGitIdentityName(identity?.name ?? "");
+    setGitIdentityEmail(identity?.email ?? "");
+  }, [
+    gitIdentityQuery.data?.saved?.name,
+    gitIdentityQuery.data?.saved?.email,
+    gitIdentityQuery.data?.detected?.name,
+    gitIdentityQuery.data?.detected?.email,
+  ]);
 
   useEffect(() => {
     const desktopShell = readDesktopShell();
@@ -157,6 +194,21 @@ export function InstanceGeneralSettings() {
     },
   });
 
+  const gitIdentityMutation = useMutation({
+    mutationFn: instanceSettingsApi.updateGitIdentity,
+    onSuccess: async (nextSettings) => {
+      setActionError(null);
+      queryClient.setQueryData(queryKeys.instance.gitIdentitySettings, nextSettings);
+      const identity = nextSettings.saved ?? nextSettings.detected ?? null;
+      setGitIdentityName(identity?.name ?? "");
+      setGitIdentityEmail(identity?.email ?? "");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.instance.gitIdentitySettings });
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : t("general.gitIdentity.updateFailed"));
+    },
+  });
+
   if (generalQuery.isLoading) {
     return <SettingsPageSkeleton />;
   }
@@ -173,6 +225,12 @@ export function InstanceGeneralSettings() {
 
   const censorUsernameInLogs = generalQuery.data?.censorUsernameInLogs === true;
   const locale = generalQuery.data?.locale ?? "en";
+  const gitIdentityState = gitIdentityQuery.data;
+  const gitIdentityStatus = gitIdentityState?.status ?? "missing";
+  const gitIdentityStatusLabel = t(`general.gitIdentity.status.${gitIdentityStatus}`);
+  const gitIdentityCanConfirmDetected = gitIdentityState?.status === "detected";
+  const gitIdentityCanClear = Boolean(gitIdentityState?.saved);
+  const gitIdentityCanSave = gitIdentityName.trim().length > 0 && gitIdentityEmail.trim().length > 0;
 
   async function handleUpdateChannelToggle() {
     const desktopShell = readDesktopShell();
@@ -258,6 +316,108 @@ export function InstanceGeneralSettings() {
 
       <SettingsDivider />
 
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">{t("general.gitIdentity.title")}</div>
+            <div className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
+              {t("general.gitIdentity.description")}
+            </div>
+          </div>
+          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${gitIdentityStatusClass(gitIdentityState?.status)}`}>
+            {gitIdentityStatusLabel}
+          </span>
+        </div>
+
+        <div className="rounded-[calc(var(--radius-md)-1px)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-inset)_78%,transparent)] p-4">
+          {gitIdentityQuery.isLoading ? (
+            <div className="text-sm text-muted-foreground">{t("general.gitIdentity.loading")}</div>
+          ) : gitIdentityQuery.error ? (
+            <div className="text-sm text-destructive">
+              {gitIdentityQuery.error instanceof Error
+                ? gitIdentityQuery.error.message
+                : t("general.gitIdentity.loadFailed")}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 text-[13px] leading-5 sm:grid-cols-2">
+                <div>
+                  <div className="text-muted-foreground">{t("general.gitIdentity.savedLabel")}</div>
+                  <div className="mt-1 font-medium text-foreground">{formatGitIdentity(gitIdentityState?.saved ?? null)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">{t("general.gitIdentity.detectedLabel")}</div>
+                  <div className="mt-1 font-medium text-foreground">{formatGitIdentity(gitIdentityState?.detected ?? null)}</div>
+                </div>
+              </div>
+
+              {gitIdentityState?.warning ? (
+                <div className="rounded-[var(--radius-sm)] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[13px] leading-5 text-amber-700 dark:text-amber-300">
+                  {gitIdentityState.warning}
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="git-identity-name">{t("general.gitIdentity.nameLabel")}</Label>
+                  <Input
+                    id="git-identity-name"
+                    value={gitIdentityName}
+                    placeholder={t("general.gitIdentity.namePlaceholder")}
+                    onChange={(event) => setGitIdentityName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="git-identity-email">{t("general.gitIdentity.emailLabel")}</Label>
+                  <Input
+                    id="git-identity-email"
+                    type="email"
+                    value={gitIdentityEmail}
+                    placeholder={t("general.gitIdentity.emailPlaceholder")}
+                    onChange={(event) => setGitIdentityEmail(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {gitIdentityCanConfirmDetected ? (
+                  <Button
+                    size="sm"
+                    disabled={gitIdentityMutation.isPending}
+                    onClick={() => gitIdentityMutation.mutate({ confirmDetected: true })}
+                  >
+                    {t("general.gitIdentity.confirmDetected")}
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant={gitIdentityCanConfirmDetected ? "outline" : "default"}
+                  disabled={gitIdentityMutation.isPending || !gitIdentityCanSave}
+                  onClick={() => gitIdentityMutation.mutate({ name: gitIdentityName, email: gitIdentityEmail })}
+                >
+                  {t("general.gitIdentity.saveOverride")}
+                </Button>
+                {gitIdentityCanClear ? (
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    disabled={gitIdentityMutation.isPending}
+                    onClick={() => gitIdentityMutation.mutate({ clear: true })}
+                  >
+                    {t("general.gitIdentity.clear")}
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="text-[12px] leading-5 text-muted-foreground">
+                {t("general.gitIdentity.cliAuthNote")}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SettingsDivider />
       {desktopUpdatesSupported ? (
         <>
           <SettingsRow

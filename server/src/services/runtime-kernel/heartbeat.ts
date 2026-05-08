@@ -3153,6 +3153,25 @@ export function heartbeatService(db: Db) {
     let finalObservationSessionId: string | null = heartbeatObservationContext.sessionKey ?? null;
     const runtime = await ensureRuntimeState(agent);
     const context = parseObject(run.contextSnapshot);
+    const confirmedInstanceGitIdentity = await instanceSettings.getConfirmedGitIdentity();
+    const confirmedRuntimeGitIdentity = confirmedInstanceGitIdentity
+      ? {
+          name: confirmedInstanceGitIdentity.name,
+          email: confirmedInstanceGitIdentity.email,
+          source: "rudder_confirmed" as const,
+        }
+      : null;
+    if (confirmedInstanceGitIdentity) {
+      context.rudderGitIdentity = {
+        name: confirmedInstanceGitIdentity.name,
+        email: confirmedInstanceGitIdentity.email,
+        confirmed: true,
+        source: confirmedInstanceGitIdentity.source,
+        lastDetectedAt: confirmedInstanceGitIdentity.lastDetectedAt,
+      };
+    } else {
+      delete context.rudderGitIdentity;
+    }
     const taskKey = deriveTaskKey(context, null);
     const sessionCodec = getAgentRuntimeSessionCodec(agent.agentRuntimeType);
     const issueId = readNonEmptyString(context.issueId);
@@ -3305,6 +3324,7 @@ export function heartbeatService(db: Db) {
         orgId: agent.orgId,
       },
       recorder: workspaceOperationRecorder,
+      confirmedGitIdentity: confirmedRuntimeGitIdentity,
     });
     const resolvedProjectId = executionWorkspace.projectId ?? issueRef?.projectId ?? executionProjectId ?? null;
     const resolvedProjectWorkspaceId = issueRef?.projectWorkspaceId ?? resolvedWorkspace.workspaceId ?? null;

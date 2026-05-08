@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
-import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig, normalizeConfirmedRudderGitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
 import type { RunProcessResult } from "@rudderhq/agent-runtime-utils/server-utils";
 import {
   asString,
@@ -362,6 +362,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     home: env.HOME,
     sourceEnv,
     onLog: input.onLog,
+    confirmedIdentity: normalizeConfirmedRudderGitIdentity(context.rudderGitIdentity),
   });
 
   if (!hasExplicitApiKey && authToken) {

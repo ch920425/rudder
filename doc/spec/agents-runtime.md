@@ -274,6 +274,12 @@ That means:
   Git config with `user.useConfigOnly=true` and injects `GIT_CONFIG_GLOBAL` plus
   explicit author/committer env vars so CLI credential sharing does not allow
   hostname `.local` fallback commit authors
+- System Settings / General exposes the local-agent Git identity state. In
+  `local_trusted` mode Rudder detects host global `user.name` / `user.email`,
+  lets the operator confirm or override that identity, stores the confirmed
+  value in instance settings, and clears it on request. Local runtimes resolve
+  identity in this order: explicit runtime env, repo-local Git config, confirmed
+  Rudder instance identity, host global Git config, then missing identity.
 
 Start with least privilege where possible, and avoid exposing secrets in broad reusable prompts unless intentionally required.
 

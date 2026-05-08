@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
-import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig, normalizeConfirmedRudderGitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asString,
   asNumber,
@@ -289,6 +289,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     home: managedHome,
     sourceEnv,
     onLog,
+    confirmedIdentity: normalizeConfirmedRudderGitIdentity(context.rudderGitIdentity),
   });
   const cursorSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCursorSkillNames = resolveRudderDesiredSkillNames(config, cursorSkillEntries);
