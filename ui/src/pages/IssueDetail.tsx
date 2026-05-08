@@ -118,6 +118,17 @@ type IssueCostSummaryData = {
   hasTokens: boolean;
 };
 
+const ISSUE_UPDATE_METADATA_KEYS = new Set([
+  "identifier",
+  "issueIdentifier",
+  "_previous",
+  "source",
+  "reopened",
+  "reopenedFrom",
+  "normalizedFromStatus",
+  "normalizedReason",
+]);
+
 const ACTION_LABELS: Record<string, string> = {
   "issue.created": "created the issue",
   "issue.updated": "updated the issue",
@@ -148,9 +159,64 @@ function humanizeValue(value: unknown): string {
   return value.replace(/_/g, " ");
 }
 
+function formatIssueUserLabel(userId: string, currentBoardUserId?: string | null): string {
+  return formatAssigneeUserLabel(userId, currentBoardUserId) ?? userId.slice(0, 8);
+}
+
+function formatIssuePrincipalLabel(
+  principal: { agentId?: unknown; userId?: unknown } | null | undefined,
+  agentMap: Map<string, Agent>,
+  currentBoardUserId?: string | null,
+): string | null {
+  if (!principal) return null;
+  if (typeof principal.agentId === "string" && principal.agentId) {
+    return agentMap.get(principal.agentId)?.name ?? principal.agentId.slice(0, 8);
+  }
+  if (typeof principal.userId === "string" && principal.userId) {
+    return formatIssueUserLabel(principal.userId, currentBoardUserId);
+  }
+  return null;
+}
+
+function describeIssuePrincipalChange(input: {
+  toLabel: string | null;
+  fromLabel: string | null;
+  assignedVerb: string;
+  changedVerb: string;
+  clearedVerb: string;
+  unassignedVerb: string;
+}): string {
+  if (input.toLabel) {
+    return input.fromLabel
+      ? `${input.changedVerb} from ${input.fromLabel} to ${input.toLabel}`
+      : `${input.assignedVerb} to ${input.toLabel}`;
+  }
+  return input.fromLabel
+    ? `${input.clearedVerb} ${input.fromLabel}`
+    : input.unassignedVerb;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function issueUpdatedChangedKeys(details: Record<string, unknown> | null | undefined): string[] {
+  if (!details) return [];
+  return Object.keys(details).filter((key) => !ISSUE_UPDATE_METADATA_KEYS.has(key));
+}
+
+function isDescriptionOnlyIssueUpdate(evt: ActivityEvent): boolean {
+  if (evt.action !== "issue.updated") return false;
+  const changedKeys = issueUpdatedChangedKeys(asRecord(evt.details));
+  return changedKeys.length === 1 && changedKeys[0] === "description";
+}
+
+function shouldShowIssueActivityEvent(evt: ActivityEvent): boolean {
+  if (evt.action === "issue.comment_added") return false;
+  if (evt.action === "issue.document_updated") return false;
+  if (isDescriptionOnlyIssueUpdate(evt)) return false;
+  return true;
 }
 
 function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
@@ -426,7 +492,12 @@ function WorkspaceAttachDialog({
   );
 }
 
-function formatAction(action: string, details?: Record<string, unknown> | null): string {
+function formatAction(
+  action: string,
+  details: Record<string, unknown> | null | undefined,
+  agentMap: Map<string, Agent>,
+  currentBoardUserId?: string | null,
+): string {
   if (action === "issue.updated" && details) {
     const previous = (details._previous ?? {}) as Record<string, unknown>;
     const parts: string[] = [];
@@ -448,18 +519,46 @@ function formatAction(action: string, details?: Record<string, unknown> | null):
       );
     }
     if (details.assigneeAgentId !== undefined || details.assigneeUserId !== undefined) {
-      parts.push(
-        details.assigneeAgentId || details.assigneeUserId
-          ? "assigned the issue"
-          : "unassigned the issue",
+      const previousAssignee = asRecord(previous.assignee);
+      const fromLabel = formatIssuePrincipalLabel(
+        previousAssignee ?? { agentId: previous.assigneeAgentId, userId: previous.assigneeUserId },
+        agentMap,
+        currentBoardUserId,
       );
+      const toLabel = formatIssuePrincipalLabel(
+        { agentId: details.assigneeAgentId, userId: details.assigneeUserId },
+        agentMap,
+        currentBoardUserId,
+      );
+      parts.push(describeIssuePrincipalChange({
+        toLabel,
+        fromLabel,
+        assignedVerb: "assigned the issue",
+        changedVerb: "reassigned the issue",
+        clearedVerb: "unassigned the issue from",
+        unassignedVerb: "unassigned the issue",
+      }));
     }
     if (details.reviewerAgentId !== undefined || details.reviewerUserId !== undefined) {
-      parts.push(
-        details.reviewerAgentId || details.reviewerUserId
-          ? "changed the reviewer"
-          : "cleared the reviewer",
+      const previousReviewer = asRecord(previous.reviewer);
+      const fromLabel = formatIssuePrincipalLabel(
+        previousReviewer ?? { agentId: previous.reviewerAgentId, userId: previous.reviewerUserId },
+        agentMap,
+        currentBoardUserId,
       );
+      const toLabel = formatIssuePrincipalLabel(
+        { agentId: details.reviewerAgentId, userId: details.reviewerUserId },
+        agentMap,
+        currentBoardUserId,
+      );
+      parts.push(describeIssuePrincipalChange({
+        toLabel,
+        fromLabel,
+        assignedVerb: "set the reviewer",
+        changedVerb: "changed the reviewer",
+        clearedVerb: "cleared the reviewer from",
+        unassignedVerb: "cleared the reviewer",
+      }));
     }
     if (details.title !== undefined) parts.push("updated the title");
     if (details.description !== undefined) parts.push("updated the description");
@@ -496,7 +595,11 @@ function issueActivityChatLabel(evt: ActivityEvent): string {
   return title || `Chat ${evt.entityId.slice(0, 8)}`;
 }
 
-function renderActivityDescription(evt: ActivityEvent): ReactNode {
+function renderActivityDescription(
+  evt: ActivityEvent,
+  agentMap: Map<string, Agent>,
+  currentBoardUserId?: string | null,
+): ReactNode {
   const details = asRecord(evt.details);
   if (evt.entityType === "chat") {
     const chatHref = `/chat/${evt.entityId}`;
@@ -518,7 +621,7 @@ function renderActivityDescription(evt: ActivityEvent): ReactNode {
     }
   }
 
-  return formatAction(evt.action, details);
+  return formatAction(evt.action, details, agentMap, currentBoardUserId);
 }
 
 function shouldHandleIssueDetailEscape(event: KeyboardEvent) {
@@ -591,7 +694,7 @@ function IssueActivityRow({
         currentBoardUserId={currentBoardUserId}
         operatorDisplayName={operatorDisplayName}
       />
-      <span className="min-w-0">{renderActivityDescription(evt)}</span>
+      <span className="min-w-0">{renderActivityDescription(evt, agentMap, currentBoardUserId)}</span>
       <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
     </div>
   );
@@ -1147,7 +1250,7 @@ export function IssueDetail() {
     }
 
     for (const evt of activity ?? []) {
-      if (evt.action === "issue.comment_added") continue;
+      if (!shouldShowIssueActivityEvent(evt)) continue;
       items.push({
         id: evt.id,
         createdAt: evt.createdAt,

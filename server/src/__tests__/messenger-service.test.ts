@@ -619,6 +619,58 @@ describe("messengerService and issue follows", () => {
     expect(thread.detail.needsAttention).toBe(true);
   });
 
+  it("does not count description-only issue updates as Messenger attention", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-description-only";
+    const issueId = randomUUID();
+    const createdAt = new Date("2026-04-10T09:00:00.000Z");
+    const updatedAt = new Date("2026-04-10T10:00:00.000Z");
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Description Update Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Description Update Org"),
+      issuePrefix: `D${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Description-only update issue",
+      status: "todo",
+      priority: "medium",
+      assigneeUserId: userId,
+      identifier: "DSC-1",
+      createdAt,
+      updatedAt,
+    });
+
+    await db.insert(activityLog).values({
+      orgId,
+      actorType: "agent",
+      actorId: "description-agent",
+      action: "issue.updated",
+      entityType: "issue",
+      entityId: issueId,
+      details: { description: "New description", identifier: "DSC-1", _previous: { description: "Old description" } },
+      createdAt: new Date("2026-04-10T10:00:01.000Z"),
+    });
+
+    const thread = await messengerSvc.getIssuesThread(orgId, userId);
+    const summaries = await messengerSvc.listThreadSummaries(orgId, userId);
+    const issuesSummary = summaries.find((item) => item.threadKey === "issues");
+    const item = thread.detail.items.find((entry) => entry.issueId === issueId);
+
+    expect(item?.metadata).toMatchObject({ assignedToMe: true });
+    expect(thread.detail.unreadCount).toBe(0);
+    expect(thread.detail.needsAttention).toBe(false);
+    expect(thread.summary.latestActivityAt).toBeNull();
+    expect(issuesSummary?.unreadCount).toBe(0);
+    expect(issuesSummary?.needsAttention).toBe(false);
+    expect(issuesSummary?.latestActivityAt).toBeNull();
+  });
+
   it("does not count self-authored issue status updates as Messenger attention", async () => {
     const orgId = randomUUID();
     const userId = "board-user-self-status";

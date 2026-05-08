@@ -9,6 +9,38 @@ export interface ActivityFilters {
   entityId?: string;
 }
 
+const ISSUE_UPDATE_METADATA_KEYS = new Set([
+  "identifier",
+  "issueIdentifier",
+  "_previous",
+  "source",
+  "reopened",
+  "reopenedFrom",
+  "normalizedFromStatus",
+  "normalizedReason",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function issueUpdatedChangedKeys(details: unknown): string[] {
+  if (!isRecord(details)) return [];
+  return Object.keys(details).filter((key) => !ISSUE_UPDATE_METADATA_KEYS.has(key));
+}
+
+function isDescriptionOnlyIssueUpdate(event: typeof activityLog.$inferSelect): boolean {
+  if (event.action !== "issue.updated") return false;
+  const changedKeys = issueUpdatedChangedKeys(event.details);
+  return changedKeys.length === 1 && changedKeys[0] === "description";
+}
+
+function shouldShowIssueActivity(event: typeof activityLog.$inferSelect): boolean {
+  if (event.action === "issue.document_updated") return false;
+  if (isDescriptionOnlyIssueUpdate(event)) return false;
+  return true;
+}
+
 export function activityService(db: Db) {
   const issueIdAsText = sql<string>`${issues.id}::text`;
   const conversationIdAsText = sql<string>`${chatConversations.id}::text`;
@@ -106,7 +138,7 @@ export function activityService(db: Db) {
       ]);
 
       const merged = [
-        ...issueEvents,
+        ...issueEvents.filter(shouldShowIssueActivity),
         ...relatedChatEvents.map(({ activityLog: event, conversationTitle }) => ({
           ...event,
           details: {

@@ -51,6 +51,16 @@ const ISSUE_ACTIVITY_ACTIONS = [
 ] as const;
 
 const ACTIONABLE_APPROVAL_STATUSES = new Set(["pending", "revision_requested"]);
+const ISSUE_UPDATE_METADATA_KEYS = new Set([
+  "identifier",
+  "issueIdentifier",
+  "_previous",
+  "source",
+  "reopened",
+  "reopenedFrom",
+  "normalizedFromStatus",
+  "normalizedReason",
+]);
 
 type ThreadStateRow = typeof messengerThreadUserStates.$inferSelect;
 type ThreadReadState = {
@@ -93,6 +103,22 @@ type IssueStatusChange = {
   from: string | null;
   to: string;
 };
+
+function issueUpdatedChangedKeys(details: Record<string, unknown> | null | undefined): string[] {
+  if (!details) return [];
+  return Object.keys(details).filter((key) => !ISSUE_UPDATE_METADATA_KEYS.has(key));
+}
+
+function isDescriptionOnlyIssueUpdate(activity: IssueActivityRow): boolean {
+  if (activity.action !== "issue.updated") return false;
+  const changedKeys = issueUpdatedChangedKeys(activity.details);
+  return changedKeys.length === 1 && changedKeys[0] === "description";
+}
+
+function shouldNotifyIssueActivity(activity: IssueActivityRow): boolean {
+  if (isDescriptionOnlyIssueUpdate(activity)) return false;
+  return true;
+}
 
 type ApprovalRow = {
   id: string;
@@ -742,7 +768,14 @@ export function messengerService(db: Db) {
     }
     const latestActivityByIssue = new Map<string, IssueActivityRow>();
     const latestExternalActivityByIssue = new Map<string, IssueActivityRow>();
+    const latestSuppressedActivityByIssue = new Map<string, IssueActivityRow>();
     for (const row of activityRows) {
+      if (!shouldNotifyIssueActivity(row)) {
+        if (!latestSuppressedActivityByIssue.has(row.entityId)) {
+          latestSuppressedActivityByIssue.set(row.entityId, row);
+        }
+        continue;
+      }
       if (!latestActivityByIssue.has(row.entityId)) {
         latestActivityByIssue.set(row.entityId, row);
       }
@@ -772,13 +805,20 @@ export function messengerService(db: Db) {
       const latestExternalComment = latestExternalCommentByIssue.get(issue.id) ?? null;
       const latestExternalActivity = latestExternalActivityByIssue.get(issue.id) ?? null;
       const latestExternalCommentAt = normalizeDate(latestExternalComment?.createdAt ?? null);
+      const latestSuppressedActivityAt = normalizeDate(latestSuppressedActivityByIssue.get(issue.id)?.createdAt ?? null);
+      const issueUpdatedAt = normalizeDate(issue.updatedAt);
+      const suppressedActivityMatchesIssueUpdate = Boolean(
+        latestSuppressedActivityAt &&
+        issueUpdatedAt &&
+        latestSuppressedActivityAt.getTime() >= issueUpdatedAt.getTime() - 5_000,
+      );
       const fallbackAssignedActivityAt =
-        issue.assigneeUserId === userId && !latestActivityByIssue.has(issue.id)
-          ? normalizeDate(issue.updatedAt)
+        issue.assigneeUserId === userId && !latestActivityByIssue.has(issue.id) && !suppressedActivityMatchesIssueUpdate
+          ? issueUpdatedAt
           : null;
       const fallbackReviewerActivityAt =
-        issue.reviewerUserId === userId && issue.status === "in_review" && !latestActivityByIssue.has(issue.id)
-          ? normalizeDate(issue.updatedAt)
+        issue.reviewerUserId === userId && issue.status === "in_review" && !latestActivityByIssue.has(issue.id) && !suppressedActivityMatchesIssueUpdate
+          ? issueUpdatedAt
           : null;
       const attentionActivityAt = maxDate(
         latestExternalCommentAt,

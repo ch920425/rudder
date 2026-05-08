@@ -324,8 +324,29 @@ function shouldSuppressAgentStatusToastForVisibleIssue(
 }
 
 const ISSUE_TOAST_ACTIONS = new Set(["issue.created", "issue.updated", "issue.comment_added"]);
+const ISSUE_UPDATE_METADATA_KEYS = new Set([
+  "identifier",
+  "issueIdentifier",
+  "_previous",
+  "source",
+  "reopened",
+  "reopenedFrom",
+  "normalizedFromStatus",
+  "normalizedReason",
+]);
 const AGENT_TOAST_STATUSES = new Set(["running", "error"]);
 const TERMINAL_RUN_STATUSES = new Set(["succeeded", "failed", "timed_out", "cancelled"]);
+
+function issueUpdatedChangedKeys(details: Record<string, unknown> | null | undefined): string[] {
+  if (!details) return [];
+  return Object.keys(details).filter((key) => !ISSUE_UPDATE_METADATA_KEYS.has(key));
+}
+
+function isDescriptionOnlyIssueUpdate(action: string, details: Record<string, unknown> | null): boolean {
+  if (action !== "issue.updated") return false;
+  const changedKeys = issueUpdatedChangedKeys(details);
+  return changedKeys.length === 1 && changedKeys[0] === "description";
+}
 
 function describeIssueUpdate(details: Record<string, unknown> | null): string | null {
   if (!details) return null;
@@ -367,6 +388,9 @@ function buildActivityToast(
   const actorType = readString(payload.actorType);
 
   if (entityType !== "issue" || !entityId || !action || !ISSUE_TOAST_ACTIONS.has(action)) {
+    return null;
+  }
+  if (isDescriptionOnlyIssueUpdate(action, details)) {
     return null;
   }
 

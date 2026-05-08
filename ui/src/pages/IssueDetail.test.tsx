@@ -213,6 +213,12 @@ vi.mock("../context/BreadcrumbContext", () => ({
 
 vi.mock("../lib/assignees", () => ({
   assigneeValueFromSelection: () => "unassigned",
+  formatAssigneeUserLabel: (userId: string | null | undefined, currentUserId: string | null | undefined) => {
+    if (!userId) return null;
+    if (currentUserId && userId === currentUserId) return "Me";
+    if (userId === "local-board") return "Board";
+    return userId.slice(0, 5);
+  },
   suggestedCommentAssigneeValue: () => "unassigned",
 }));
 
@@ -483,6 +489,7 @@ describe("IssueDetail", () => {
     capturedMentions = [];
     mockSourceBreadcrumb = null;
     mockIssuePluginSlots = [];
+    queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), []);
     queryData.delete(JSON.stringify([
       "plugins",
       "rudder.linear",
@@ -529,6 +536,74 @@ describe("IssueDetail", () => {
         skillMarkdownTarget: "/workspace/skills/build-advisor/SKILL.md",
       }),
     ]));
+  });
+
+  it("renders detailed assignment activity and hides low-signal update rows", () => {
+    queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), [
+      {
+        id: "activity-assigned",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: { assigneeAgentId: "agent-1", _previous: { assigneeAgentId: null } },
+        createdAt: new Date("2026-04-20T01:00:00.000Z"),
+      },
+      {
+        id: "activity-reviewer",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: {
+          reviewerAgentId: null,
+          reviewerUserId: "user-1",
+          _previous: { reviewerAgentId: "agent-1", reviewerUserId: null },
+        },
+        createdAt: new Date("2026-04-20T01:05:00.000Z"),
+      },
+      {
+        id: "activity-description-only",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: { description: "New description", _previous: { description: "Old description" } },
+        createdAt: new Date("2026-04-20T01:10:00.000Z"),
+      },
+      {
+        id: "activity-document-updated",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.document_updated",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: { key: "note", title: "Hidden document update unique" },
+        createdAt: new Date("2026-04-20T01:15:00.000Z"),
+      },
+    ]);
+
+    const html = renderToStaticMarkup(<IssueDetail />);
+
+    expect(html).toContain("assigned the issue to Builder");
+    expect(html).toContain("changed the reviewer from Builder to Me");
+    expect(html).not.toContain("updated the description");
+    expect(html).not.toContain("Hidden document update unique");
   });
 
   it("moves the linked Linear issue summary into activity instead of a separate tab", () => {
