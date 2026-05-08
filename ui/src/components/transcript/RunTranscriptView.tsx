@@ -174,6 +174,7 @@ const COMMON_FILENAME_TOKENS = new Set([
   "Makefile",
   "LICENSE",
 ]);
+const STRONG_WRITE_COMMAND_TOKENS = new Set(["apply_patch", "patch", "ed", "tee", "mv", "cp", "rm", "mkdir", "touch"]);
 const LONG_EVENT_COLLAPSE_CHARS = 900;
 const LONG_EVENT_COLLAPSE_LINES = 8;
 const LOCAL_POSIX_FILE_ROOTS = [
@@ -382,15 +383,54 @@ function commandSegmentFrom(tokens: string[], startIndex: number): string[] {
   return segment;
 }
 
+function splitShellCommandSegments(tokens: string[]): string[][] {
+  const segments: string[][] = [];
+  let segment: string[] = [];
+
+  for (const token of tokens) {
+    if (isShellControlToken(token)) {
+      if (segment.length > 0) segments.push(segment);
+      segment = [];
+      continue;
+    }
+    segment.push(token);
+  }
+
+  if (segment.length > 0) segments.push(segment);
+  return segments;
+}
+
 function hasHelpSignal(tokens: string[]): boolean {
   return tokens.some((token) => token === "--help" || token === "-h" || token === "help");
 }
 
 function hasStdoutWriteRedirect(command: string): boolean {
-  const normalized = stripWrappedShell(command);
-  const redirect = normalized.match(/(?:^|\s)(?:1?>{1,2}|&>)\s*([^\s|&;]+)/);
+  return Boolean(extractStdoutWriteRedirectTarget(stripWrappedShell(command)));
+}
+
+function extractStdoutWriteRedirectTarget(command: string): string | null {
+  const redirect = command.match(/(?:^|\s)(?:[0-9]?>{1,2}|&>)\s*([^\s|&;]+)/);
   const target = redirect?.[1] ? cleanShellToken(redirect[1]) : null;
-  return Boolean(target && target !== "/dev/null");
+  return target && target !== "/dev/null" ? target : null;
+}
+
+function extractStdoutWriteRedirectTargetFromTokens(tokens: string[]): string | null {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (/^(?:[0-9]?>{1,2}|&>)$/.test(token)) {
+      const target = tokens[index + 1] ? cleanShellToken(tokens[index + 1]) : null;
+      if (target && target !== "/dev/null") return target;
+      continue;
+    }
+    const attachedRedirect = token.match(/^(?:[0-9]?>{1,2}|&>)(.+)$/);
+    const target = attachedRedirect?.[1] ? cleanShellToken(attachedRedirect[1]) : null;
+    if (target && target !== "/dev/null") return target;
+  }
+  return null;
+}
+
+function commandSegmentHasStdoutWriteRedirect(segment: string[]): boolean {
+  return Boolean(extractStdoutWriteRedirectTargetFromTokens(segment));
 }
 
 function commandUsesInPlaceSed(tokens: string[]): boolean {
@@ -416,19 +456,69 @@ function commandUsesInPlacePerl(tokens: string[]): boolean {
 }
 
 function isPackageInstallCommand(firstToken: string, tokens: string[]): boolean {
+  const command = firstToken.toLowerCase();
   const args = commandSegmentFrom(tokens, 1).filter((token) => token !== "--" && !token.startsWith("-"));
-  const action = args[0];
+  const action = args[0]?.toLowerCase();
   if (!action) return false;
 
-  if (["npm", "pnpm", "yarn", "bun"].includes(firstToken)) {
+  if (["npm", "pnpm", "yarn", "bun"].includes(command)) {
     return action === "install" || action === "i" || action === "add";
   }
-  if (["pip", "pip3", "uv", "poetry"].includes(firstToken)) {
+  if (["pip", "pip3", "uv", "poetry"].includes(command)) {
     return action === "install" || action === "add";
   }
-  if (firstToken === "bundle") return action === "install" || action === "add";
-  if (firstToken === "composer") return action === "install" || action === "require";
+  if (command === "bundle") return action === "install" || action === "add";
+  if (command === "composer") return action === "install" || action === "require";
   return false;
+}
+
+function commandSegmentUsesInPlaceSed(segment: string[]): boolean {
+  const command = segment[0]?.toLowerCase();
+  if (command !== "sed") return false;
+  return segment.slice(1).some((token) => token === "--in-place" || token.startsWith("--in-place=") || /^-[^-]*i/.test(token));
+}
+
+function commandSegmentUsesInPlacePerl(segment: string[]): boolean {
+  const command = segment[0]?.toLowerCase();
+  if (command !== "perl") return false;
+  return segment.slice(1).some((token) => /^-[^-]*p[^-]*i|^-[^-]*i[^-]*p/.test(token));
+}
+
+function findStrongEditSegment(tokens: string[]): string[] | null {
+  for (const segment of splitShellCommandSegments(tokens)) {
+    const command = segment[0]?.toLowerCase();
+    if (!command) continue;
+    if (STRONG_WRITE_COMMAND_TOKENS.has(command)) return segment;
+    if (commandSegmentUsesInPlaceSed(segment) || commandSegmentUsesInPlacePerl(segment)) return segment;
+    if (commandSegmentHasStdoutWriteRedirect(segment)) return segment;
+  }
+  return null;
+}
+
+function hasPackageInstallSegment(tokens: string[]): boolean {
+  return splitShellCommandSegments(tokens).some((segment) => {
+    const command = segment[0]?.toLowerCase();
+    return Boolean(command && isPackageInstallCommand(command, segment));
+  });
+}
+
+function getShellPositionalArgsFromTokens(tokens: string[]): string[] {
+  const positional: string[] = [];
+
+  for (let index = 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (/^(?:&&|\|\||[|;])$/.test(token)) break;
+    if (/^(?:[0-9]?>{1,2}|&>)$/.test(token)) {
+      index += 1;
+      continue;
+    }
+    if (/^(?:[0-9]?>{1,2}|&>).+/.test(token)) continue;
+    if (token === "--") continue;
+    if (token.startsWith("-")) continue;
+    positional.push(token);
+  }
+
+  return positional;
 }
 
 function classifyShellCommand(command: string): { category: TranscriptToolCategory; label: string } {
@@ -436,30 +526,17 @@ function classifyShellCommand(command: string): { category: TranscriptToolCatego
   const tokens = shellTokensForCommand(command);
   const firstToken = tokens[0]?.toLowerCase() ?? "";
   const normalizedLower = normalized.toLowerCase();
+  const strongEditSegment = findStrongEditSegment(tokens);
 
   if (!firstToken) {
     return { category: "bash", label: "Command" };
   }
 
-  if (
-    firstToken === "apply_patch" ||
-    firstToken === "patch" ||
-    firstToken === "ed" ||
-    firstToken === "tee" ||
-    firstToken === "mv" ||
-    firstToken === "cp" ||
-    firstToken === "rm" ||
-    firstToken === "mkdir" ||
-    firstToken === "touch" ||
-    commandUsesInPlaceSed(tokens) ||
-    commandUsesInPlacePerl(tokens) ||
-    /\btee\b/.test(normalizedLower) ||
-    hasStdoutWriteRedirect(command)
-  ) {
+  if (strongEditSegment || commandUsesInPlaceSed(tokens) || commandUsesInPlacePerl(tokens) || hasStdoutWriteRedirect(command)) {
     return { category: "edit", label: "Edit" };
   }
 
-  if (isPackageInstallCommand(firstToken, tokens)) {
+  if (hasPackageInstallSegment(tokens)) {
     return { category: "install", label: "Install" };
   }
 
@@ -593,17 +670,7 @@ function isLikelySedExpressionToken(token: string): boolean {
 }
 
 function getShellPositionalArgs(command: string): string[] {
-  const tokens = tokenizeShell(command);
-  const positional: string[] = [];
-
-  for (const token of tokens.slice(1)) {
-    if (/^(?:&&|\|\||[|;])$/.test(token)) break;
-    if (token === "--") continue;
-    if (token.startsWith("-")) continue;
-    positional.push(token);
-  }
-
-  return positional;
+  return getShellPositionalArgsFromTokens(tokenizeShell(command));
 }
 
 function extractRecordPaths(record: Record<string, unknown> | null): string[] {
@@ -989,7 +1056,7 @@ function describeRudderCommandSemanticInfo(command: string): TranscriptToolSeman
       };
     }
 
-    if (["done", "close", "complete", "comment", "checkout"].includes(action) && target) {
+    if (["done", "close", "complete", "comment", "checkout", "update"].includes(action) && target) {
       const commentSummary = summarizeIssueComment(command);
       const suffix = commentSummary ? ` · ${commentSummary}` : "";
       const actionLabel =
@@ -997,7 +1064,9 @@ function describeRudderCommandSemanticInfo(command: string): TranscriptToolSeman
           ? `Marked ${target} done`
           : action === "comment"
             ? `Commented on ${target}`
-            : `Checked out ${target}`;
+            : action === "checkout"
+              ? `Checked out ${target}`
+              : `Updated ${target}`;
 
       return {
         category: "script",
@@ -1111,13 +1180,17 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
   }
 
   if (invocation.category === "edit") {
-    const redirectTarget = normalized.match(/(?:^|\s)(?:>>?|tee)\s+([^\s]+)/);
-    const fallbackTarget = redirectTarget?.[1] ?? positionalArgs[positionalArgs.length - 1];
-    const editPathTargets = commandUsesInPlaceSed(classificationTokens)
-      ? pathTargets.filter((target) => !isLikelySedExpressionToken(target))
-      : pathTargets;
-    const targets = editPathTargets.length > 0
-      ? editPathTargets
+    const editSegment = findStrongEditSegment(classificationTokens) ?? classificationTokens;
+    const editPositionalArgs = getShellPositionalArgsFromTokens(editSegment);
+    const editPathTargets = dedupeTargets(editPositionalArgs.filter(isLikelyPathToken));
+    const redirectTarget = extractStdoutWriteRedirectTarget(normalized);
+    const teeTarget = editSegment[0]?.toLowerCase() === "tee" ? editPositionalArgs[0] : null;
+    const fallbackTarget = redirectTarget ?? teeTarget ?? editPositionalArgs[editPositionalArgs.length - 1];
+    const targetsWithoutSedExpression = commandSegmentUsesInPlaceSed(editSegment)
+      ? editPathTargets.filter((target) => !isLikelySedExpressionToken(target))
+      : editPathTargets;
+    const targets = targetsWithoutSedExpression.length > 0
+      ? targetsWithoutSedExpression
       : fallbackTarget
         ? dedupeTargets([fallbackTarget])
         : [];

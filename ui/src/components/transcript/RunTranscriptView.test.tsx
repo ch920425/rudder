@@ -527,11 +527,14 @@ describe("RunTranscriptView", () => {
   it("customizes read-only Rudder issue commands separately from issue updates", () => {
     const html = renderCommandSummary("rudder issue context RUD-38 --json | sed -n '1,80p'");
     const commentsHtml = renderCommandSummary("rudder issue comments list RUD-38 --json");
+    const updateHtml = renderCommandSummary("rudder issue update ZST-69 --status todo --comment nope");
 
     expect(html).toContain("Inspected RUD-38");
     expect(html).not.toContain("Updated RUD-38");
     expect(commentsHtml).toContain("Inspected comments for RUD-38");
     expect(commentsHtml).not.toContain("Updated list");
+    expect(updateHtml).toContain("Updated ZST-69");
+    expect(updateHtml).not.toContain("Ran rudder command");
   });
 
   it("keeps sed pipelines neutral or read-only unless a strong write signal exists", () => {
@@ -549,6 +552,17 @@ describe("RunTranscriptView", () => {
     expect(html).toContain("Ran shell command");
     expect(html).not.toContain("Updated sed");
     expect(html).not.toContain("Edited");
+  });
+
+  it("scans complex shell segments for strong write signals", () => {
+    const removeHtml = renderCommandSummary("echo hi && rm file.txt");
+    const redirectHtml = renderCommandSummary("foo --bar | sed -n '1,20p' > out.txt");
+    const installHtml = renderCommandSummary("echo ready && pnpm add zod");
+
+    expect(removeHtml).toContain("Edited file.txt");
+    expect(removeHtml).not.toContain("Ran shell command");
+    expect(redirectHtml).toContain("Edited out.txt");
+    expect(installHtml).toContain("Installed packages");
   });
 
   it("filters routine Rudder-managed runtime home logs from nice transcript views", () => {
