@@ -43,6 +43,9 @@ export interface OrganizationWorkspaceFileDetail {
   filePath: string;
   rootExists: boolean;
   content: string | null;
+  contentType: string | null;
+  previewKind: "text" | "image" | "binary";
+  contentPath: string | null;
   message: string | null;
   truncated: boolean;
 }

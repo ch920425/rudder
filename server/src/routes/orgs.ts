@@ -227,6 +227,30 @@ export function organizationRoutes(db: Db, storage?: StorageService) {
     res.json(result);
   });
 
+  router.get("/:orgId/workspace/file/content", async (req, res) => {
+    const orgId = req.params.orgId as string;
+    assertCompanyAccess(req, orgId);
+    if (req.actor.type !== "agent") {
+      assertBoard(req);
+    }
+    const filePath = typeof req.query.path === "string" ? req.query.path : "";
+    const workspaceFile = await workspaceBrowser.readAttachmentFile(orgId, filePath);
+    if (!workspaceFile.contentType.toLowerCase().startsWith("image/")) {
+      res.status(415).json({ error: "Workspace file is not an image preview" });
+      return;
+    }
+
+    res.setHeader("Content-Type", workspaceFile.contentType);
+    res.setHeader("Content-Length", String(workspaceFile.buffer.length));
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (workspaceFile.contentType === "image/svg+xml") {
+      res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
+    }
+    res.setHeader("Content-Disposition", `inline; filename="${workspaceFile.originalFilename.replaceAll("\"", "")}"`);
+    res.send(workspaceFile.buffer);
+  });
+
   router.patch("/:orgId/workspace/file", validate(updateOrganizationWorkspaceFileSchema), async (req, res) => {
     const orgId = req.params.orgId as string;
     assertCompanyAccess(req, orgId);

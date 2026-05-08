@@ -448,6 +448,9 @@ export function workspaceBackupService(db: Db) {
           filePath: normalizedPath,
           rootExists: true,
           content: null,
+          contentType: "application/octet-stream",
+          previewKind: "binary",
+          contentPath: null,
           message: "Binary files are not previewed in workspace backups.",
           truncated: false,
         };
@@ -460,6 +463,9 @@ export function workspaceBackupService(db: Db) {
         filePath: normalizedPath,
         rootExists: true,
         content: buffer.subarray(0, MAX_PREVIEW_BYTES).toString("utf8"),
+        contentType: "text/plain",
+        previewKind: "text",
+        contentPath: null,
         message: truncated ? "Preview truncated to the first 200 KB." : null,
         truncated,
       };

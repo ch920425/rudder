@@ -16,7 +16,7 @@ import { organizationService } from "./orgs.js";
 
 const MAX_PREVIEW_BYTES = 200_000;
 const HIDDEN_WORKSPACE_ENTRY_NAMES = new Set([".DS_Store", ".cache", ".npm", ".nvm"]);
-const WORKSPACE_ATTACHMENT_CONTENT_TYPES = new Map([
+const WORKSPACE_TEXT_CONTENT_TYPES = new Map([
   [".md", "text/markdown"],
   [".markdown", "text/markdown"],
   [".txt", "text/plain"],
@@ -24,12 +24,20 @@ const WORKSPACE_ATTACHMENT_CONTENT_TYPES = new Map([
   [".csv", "text/csv"],
   [".html", "text/html"],
   [".htm", "text/html"],
-  [".pdf", "application/pdf"],
-  [".png", "image/png"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".webp", "image/webp"],
+]);
+const WORKSPACE_IMAGE_CONTENT_TYPES = new Map([
+  [".avif", "image/avif"],
+  [".bmp", "image/bmp"],
   [".gif", "image/gif"],
+  [".ico", "image/x-icon"],
+  [".jpeg", "image/jpeg"],
+  [".jpg", "image/jpeg"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".webp", "image/webp"],
+]);
+const WORKSPACE_BINARY_CONTENT_TYPES = new Map([
+  [".pdf", "application/pdf"],
 ]);
 
 type WorkspaceRootResolution = {
@@ -80,10 +88,30 @@ function shouldHideWorkspaceEntry(entryName: string) {
   return HIDDEN_WORKSPACE_ENTRY_NAMES.has(entryName);
 }
 
-function inferWorkspaceAttachmentContentType(filePath: string, buffer: Buffer) {
-  const mapped = WORKSPACE_ATTACHMENT_CONTENT_TYPES.get(path.extname(filePath).toLowerCase());
+function getWorkspaceFileContentType(filePath: string, buffer?: Buffer) {
+  const extension = path.extname(filePath).toLowerCase();
+  const mapped = WORKSPACE_TEXT_CONTENT_TYPES.get(extension)
+    ?? WORKSPACE_IMAGE_CONTENT_TYPES.get(extension)
+    ?? WORKSPACE_BINARY_CONTENT_TYPES.get(extension);
   if (mapped) return mapped;
+  if (!buffer) return null;
   return hasBinaryBytes(buffer) ? "application/octet-stream" : "text/plain";
+}
+
+const WORKSPACE_IMAGE_CONTENT_TYPE_VALUES = new Set(WORKSPACE_IMAGE_CONTENT_TYPES.values());
+
+function isWorkspaceImageContentType(contentType: string | null | undefined) {
+  return typeof contentType === "string" && WORKSPACE_IMAGE_CONTENT_TYPE_VALUES.has(contentType.toLowerCase());
+}
+
+function getWorkspaceFileContentPath(orgId: string, normalizedPath: string) {
+  const search = new URLSearchParams({ path: normalizedPath });
+  return `/api/orgs/${orgId}/workspace/file/content?${search.toString()}`;
+}
+
+function getWorkspaceFilePreviewKind(contentType: string, buffer: Buffer): OrganizationWorkspaceFileDetail["previewKind"] {
+  if (isWorkspaceImageContentType(contentType)) return "image";
+  return hasBinaryBytes(buffer) ? "binary" : "text";
 }
 
 export function organizationWorkspaceBrowserService(db: Db) {
@@ -227,6 +255,9 @@ export function organizationWorkspaceBrowserService(db: Db) {
           filePath: normalizedPath,
           rootExists: false,
           content: null,
+          contentType: null,
+          previewKind: "binary",
+          contentPath: null,
           message: "The workspace root is not available on this machine yet.",
           truncated: false,
         };
@@ -237,7 +268,9 @@ export function organizationWorkspaceBrowserService(db: Db) {
       }
 
       const buffer = await fs.readFile(resolvedTarget);
-      if (hasBinaryBytes(buffer)) {
+      const contentType = getWorkspaceFileContentType(normalizedPath || resolvedTarget, buffer) ?? "application/octet-stream";
+      const previewKind = getWorkspaceFilePreviewKind(contentType, buffer);
+      if (previewKind === "image") {
         return {
           source: root.source,
           rootPath: resolvedRoot,
@@ -245,6 +278,24 @@ export function organizationWorkspaceBrowserService(db: Db) {
           filePath: normalizedPath,
           rootExists: true,
           content: null,
+          contentType,
+          previewKind,
+          contentPath: getWorkspaceFileContentPath(orgId, normalizedPath),
+          message: null,
+          truncated: false,
+        };
+      }
+      if (previewKind === "binary") {
+        return {
+          source: root.source,
+          rootPath: resolvedRoot,
+          repoUrl: root.repoUrl,
+          filePath: normalizedPath,
+          rootExists: true,
+          content: null,
+          contentType,
+          previewKind,
+          contentPath: null,
           message: "Binary files are not previewed in the organization workspace view.",
           truncated: false,
         };
@@ -259,6 +310,9 @@ export function organizationWorkspaceBrowserService(db: Db) {
         filePath: normalizedPath,
         rootExists: true,
         content: rawContent,
+        contentType,
+        previewKind,
+        contentPath: null,
         message: truncated ? "Preview truncated to the first 200 KB." : null,
         truncated,
       };
@@ -284,7 +338,7 @@ export function organizationWorkspaceBrowserService(db: Db) {
       return {
         normalizedPath,
         originalFilename: path.basename(resolvedTarget),
-        contentType: inferWorkspaceAttachmentContentType(normalizedPath || resolvedTarget, buffer),
+        contentType: getWorkspaceFileContentType(normalizedPath || resolvedTarget, buffer) ?? "application/octet-stream",
         buffer,
       };
     },
@@ -313,6 +367,9 @@ export function organizationWorkspaceBrowserService(db: Db) {
         filePath: normalizedPath,
         rootExists: true,
         content,
+        contentType: getWorkspaceFileContentType(normalizedPath || resolvedTarget) ?? "text/plain",
+        previewKind: "text",
+        contentPath: null,
         message: null,
         truncated: false,
       };

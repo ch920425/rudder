@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
+import type { OrganizationWorkspaceFileDetail, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
 import { useSearchParams } from "@/lib/router";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
   Folder,
   FolderOpen,
   FileCode2,
+  Image as ImageIcon,
   RefreshCw,
   Save,
   Loader2,
@@ -49,6 +50,7 @@ const WORKSPACE_LAUNCH_TARGET_IDS = [
   "warp",
   "finder",
 ] as const satisfies readonly DesktopWorkspaceLaunchTarget["id"][];
+const WORKSPACE_IMAGE_FILE_EXTENSIONS = new Set([".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 
 function isWorkspaceLaunchTargetId(value: string | null): value is DesktopWorkspaceLaunchTarget["id"] {
   return WORKSPACE_LAUNCH_TARGET_IDS.includes(value as DesktopWorkspaceLaunchTarget["id"]);
@@ -101,6 +103,18 @@ function normalizeRequestedPath(value: string | null) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getWorkspaceFileExtension(filePath: string | null) {
+  if (!filePath) return null;
+  const basename = filePath.split("/").at(-1) ?? filePath;
+  const extensionIndex = basename.lastIndexOf(".");
+  return extensionIndex === -1 ? null : basename.slice(extensionIndex).toLowerCase();
+}
+
+function isWorkspaceImageFilePath(filePath: string | null) {
+  const extension = getWorkspaceFileExtension(filePath);
+  return extension !== null && WORKSPACE_IMAGE_FILE_EXTENSIONS.has(extension);
+}
+
 function inferLanguageFromPath(filePath: string | null) {
   if (!filePath) return "text";
   const normalized = filePath.toLowerCase();
@@ -120,6 +134,20 @@ function inferLanguageFromPath(filePath: string | null) {
 
 function displayWorkspaceEntryLabel(entry: OrganizationWorkspaceFileEntry) {
   return entry.displayLabel?.trim() || entry.name;
+}
+
+function displayWorkspaceFileFormat(filePath: string | null, detail: OrganizationWorkspaceFileDetail | undefined) {
+  if (detail?.previewKind === "image" && detail.contentType) {
+    const subtype = detail.contentType.split("/").at(-1) ?? "image";
+    if (subtype === "svg+xml") return "svg";
+    if (subtype === "x-icon") return "ico";
+    return subtype;
+  }
+
+  const extension = getWorkspaceFileExtension(filePath);
+  if (extension && WORKSPACE_IMAGE_FILE_EXTENSIONS.has(extension)) return extension.slice(1);
+  if (detail?.contentType === "application/pdf") return "pdf";
+  return inferLanguageFromPath(filePath);
 }
 
 function updateSelectedPath(
@@ -251,6 +279,7 @@ function WorkspaceTreeNode({
   }
 
   const isSelected = selectedFilePath === entry.path;
+  const FileIcon = isWorkspaceImageFilePath(entry.path) ? ImageIcon : FileCode2;
   return (
     <li>
       <button
@@ -261,7 +290,7 @@ function WorkspaceTreeNode({
         style={{ paddingLeft: `${depth * 14 + 23}px` }}
         onClick={() => onSelectFile(entry.path)}
       >
-        <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+        <FileIcon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{primaryLabel}</span>
       </button>
     </li>
@@ -554,7 +583,7 @@ export function OrganizationWorkspaces() {
     && !selectedFileDetail.truncated,
   );
   const hasUnsavedChanges = canEditSelectedFile && draftContent !== (selectedFileDetail?.content ?? "");
-  const selectedLanguage = inferLanguageFromPath(selectedFilePath);
+  const selectedFormatLabel = displayWorkspaceFileFormat(selectedFilePath, selectedFileDetail);
   const primaryIde = availableIdes[0] ?? null;
   const hasLoadedSelectedFile = Boolean(
     selectedFilePath
@@ -646,7 +675,7 @@ export function OrganizationWorkspaces() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {selectedFilePath ? (
                   <span className="rounded-full border border-border px-2 py-0.5 font-mono">
-                    {selectedLanguage}
+                    {selectedFormatLabel}
                   </span>
                 ) : null}
                 {canOpenInIde && primaryIde ? (
@@ -721,6 +750,15 @@ export function OrganizationWorkspaces() {
                     onChange={(event) => setDraftContent(event.target.value)}
                     spellCheck={false}
                     className="block min-h-[280px] flex-1 overflow-auto border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-foreground outline-none"
+                  />
+                </div>
+              ) : selectedFileDetail?.previewKind === "image" && selectedFileDetail.contentPath ? (
+                <div className="flex h-full min-h-[420px] items-center justify-center overflow-auto bg-accent/10 p-4">
+                  <img
+                    data-testid="org-workspaces-image-preview"
+                    src={selectedFileDetail.contentPath}
+                    alt={selectedFilePath ?? "Workspace image preview"}
+                    className="max-h-full max-w-full rounded-md object-contain shadow-sm"
                   />
                 </div>
               ) : selectedFileDetail?.content ? (
