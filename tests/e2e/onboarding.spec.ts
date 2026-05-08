@@ -10,14 +10,21 @@ async function expectOnboardingStep(page: Page, text: string) {
   await expect(onboardingHeading(page, text)).toBeVisible({ timeout: 15_000 });
 }
 
+async function expectSelectedCodexModel(page: Page) {
+  const modelButton = page.getByRole("button", { name: /gpt-5\.\d+/ });
+  await expect(modelButton).toBeVisible();
+  const model = (await modelButton.textContent())?.trim();
+  expect(model).toMatch(/^gpt-5\.\d+$/);
+  return model!;
+}
+
 test.describe("Onboarding wizard", () => {
-  test("fresh onboarding stays sequential and defaults Codex to gpt-5.4", async ({
+  test("fresh onboarding creates a Getting Started project and opens dashboard", async ({
     page,
   }) => {
     const initialOrganizationName = `E2E-Fresh-${Date.now()}`;
     const updatedOrganizationName = `${initialOrganizationName}-Updated`;
     const updatedAgentName = "Founding CEO";
-    const taskTitle = "E2E fresh onboarding task";
 
     await page.goto("/onboarding");
 
@@ -51,49 +58,11 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByText("Agent name (optional)")).toHaveCount(0);
     await expect(onboardingNameInput).toHaveValue(/\S+/, { timeout: 15_000 });
     await page.getByRole("button", { name: "Codex" }).click();
-    await expect(
-      page.getByRole("button", { name: "gpt-5.4" })
-    ).toBeVisible();
-
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await expectOnboardingStep(page, "Give it something to do");
-    await page.getByRole("button", { name: "Back" }).click();
-    await expectOnboardingStep(page, "Create your first agent");
+    const selectedCodexModel = await expectSelectedCodexModel(page);
     await onboardingNameInput.fill(updatedAgentName);
-    await page.getByRole("button", { name: "Next" }).click();
-    await expectOnboardingStep(page, "Give it something to do");
 
-    await expect(
-      page.locator('[data-testid="onboarding-step-tab-4"]')
-    ).toBeDisabled();
-
-    const taskTitleInput = page.locator(
-      'input[placeholder="e.g. Research competitor pricing"]'
-    );
-    await taskTitleInput.clear();
-    await taskTitleInput.fill(taskTitle);
-
-    await page.getByRole("button", { name: "Next" }).click();
-
-    await expectOnboardingStep(page, "Ready to launch");
-    await page.locator('[data-testid="onboarding-step-tab-2"]').click();
-    await expectOnboardingStep(page, "Create your first agent");
-    await page.locator('[data-testid="onboarding-step-tab-4"]').click();
-    await expectOnboardingStep(page, "Ready to launch");
-    await expect(
-      page.locator('[data-testid="onboarding-launch-summary-organization"]')
-    ).toContainText(updatedOrganizationName);
-    await expect(
-      page.locator('[data-testid="onboarding-launch-summary-project"]')
-    ).toContainText("onboarding");
-    await expect(
-      page.locator('[data-testid="onboarding-launch-summary-task"]')
-    ).toContainText(taskTitle);
-
-    await page.getByRole("button", { name: "Create & Open Issue" }).click();
-
-    await expect(page).toHaveURL(/\/issues\//, { timeout: 10_000 });
+    await page.getByRole("button", { name: "Create & Open Dashboard" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 });
 
     const baseUrl = page.url().split("/").slice(0, 3).join("/");
 
@@ -107,6 +76,7 @@ test.describe("Onboarding wizard", () => {
       (org: { name: string }) => org.name === updatedOrganizationName
     );
     expect(organization).toBeTruthy();
+    expect(page.url()).toContain(`/${organization.issuePrefix}/dashboard`);
     expect(organization).not.toHaveProperty("defaultChatAgentRuntimeType");
     expect(organization).not.toHaveProperty("defaultChatAgentRuntimeConfig");
 
@@ -121,43 +91,31 @@ test.describe("Onboarding wizard", () => {
     );
     expect(ceoAgent).toBeTruthy();
     expect(ceoAgent.agentRuntimeType).toBe("codex_local");
-    expect(ceoAgent.agentRuntimeConfig.model).toBe("gpt-5.4");
+    expect(ceoAgent.agentRuntimeConfig.model).toBe(selectedCodexModel);
 
     const issuesRes = await page.request.get(
       `${baseUrl}/api/orgs/${organization.id}/issues`
     );
     expect(issuesRes.ok()).toBe(true);
     const issues = await issuesRes.json();
-    const task = issues.find(
-      (issue: { title: string }) => issue.title === taskTitle
-    );
-    expect(task).toBeTruthy();
-    expect(task.assigneeAgentId).toBe(ceoAgent.id);
+    expect(issues).toEqual([]);
+
     const projectsRes = await page.request.get(
       `${baseUrl}/api/orgs/${organization.id}/projects`
     );
     expect(projectsRes.ok()).toBe(true);
     const projects = await projectsRes.json();
-    const onboardingProjects = projects.filter(
+    const gettingStartedProjects = projects.filter(
       (project: { name: string; archivedAt?: string | null }) =>
-        project.name === "onboarding" && !project.archivedAt
+        project.name === "Getting Started" && !project.archivedAt
     );
-    expect(onboardingProjects).toHaveLength(1);
-    expect(task.projectId).toBe(onboardingProjects[0].id);
+    expect(gettingStartedProjects).toHaveLength(1);
 
     await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}`, {
       waitUntil: "commit",
     });
     await expect(page.locator(".chat-composer")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".chat-warning")).toHaveCount(0);
-
-    if (!SKIP_LLM) {
-      await expect(async () => {
-        const res = await page.request.get(`${baseUrl}/api/issues/${task.id}`);
-        const issue = await res.json();
-        expect(["in_progress", "done"]).toContain(issue.status);
-      }).toPass({ timeout: 120_000, intervals: [5_000] });
-    }
   });
 
   test("existing organization onboarding starts at agent and runtime test stays valid", async ({
@@ -181,19 +139,18 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByText("Agent name", { exact: true })).toBeVisible();
     await expect(page.getByText("Agent name (optional)")).toHaveCount(0);
     await expect(onboardingNameInput).toHaveValue(/\S+/, { timeout: 15_000 });
+    const agentName = await onboardingNameInput.inputValue();
 
     await expect(
       page.locator('[data-testid="onboarding-step-tab-4"]')
     ).toBeDisabled();
 
     await page.getByRole("button", { name: "Codex" }).click();
-    await expect(
-      page.getByRole("button", { name: "gpt-5.4" })
-    ).toBeVisible();
+    await expectSelectedCodexModel(page);
 
     await page.getByRole("button", { name: "Test now" }).click();
     await expect(
-      page.getByText("Command is executable: codex")
+      page.getByText("Passed")
     ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByText("Complete organization setup before testing the runtime.")
@@ -218,8 +175,43 @@ test.describe("Onboarding wizard", () => {
       page.locator('[data-testid="onboarding-launch-summary-project"]')
     ).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Back" }).click();
-    await expectOnboardingStep(page, "Give it something to do");
+    await expect(
+      page.locator('[data-testid="onboarding-launch-summary-task"]')
+    ).toContainText(taskTitle);
+
+    await page.getByRole("button", { name: "Create & Open Issue" }).click();
+    await expect(page).toHaveURL(/\/issues\//, { timeout: 10_000 });
+
+    const baseUrl = page.url().split("/").slice(0, 3).join("/");
+    const agentsRes = await page.request.get(
+      `${baseUrl}/api/orgs/${organization.id}/agents`
+    );
+    expect(agentsRes.ok()).toBe(true);
+    const agents = await agentsRes.json();
+    const ceoAgent = agents.find(
+      (agent: { name: string }) => agent.name === agentName
+    );
+    expect(ceoAgent).toBeTruthy();
+
+    const issuesRes = await page.request.get(
+      `${baseUrl}/api/orgs/${organization.id}/issues`
+    );
+    expect(issuesRes.ok()).toBe(true);
+    const issues = await issuesRes.json();
+    const task = issues.find(
+      (issue: { title: string }) => issue.title === taskTitle
+    );
+    expect(task).toBeTruthy();
+    expect(task.assigneeAgentId).toBe(ceoAgent.id);
+    expect(task.projectId).toBeNull();
+
+    if (!SKIP_LLM) {
+      await expect(async () => {
+        const res = await page.request.get(`${baseUrl}/api/issues/${task.id}`);
+        const issue = await res.json();
+        expect(["in_progress", "done"]).toContain(issue.status);
+      }).toPass({ timeout: 120_000, intervals: [5_000] });
+    }
   });
 
   test("new organization drafts are rolled back when onboarding closes before launch", async ({

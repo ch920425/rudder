@@ -80,7 +80,7 @@ const DEFAULT_TASK_DESCRIPTION = `You are the CEO. You set the direction for the
 - hire a founding engineer
 - write a hiring plan`;
 
-const ONBOARDING_PROJECT_NAME = "onboarding";
+const ONBOARDING_PROJECT_NAME = "Getting Started";
 const ONBOARDING_DRAFT_ORGANIZATION_STORAGE_KEY =
   "rudder.onboardingDraftOrganizationId";
 
@@ -214,9 +214,8 @@ export function OnboardingWizard() {
   }, [queryClient]);
   const taskReady = taskTitle.trim().length > 0;
   const canReturnToOrganizationStep = minimumStep === 1 && organizationReady;
-  const launchDescription = createdNewOrganizationInSession
-    ? "Everything is set up. Launching now will create the onboarding project, create the starter task, wake the agent, and open the issue."
-    : "Everything is set up. Launching now will create the starter task, wake the agent, and open the issue.";
+  const launchDescription =
+    "Everything is set up. Launching now will create the starter task, wake the agent, and open the issue.";
 
   const isStepUnlocked = useCallback(
     (targetStep: Step) => targetStep >= minimumStep && targetStep <= furthestStep,
@@ -684,6 +683,25 @@ export function OnboardingWizard() {
     }
   }
 
+  async function ensureGettingStartedProject(organizationId: string) {
+    const projects = await projectsApi.list(organizationId);
+    const existingProject = projects.find(
+      (project) =>
+        !project.archivedAt && project.name === ONBOARDING_PROJECT_NAME
+    );
+    if (existingProject) return existingProject;
+
+    const project = await projectsApi.create(organizationId, {
+      name: ONBOARDING_PROJECT_NAME,
+      status: "planned",
+      description: null,
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.projects.list(organizationId)
+    });
+    return project;
+  }
+
   async function handleStep2Next() {
     if (!createdCompanyId) {
       setError("Complete organization setup before creating an agent.");
@@ -756,10 +774,32 @@ export function OnboardingWizard() {
         : await agentsApi.create(createdCompanyId, agentPayload);
       setCreatedAgentId(agent.id);
       setCreatedAgentName(agent.name);
-      syncOrganizationSnapshot(await organizationsApi.get(createdCompanyId));
+      const organizationSnapshot = await organizationsApi.get(createdCompanyId);
+      syncOrganizationSnapshot(organizationSnapshot);
       queryClient.invalidateQueries({
         queryKey: queryKeys.agents.list(createdCompanyId)
       });
+
+      if (createdNewOrganizationInSession) {
+        await ensureGettingStartedProject(createdCompanyId);
+        shouldCleanupDraftOrganizationRef.current = false;
+        draftOrganizationIdRef.current = null;
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(
+            ONBOARDING_DRAFT_ORGANIZATION_STORAGE_KEY
+          );
+        }
+        setSelectedOrganizationId(createdCompanyId);
+        reset();
+        closeOnboarding();
+        navigate(
+          organizationSnapshot.issuePrefix
+            ? `/${organizationSnapshot.issuePrefix}/dashboard`
+            : "/dashboard"
+        );
+        return;
+      }
+
       setStep(3);
       setFurthestStep((current) => (current > 3 ? current : 3));
     } catch (err) {
@@ -858,25 +898,10 @@ export function OnboardingWizard() {
       if (!issueRef) {
         let projectId: string | undefined;
         if (createdNewOrganizationInSession) {
-          const projects = await projectsApi.list(createdCompanyId);
-          const existingProject = projects.find(
-            (project) =>
-              !project.archivedAt &&
-              project.name === ONBOARDING_PROJECT_NAME
+          const onboardingProject = await ensureGettingStartedProject(
+            createdCompanyId
           );
-          const onboardingProject =
-            existingProject ??
-            (await projectsApi.create(createdCompanyId, {
-              name: ONBOARDING_PROJECT_NAME,
-              status: "planned",
-              description: null,
-            }));
           projectId = onboardingProject.id;
-          if (!existingProject) {
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.projects.list(createdCompanyId)
-            });
-          }
         }
 
         const issue = await issuesApi.create(createdCompanyId, {
@@ -1672,7 +1697,11 @@ export function OnboardingWizard() {
                       ) : (
                         <ArrowRight className="h-3.5 w-3.5 mr-1" />
                       )}
-                      {loading ? "Creating..." : "Next"}
+                      {loading
+                        ? "Creating..."
+                        : createdNewOrganizationInSession
+                          ? "Create & Open Dashboard"
+                          : "Next"}
                     </Button>
                   )}
                   {step === 3 && (
