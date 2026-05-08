@@ -896,11 +896,8 @@ function ProposalCard({
       </div>
 
       {message.body.trim().length > 0 ? (
-        <div className="chat-review-summary mt-4 rounded-[var(--radius-lg)] px-4 py-3">
-          <div className="text-[11px] font-medium text-muted-foreground">Proposal context</div>
-          <div className="mt-2 text-sm leading-6 text-muted-foreground">
-            <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
-          </div>
+        <div className="mt-4 max-w-[72ch] text-[15px] leading-7 text-foreground">
+          <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
         </div>
       ) : null}
 

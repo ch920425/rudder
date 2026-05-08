@@ -808,7 +808,6 @@
     border: 1px solid color-mix(in oklab, var(--border-soft) 90%, transparent);
   }
 
-  .chat-review-summary,
   .chat-review-note {
     background: color-mix(in oklab, var(--surface-shell) 90%, transparent);
     border: 1px solid color-mix(in oklab, var(--border-soft) 88%, transparent);
