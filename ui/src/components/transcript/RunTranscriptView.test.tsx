@@ -899,6 +899,71 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("\\&quot;Skill");
   });
 
+  it("renders web search keywords in transcript tool summaries", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "web_search",
+              toolUseId: "web-1",
+              input: {
+                action: { type: "search", query: "codex transcript web search keywords" },
+              },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "web-1",
+              content: "2 results",
+              isError: false,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Web searched &quot;codex transcript web search keywords&quot;");
+  });
+
+  it("renders MCP server, tool, and argument details in transcript summaries", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "mcp__github__fetch_pr",
+              toolUseId: "mcp-1",
+              input: {
+                repo_full_name: "openai/codex",
+                pr_number: 123,
+              },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "mcp-1",
+              content: "PR title: transcript UI",
+              isError: false,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Called fetch_pr via github");
+    expect(html).toContain("repo_full_name openai/codex");
+    expect(html).toContain("pr_number 123");
+  });
+
   it("groups detail transcripts so repeated reads stay collapsed behind one summary", () => {
     const hiddenHeaderTime = new Date("2026-03-12T00:00:02.000Z").toLocaleTimeString("en-US", {
       hour: "2-digit",

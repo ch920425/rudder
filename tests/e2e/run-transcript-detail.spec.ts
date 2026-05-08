@@ -27,10 +27,9 @@ test.describe("Run transcript detail", () => {
     await page.getByRole("button", { name: "Show settled state" }).click();
     await expect(page.getByRole("button", { name: "Show streaming state" })).toBeVisible({ timeout: 15_000 });
 
-    const firstProgressChunk = page.locator("section").filter({ hasText: "Explored 2 files" });
+    const firstProgressChunk = page.getByRole("button", { name: /Expand tool activity group 1/ }).filter({ hasText: "Explored 2 files" });
     await expect(firstProgressChunk).toHaveCount(1);
-    await expect(firstProgressChunk.getByText("Model turn", { exact: false })).toHaveCount(0);
-    await expect(firstProgressChunk.getByText(/\d{2}:\d{2}:\d{2}/)).toBeVisible();
+    await expect(page.getByText("Model turn", { exact: false })).toHaveCount(0);
     await expect(page.getByText("Read", { exact: true })).toHaveCount(0);
     await expect(page.getByText("doc/GOAL.md", { exact: true })).toHaveCount(0);
     await expect(page.getByText("doc/SPEC-implementation.md", { exact: true })).toHaveCount(0);
@@ -38,8 +37,16 @@ test.describe("Run transcript detail", () => {
     await expect(page.getByText("added review summary comment", { exact: false })).toBeVisible();
     await expect(page.getByText("Ran rudder issue done", { exact: false })).toHaveCount(0);
 
-    await firstProgressChunk.getByRole("button", { name: "Expand tool activity" }).click();
-    await expect(firstProgressChunk.getByRole("button", { name: "Expand command details" })).toHaveCount(2);
+    await firstProgressChunk.click();
+    await expect(page.getByText("Read doc/GOAL.md", { exact: false })).toBeVisible();
+    await expect(page.getByText("Read doc/SPEC-implementation.md", { exact: false })).toBeVisible();
+
+    const externalToolGroup = page.getByRole("button", { name: /Expand tool activity group 2/ }).filter({ hasText: "2 searches, used 1 tool" });
+    await expect(externalToolGroup).toHaveCount(1);
+    await externalToolGroup.click();
+    await expect(page.getByText("Web searched \"transcript UI rendering examples\"", { exact: false })).toBeVisible();
+    await expect(page.getByText("Called fetch_pr via github", { exact: false })).toBeVisible();
+    await expect(page.getByText("repo_full_name Undertone0809/rudder", { exact: false })).toBeVisible();
 
     await page.screenshot({
       path: "/tmp/rudder-run-transcript-detail-expanded.png",
@@ -120,7 +127,7 @@ test.describe("Run transcript detail", () => {
 
     await invocationTab.click();
     await expect(invocationTab).toHaveAttribute("data-state", "active");
-    await expect(page.getByText("Exact adapter invoke payload")).toBeHidden();
+    await expect(page.getByText("Exact adapter invoke payload")).toHaveClass(/invisible/);
     await expect(page.getByText("Runtime:", { exact: false })).toBeVisible();
     await expect(page.getByText("Command:", { exact: false })).toBeVisible();
     await expect(page.getByText(/^Events \(\d+\)$/)).toBeVisible();

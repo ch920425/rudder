@@ -111,4 +111,111 @@ describe("buildTranscript", () => {
       },
     ]);
   });
+
+  it("builds structured transcript entries for Codex web search events", () => {
+    const entries = buildTranscript([
+      {
+        ts,
+        stream: "stdout",
+        chunk: `${JSON.stringify({
+          type: "item.started",
+          item: {
+            id: "ws_1",
+            type: "web_search",
+            action: { type: "search", query: "codex transcript web search keywords" },
+          },
+        })}\n${JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "ws_1",
+            type: "web_search",
+            action: { type: "search", query: "codex transcript web search keywords" },
+            output: "2 results",
+          },
+        })}\n`,
+      },
+    ], parseCodexStdoutLine);
+
+    expect(entries).toEqual([
+      {
+        kind: "tool_call",
+        ts,
+        name: "web_search",
+        toolUseId: "ws_1",
+        input: {
+          id: "ws_1",
+          action: { type: "search", query: "codex transcript web search keywords" },
+        },
+      },
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "ws_1",
+        toolName: "web_search",
+        content: "2 results",
+        isError: false,
+      },
+    ]);
+  });
+
+  it("builds structured transcript entries for Codex MCP tool call events", () => {
+    const entries = buildTranscript([
+      {
+        ts,
+        stream: "stdout",
+        chunk: `${JSON.stringify({
+          type: "item.started",
+          item: {
+            id: "mcp_1",
+            type: "mcp_tool_call",
+            invocation: {
+              server: "github",
+              tool: "fetch_pr",
+              arguments: { repo_full_name: "openai/codex", pr_number: 123 },
+            },
+          },
+        })}\n${JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "mcp_1",
+            type: "mcp_tool_call",
+            invocation: {
+              server: "github",
+              tool: "fetch_pr",
+              arguments: { repo_full_name: "openai/codex", pr_number: 123 },
+            },
+            result: "PR title: transcript UI",
+          },
+        })}\n`,
+      },
+    ], parseCodexStdoutLine);
+
+    expect(entries).toEqual([
+      {
+        kind: "tool_call",
+        ts,
+        name: "mcp__github__fetch_pr",
+        toolUseId: "mcp_1",
+        input: {
+          id: "mcp_1",
+          server: "github",
+          tool: "fetch_pr",
+          invocation: {
+            server: "github",
+            tool: "fetch_pr",
+            arguments: { repo_full_name: "openai/codex", pr_number: 123 },
+          },
+          args: { repo_full_name: "openai/codex", pr_number: 123 },
+        },
+      },
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "mcp_1",
+        toolName: "mcp__github__fetch_pr",
+        content: "PR title: transcript UI",
+        isError: false,
+      },
+    ]);
+  });
 });

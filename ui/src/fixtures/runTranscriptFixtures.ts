@@ -119,14 +119,39 @@ export const runTranscriptFixtureEntries: TranscriptEntry[] = [
     isError: false,
   },
   {
-    kind: "system",
+    kind: "tool_call",
     ts: "2026-03-11T15:22:21.617Z",
-    text: "item started: web_search (id=ws_fixture_reasoning_ui)",
+    name: "web_search",
+    toolUseId: "ws_fixture_reasoning_ui",
+    input: {
+      action: { type: "search", query: "transcript UI rendering examples" },
+    },
   },
   {
-    kind: "system",
+    kind: "tool_result",
     ts: "2026-03-11T15:22:24.806Z",
-    text: "item completed: web_search (id=ws_fixture_reasoning_ui)",
+    toolUseId: "ws_fixture_reasoning_ui",
+    toolName: "web_search",
+    content: "3 results",
+    isError: false,
+  },
+  {
+    kind: "tool_call",
+    ts: "2026-03-11T15:22:25.401Z",
+    name: "mcp__github__fetch_pr",
+    toolUseId: "mcp_fixture_pr",
+    input: {
+      repo_full_name: "Undertone0809/rudder",
+      pr_number: 473,
+    },
+  },
+  {
+    kind: "tool_result",
+    ts: "2026-03-11T15:22:26.214Z",
+    toolUseId: "mcp_fixture_pr",
+    toolName: "mcp__github__fetch_pr",
+    content: "Fetched PR transcript renderer discussion",
+    isError: false,
   },
   {
     kind: "assistant",

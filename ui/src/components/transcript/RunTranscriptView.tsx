@@ -26,6 +26,8 @@ type TranscriptToolCategory =
   | "edit"
   | "grep"
   | "search"
+  | "web_search"
+  | "mcp"
   | "list"
   | "inspect";
 
@@ -552,6 +554,216 @@ function extractRecordQuery(record: Record<string, unknown> | null): string | nu
   return null;
 }
 
+function readStringField(record: Record<string, unknown> | null, keys: string[]): string | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return compactWhitespace(value);
+    }
+  }
+  return null;
+}
+
+function extractQueryValues(value: unknown): string[] {
+  if (typeof value === "string" && value.trim()) return [compactWhitespace(value)];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (typeof item === "string" && item.trim()) return [compactWhitespace(item)];
+      const itemRecord = asRecord(item);
+      const itemQuery = readStringField(itemRecord, ["query", "q", "keyword", "keywords", "search"]);
+      return itemQuery ? [itemQuery] : [];
+    });
+  }
+  const record = asRecord(value);
+  const query = readStringField(record, ["query", "q", "keyword", "keywords", "search"]);
+  return query ? [query] : [];
+}
+
+function extractWebSearchQueries(input: unknown): string[] {
+  const record = asRecord(input);
+  if (!record) return [];
+  const queries: string[] = [];
+  const addQueries = (value: unknown) => {
+    for (const query of extractQueryValues(value)) {
+      if (!queries.includes(query)) queries.push(query);
+    }
+  };
+
+  for (const key of ["query", "q", "keyword", "keywords", "queries", "search", "search_query"]) {
+    addQueries(record[key]);
+  }
+
+  for (const nestedKey of ["action", "web_search", "webSearch", "request", "input"]) {
+    const nestedRecord = asRecord(record[nestedKey]);
+    if (!nestedRecord) continue;
+    for (const key of ["query", "q", "keyword", "keywords", "queries", "search", "search_query"]) {
+      addQueries(nestedRecord[key]);
+    }
+  }
+
+  return queries;
+}
+
+function isWebSearchTool(name: string, input: unknown): boolean {
+  const normalized = name.trim().toLowerCase().replace(/[-\s.]+/g, "_");
+  if (
+    normalized === "web_search" ||
+    normalized === "websearch" ||
+    normalized === "web_search_call" ||
+    normalized === "tool_search_call" ||
+    normalized.includes("web_search")
+  ) {
+    return true;
+  }
+
+  const record = asRecord(input);
+  return Boolean(record && (record.search_query || record.web_search || record.webSearch));
+}
+
+function formatWebSearchSummary(queries: string[]): string {
+  if (queries.length === 1) return `Web searched ${quoteSummaryText(queries[0]!)}`;
+  if (queries.length > 1) return `Web searched ${queries.length} queries: ${queries.slice(0, 2).map((query) => quoteSummaryText(query, 32)).join(", ")}`;
+  return "Web searched";
+}
+
+interface McpToolDetails {
+  server: string | null;
+  tool: string | null;
+  args: Record<string, unknown> | null;
+}
+
+const MCP_METADATA_KEYS = new Set([
+  "id",
+  "callId",
+  "call_id",
+  "toolUseId",
+  "tool_use_id",
+  "server",
+  "serverName",
+  "server_name",
+  "serverLabel",
+  "server_label",
+  "tool",
+  "toolName",
+  "tool_name",
+  "name",
+  "status",
+  "invocation",
+  "request",
+  "input",
+  "args",
+  "arguments",
+  "params",
+]);
+
+function parseMcpToolName(name: string): Pick<McpToolDetails, "server" | "tool"> | null {
+  const parts = name.split("__");
+  if (parts.length >= 3 && parts[0] === "mcp") {
+    return {
+      server: parts[1] || null,
+      tool: parts.slice(2).join("__") || null,
+    };
+  }
+  return null;
+}
+
+function sanitizeMcpArgs(record: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!record) return null;
+  const args = Object.fromEntries(
+    Object.entries(record).filter(([key, value]) => !MCP_METADATA_KEYS.has(key) && value !== undefined && value !== null && value !== ""),
+  );
+  return Object.keys(args).length > 0 ? args : null;
+}
+
+function extractMcpToolDetails(name: string, input: unknown): McpToolDetails | null {
+  const nameDetails = parseMcpToolName(name);
+  const record = asRecord(input);
+  const invocation = asRecord(record?.invocation) ?? asRecord(record?.request) ?? null;
+  const server =
+    nameDetails?.server ??
+    readStringField(invocation, ["server", "serverName", "server_name", "serverLabel", "server_label"]) ??
+    readStringField(record, ["server", "serverName", "server_name", "serverLabel", "server_label"]);
+  const tool =
+    nameDetails?.tool ??
+    readStringField(invocation, ["tool", "toolName", "tool_name", "name"]) ??
+    readStringField(record, ["tool", "toolName", "tool_name", "name"]);
+
+  const normalized = name.trim().toLowerCase();
+  if (!nameDetails && !server && !tool && !normalized.includes("mcp")) return null;
+
+  const explicitArgs =
+    asRecord(invocation?.arguments) ??
+    asRecord(invocation?.args) ??
+    asRecord(invocation?.params) ??
+    asRecord(record?.arguments) ??
+    asRecord(record?.args) ??
+    asRecord(record?.params) ??
+    asRecord(record?.input);
+  const args = explicitArgs ?? (nameDetails ? sanitizeMcpArgs(record) : null);
+
+  return {
+    server: server || null,
+    tool: tool || null,
+    args,
+  };
+}
+
+function summarizeMcpValue(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return truncate(compactWhitespace(value), 40);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const firstString = value.find((item): item is string => typeof item === "string" && item.trim().length > 0);
+    if (firstString) return `${value.length} items, starting with ${truncate(compactWhitespace(firstString), 28)}`;
+    if (value.length > 0) return `${value.length} items`;
+  }
+  return null;
+}
+
+function summarizeMcpArgs(args: Record<string, unknown> | null): string | null {
+  if (!args) return null;
+  const priorityKeys = [
+    "query",
+    "q",
+    "url",
+    "path",
+    "fileKey",
+    "nodeId",
+    "repo_full_name",
+    "repository_full_name",
+    "pr_number",
+    "issue_number",
+    "project",
+    "issue",
+    "name",
+    "title",
+    "id",
+  ];
+  const orderedKeys = [
+    ...priorityKeys.filter((key) => Object.prototype.hasOwnProperty.call(args, key)),
+    ...Object.keys(args).filter((key) => !priorityKeys.includes(key)),
+  ];
+  const parts: string[] = [];
+  for (const key of orderedKeys) {
+    const valueSummary = summarizeMcpValue(args[key]);
+    if (!valueSummary) continue;
+    parts.push(`${key} ${valueSummary}`);
+    if (parts.length >= 2) break;
+  }
+  return parts.join(", ") || null;
+}
+
+function formatMcpLabel(details: McpToolDetails): string {
+  return details.server ? `MCP · ${humanizeLabel(details.server)}` : "MCP";
+}
+
+function formatMcpSummary(details: McpToolDetails): string {
+  const tool = details.tool ?? "tool";
+  const server = details.server ? ` via ${details.server}` : "";
+  const args = summarizeMcpArgs(details.args);
+  return `Called ${tool}${server}${args ? ` · ${args}` : ""}`;
+}
+
 function formatTargetAction(
   verb: string,
   targets: string[],
@@ -820,6 +1032,15 @@ function describeToolInvocation(name: string, input: unknown): { category: Trans
     return classifyShellCommand(command);
   }
 
+  const mcpDetails = extractMcpToolDetails(name, input);
+  if (mcpDetails) {
+    return { category: "mcp", label: formatMcpLabel(mcpDetails) };
+  }
+
+  if (isWebSearchTool(name, input)) {
+    return { category: "web_search", label: "Web Search" };
+  }
+
   const normalized = name.trim().toLowerCase();
   if (/(?:^|[_-])(read|fetch|open|cat)(?:$|[_-])/.test(normalized)) {
     return { category: "read", label: "Read" };
@@ -934,10 +1155,6 @@ function isCommandTool(name: string, input: unknown): boolean {
   return Boolean(record && (typeof record.command === "string" || typeof record.cmd === "string"));
 }
 
-function displayToolName(name: string, input: unknown): string {
-  return describeToolInvocation(name, input).label;
-}
-
 function describeToolSemanticInfo(name: string, input: unknown): TranscriptToolSemanticInfo {
   if (isCommandTool(name, input)) {
     const command =
@@ -952,6 +1169,30 @@ function describeToolSemanticInfo(name: string, input: unknown): TranscriptToolS
                 : "";
           })();
     return describeCommandSemanticInfo(command);
+  }
+
+  const mcpDetails = extractMcpToolDetails(name, input);
+  if (mcpDetails) {
+    return {
+      category: "mcp",
+      label: formatMcpLabel(mcpDetails),
+      summary: formatMcpSummary(mcpDetails),
+      bucket: "tool",
+      quantity: 1,
+      noun: "tool",
+    };
+  }
+
+  if (isWebSearchTool(name, input)) {
+    const queries = extractWebSearchQueries(input);
+    return {
+      category: "web_search",
+      label: "Web Search",
+      summary: formatWebSearchSummary(queries),
+      bucket: "search",
+      quantity: Math.max(queries.length, 1),
+      noun: "tool",
+    };
   }
 
   const invocation = describeToolInvocation(name, input);
@@ -1272,7 +1513,7 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
       const toolBlock: Extract<TranscriptBlock, { type: "tool" }> = {
         type: "tool",
         ts: entry.ts,
-        name: displayToolName(entry.name, entry.input),
+        name: entry.name,
         toolUseId: entry.toolUseId ?? extractToolUseId(entry.input),
         input: entry.input,
         status: "running",
@@ -1289,23 +1530,23 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
         pendingToolBlocks.get(entry.toolUseId)
         ?? [...blocks].reverse().find((block): block is Extract<TranscriptBlock, { type: "tool" }> => block.type === "tool" && block.status === "running");
 
-    if (matched) {
-      matched.result = entry.content;
-      matched.isError = entry.isError;
-      matched.status = entry.isError ? "error" : "completed";
-      matched.endTs = entry.ts;
-      pendingToolBlocks.delete(entry.toolUseId);
-    } else {
-      blocks.push({
-        type: "tool",
-        ts: entry.ts,
-        endTs: entry.ts,
-        name: humanizeLabel(entry.toolName ?? "tool"),
-        toolUseId: entry.toolUseId,
-        input: null,
-        result: entry.content,
-        isError: entry.isError,
-        status: entry.isError ? "error" : "completed",
+      if (matched) {
+        matched.result = entry.content;
+        matched.isError = entry.isError;
+        matched.status = entry.isError ? "error" : "completed";
+        matched.endTs = entry.ts;
+        pendingToolBlocks.delete(entry.toolUseId);
+      } else {
+        blocks.push({
+          type: "tool",
+          ts: entry.ts,
+          endTs: entry.ts,
+          name: entry.toolName ?? "tool",
+          toolUseId: entry.toolUseId,
+          input: null,
+          result: entry.content,
+          isError: entry.isError,
+          status: entry.isError ? "error" : "completed",
         });
       }
       continue;

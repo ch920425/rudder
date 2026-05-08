@@ -49,6 +49,32 @@ function stringifyUnknown(value: unknown): string {
   }
 }
 
+function firstString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+
+function toolResultContent(item: Record<string, unknown>, fallback: string): string {
+  return (
+    firstString(item.content, item.output, item.result, item.aggregated_output) ||
+    stringifyUnknown(item.content ?? item.output ?? item.result) ||
+    fallback
+  );
+}
+
+function isToolError(item: Record<string, unknown>): boolean {
+  const status = asString(item.status).toLowerCase();
+  return (
+    item.is_error === true ||
+    item.error === true ||
+    status === "error" ||
+    status === "failed" ||
+    status === "errored"
+  );
+}
+
 function normalizeTodoStatus(item: Record<string, unknown>): TranscriptTodoItemStatus {
   const rawStatus = asString(item.status) || asString(item.state);
   const normalizedStatus = rawStatus.trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -177,6 +203,90 @@ function parseFileChangeItem(item: Record<string, unknown>, ts: string): Transcr
   return [{ kind: "system", ts, text: `file changes: ${preview}${more}` }];
 }
 
+function parseWebSearchItem(
+  item: Record<string, unknown>,
+  ts: string,
+  phase: "started" | "completed",
+): TranscriptEntry[] {
+  const id = asString(item.id) || "web_search";
+  if (phase === "started") {
+    return [{
+      kind: "tool_call",
+      ts,
+      name: "web_search",
+      toolUseId: id,
+      input: {
+        id,
+        action: item.action ?? item,
+      },
+    }];
+  }
+
+  const content = toolResultContent(item, "web search completed");
+  const isError = isToolError(item);
+  if (isError && isCodexClosedStdinToolSessionError(content)) return [];
+  return [{ kind: "tool_result", ts, toolUseId: id, toolName: "web_search", content, isError }];
+}
+
+function parseMcpToolCallItem(
+  item: Record<string, unknown>,
+  ts: string,
+  phase: "started" | "completed",
+): TranscriptEntry[] {
+  const id = asString(item.id) || asString(item.call_id) || "mcp_tool_call";
+  const invocation = asRecord(item.invocation) ?? asRecord(item.request) ?? item;
+  const server = firstString(
+    invocation.server,
+    invocation.serverName,
+    invocation.server_name,
+    invocation.serverLabel,
+    invocation.server_label,
+    item.server,
+    item.serverName,
+    item.server_name,
+  );
+  const tool = firstString(
+    invocation.tool,
+    invocation.toolName,
+    invocation.tool_name,
+    invocation.name,
+    item.tool,
+    item.toolName,
+    item.tool_name,
+    item.name,
+  );
+  const safeServer = server.replace(/[^A-Za-z0-9_-]+/g, "_");
+  const safeTool = tool.replace(/[^A-Za-z0-9_-]+/g, "_");
+  const name = safeServer && safeTool ? `mcp__${safeServer}__${safeTool}` : "mcp_tool_call";
+
+  if (phase === "started") {
+    return [{
+      kind: "tool_call",
+      ts,
+      name,
+      toolUseId: id,
+      input: {
+        id,
+        server,
+        tool,
+        invocation,
+        args:
+          invocation.arguments ??
+          invocation.args ??
+          invocation.params ??
+          item.arguments ??
+          item.args ??
+          item.params,
+      },
+    }];
+  }
+
+  const content = toolResultContent(item, "mcp tool completed");
+  const isError = isToolError(item);
+  if (isError && isCodexClosedStdinToolSessionError(content)) return [];
+  return [{ kind: "tool_result", ts, toolUseId: id, toolName: name, content, isError }];
+}
+
 function parseCodexItem(
   item: Record<string, unknown>,
   ts: string,
@@ -202,6 +312,14 @@ function parseCodexItem(
 
   if (itemType === "command_execution") {
     return parseCommandExecutionItem(item, ts, phase);
+  }
+
+  if (itemType === "web_search") {
+    return parseWebSearchItem(item, ts, phase);
+  }
+
+  if (itemType === "mcp_tool_call" || itemType === "mcp_tool_call_begin" || itemType === "mcp_tool_call_end") {
+    return parseMcpToolCallItem(item, ts, phase);
   }
 
   if (itemType === "file_change" && phase === "completed") {
