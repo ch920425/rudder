@@ -56,37 +56,9 @@ function isExternalMarkdownHref(value: string | null | undefined) {
   }
 }
 
-function parseExternalMarkdownUrl(value: string | null | undefined) {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) return null;
-  const normalized = trimmed.startsWith("//") ? `https:${trimmed}` : trimmed;
-
-  try {
-    const parsed = new URL(normalized);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function markdownUrlPathLabel(value: string) {
-  return value
-    .replace(/[-_]+/gu, " ")
-    .replace(/\.html?$/iu, "")
-    .trim();
-}
-
-function externalMarkdownLinkPreview(href: string | null | undefined, label: string) {
-  const parsed = parseExternalMarkdownUrl(href);
-  if (!parsed) return null;
+function isBareMarkdownUrlLabel(label: string) {
   const normalizedLabel = label.trim();
-  const looksLikeBareUrl = /^(?:https?:\/\/|www\.|\/\/)/iu.test(normalizedLabel);
-  if (!looksLikeBareUrl) return null;
-
-  const domain = parsed.hostname.replace(/^www\./iu, "");
-  const pathPart = parsed.pathname.split("/").map((part) => part.trim()).filter(Boolean).at(-1) ?? "";
-  const detail = markdownUrlPathLabel(pathPart);
-  return { domain, detail };
+  return /^(?:https?:\/\/|www\.|\/\/)/iu.test(normalizedLabel);
 }
 
 function extractMermaidSource(children: ReactNode): string | null {
@@ -228,25 +200,19 @@ export function MarkdownBody({ children, className, resolveImageSrc, onLinkClick
       }
       const linkLabel = flattenText(linkChildren);
       const isExternal = isExternalMarkdownHref(href);
-      const externalPreview = isExternal ? externalMarkdownLinkPreview(href, linkLabel) : null;
+      const isBareUrlLink = isExternal && isBareMarkdownUrlLabel(linkLabel);
       return (
         <a
           href={href}
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noreferrer noopener" : "noreferrer"}
-          className={externalPreview ? "rudder-link-chip" : undefined}
-          title={externalPreview ? href : undefined}
+          title={isBareUrlLink ? href : undefined}
           onClick={(event) => {
             if (!href || !onLinkClick) return;
             onLinkClick({ event, href, label: linkLabel });
           }}
         >
-          {externalPreview ? (
-            <>
-              <span className="rudder-link-chip-domain">{externalPreview.domain}</span>
-              {externalPreview.detail ? <span className="rudder-link-chip-detail">{externalPreview.detail}</span> : null}
-            </>
-          ) : linkChildren}
+          {linkChildren}
         </a>
       );
     },

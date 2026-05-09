@@ -215,17 +215,19 @@ describe("MarkdownBody", () => {
     expect(html).not.toContain('class="rudder-link-chip"');
   });
 
-  it("renders bare long URLs as compact link chips", () => {
+  it("renders bare long URLs with the complete URL as link text", () => {
+    const url = "https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/";
     const html = renderToStaticMarkup(
       <ThemeProvider>
-        <MarkdownBody>{"https://gingiris.github.io/growth-tools/blog/2026/04/02/github-readme-template-guide/"}</MarkdownBody>
+        <MarkdownBody>{url}</MarkdownBody>
       </ThemeProvider>,
     );
 
-    expect(html).toContain('class="rudder-link-chip"');
-    expect(html).toContain('class="rudder-link-chip-domain"');
-    expect(html).toContain('gingiris.github.io');
-    expect(html).toContain('github readme template guide');
+    expect(html).toContain(`href="${url}"`);
+    expect(html).toContain(`title="${url}"`);
+    expect(html).toContain(`>${url}</a>`);
+    expect(html).not.toContain('class="rudder-link-chip"');
+    expect(html).not.toContain('github readme template guide');
     expect(html).toContain('target="_blank"');
   });
 
