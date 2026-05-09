@@ -195,6 +195,19 @@ describe("Issues draft scope", () => {
     expect(mockState.openNewIssue).toHaveBeenCalledWith({ draftId: "draft-1" });
   });
 
+  it("renders draft priority with the shared bar glyph and label", () => {
+    window.localStorage.setItem(ISSUE_DRAFTS_STORAGE_KEY, JSON.stringify([
+      { ...savedDraft, priority: "critical" },
+    ]));
+
+    renderIssues();
+
+    const card = document.querySelector("[data-testid='issue-draft-card']");
+    expect(card?.textContent).toContain("Urgent");
+    expect(card?.textContent).not.toContain("Critical");
+    expect(card?.querySelector('[data-slot="priority-bars-icon"]')?.children).toHaveLength(4);
+  });
+
   it("renders markdown and images in the constrained draft card preview", () => {
     window.localStorage.setItem(ISSUE_DRAFTS_STORAGE_KEY, JSON.stringify([
       {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef, useState } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState, type ReactElement } from "react";
 import { useLocation, useSearchParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Agent, Project, ReorderIssue } from "@rudderhq/shared";
@@ -24,12 +24,20 @@ import {
   summarizeIssueDrafts,
 } from "../lib/new-issue-dialog";
 import { relativeTime } from "../lib/utils";
+import { formatPriorityLabel } from "../lib/priorities";
 import { EmptyState } from "../components/EmptyState";
 import { IssuesList } from "../components/IssuesList";
 import { LinearIssueSourceBoard } from "../components/LinearIssueSourceBoard";
 import { MarkdownBody } from "../components/MarkdownBody";
-import { CircleDot, Clock3, Flag, FolderKanban, PencilLine, Trash2, UserRound } from "lucide-react";
+import { PriorityBarsIcon } from "../components/PriorityIcon";
+import { CircleDot, Clock3, FolderKanban, PencilLine, Trash2, UserRound } from "lucide-react";
 import { useIssueFollows } from "@/hooks/useIssueFollows";
+
+type DraftMetadataItem = {
+  key: string;
+  icon: ReactElement;
+  label: string;
+};
 
 function formatDraftMetadataValue(value: string) {
   return value.replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -120,12 +128,20 @@ function DraftIssuesView({
           const projectName = resolveDraftProjectName(draft, projects);
           const assigneeLabel = resolveDraftAssigneeLabel(draft, agents, currentUserId);
           const metadataItems = [
-            draft.status ? { icon: CircleDot, label: formatDraftMetadataValue(draft.status) } : null,
-            draft.priority ? { icon: Flag, label: formatDraftMetadataValue(draft.priority) } : null,
-            projectName ? { icon: FolderKanban, label: projectName } : null,
-            assigneeLabel ? { icon: UserRound, label: assigneeLabel } : null,
-            { icon: Clock3, label: relativeTime(draft.updatedAt) },
-          ].filter((item): item is { icon: typeof CircleDot; label: string } => Boolean(item));
+            draft.status
+              ? { key: "status", icon: <CircleDot className="h-3 w-3 shrink-0" />, label: formatDraftMetadataValue(draft.status) }
+              : null,
+            draft.priority
+              ? {
+                  key: "priority",
+                  icon: <PriorityBarsIcon priority={draft.priority} className="h-3.5 w-4 shrink-0" />,
+                  label: formatPriorityLabel(draft.priority),
+                }
+              : null,
+            projectName ? { key: "project", icon: <FolderKanban className="h-3 w-3 shrink-0" />, label: projectName } : null,
+            assigneeLabel ? { key: "assignee", icon: <UserRound className="h-3 w-3 shrink-0" />, label: assigneeLabel } : null,
+            { key: "updated", icon: <Clock3 className="h-3 w-3 shrink-0" />, label: relativeTime(draft.updatedAt) },
+          ].filter((item): item is DraftMetadataItem => Boolean(item));
 
           return (
             <article
@@ -149,10 +165,9 @@ function DraftIssuesView({
                     <div className="truncate text-sm font-semibold text-foreground">{draft.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {metadataItems.map((item) => {
-                        const Icon = item.icon;
                         return (
-                          <span key={`${draft.id}-${item.label}`} className="inline-flex min-w-0 items-center gap-1">
-                            <Icon className="h-3 w-3 shrink-0" />
+                          <span key={`${draft.id}-${item.key}`} className="inline-flex min-w-0 items-center gap-1">
+                            {item.icon}
                             <span className="max-w-[11rem] truncate">{item.label}</span>
                           </span>
                         );
