@@ -16,6 +16,11 @@ async function writeProposalStub(
         priority: string;
         assigneeAgentId?: string;
       };
+      planDocument?: {
+        title: string;
+        body: string;
+        changeSummary?: string;
+      };
     };
   },
 ) {
@@ -209,4 +214,57 @@ test.describe("Chat proposal review block", () => {
     await expect(page.getByRole("heading", { name: "Selected chat agent assignment test" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Proposal Owner").first()).toBeVisible({ timeout: 15_000 });
   });
+  test("keeps plan-mode proposals pending until approval and writes the plan document", async ({ page }) => {
+    const command = await writeProposalStub("proposal-review-plan-mode", {
+      kind: "issue_proposal",
+      body: "I drafted the plan and issue proposal for approval.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Plan mode approval test",
+          description: "Create the issue only after the operator approves the plan-mode proposal.",
+          priority: "high",
+        },
+        planDocument: {
+          title: "Plan-mode rollout plan",
+          body: ["## Scope", "", "- Draft first", "- Create after approval"].join("\n"),
+          changeSummary: "Created from approved plan-mode proposal",
+        },
+      },
+    });
+    const organization = await createProposalOrg(page, "PlanMode-" + Date.now(), command);
+    const conversationRes = await page.request.post("/api/orgs/" + organization.id + "/chats", {
+      data: {
+        title: "Plan mode gated proposal",
+        preferredAgentId: organization.chatAgent.id,
+        issueCreationMode: "manual_approval",
+        planMode: true,
+      },
+    });
+    expect(conversationRes.ok()).toBe(true);
+    const conversation = await conversationRes.json();
+
+    await page.goto("/chat/" + conversation.id);
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill("please plan and propose the issue");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    const reviewBlock = page.getByTestId("proposal-review-block").last();
+    await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
+    await expect(reviewBlock).toHaveAttribute("data-status", "pending");
+    await expect(reviewBlock).toContainText("Plan-mode rollout plan");
+    await expect(reviewBlock.locator("h2")).toHaveText("Scope");
+    await expect(page.locator(".chat-system-issue-link")).toHaveCount(0);
+
+    await reviewBlock.getByRole("button", { name: "Approve" }).click();
+
+    await expect(reviewBlock).toHaveAttribute("data-status", "approved", { timeout: 15_000 });
+    const createdIssueLink = page.locator(".chat-system-issue-link").last();
+    await expect(createdIssueLink).toBeVisible({ timeout: 15_000 });
+    await createdIssueLink.click();
+    await expect(page.getByRole("heading", { name: "Plan mode approval test" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Plan-mode rollout plan")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Draft first")).toBeVisible({ timeout: 15_000 });
+  });
+
 });

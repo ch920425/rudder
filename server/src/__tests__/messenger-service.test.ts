@@ -15,10 +15,12 @@ import {
   chatConversations,
   chatMessages,
   createDb,
+  documents,
   ensurePostgresDatabase,
   heartbeatRuns,
   issueFollows,
   issueComments,
+  issueDocuments,
   issues,
   messengerThreadUserStates,
   organizations,
@@ -133,6 +135,8 @@ describe("messengerService and issue follows", () => {
     await db.delete(heartbeatRuns);
     await db.delete(activityLog);
     await db.delete(issueComments);
+    await db.delete(issueDocuments);
+    await db.delete(documents);
     await db.delete(issues);
     await db.delete(agents);
     await db.delete(organizations);
@@ -450,6 +454,74 @@ describe("messengerService and issue follows", () => {
       createdByUserId: userId,
     });
     expect(persistedIssue?.assigneeAgentId).toBe(agentId);
+  });
+
+  it("writes a plan document only after approving a plan-mode chat issue proposal", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-plan-approval";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Plan Approval Org",
+      urlKey: deriveOrganizationUrlKey("Plan Approval Org " + orgId),
+      issuePrefix: `PA${orgId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const conversation = await chatSvc.create(orgId, {
+      title: "Plan before issue creation",
+      issueCreationMode: "manual_approval",
+      planMode: true,
+      createdByUserId: userId,
+    });
+
+    const approval = await db
+      .insert(approvals)
+      .values({
+        orgId,
+        type: "chat_issue_creation",
+        status: "approved",
+        requestedByUserId: userId,
+        payload: {
+          chatConversationId: conversation!.id,
+          proposedIssue: {
+            title: "Implement planned work",
+            description: "Create the issue only after approval.",
+            priority: "high",
+          },
+          planDocument: {
+            title: "Planned work rollout",
+            body: "## Scope\n- Draft first\n- Create after approval",
+            changeSummary: "Created from approved plan-mode proposal",
+          },
+        },
+      })
+      .returning()
+      .then((rows) => rows[0]!);
+
+    const issue = await chatSvc.applyApprovedApproval(approval, userId);
+    const persistedPlan = await db
+      .select({
+        key: issueDocuments.key,
+        title: documents.title,
+        latestBody: documents.latestBody,
+        createdByUserId: documents.createdByUserId,
+      })
+      .from(issueDocuments)
+      .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
+      .where(eq(issueDocuments.issueId, (issue as { id: string }).id))
+      .then((rows) => rows[0]);
+
+    expect(issue).toMatchObject({
+      title: "Implement planned work",
+      createdByUserId: userId,
+    });
+    expect(persistedPlan).toMatchObject({
+      key: "plan",
+      title: "Planned work rollout",
+      latestBody: "## Scope\n- Draft first\n- Create after approval",
+      createdByUserId: userId,
+    });
   });
 
   it("includes reviewer issues in Messenger attention when they are in review", async () => {

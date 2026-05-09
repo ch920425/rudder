@@ -1497,10 +1497,14 @@ export function chatService(db: Db) {
           payload.proposedIssue && typeof payload.proposedIssue === "object" && !Array.isArray(payload.proposedIssue)
             ? (payload.proposedIssue as Record<string, unknown>)
             : null;
+        const planDocument =
+          payload.planDocument && typeof payload.planDocument === "object" && !Array.isArray(payload.planDocument)
+            ? (payload.planDocument as Record<string, unknown>)
+            : null;
         const issue = await convertToIssue(conversationId, {
           actorUserId,
           messageId,
-          proposal: proposedIssue,
+          proposal: planDocument ? { issueProposal: proposedIssue, planDocument } : proposedIssue,
         });
         await issueApprovalsSvc.linkManyForApproval(approval.id, [issue.id], {
           agentId: null,

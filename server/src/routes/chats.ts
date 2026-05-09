@@ -514,6 +514,19 @@ export function chatRoutes(db: Db, storage: StorageService) {
         : structuredPayload;
   }
 
+  function proposedPlanDocumentPayload(structuredPayload: Record<string, unknown> | null | undefined) {
+    if (!structuredPayload) return null;
+    const rawDocument =
+      structuredPayload.planDocument
+      && typeof structuredPayload.planDocument === "object"
+      && !Array.isArray(structuredPayload.planDocument)
+        ? structuredPayload.planDocument
+        : structuredPayload.plan && typeof structuredPayload.plan === "object" && !Array.isArray(structuredPayload.plan)
+          ? structuredPayload.plan
+          : null;
+    return rawDocument ? rawDocument as Record<string, unknown> : null;
+  }
+
   async function persistAssistantReply(
     conversation: ChatConversation,
     actor: ActorInfo,
@@ -562,7 +575,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         assistantReply.structuredPayload,
         await defaultIssueAssigneeAgentId(conversation),
       );
-      const shouldAutoCreateIssue = conversation.planMode || conversation.issueCreationMode === "auto_create";
+      const shouldAutoCreateIssue = !conversation.planMode && conversation.issueCreationMode === "auto_create";
       if (shouldAutoCreateIssue) {
         const proposalMessage = await saveAssistantMessage({
           kind: "issue_proposal",
@@ -599,18 +612,20 @@ export function chatRoutes(db: Db, storage: StorageService) {
           details: {
             issueId: issue.id,
             issueIdentifier: issue.identifier,
-            source: conversation.planMode ? "plan_mode" : "auto_create",
+            source: "auto_create",
           },
         });
         return createdMessages;
       }
 
+      const planDocument = proposedPlanDocumentPayload(issueProposalStructuredPayload);
       const approval = await svc.createProposalApproval(conversation.orgId, {
         type: "chat_issue_creation",
         requestedByUserId: actor.actorType === "user" ? actor.actorId : null,
         payload: {
           chatConversationId: conversation.id,
           proposedIssue: proposedIssuePayload(issueProposalStructuredPayload),
+          ...(planDocument ? { planDocument } : {}),
         },
       });
 

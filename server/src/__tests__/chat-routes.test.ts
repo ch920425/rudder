@@ -588,11 +588,11 @@ describe("chat routes", () => {
     );
   });
 
-  it("auto-creates an issue from a plan-mode proposal without approval", async () => {
+  it("keeps plan-mode issue proposals approval-backed and preserves the plan document", async () => {
     const conversation = createConversation({ planMode: true });
     const userMessage = createMessage("message-user", "user", "message", "Plan the auth rollout");
     const proposalMessage = {
-      ...createMessage("message-proposal", "assistant", "issue_proposal", "I mapped the rollout plan."),
+      ...createMessage("message-proposal", "assistant", "issue_proposal", "I mapped the rollout plan.", "approval-1"),
       structuredPayload: {
         issueProposal: {
           title: "Implement auth flow",
@@ -605,11 +605,97 @@ describe("chat routes", () => {
         },
       },
     };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(proposalMessage);
+    mockChatService.createProposalApproval.mockResolvedValue({
+      id: "approval-1",
+      orgId: "organization-1",
+      type: "chat_issue_creation",
+      status: "pending",
+      payload: {},
+      requestedByAgentId: null,
+      requestedByUserId: "user-1",
+      decisionNote: null,
+      decidedByUserId: null,
+      decidedAt: null,
+      createdAt: new Date("2026-03-26T08:01:00.000Z"),
+      updatedAt: new Date("2026-03-26T08:01:00.000Z"),
+    });
+    mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
+      outcome: "completed",
+      partialBody: "I mapped the rollout plan.",
+      replyingAgentId: "agent-1",
+      reply: {
+        kind: "issue_proposal",
+        body: "I mapped the rollout plan.",
+        structuredPayload: proposalMessage.structuredPayload,
+        replyingAgentId: "agent-1",
+      },
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "Plan the auth rollout" });
+
+    expect(res.status).toBe(201);
+    expect(mockChatService.convertToIssue).not.toHaveBeenCalled();
+    expect(mockChatService.createProposalApproval).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        type: "chat_issue_creation",
+        payload: expect.objectContaining({
+          chatConversationId: "chat-1",
+          proposedIssue: expect.objectContaining({
+            title: "Implement auth flow",
+            description: "Track the auth rollout plan in an issue.",
+          }),
+          planDocument: expect.objectContaining({
+            title: "Auth rollout plan",
+            body: "## Scope\n- Login\n- Session management",
+          }),
+        }),
+      }),
+    );
+    expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
+      1,
+      "chat-1",
+      expect.objectContaining({
+        role: "assistant",
+        kind: "issue_proposal",
+        approvalId: "approval-1",
+        structuredPayload: expect.objectContaining({
+          planDocument: expect.objectContaining({ title: "Auth rollout plan" }),
+        }),
+      }),
+    );
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "chat.issue_converted" }),
+    );
+    expect(res.body.messages).toHaveLength(2);
+  });
+
+  it("still auto-creates non-plan issue proposals when auto-create mode is enabled", async () => {
+    const conversation = createConversation({ issueCreationMode: "auto_create" });
+    const userMessage = createMessage("message-user", "user", "message", "Create the issue directly");
+    const proposalMessage = {
+      ...createMessage("message-proposal", "assistant", "issue_proposal", "This should become an issue."),
+      structuredPayload: {
+        issueProposal: {
+          title: "Implement direct issue flow",
+          description: "Track the direct issue creation path.",
+          priority: "medium",
+        },
+      },
+    };
     const issue = {
       id: "issue-1",
       orgId: "organization-1",
       identifier: "ISS-1",
-      title: "Implement auth flow",
+      title: "Implement direct issue flow",
     };
     const systemMessage = {
       ...createMessage("message-system", "system", "system_event", "Created issue ISS-1 from this chat conversation."),
@@ -628,11 +714,11 @@ describe("chat routes", () => {
     mockChatService.convertToIssue.mockResolvedValue(issue);
     mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
       outcome: "completed",
-      partialBody: "I mapped the rollout plan.",
+      partialBody: "This should become an issue.",
       replyingAgentId: "agent-1",
       reply: {
         kind: "issue_proposal",
-        body: "I mapped the rollout plan.",
+        body: "This should become an issue.",
         structuredPayload: proposalMessage.structuredPayload,
         replyingAgentId: "agent-1",
       },
@@ -640,7 +726,7 @@ describe("chat routes", () => {
 
     const res = await request(createApp())
       .post("/api/chats/chat-1/messages")
-      .send({ body: "Plan the auth rollout" });
+      .send({ body: "Create the issue directly" });
 
     expect(res.status).toBe(201);
     expect(mockChatService.createProposalApproval).not.toHaveBeenCalled();
@@ -648,14 +734,6 @@ describe("chat routes", () => {
       actorUserId: "user-1",
       messageId: "message-proposal",
     });
-    expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
-      1,
-      "chat-1",
-      expect.objectContaining({
-        role: "assistant",
-        kind: "issue_proposal",
-      }),
-    );
     expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
       2,
       "chat-1",
@@ -672,11 +750,7 @@ describe("chat routes", () => {
       expect.anything(),
       expect.objectContaining({
         action: "chat.issue_converted",
-        details: expect.objectContaining({
-          issueId: "issue-1",
-          issueIdentifier: "ISS-1",
-          source: "plan_mode",
-        }),
+        details: expect.objectContaining({ source: "auto_create" }),
       }),
     );
     expect(res.body.messages).toHaveLength(3);
