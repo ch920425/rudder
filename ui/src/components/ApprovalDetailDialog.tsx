@@ -5,6 +5,7 @@ import type { ApprovalComment } from "@rudderhq/shared";
 import { accessApi } from "@/api/access";
 import { agentsApi } from "@/api/agents";
 import { approvalsApi } from "@/api/approvals";
+import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -76,6 +77,12 @@ export function ApprovalDetailDialog({
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(resolvedOrgId ?? ""),
     queryFn: () => agentsApi.list(resolvedOrgId ?? ""),
+    enabled: Boolean(resolvedOrgId && open),
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: queryKeys.projects.list(resolvedOrgId ?? ""),
+    queryFn: () => projectsApi.list(resolvedOrgId ?? ""),
     enabled: Boolean(resolvedOrgId && open),
   });
 
@@ -292,7 +299,11 @@ export function ApprovalDetailDialog({
                     ) : null}
 
                     <ApprovalInset className="px-3 py-3">
-                      <ApprovalPayloadRenderer type={approval.type} payload={payload} />
+                      <ApprovalPayloadRenderer
+                        type={approval.type}
+                        payload={payload}
+                        context={{ agents, projects, currentUserId: currentBoardUserId }}
+                      />
                     </ApprovalInset>
 
                     {approval.decisionNote ? (

@@ -1,5 +1,9 @@
 import { UserPlus, Lightbulb, MessageSquare, Settings2, ShieldAlert, ShieldCheck } from "lucide-react";
+import type { Agent, Project } from "@rudderhq/shared";
+import { formatAssigneeUserLabel } from "../lib/assignees";
 import { formatCents } from "../lib/utils";
+import { AgentIdentity } from "./AgentAvatar";
+import { MarkdownBody } from "./MarkdownBody";
 import { formatPriorityLabel } from "../lib/priorities";
 import {
   ApprovalCodeBlock,
@@ -7,6 +11,12 @@ import {
   ApprovalInlineCode,
   ApprovalTag,
 } from "./approval-ui";
+
+export interface ApprovalPayloadContext {
+  agents?: Agent[] | null;
+  projects?: Project[] | null;
+  currentUserId?: string | null;
+}
 
 export const typeLabel: Record<string, string> = {
   hire_agent: "Hire Agent",
@@ -42,6 +52,63 @@ function PayloadField({ label, value }: { label: string; value: unknown }) {
       <span>{String(value)}</span>
     </ApprovalField>
   );
+}
+
+function lookupProject(projectId: unknown, projects: Project[] | null | undefined) {
+  if (typeof projectId !== "string" || !projectId.trim()) return null;
+  return projects?.find((project) => project.id === projectId) ?? null;
+}
+
+function lookupAgent(agentId: unknown, agents: Agent[] | null | undefined) {
+  if (typeof agentId !== "string" || !agentId.trim()) return null;
+  return agents?.find((agent) => agent.id === agentId) ?? null;
+}
+
+function ProjectField({ projectId, projects }: { projectId: unknown; projects?: Project[] | null }) {
+  if (typeof projectId !== "string" || !projectId.trim()) return null;
+  const project = lookupProject(projectId, projects);
+  return (
+    <ApprovalField label="Project">
+      <span className="font-medium">{project?.name?.trim() || "Unknown project"}</span>
+    </ApprovalField>
+  );
+}
+
+function AssigneeField({
+  agentId,
+  userId,
+  agents,
+  currentUserId,
+}: {
+  agentId: unknown;
+  userId: unknown;
+  agents?: Agent[] | null;
+  currentUserId?: string | null;
+}) {
+  if (typeof agentId === "string" && agentId.trim()) {
+    const agent = lookupAgent(agentId, agents);
+    return (
+      <ApprovalField label="Assignee">
+        {agent ? (
+          <AgentIdentity name={agent.name} icon={agent.icon} role={agent.role} size="sm" />
+        ) : (
+          <span className="font-medium">Unknown agent</span>
+        )}
+      </ApprovalField>
+    );
+  }
+
+  if (typeof userId === "string" && userId.trim()) {
+    const label = formatAssigneeUserLabel(userId, currentUserId) ?? "Human assignee";
+    const readableLabel = label === userId.slice(0, 5) ? "Human assignee" : label;
+    return (
+      <ApprovalField label="Assignee">
+        <span className="font-medium">{readableLabel}</span>
+      </ApprovalField>
+    );
+  }
+
+  return null;
 }
 
 function SkillList({ values }: { values: unknown }) {
@@ -128,7 +195,13 @@ export function BudgetOverridePayload({ payload }: { payload: Record<string, unk
   );
 }
 
-function ChatIssueCreationPayload({ payload }: { payload: Record<string, unknown> }) {
+function ChatIssueCreationPayload({
+  payload,
+  context,
+}: {
+  payload: Record<string, unknown>;
+  context?: ApprovalPayloadContext;
+}) {
   const proposal =
     payload.proposedIssue && typeof payload.proposedIssue === "object" && !Array.isArray(payload.proposedIssue)
       ? (payload.proposedIssue as Record<string, unknown>)
@@ -143,13 +216,20 @@ function ChatIssueCreationPayload({ payload }: { payload: Record<string, unknown
       <PayloadField label="Chat" value={payload.chatConversationId} />
       <PayloadField label="Title" value={proposal.title} />
       <PayloadField label="Priority" value={typeof proposal.priority === "string" ? formatPriorityLabel(proposal.priority) : proposal.priority} />
-      <PayloadField label="Project" value={proposal.projectId} />
+      <ProjectField projectId={proposal.projectId} projects={context?.projects} />
       <PayloadField label="Goal" value={proposal.goalId} />
-      <PayloadField label="Assignee" value={proposal.assigneeAgentId ?? proposal.assigneeUserId} />
+      <AssigneeField
+        agentId={proposal.assigneeAgentId}
+        userId={proposal.assigneeUserId}
+        agents={context?.agents}
+        currentUserId={context?.currentUserId}
+      />
       {description ? (
-        <ApprovalCodeBlock className="max-h-48 overflow-y-auto whitespace-pre-wrap">
-          {description}
-        </ApprovalCodeBlock>
+        <ApprovalField label="Description" align="start">
+          <ApprovalCodeBlock className="max-h-64 overflow-y-auto text-sm text-foreground/90">
+            <MarkdownBody className="text-sm leading-6 text-foreground/90">{description}</MarkdownBody>
+          </ApprovalCodeBlock>
+        </ApprovalField>
       ) : null}
     </div>
   );
@@ -179,10 +259,18 @@ function ChatOperationPayload({ payload }: { payload: Record<string, unknown> })
   );
 }
 
-export function ApprovalPayloadRenderer({ type, payload }: { type: string; payload: Record<string, unknown> }) {
+export function ApprovalPayloadRenderer({
+  type,
+  payload,
+  context,
+}: {
+  type: string;
+  payload: Record<string, unknown>;
+  context?: ApprovalPayloadContext;
+}) {
   if (type === "hire_agent") return <HireAgentPayload payload={payload} />;
   if (type === "budget_override_required") return <BudgetOverridePayload payload={payload} />;
-  if (type === "chat_issue_creation") return <ChatIssueCreationPayload payload={payload} />;
+  if (type === "chat_issue_creation") return <ChatIssueCreationPayload payload={payload} context={context} />;
   if (type === "chat_operation") return <ChatOperationPayload payload={payload} />;
   return <CeoStrategyPayload payload={payload} />;
 }

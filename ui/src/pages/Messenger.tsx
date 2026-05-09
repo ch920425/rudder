@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
@@ -11,11 +11,19 @@ import {
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
-import type { MessengerApprovalThreadItem, MessengerEvent, MessengerIssueThreadItem } from "@rudderhq/shared";
+import type {
+  Agent,
+  MessengerApprovalThreadItem,
+  MessengerEvent,
+  MessengerIssueThreadItem,
+  Project,
+} from "@rudderhq/shared";
 import { accessApi } from "@/api/access";
+import { agentsApi } from "@/api/agents";
 import { approvalsApi } from "@/api/approvals";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { issuesApi } from "@/api/issues";
+import { projectsApi } from "@/api/projects";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { ApprovalDetailDialog } from "@/components/ApprovalDetailDialog";
 import { MarkdownBody } from "@/components/MarkdownBody";
@@ -539,9 +547,15 @@ export function MessengerIssuesView() {
 function MessengerApprovalCard({
   item,
   orgId,
+  agents,
+  projects,
+  currentUserId,
 }: {
   item: MessengerApprovalThreadItem;
   orgId: string;
+  agents?: Agent[] | null;
+  projects?: Project[] | null;
+  currentUserId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
@@ -588,6 +602,7 @@ function MessengerApprovalCard({
           detailLink={`/messenger/approvals/${item.approval.id}`}
           detailLabel="Open full approval"
           supportingText={item.subtitle ?? "Approval update"}
+          payloadContext={{ agents, projects, currentUserId }}
           allowBudgetActions
           isPending={decisionMutation.isPending}
         />
@@ -597,9 +612,19 @@ function MessengerApprovalCard({
 }
 
 export function MessengerApprovalsView() {
-  const { selectedOrganizationId, approvalThreadDetail } = useMessengerModel();
+  const { selectedOrganizationId, approvalThreadDetail, currentUserId } = useMessengerModel();
   const { approvalId } = useParams<{ approvalId?: string }>();
   const navigate = useNavigate();
+  const { data: agents } = useQuery({
+    queryKey: queryKeys.agents.list(selectedOrganizationId ?? ""),
+    queryFn: () => agentsApi.list(selectedOrganizationId ?? ""),
+    enabled: Boolean(selectedOrganizationId),
+  });
+  const { data: projects } = useQuery({
+    queryKey: queryKeys.projects.list(selectedOrganizationId ?? ""),
+    queryFn: () => projectsApi.list(selectedOrganizationId ?? ""),
+    enabled: Boolean(selectedOrganizationId),
+  });
 
   if (!selectedOrganizationId) return null;
 
@@ -611,7 +636,16 @@ export function MessengerApprovalsView() {
       />
       <TimelineStream
         items={approvalThreadDetail?.items ?? []}
-        renderItem={(item) => <MessengerApprovalCard key={item.id} item={item} orgId={selectedOrganizationId} />}
+        renderItem={(item) => (
+          <MessengerApprovalCard
+            key={item.id}
+            item={item}
+            orgId={selectedOrganizationId}
+            agents={agents}
+            projects={projects}
+            currentUserId={currentUserId}
+          />
+        )}
       />
       {!approvalThreadDetail?.items.length ? (
         <ThreadEmptyStateMessage

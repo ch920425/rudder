@@ -16,6 +16,7 @@ const mutate = vi.fn();
 let messengerModel: any;
 
 vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: [], isLoading: false, error: null }),
   useMutation: () => ({ mutate, isPending: false }),
   useQueryClient: () => ({ invalidateQueries }),
 }));

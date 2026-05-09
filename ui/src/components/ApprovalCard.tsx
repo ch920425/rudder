@@ -3,7 +3,13 @@ import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Identity } from "./Identity";
 import { AgentIdentity } from "./AgentAvatar";
-import { approvalLabel, typeIcon, defaultTypeIcon, ApprovalPayloadRenderer } from "./ApprovalPayload";
+import {
+  approvalLabel,
+  typeIcon,
+  defaultTypeIcon,
+  ApprovalPayloadRenderer,
+  type ApprovalPayloadContext,
+} from "./ApprovalPayload";
 import { ApprovalInset, ApprovalPanel } from "./approval-ui";
 import { StatusBadge } from "./StatusBadge";
 import { timeAgo } from "../lib/timeAgo";
@@ -19,6 +25,7 @@ export function ApprovalCard({
   detailLink,
   detailLabel = "View details",
   supportingText,
+  payloadContext,
   extraActions,
   allowBudgetActions = false,
   isPending,
@@ -32,6 +39,7 @@ export function ApprovalCard({
   detailLink?: string;
   detailLabel?: string;
   supportingText?: ReactNode;
+  payloadContext?: ApprovalPayloadContext;
   extraActions?: ReactNode;
   allowBudgetActions?: boolean;
   isPending: boolean;
@@ -68,7 +76,7 @@ export function ApprovalCard({
       {supportingText ? <p className="text-xs text-muted-foreground">{supportingText}</p> : null}
 
       <ApprovalInset className="px-3 py-3">
-        <ApprovalPayloadRenderer type={approval.type} payload={approval.payload} />
+        <ApprovalPayloadRenderer type={approval.type} payload={approval.payload} context={payloadContext} />
       </ApprovalInset>
 
       {approval.decisionNote && (

@@ -212,11 +212,23 @@ test.describe("Messenger unified threads contract", () => {
 
     const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
       data: {
-        type: "budget_override_required",
+        type: "chat_issue_creation",
         payload: {
-          scopeName: "Messenger contract test",
-          budgetAmount: 1200,
-          observedAmount: 1800,
+          chatConversationId: chat.id,
+          proposedIssue: {
+            title: "Messenger contract test",
+            description: [
+              "## Approval Markdown",
+              "",
+              "- Render **markdown** in the approval preview.",
+              "- Preserve inline images.",
+              "",
+              "![](/api/assets/approval-screenshot/content)",
+            ].join("\n"),
+            priority: "medium",
+            projectId: project.id,
+            assigneeUserId: currentUserId,
+          },
         },
         issueIds: [issue.id],
       },
@@ -325,10 +337,26 @@ test.describe("Messenger unified threads contract", () => {
     await page.goto(`/${organizationPrefix}/messenger/approvals`, { waitUntil: "commit" });
     await expect(mainContent.getByRole("heading", { name: "Approvals" })).toBeVisible({ timeout: 15_000 });
     await expect(mainContent.getByTestId("messenger-panel-header")).not.toContainText(/\b\d+\s+(?:pending|total)\b/i);
+    const approvalCard = page.locator('[data-testid^="messenger-approval-card-"]').first();
+    await expect(approvalCard).toContainText("Messenger contract test");
+    await expect(approvalCard).toContainText("Project Atlas");
+    await expect(approvalCard).toContainText("Me");
+    await expect(approvalCard.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
+    await expect(approvalCard.locator("strong", { hasText: "markdown" })).toBeVisible();
+    await expect(approvalCard).not.toContainText(project.id);
+    await expect(approvalCard).not.toContainText(currentUserId);
     await page.getByRole("link", { name: "Open full approval" }).click();
     await expect(page).toHaveURL(new RegExp(`/${organizationPrefix}/messenger/approvals/${approval.id}(?:\\?[^#]*)?$`));
-    await expect(page.getByTestId("approval-detail-dialog")).toBeVisible();
-    await expect(page.getByTestId("approval-detail-dialog")).toContainText("Messenger contract test");
+    const approvalDialog = page.getByTestId("approval-detail-dialog");
+    await expect(approvalDialog).toBeVisible();
+    await expect(approvalDialog).toContainText("Messenger contract test");
+    await expect(approvalDialog).toContainText("Project Atlas");
+    await expect(approvalDialog).toContainText("Me");
+    await expect(approvalDialog.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
+    await expect(approvalDialog.locator("strong", { hasText: "markdown" })).toBeVisible();
+    await expect(approvalDialog.locator('img[src="/api/assets/approval-screenshot/content"]')).toBeVisible();
+    await expect(approvalDialog).not.toContainText(project.id);
+    await expect(approvalDialog).not.toContainText(currentUserId);
     await page.getByRole("button", { name: "Close" }).click();
     await expect(page).toHaveURL(new RegExp(`/${organizationPrefix}/messenger/approvals(?:\\?[^#]*)?$`));
 
