@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Writable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { runCli } from "../program.js";
@@ -40,7 +41,15 @@ import {
   selectDesktopAsset,
   startCommand,
 } from "../commands/start.js";
+import {
+  ensureRuntimeInstalled,
+  resolveRuntimeCacheDir,
+  RUNTIME_METADATA_FILE,
+  type RuntimeInstallError,
+} from "../runtime/install.js";
 import { createByteProgress, formatByteProgress } from "../utils/progress.js";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const npmInstallCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const npmInstallSpawnOptions = {
@@ -678,5 +687,89 @@ describe("desktop start command helpers", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("runtime install helpers", () => {
+  it("uses the versioned runtime cache when metadata and package version match", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-runtime-cache-test."));
+    try {
+      const cacheDir = resolveRuntimeCacheDir("1.2.3", root);
+      const packageDir = path.join(cacheDir, "node_modules", "@rudderhq", "server");
+      await mkdir(packageDir, { recursive: true });
+      await writeFile(path.join(cacheDir, "package.json"), JSON.stringify({ private: true }), "utf8");
+      await writeFile(
+        path.join(cacheDir, RUNTIME_METADATA_FILE),
+        JSON.stringify({ version: 1, packageName: "@rudderhq/server", packageVersion: "1.2.3", installedAt: "now" }),
+        "utf8",
+      );
+      await writeFile(path.join(packageDir, "package.json"), JSON.stringify({ name: "@rudderhq/server", version: "1.2.3" }), "utf8");
+      const spawnSyncImpl = vi.fn();
+
+      await expect(ensureRuntimeInstalled({ version: "1.2.3", homeDir: root, spawnSyncImpl: spawnSyncImpl as never })).resolves.toMatchObject({
+        status: "hit",
+        cacheDir,
+        packageSpec: "@rudderhq/server@1.2.3",
+      });
+      expect(spawnSyncImpl).not.toHaveBeenCalled();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("includes npm output and retry command when runtime installation fails", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-runtime-fail-test."));
+    try {
+      const spawnSyncImpl = vi.fn(() => ({ status: 1, stdout: "", stderr: "registry unavailable" }));
+
+      await expect(
+        ensureRuntimeInstalled({ version: "1.2.3", homeDir: root, spawnSyncImpl: spawnSyncImpl as never }),
+      ).rejects.toMatchObject({
+        name: "RuntimeInstallError",
+        output: "registry unavailable",
+        command: expect.stringContaining("npm install --prefix"),
+      } satisfies Partial<RuntimeInstallError>);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("thin CLI bootstrap contract", () => {
+  it("keeps heavy runtime packages out of production dependencies", async () => {
+    const pkg = JSON.parse(await readFile(path.join(repoRoot, "cli", "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    const dependencies = Object.keys(pkg.dependencies ?? {});
+
+    expect(dependencies).not.toContain("@rudderhq/server");
+    expect(dependencies).not.toContain("@rudderhq/db");
+    expect(dependencies).not.toContain("embedded-postgres");
+    expect(dependencies).not.toContain("@rudderhq/agent-runtime-codex-local");
+    expect(dependencies).not.toContain("@rudderhq/agent-runtime-claude-local");
+  });
+
+  it("does not statically import heavy command modules during program registration", async () => {
+    const programSource = await readFile(path.join(repoRoot, "cli", "src", "program.ts"), "utf8");
+    const staticImports = programSource
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("import "))
+      .join("\n");
+
+    expect(staticImports).not.toContain("./commands/worktree.js");
+    expect(staticImports).not.toContain("./commands/db-backup.js");
+    expect(staticImports).not.toContain("./commands/benchmark-create-agent.js");
+  });
+
+  it("does not statically import local agent runtime packages", async () => {
+    const registrySource = await readFile(path.join(repoRoot, "cli", "src", "agent-runtimes", "registry.ts"), "utf8");
+    const staticImports = registrySource
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("import "))
+      .join("\n");
+
+    expect(staticImports).not.toContain("@rudderhq/agent-runtime-codex-local");
+    expect(staticImports).not.toContain("@rudderhq/agent-runtime-claude-local");
+    expect(staticImports).not.toContain("@rudderhq/agent-runtime-openclaw-gateway");
   });
 });

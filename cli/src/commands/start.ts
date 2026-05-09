@@ -15,6 +15,7 @@ import {
   installPersistentCli,
   resolvePersistentCliInstallSpec,
 } from "../install.js";
+import { ensureRuntimeInstalled, RuntimeInstallError } from "../runtime/install.js";
 import { createByteProgress, type ByteProgressReporter } from "../utils/progress.js";
 import { resolveCliVersion } from "../version.js";
 
@@ -49,6 +50,7 @@ interface GithubRelease {
 interface StartCommandOptions {
   cli?: boolean;
   desktop?: boolean;
+  runtime?: boolean;
   version?: string;
   targetVersion?: string;
   repo?: string;
@@ -761,12 +763,13 @@ async function runStartPhase<T>(
 export async function startCommand(opts: StartCommandOptions): Promise<void> {
   const installCli = opts.cli !== false;
   const installDesktop = opts.desktop !== false;
+  const installRuntime = opts.runtime !== false;
   const repo = opts.repo?.trim() || DEFAULT_DESKTOP_RELEASE_REPO;
   const version = opts.targetVersion?.trim() || opts.version?.trim() || resolveCurrentCliVersion();
   const dryRun = opts.dryRun === true;
 
-  if (!installCli && !installDesktop) {
-    throw new Error("Nothing to start. Remove --no-cli or --no-desktop.");
+  if (!installCli && !installDesktop && !installRuntime) {
+    throw new Error("Nothing to start. Remove --no-cli, --no-runtime, or --no-desktop.");
   }
 
   p.intro(pc.bgCyan(pc.black(" rudder start ")));
@@ -774,6 +777,30 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
   if (opts.versionCheck !== false) {
     const updateNotice = await getCliUpdateNotice(version);
     if (updateNotice) p.log.warn(updateNotice);
+  }
+
+  if (installRuntime) {
+    p.log.step("Preparing Rudder runtime");
+    if (dryRun) {
+      p.log.message(`[dry-run] Would install or reuse ${pc.cyan(`@rudderhq/server@${version}`)} in the Rudder runtime cache.`);
+    } else {
+      const spinner = p.spinner();
+      spinner.start("Installing or reusing Rudder runtime...");
+      try {
+        const runtime = await ensureRuntimeInstalled({ version });
+        spinner.stop(
+          runtime.status === "hit"
+            ? `Rudder runtime cache hit at ${pc.cyan(runtime.cacheDir)}.`
+            : `Rudder runtime installed at ${pc.cyan(runtime.cacheDir)}.`,
+        );
+      } catch (error) {
+        spinner.stop(pc.red("Rudder runtime installation failed."));
+        if (error instanceof RuntimeInstallError && error.output) {
+          p.log.message(pc.dim(error.output));
+        }
+        throw error;
+      }
+    }
   }
 
   if (installCli) {
