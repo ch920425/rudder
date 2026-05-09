@@ -40,7 +40,6 @@ import { appendTranscriptEntry } from "@/agent-runtimes/transcript";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -3204,12 +3203,16 @@ function ChatWorkspace() {
               </DropdownMenuItem>
 
               <DropdownMenuItem
+                role="switch"
+                aria-checked={activePlanMode}
+                aria-label="Plan mode"
+                data-testid="chat-plan-mode-toggle"
                 className={cn(
                   "cursor-pointer justify-between rounded-[var(--radius-md)] px-3 py-2.5",
                   activePlanMode
                     && "bg-[color:color-mix(in_oklab,var(--accent-soft)_72%,transparent)] text-foreground focus:bg-[color:color-mix(in_oklab,var(--accent-soft)_88%,transparent)]",
                 )}
-              title={PLAN_MODE_HELP_TEXT}
+                title={PLAN_MODE_HELP_TEXT}
                 onSelect={(event) => {
                   event.preventDefault();
                   applyPlanMode(!activePlanMode);
@@ -3219,19 +3222,22 @@ function ChatWorkspace() {
                   <ListChecks className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="font-medium text-foreground">Plan mode</div>
                 </div>
-                <ToggleSwitch
-                  checked={activePlanMode}
-                  size="md"
-                  tone="accent"
-                  aria-label="Plan mode"
-                  data-testid="chat-plan-mode-toggle"
-                  className="mt-0.5"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    applyPlanMode(!activePlanMode);
-                  }}
-                />
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-[background-color,border-color,box-shadow,opacity]",
+                    activePlanMode
+                      ? "border-[color:color-mix(in_oklab,var(--accent)_85%,var(--border-soft))] bg-[color:color-mix(in_oklab,var(--accent)_82%,var(--surface-elevated))] text-accent-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent)_22%,transparent),0_8px_22px_color-mix(in_oklab,var(--accent)_20%,transparent)]"
+                      : "border-[color:color-mix(in_oklab,var(--border-soft)_82%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_92%,transparent)] text-muted-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-5 w-5 rounded-full border border-[color:color-mix(in_oklab,var(--border-soft)_80%,transparent)] bg-[color:var(--surface-elevated)] shadow-[0_4px_12px_rgb(0_0_0/0.18)] transition-transform",
+                      activePlanMode ? "translate-x-5" : "translate-x-0.5",
+                    )}
+                  />
+                </span>
               </DropdownMenuItem>
 
               <DropdownMenuSeparator className="panel-divider" />
