@@ -1812,6 +1812,7 @@ function CostsSection({
     .sort((a, b) => new Date(b.run.createdAt).getTime() - new Date(a.run.createdAt).getTime())
     .slice(0, 10);
   const maxTokens = Math.max(1, ...visibleRuns.map(({ metrics }) => metrics.totalTokens));
+  const [openRunId, setOpenRunId] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
@@ -1856,64 +1857,71 @@ function CostsSection({
               const outputWidth = totalTokens > 0 ? (metrics.output / totalTokens) * 100 : 0;
               const runLabel = run.id.slice(0, 8);
               const costLabel = formatRunCostUsd(metrics.cost);
-              const tooltipId = `run-cost-tooltip-${run.id}`;
               const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokens(totalTokens)} total tokens, ${formatExactTokens(metrics.input)} input, ${formatExactTokens(metrics.cached)} cached, ${formatExactTokens(metrics.output)} output, ${costLabel} cost`;
 
               return (
-                <Link
-                  key={run.id}
-                  to={`/agents/${agentRouteId}/runs/${run.id}`}
-                  aria-label={accessibleLabel}
-                  aria-describedby={tooltipId}
-                  data-testid="agent-run-cost-row"
-                  className="group relative grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-xs no-underline text-inherit outline-none transition-colors hover:bg-accent/25 focus-visible:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <span className="min-w-0 space-y-0.5">
-                    <span className="block truncate text-muted-foreground">{formatDate(run.createdAt)}</span>
-                    <span className="block font-mono tabular-nums text-foreground">{runLabel}</span>
-                  </span>
-                  <span className="h-3 rounded-sm bg-muted/60">
-                    <span
-                      className="flex h-full overflow-hidden rounded-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
-                      style={{ width: `${barWidth}%` }}
-                    >
-                      {metrics.input > 0 ? <span className="h-full bg-sky-500/75" style={{ width: `${inputWidth}%` }} /> : null}
-                      {metrics.cached > 0 ? <span className="h-full bg-violet-500/75" style={{ width: `${cachedWidth}%` }} /> : null}
-                      {metrics.output > 0 ? <span className="h-full bg-emerald-500/75" style={{ width: `${outputWidth}%` }} /> : null}
-                    </span>
-                  </span>
-                  <span className="min-w-[5.5rem] text-right tabular-nums">
-                    <span className="block font-medium text-foreground">{formatTokens(totalTokens)} tok</span>
-                    {metrics.cost > 0 ? (
-                      <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
-                    ) : null}
-                  </span>
-                  <span
-                    id={tooltipId}
-                    role="tooltip"
-                    className="pointer-events-none invisible absolute bottom-full right-3 z-50 mb-2 w-72 rounded-md bg-foreground p-3 text-left text-xs text-background opacity-0 shadow-md transition-opacity group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100"
-                  >
-                    <span className="block space-y-2">
-                      <span className="block">
-                        <span className="block font-medium">Run {runLabel}</span>
-                        <span className="block font-mono text-[11px] text-background/70">{run.id}</span>
-                        <span className="block text-background/70">{formatDateTime(run.createdAt)}</span>
-                      </span>
-                      <span className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
-                        <span className="text-background/70">Total tokens</span>
-                        <span className="font-mono tabular-nums">{formatExactTokens(totalTokens)}</span>
-                        <span className="text-background/70">Input</span>
-                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.input)}</span>
-                        <span className="text-background/70">Cached</span>
-                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.cached)}</span>
-                        <span className="text-background/70">Output</span>
-                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.output)}</span>
-                        <span className="text-background/70">Cost</span>
-                        <span className="font-mono tabular-nums">{costLabel}</span>
-                      </span>
-                    </span>
-                  </span>
-                </Link>
+                <TooltipProvider key={run.id} delayDuration={120}>
+                  <Tooltip open={openRunId === run.id}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={`/agents/${agentRouteId}/runs/${run.id}`}
+                        aria-label={accessibleLabel}
+                        data-testid="agent-run-cost-row"
+                        onFocus={() => setOpenRunId(run.id)}
+                        onBlur={() => setOpenRunId((current) => current === run.id ? null : current)}
+                        onMouseEnter={() => setOpenRunId(run.id)}
+                        onMouseLeave={(event) => {
+                          if (event.currentTarget !== document.activeElement) {
+                            setOpenRunId((current) => current === run.id ? null : current);
+                          }
+                        }}
+                        className="group grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-xs no-underline text-inherit outline-none transition-colors hover:bg-accent/25 focus-visible:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      >
+                        <span className="min-w-0 space-y-0.5">
+                          <span className="block truncate text-muted-foreground">{formatDate(run.createdAt)}</span>
+                          <span className="block font-mono tabular-nums text-foreground">{runLabel}</span>
+                        </span>
+                        <span className="h-3 rounded-sm bg-muted/60">
+                          <span
+                            className="flex h-full overflow-hidden rounded-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
+                            style={{ width: `${barWidth}%` }}
+                          >
+                            {metrics.input > 0 ? <span className="h-full bg-sky-500/75" style={{ width: `${inputWidth}%` }} /> : null}
+                            {metrics.cached > 0 ? <span className="h-full bg-violet-500/75" style={{ width: `${cachedWidth}%` }} /> : null}
+                            {metrics.output > 0 ? <span className="h-full bg-emerald-500/75" style={{ width: `${outputWidth}%` }} /> : null}
+                          </span>
+                        </span>
+                        <span className="min-w-[5.5rem] text-right tabular-nums">
+                          <span className="block font-medium text-foreground">{formatTokens(totalTokens)} tok</span>
+                          {metrics.cost > 0 ? (
+                            <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
+                          ) : null}
+                        </span>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="end" sideOffset={8} className="w-72 p-3 text-xs">
+                      <div className="space-y-2">
+                        <div>
+                          <div className="font-medium text-background">Run {runLabel}</div>
+                          <div className="font-mono text-[11px] text-background/70">{run.id}</div>
+                          <div className="text-background/70">{formatDateTime(run.createdAt)}</div>
+                        </div>
+                        <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+                          <dt className="text-background/70">Total tokens</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokens(totalTokens)}</dd>
+                          <dt className="text-background/70">Input</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.input)}</dd>
+                          <dt className="text-background/70">Cached</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.cached)}</dd>
+                          <dt className="text-background/70">Output</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.output)}</dd>
+                          <dt className="text-background/70">Cost</dt>
+                          <dd className="font-mono tabular-nums">{costLabel}</dd>
+                        </dl>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               );
             })}
           </div>
