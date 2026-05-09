@@ -59,7 +59,7 @@ import { RunButton, PauseResumeButton } from "../components/AgentActionButtons";
 import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { PackageFileTree, buildFileTree } from "../components/PackageFileTree";
 import { ScrollToBottom } from "../components/ScrollToBottom";
-import { formatCents, formatDate, relativeTime, formatTokens, visibleRunCostUsd } from "../lib/utils";
+import { formatCents, formatDate, formatDateTime, relativeTime, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -546,8 +546,16 @@ function runMetrics(run: HeartbeatRun) {
     output,
     cached,
     cost,
-    totalTokens: input + output,
+    totalTokens: input + cached + output,
   };
+}
+
+function formatExactTokens(value: number) {
+  return Math.max(0, Math.floor(value)).toLocaleString();
+}
+
+function formatRunCostUsd(cost: number) {
+  return cost > 0 ? `$${cost.toFixed(4)}` : "—";
 }
 
 type RunLogChunk = { ts: string; stream: "stdout" | "stderr" | "system"; chunk: string };
@@ -1779,7 +1787,7 @@ function AgentOverview({
       {/* Costs */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Costs</h3>
-        <CostsSection runtimeState={runtimeState} runs={runs} />
+        <CostsSection runtimeState={runtimeState} runs={runs} agentRouteId={agentRouteId} />
       </div>
     </div>
   );
@@ -1790,16 +1798,20 @@ function AgentOverview({
 function CostsSection({
   runtimeState,
   runs,
+  agentRouteId,
 }: {
   runtimeState?: AgentRuntimeState;
   runs: HeartbeatRun[];
+  agentRouteId: string;
 }) {
-  const runsWithCost = runs
-    .filter((r) => {
-      const metrics = runMetrics(r);
+  const visibleRuns = runs
+    .map((run) => ({ run, metrics: runMetrics(run) }))
+    .filter(({ metrics }) => {
       return metrics.cost > 0 || metrics.input > 0 || metrics.output > 0 || metrics.cached > 0;
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => new Date(b.run.createdAt).getTime() - new Date(a.run.createdAt).getTime())
+    .slice(0, 10);
+  const maxTokens = Math.max(1, ...visibleRuns.map(({ metrics }) => metrics.totalTokens));
 
   return (
     <div className="space-y-4">
@@ -1825,39 +1837,91 @@ function CostsSection({
           </div>
         </div>
       )}
-      {runsWithCost.length > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border bg-accent/20">
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Date</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Run</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Input</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Output</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runsWithCost.slice(0, 10).map((run) => {
-                const metrics = runMetrics(run);
-                return (
-                  <tr key={run.id} className="border-b border-border last:border-b-0">
-                    <td className="px-3 py-2">{formatDate(run.createdAt)}</td>
-                    <td className="px-3 py-2 font-mono">{run.id.slice(0, 8)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.input)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatTokens(metrics.output)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {metrics.cost > 0
-                        ? `$${metrics.cost.toFixed(4)}`
-                        : "-"
-                      }
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {visibleRuns.length > 0 ? (
+        <div className="rounded-lg border border-border" data-testid="agent-run-cost-chart">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent/20 px-3 py-2 text-xs text-muted-foreground">
+            <span>Recent run token mix</span>
+            <div className="flex items-center gap-3" data-testid="agent-run-cost-legend">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-sky-500" />Input</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-violet-500" />Cached</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Output</span>
+            </div>
+          </div>
+          <div className="divide-y divide-border">
+            {visibleRuns.map(({ run, metrics }) => {
+              const totalTokens = metrics.totalTokens;
+              const barWidth = totalTokens > 0 ? Math.max(5, (totalTokens / maxTokens) * 100) : 0;
+              const inputWidth = totalTokens > 0 ? (metrics.input / totalTokens) * 100 : 0;
+              const cachedWidth = totalTokens > 0 ? (metrics.cached / totalTokens) * 100 : 0;
+              const outputWidth = totalTokens > 0 ? (metrics.output / totalTokens) * 100 : 0;
+              const runLabel = run.id.slice(0, 8);
+              const costLabel = formatRunCostUsd(metrics.cost);
+              const tooltipId = `run-cost-tooltip-${run.id}`;
+              const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokens(totalTokens)} total tokens, ${formatExactTokens(metrics.input)} input, ${formatExactTokens(metrics.cached)} cached, ${formatExactTokens(metrics.output)} output, ${costLabel} cost`;
+
+              return (
+                <Link
+                  key={run.id}
+                  to={`/agents/${agentRouteId}/runs/${run.id}`}
+                  aria-label={accessibleLabel}
+                  aria-describedby={tooltipId}
+                  data-testid="agent-run-cost-row"
+                  className="group relative grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-xs no-underline text-inherit outline-none transition-colors hover:bg-accent/25 focus-visible:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  <span className="min-w-0 space-y-0.5">
+                    <span className="block truncate text-muted-foreground">{formatDate(run.createdAt)}</span>
+                    <span className="block font-mono tabular-nums text-foreground">{runLabel}</span>
+                  </span>
+                  <span className="h-3 rounded-sm bg-muted/60">
+                    <span
+                      className="flex h-full overflow-hidden rounded-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
+                      style={{ width: `${barWidth}%` }}
+                    >
+                      {metrics.input > 0 ? <span className="h-full bg-sky-500/75" style={{ width: `${inputWidth}%` }} /> : null}
+                      {metrics.cached > 0 ? <span className="h-full bg-violet-500/75" style={{ width: `${cachedWidth}%` }} /> : null}
+                      {metrics.output > 0 ? <span className="h-full bg-emerald-500/75" style={{ width: `${outputWidth}%` }} /> : null}
+                    </span>
+                  </span>
+                  <span className="min-w-[5.5rem] text-right tabular-nums">
+                    <span className="block font-medium text-foreground">{formatTokens(totalTokens)} tok</span>
+                    {metrics.cost > 0 ? (
+                      <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
+                    ) : null}
+                  </span>
+                  <span
+                    id={tooltipId}
+                    role="tooltip"
+                    className="pointer-events-none invisible absolute bottom-full right-3 z-50 mb-2 w-72 rounded-md bg-foreground p-3 text-left text-xs text-background opacity-0 shadow-md transition-opacity group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100"
+                  >
+                    <span className="block space-y-2">
+                      <span className="block">
+                        <span className="block font-medium">Run {runLabel}</span>
+                        <span className="block font-mono text-[11px] text-background/70">{run.id}</span>
+                        <span className="block text-background/70">{formatDateTime(run.createdAt)}</span>
+                      </span>
+                      <span className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
+                        <span className="text-background/70">Total tokens</span>
+                        <span className="font-mono tabular-nums">{formatExactTokens(totalTokens)}</span>
+                        <span className="text-background/70">Input</span>
+                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.input)}</span>
+                        <span className="text-background/70">Cached</span>
+                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.cached)}</span>
+                        <span className="text-background/70">Output</span>
+                        <span className="font-mono tabular-nums">{formatExactTokens(metrics.output)}</span>
+                        <span className="text-background/70">Cost</span>
+                        <span className="font-mono tabular-nums">{costLabel}</span>
+                      </span>
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          No run cost or token data yet.
+        </p>
       )}
     </div>
   );
