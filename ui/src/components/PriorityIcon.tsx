@@ -3,9 +3,11 @@ import { Check } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { getPriorityConfig, priorityConfig, priorityValues } from "../lib/priorities";
+import { getPriorityConfig, priorityConfig, priorityValues, type PriorityValue } from "../lib/priorities";
 const barHeights = ["h-1", "h-1.5", "h-2.5", "h-3.5"];
 
+export const priorityPickerContentClassName =
+  "w-48 rounded-lg border-[color:var(--border-base)] bg-[color:var(--surface-overlay)] p-1.5 shadow-[var(--shadow-md)]";
 
 export function PriorityBarsIcon({
   priority,
@@ -36,6 +38,41 @@ export function PriorityBarsIcon({
   );
 }
 
+export function PriorityPickerOption({
+  priority,
+  selected,
+  onSelect,
+}: {
+  priority: PriorityValue;
+  selected: boolean;
+  onSelect: (priority: PriorityValue) => void;
+}) {
+  const config = priorityConfig[priority];
+
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      className={cn(
+        "group flex h-8 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-sm transition-colors hover:bg-[color:var(--surface-active)] focus-visible:bg-[color:var(--surface-active)] focus-visible:outline-none",
+        selected && "bg-[color:color-mix(in_oklab,var(--surface-active)_72%,transparent)] text-foreground",
+      )}
+      onClick={() => onSelect(priority)}
+    >
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <PriorityBarsIcon priority={priority} className="shrink-0" />
+        <span className={cn("truncate", config.menuLabelClassName)}>{config.label}</span>
+      </span>
+      {selected ? (
+        <Check data-slot="priority-menu-check" className="h-4 w-4 shrink-0 text-muted-foreground" />
+      ) : (
+        <span className="h-4 w-4 shrink-0" aria-hidden="true" />
+      )}
+    </button>
+  );
+}
+
 interface PriorityIconProps {
   priority: string;
   onChange?: (priority: string) => void;
@@ -62,7 +99,7 @@ export function PriorityIcon({ priority, onChange, className, showLabel }: Prior
   if (!onChange) return showLabel ? <span className="inline-flex items-center gap-1.5">{icon}<span className="text-sm">{config.label}</span></span> : icon;
 
   const trigger = showLabel ? (
-    <button type="button" className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 py-0.5 transition-colors">
+    <button type="button" className="-mx-1 inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors hover:bg-[color:var(--surface-active)]">
       {icon}
       <span className="text-sm">{config.label}</span>
     </button>
@@ -71,29 +108,19 @@ export function PriorityIcon({ priority, onChange, className, showLabel }: Prior
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="w-44 rounded-2xl p-2" align="start">
+      <PopoverContent className={priorityPickerContentClassName} align="start" role="menu" aria-label="Issue priority">
         {priorityValues.map((p) => {
-          const c = priorityConfig[p]!;
           const selected = p === priority;
           return (
-            <button
+            <PriorityPickerOption
               key={p}
-              type="button"
-              className={cn(
-                "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
-                selected && "bg-muted/80",
-              )}
-              onClick={() => {
-                onChange(p);
+              priority={p}
+              selected={selected}
+              onSelect={(nextPriority) => {
+                onChange(nextPriority);
                 setOpen(false);
               }}
-            >
-              <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold", c.chipClassName)}>
-                <PriorityBarsIcon priority={p} className="text-current" />
-                {c.label}
-              </span>
-              {selected ? <Check className="h-4 w-4 text-muted-foreground" /> : <span className="h-4 w-4" aria-hidden="true" />}
-            </button>
+            />
           );
         })}
       </PopoverContent>

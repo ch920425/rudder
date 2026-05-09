@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode } from "react";
+import { act, type HTMLAttributes, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PriorityIcon } from "./PriorityIcon";
@@ -8,7 +8,9 @@ import { PriorityIcon } from "./PriorityIcon";
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  PopoverContent: ({ children }: { children: ReactNode }) => <div data-slot="priority-menu">{children}</div>,
+  PopoverContent: ({ children, ...props }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) => (
+    <div data-slot="priority-menu" {...props}>{children}</div>
+  ),
 }));
 
 (
@@ -52,6 +54,7 @@ describe("PriorityIcon", () => {
 
     expect(container.textContent).toContain("Urgent");
     expect(container.textContent).not.toContain("Critical");
+    expect(container.textContent).not.toContain("Flag");
     expect(container.querySelector('[data-slot="priority-bars-icon"]')?.children).toHaveLength(4);
   });
 
@@ -74,5 +77,19 @@ describe("PriorityIcon", () => {
     });
 
     expect(onChange).toHaveBeenCalledWith("high");
+  });
+
+  it("renders priority choices as quiet menu rows with a selected check", () => {
+    const container = renderPriorityIcon(<PriorityIcon priority="high" onChange={vi.fn()} showLabel />);
+    const menu = container.querySelector('[data-slot="priority-menu"]');
+    const selectedRow = container.querySelector('button[role="menuitemradio"][aria-checked="true"]');
+
+    expect(menu?.textContent).toContain("Urgent");
+    expect(menu?.textContent).toContain("High");
+    expect(menu?.textContent).toContain("Medium");
+    expect(menu?.textContent).toContain("Low");
+    expect(menu?.innerHTML).not.toContain("bg-orange-600");
+    expect(menu?.innerHTML).not.toContain("rounded-xl");
+    expect(selectedRow?.querySelector('[data-slot="priority-menu-check"]')).toBeTruthy();
   });
 });

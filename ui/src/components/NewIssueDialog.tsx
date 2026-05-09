@@ -56,7 +56,6 @@ import {
   ChevronDown,
   CircleDot,
   Minus,
-  Check,
   CheckCircle2,
   Tag,
   Calendar,
@@ -75,7 +74,7 @@ import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./Ma
 import { AgentIcon } from "./AgentIconPicker";
 import { IssueLabelChip } from "./IssueLabelChip";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
-import { PriorityBarsIcon } from "./PriorityIcon";
+import { PriorityBarsIcon, PriorityPickerOption, priorityPickerContentClassName } from "./PriorityIcon";
 import { priorityOptions } from "../lib/priorities";
 
 const DEBOUNCE_MS = 800;
@@ -1563,22 +1562,17 @@ export function NewIssueDialog() {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-44 rounded-2xl p-2" align="start">
+            <PopoverContent className={priorityPickerContentClassName} align="start" role="menu" aria-label="Issue priority">
               {priorities.map((p) => (
-                <button
+                <PriorityPickerOption
                   key={p.value}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
-                    p.value === priority && "bg-muted/80"
-                  )}
-                  onClick={() => { setPriority(p.value); setPriorityOpen(false); }}
-                >
-                  <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold", p.chipClassName)}>
-                    <PriorityBarsIcon priority={p.value} className="text-current" />
-                    {p.label}
-                  </span>
-                  {p.value === priority ? <Check className="h-4 w-4 text-muted-foreground" /> : <span className="h-4 w-4" aria-hidden="true" />}
-                </button>
+                  priority={p.value}
+                  selected={p.value === priority}
+                  onSelect={(nextPriority) => {
+                    setPriority(nextPriority);
+                    setPriorityOpen(false);
+                  }}
+                />
               ))}
             </PopoverContent>
           </Popover>

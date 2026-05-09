@@ -101,8 +101,8 @@ export const agentStatusDotDefault = "bg-neutral-400";
 export const priorityColor: Record<string, string> = {
   critical: "text-orange-600 dark:text-orange-400",
   high: "text-orange-500 dark:text-orange-400",
-  medium: "text-orange-500 dark:text-orange-300",
-  low: "text-orange-400 dark:text-orange-300",
+  medium: "text-orange-400 dark:text-orange-300/80",
+  low: "text-orange-300 dark:text-orange-300/55",
 };
 
-export const priorityColorDefault = "text-orange-500 dark:text-orange-300";
+export const priorityColorDefault = "text-orange-400 dark:text-orange-300/80";

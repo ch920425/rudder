@@ -7,7 +7,7 @@ export type PriorityVisualConfig = {
   label: string;
   level: number;
   color: string;
-  chipClassName: string;
+  menuLabelClassName: string;
 };
 
 export const priorityConfig: Record<PriorityValue, PriorityVisualConfig> = {
@@ -16,28 +16,28 @@ export const priorityConfig: Record<PriorityValue, PriorityVisualConfig> = {
     label: "Urgent",
     level: 4,
     color: priorityColor.critical ?? priorityColorDefault,
-    chipClassName: "bg-orange-600 text-white dark:bg-orange-500 dark:text-white",
+    menuLabelClassName: "font-medium text-orange-700 dark:text-orange-300",
   },
   high: {
     value: "high",
     label: "High",
     level: 3,
     color: priorityColor.high ?? priorityColorDefault,
-    chipClassName: "bg-orange-500 text-white dark:bg-orange-400 dark:text-white",
+    menuLabelClassName: "font-medium text-orange-600 dark:text-orange-300",
   },
   medium: {
     value: "medium",
     label: "Medium",
     level: 2,
     color: priorityColor.medium ?? priorityColorDefault,
-    chipClassName: "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-300",
+    menuLabelClassName: "font-medium text-foreground",
   },
   low: {
     value: "low",
     label: "Low",
     level: 1,
     color: priorityColor.low ?? priorityColorDefault,
-    chipClassName: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300",
+    menuLabelClassName: "font-medium text-muted-foreground",
   },
 };
 
