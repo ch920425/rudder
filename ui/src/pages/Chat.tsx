@@ -783,6 +783,14 @@ export function canContinueInterruptedChatMessage(message: Pick<ChatMessage, "ro
   return message.role === "assistant" && message.status === "interrupted";
 }
 
+export function isUserVisibleIncomingChatMessage(
+  message: Pick<ChatMessage, "role" | "kind" | "body" | "approvalId" | "supersededAt">,
+) {
+  if (message.supersededAt) return false;
+  if (message.role === "user") return false;
+  return message.body.trim().length > 0 || message.kind !== "message" || Boolean(message.approvalId);
+}
+
 export function assistantStateLabel(state: ChatStreamDraftState | ChatMessage["status"]) {
   if (state === "streaming") return "Streaming";
   if (state === "finalizing") return "Finalizing";
@@ -2537,7 +2545,7 @@ function ChatWorkspace() {
   const rawMessages = messagesQuery.data ?? [];
   const latestIncomingMessageId = useMemo(() => {
     const messages = [...rawMessages]
-      .filter((message) => !message.supersededAt && message.role !== "user")
+      .filter(isUserVisibleIncomingChatMessage)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return messages[0]?.id ?? null;
   }, [rawMessages]);

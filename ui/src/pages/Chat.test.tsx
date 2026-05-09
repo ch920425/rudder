@@ -13,6 +13,7 @@ import {
   canContinueInterruptedChatMessage,
   computeDisplayedChatMessages,
   isChatAgentSelectionLocked,
+  isUserVisibleIncomingChatMessage,
   readChatScopedPendingFiles,
   scrollChatMessagesToBottom,
   statusChipClassName,
@@ -196,6 +197,38 @@ describe("interrupted chat messages", () => {
   it("does not offer continuation for completed or user messages", () => {
     expect(canContinueInterruptedChatMessage(message({ role: "assistant", status: "completed" }))).toBe(false);
     expect(canContinueInterruptedChatMessage(message({ role: "user", status: "interrupted" }))).toBe(false);
+  });
+});
+
+describe("isUserVisibleIncomingChatMessage", () => {
+  it("ignores empty assistant placeholders until visible content appears", () => {
+    expect(isUserVisibleIncomingChatMessage(message({
+      role: "assistant",
+      kind: "message",
+      status: "streaming",
+      body: "",
+    }))).toBe(false);
+
+    expect(isUserVisibleIncomingChatMessage(message({
+      role: "assistant",
+      kind: "message",
+      status: "streaming",
+      body: "First visible token",
+    }))).toBe(true);
+  });
+
+  it("treats structured incoming cards as visible messages", () => {
+    expect(isUserVisibleIncomingChatMessage(message({
+      role: "assistant",
+      kind: "issue_proposal",
+      body: "",
+    }))).toBe(true);
+
+    expect(isUserVisibleIncomingChatMessage(message({
+      role: "user",
+      kind: "message",
+      body: "User-authored text",
+    }))).toBe(false);
   });
 });
 

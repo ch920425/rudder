@@ -60,6 +60,28 @@ function safeTrim(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+function isVisibleIncomingChatMessage(
+  message: Pick<MessageRow, "role" | "kind" | "body" | "approvalId">,
+) {
+  if (message.role === "user") return false;
+  return Boolean(safeTrim(message.body)) || message.kind !== "message" || Boolean(message.approvalId);
+}
+
+function visibleIncomingMessageSql() {
+  return sql`(
+    ${chatMessages.role} <> 'user'
+    and (
+      btrim(${chatMessages.body}) <> ''
+      or ${chatMessages.kind} <> 'message'
+      or ${chatMessages.approvalId} is not null
+    )
+  )`;
+}
+
+function incomingMessagePreviewSql() {
+  return sql`(${chatMessages.role} <> 'user' and btrim(${chatMessages.body}) <> '')`;
+}
+
 function truncatePreview(value: string | null | undefined, max = 140) {
   return formatMessengerPreview(value, { max });
 }
@@ -422,7 +444,7 @@ export function chatService(db: Db) {
           eq(chatMessages.orgId, orgId),
           inArray(chatMessages.conversationId, conversationIds),
           isNull(chatMessages.supersededAt),
-          sql`${chatMessages.role} <> 'user'`,
+          visibleIncomingMessageSql(),
           gt(chatMessages.createdAt, chatConversationUserStates.lastReadAt),
         ),
       )
@@ -464,7 +486,7 @@ export function chatService(db: Db) {
           eq(chatMessages.orgId, orgId),
           inArray(chatMessages.conversationId, conversationIds),
           isNull(chatMessages.supersededAt),
-          sql`${chatMessages.role} <> 'user'`,
+          incomingMessagePreviewSql(),
         ),
       )
       .groupBy(chatMessages.conversationId)
@@ -488,7 +510,7 @@ export function chatService(db: Db) {
           eq(chatMessages.orgId, orgId),
           inArray(chatMessages.conversationId, conversationIds),
           isNull(chatMessages.supersededAt),
-          sql`${chatMessages.role} <> 'user'`,
+          incomingMessagePreviewSql(),
         ),
       )
       .orderBy(desc(chatMessages.createdAt));
@@ -966,7 +988,9 @@ export function chatService(db: Db) {
         })
         .returning();
       if (!message) throw new Error("Failed to create chat message");
-      await refreshConversationTouch(conversationId, message.createdAt);
+      if (input.role === "user" || isVisibleIncomingChatMessage(message)) {
+        await refreshConversationTouch(conversationId, message.createdAt);
+      }
       if (input.role === "user") {
         await maybePromoteConversationTitle(conversationId, input.body);
       }
@@ -994,9 +1018,25 @@ export function chatService(db: Db) {
         .then((rows) => rows[0] ?? null);
       if (!existing) return null;
 
+      const now = new Date();
+      const wasVisibleIncoming = isVisibleIncomingChatMessage(existing);
+      const nextMessage = {
+        role: existing.role,
+        kind: input.kind ?? existing.kind,
+        body: input.body ?? existing.body,
+        approvalId: input.approvalId !== undefined ? input.approvalId : existing.approvalId,
+      } satisfies Pick<MessageRow, "role" | "kind" | "body" | "approvalId">;
+      const isVisibleIncoming = isVisibleIncomingChatMessage(nextMessage);
+      const becameVisibleIncoming = !wasVisibleIncoming && isVisibleIncoming;
+      const visibleContentChanged =
+        (input.body !== undefined && safeTrim(input.body) !== safeTrim(existing.body)) ||
+        (input.kind !== undefined && input.kind !== existing.kind) ||
+        (input.approvalId !== undefined && input.approvalId !== existing.approvalId);
+
       const [updated] = await db
         .update(chatMessages)
         .set({
+          ...(becameVisibleIncoming ? { createdAt: now } : {}),
           ...(input.kind !== undefined ? { kind: input.kind } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.body !== undefined ? { body: input.body } : {}),
@@ -1014,13 +1054,16 @@ export function chatService(db: Db) {
             : {}),
           ...(input.approvalId !== undefined ? { approvalId: input.approvalId } : {}),
           ...(input.replyingAgentId !== undefined ? { replyingAgentId: input.replyingAgentId } : {}),
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(and(eq(chatMessages.conversationId, conversationId), eq(chatMessages.id, messageId)))
         .returning();
       if (!updated) return null;
-      if (input.body !== undefined || input.status !== undefined) {
-        await refreshConversationTouch(conversationId, updated.updatedAt);
+      if (
+        (existing.role === "user" && input.body !== undefined) ||
+        (isVisibleIncoming && (becameVisibleIncoming || visibleContentChanged))
+      ) {
+        await refreshConversationTouch(conversationId, becameVisibleIncoming ? updated.createdAt : updated.updatedAt);
       }
       const [hydrated] = await hydrateMessages([updated]);
       return hydrated ?? null;

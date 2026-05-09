@@ -389,6 +389,60 @@ describe("messengerService and issue follows", () => {
     expect(editedAfterEdit?.attachments[0]?.contentPath).toBe(originalAfterEdit?.attachments[0]?.contentPath);
   });
 
+  it("does not mark a chat unread until an incoming message has visible content", async () => {
+    const orgId = randomUUID();
+    const conversationId = randomUUID();
+    const userId = "board-user-visible-unread";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Chat Visible Unread Org",
+      urlKey: deriveOrganizationUrlKey("Chat Visible Unread Org"),
+      issuePrefix: `V${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Visible unread chat",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+
+    await chatSvc.markRead(conversationId, orgId, userId, new Date("2026-05-01T00:00:00.000Z"));
+    const placeholder = await chatSvc.addMessage(conversationId, {
+      orgId,
+      role: "assistant",
+      kind: "message",
+      status: "streaming",
+      body: "",
+    });
+
+    const [afterPlaceholder] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterPlaceholder?.unreadCount).toBe(0);
+    expect(afterPlaceholder?.needsAttention).toBe(false);
+    expect(afterPlaceholder?.lastMessageAt).toBeNull();
+
+    const visible = await chatSvc.updateMessage(conversationId, placeholder.id, {
+      status: "streaming",
+      body: "First visible assistant token",
+    });
+    expect(visible?.createdAt.getTime()).toBeGreaterThan(placeholder.createdAt.getTime());
+
+    const [afterVisibleContent] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterVisibleContent?.unreadCount).toBe(1);
+    expect(afterVisibleContent?.needsAttention).toBe(true);
+    expect(afterVisibleContent?.latestReplyPreview).toBe("First visible assistant token");
+
+    await chatSvc.markRead(conversationId, orgId, userId, new Date());
+    await chatSvc.updateMessage(conversationId, placeholder.id, { status: "completed" });
+
+    const [afterStatusOnlyUpdate] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterStatusOnlyUpdate?.unreadCount).toBe(0);
+    expect(afterStatusOnlyUpdate?.needsAttention).toBe(false);
+  });
+
   it("assigns approved chat issue proposals to the selected chat agent by default", async () => {
     const orgId = randomUUID();
     const agentId = randomUUID();
