@@ -1621,6 +1621,7 @@ function ChatWorkspace() {
   const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>(NO_CHAT_AGENT_ID);
   const [draftProjectId, setDraftProjectId] = useState<string>(NO_PROJECT_ID);
   const [draftPlanMode, setDraftPlanMode] = useState(false);
+  const [pendingPlanModeOverride, setPendingPlanModeOverride] = useState<boolean | null>(null);
   const [decisionNotesByMessageId, setDecisionNotesByMessageId] = useState<Record<string, string>>({});
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
@@ -1849,7 +1850,7 @@ function ChatWorkspace() {
   const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId;
   const selectedConversationProjectId = projectContextId(selectedConversation);
   const activeProjectId = selectedConversation ? (selectedConversationProjectId ?? NO_PROJECT_ID) : draftProjectId;
-  const activePlanMode = selectedConversation?.planMode ?? draftPlanMode;
+  const activePlanMode = pendingPlanModeOverride ?? selectedConversation?.planMode ?? draftPlanMode;
   const activeSkillAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
   const activeSkillAgent = activeSkillAgentId
     ? (agents ?? []).find((agent) => agent.id === activeSkillAgentId) ?? null
@@ -1964,6 +1965,7 @@ function ChatWorkspace() {
   useEffect(() => {
     if (!selectedConversation) return;
     setDraftPlanMode(selectedConversation.planMode);
+    setPendingPlanModeOverride((pending) => pending === selectedConversation.planMode ? null : pending);
   }, [
     selectedConversation?.id,
     selectedConversation?.planMode,
@@ -2177,6 +2179,8 @@ function ChatWorkspace() {
       if (conversation.status === "archived" && conversation.id === selectedConversation?.id) {
         navigate(chatRootPath);
       }
+      upsertConversation(conversation);
+      upsertMessengerThreadSummary(conversation);
       await refreshChat(conversation.id);
     },
     onError: (error) => {
@@ -2839,26 +2843,39 @@ function ChatWorkspace() {
   };
 
   const applyPlanMode = (value: boolean) => {
+    const chatId = selectedConversation?.id ?? conversationId;
+    const previousConversation = selectedConversation;
+    const previousDraftPlanMode = draftPlanMode;
     setDraftPlanMode(value);
-    if (selectedConversation) {
-      const previousConversation = selectedConversation;
-      const optimisticConversation = withOptimisticPlanMode(selectedConversation, value);
+    setPendingPlanModeOverride(value);
+    if (!chatId) return;
+
+    if (previousConversation) {
+      const optimisticConversation = withOptimisticPlanMode(previousConversation, value);
       upsertConversation(optimisticConversation);
       upsertMessengerThreadSummary(optimisticConversation);
-      updateConversationMutation.mutate(
-        {
-          chatId: selectedConversation.id,
-          data: { planMode: value },
+    }
+
+    updateConversationMutation.mutate(
+      {
+        chatId,
+        data: { planMode: value },
+      },
+      {
+        onSuccess: (conversation) => {
+          setDraftPlanMode(conversation.planMode);
+          setPendingPlanModeOverride(null);
         },
-        {
-          onError: () => {
-            setDraftPlanMode(previousConversation.planMode);
+        onError: () => {
+          setDraftPlanMode(previousConversation?.planMode ?? previousDraftPlanMode);
+          setPendingPlanModeOverride(null);
+          if (previousConversation) {
             upsertConversation(previousConversation);
             upsertMessengerThreadSummary(previousConversation);
-          },
+          }
         },
-      );
-    }
+      },
+    );
   };
 
   const copyChatMessageText = useCallback(
@@ -3202,18 +3219,19 @@ function ChatWorkspace() {
                 Add files
               </DropdownMenuItem>
 
-              <DropdownMenuItem
+              <button
+                type="button"
                 role="switch"
                 aria-checked={activePlanMode}
                 aria-label="Plan mode"
                 data-testid="chat-plan-mode-toggle"
+                title={PLAN_MODE_HELP_TEXT}
                 className={cn(
-                  "cursor-pointer justify-between rounded-[var(--radius-md)] px-3 py-2.5",
+                  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
                   activePlanMode
                     && "bg-[color:color-mix(in_oklab,var(--accent-soft)_72%,transparent)] text-foreground focus:bg-[color:color-mix(in_oklab,var(--accent-soft)_88%,transparent)]",
                 )}
-                title={PLAN_MODE_HELP_TEXT}
-                onSelect={(event) => {
+                onClick={(event) => {
                   event.preventDefault();
                   applyPlanMode(!activePlanMode);
                 }}
@@ -3224,6 +3242,7 @@ function ChatWorkspace() {
                 </div>
                 <span
                   aria-hidden="true"
+                  data-testid="chat-plan-mode-track"
                   className={cn(
                     "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-[background-color,border-color,box-shadow,opacity]",
                     activePlanMode
@@ -3232,13 +3251,14 @@ function ChatWorkspace() {
                   )}
                 >
                   <span
+                    data-testid="chat-plan-mode-thumb"
                     className={cn(
                       "inline-block h-5 w-5 rounded-full border border-[color:color-mix(in_oklab,var(--border-soft)_80%,transparent)] bg-[color:var(--surface-elevated)] shadow-[0_4px_12px_rgb(0_0_0/0.18)] transition-transform",
                       activePlanMode ? "translate-x-5" : "translate-x-0.5",
                     )}
                   />
                 </span>
-              </DropdownMenuItem>
+              </button>
 
               <DropdownMenuSeparator className="panel-divider" />
               <DropdownMenuItem

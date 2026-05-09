@@ -47,25 +47,29 @@ test.describe("Chat options menu", () => {
     const planModeToggle = page.getByRole("switch", { name: "Plan mode" });
     await expect(planModeToggle).toHaveAttribute("aria-checked", "false");
     await expect(page.locator('[title*="Read-only planning."]')).toBeVisible();
-    const offTrackColor = await planModeToggle.evaluate((element) => getComputedStyle(element).backgroundColor);
+    const planModeTrack = page.getByTestId("chat-plan-mode-track");
+    const planModeThumb = page.getByTestId("chat-plan-mode-thumb");
+    const offTrackColor = await planModeTrack.evaluate((element) => getComputedStyle(element).backgroundColor);
 
     let planModePatchCount = 0;
     let releasePlanModePatch: (() => void) | null = null;
+    let resolvePlanModePatchStarted: (() => void) | null = null;
     const planModePatchStarted = new Promise<void>((resolve) => {
-      void page.route(`**/api/chats/${chat.id}`, async (route) => {
-        if (route.request().method() !== "PATCH") {
-          await route.continue();
-          return;
-        }
-        planModePatchCount += 1;
-        if (planModePatchCount === 1) {
-          resolve();
-          await new Promise<void>((release) => {
-            releasePlanModePatch = release;
-          });
-        }
+      resolvePlanModePatchStarted = resolve;
+    });
+    await page.route(`**/api/chats/${chat.id}`, async (route) => {
+      if (route.request().method() !== "PATCH") {
         await route.continue();
-      });
+        return;
+      }
+      planModePatchCount += 1;
+      if (planModePatchCount === 1) {
+        resolvePlanModePatchStarted?.();
+        await new Promise<void>((release) => {
+          releasePlanModePatch = release;
+        });
+      }
+      await route.continue();
     });
     const planModePatchResponse = page.waitForResponse((response) =>
       response.request().method() === "PATCH"
@@ -76,10 +80,10 @@ test.describe("Chat options menu", () => {
     await planModePatchStarted;
     await expect(planModeToggle).toHaveAttribute("aria-checked", "true");
     await expect(page.locator('button[aria-label="Turn off plan mode"]')).toBeVisible();
-    const checkedColors = await planModeToggle.evaluate((element) => ({
-      track: getComputedStyle(element).backgroundColor,
-      thumb: getComputedStyle(element.firstElementChild as HTMLElement).backgroundColor,
-    }));
+    const checkedColors = {
+      track: await planModeTrack.evaluate((element) => getComputedStyle(element).backgroundColor),
+      thumb: await planModeThumb.evaluate((element) => getComputedStyle(element).backgroundColor),
+    };
     releasePlanModePatch?.();
     expect((await planModePatchResponse).ok()).toBe(true);
     await expect.poll(() => planModePatchCount).toBe(1);
