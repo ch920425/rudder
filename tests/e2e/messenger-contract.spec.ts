@@ -5,6 +5,10 @@ import { activityLog, createDb, heartbeatRuns, issues } from "../../packages/db/
 import { E2E_CODEX_STUB, E2E_DATABASE_URL } from "./support/e2e-env";
 
 const e2eDb = createDb(E2E_DATABASE_URL);
+const ONE_BY_ONE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X5p1sAAAAASUVORK5CYII=",
+  "base64",
+);
 
 async function createOrganization(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
@@ -266,6 +270,19 @@ test.describe("Messenger unified threads contract", () => {
     const followRes = await page.request.post(`/api/issues/${issue.id}/follow`);
     expect(followRes.ok()).toBe(true);
 
+    const approvalImageRes = await page.request.post(`/api/orgs/${organization.id}/assets/images`, {
+      multipart: {
+        namespace: "approval-test",
+        file: {
+          name: "approval-screenshot.png",
+          mimeType: "image/png",
+          buffer: ONE_BY_ONE_PNG,
+        },
+      },
+    });
+    expect(approvalImageRes.ok()).toBe(true);
+    const approvalImage = await approvalImageRes.json() as { contentPath: string };
+
     const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
       data: {
         type: "chat_issue_creation",
@@ -279,7 +296,7 @@ test.describe("Messenger unified threads contract", () => {
               "- Render **markdown** in the approval preview.",
               "- Preserve inline images.",
               "",
-              "![](/api/assets/approval-screenshot/content)",
+              `![](${approvalImage.contentPath})`,
             ].join("\n"),
             priority: "medium",
             projectId: project.id,
@@ -304,10 +321,10 @@ test.describe("Messenger unified threads contract", () => {
     await expect(mainContent.locator(".chat-composer")).toBeVisible({ timeout: 15_000 });
     const organizationPrefix = organization.issuePrefix;
 
-    const sidebarThreads = page.locator('[data-testid="workspace-sidebar"] [data-testid^="messenger-thread-"]');
+    const sidebarThreads = page.locator('[data-testid="workspace-sidebar"] [data-testid^="messenger-thread-"]:not([data-testid="messenger-thread-organization-trigger"])');
     await expect(sidebarThreads).toHaveCount(3, { timeout: 15_000 });
     await expect(page.getByTestId(threadTestId("approvals"))).toContainText("Approvals");
-    await expect(page.getByTestId(threadTestId("issues"))).toContainText("Cross-issue activity feed");
+    await expect(page.getByTestId(threadTestId("issues"))).toContainText("Messenger issue follow");
     await expect(page.getByTestId(threadTestId(`chat:${chat.id}`))).toContainText("Messenger intake");
     await expect(sidebarThreads.nth(0)).toContainText("Approvals");
     await expect(sidebarThreads.nth(1)).toContainText("Issues");
@@ -348,7 +365,7 @@ test.describe("Messenger unified threads contract", () => {
 
     await issueCard.getByRole("button", { name: "Quick comment" }).click();
     await issueCard.getByPlaceholder("Add a quick comment").fill(longIssueComment);
-    await issueCard.getByRole("button", { name: "Comment" }).click();
+    await issueCard.getByTestId(`messenger-quick-comment-submit-${issue.id}`).click();
 
     let createdCommentId = "";
     await expect.poll(async () => {
@@ -395,6 +412,8 @@ test.describe("Messenger unified threads contract", () => {
     await expect(mainContent.getByTestId("messenger-panel-header")).not.toContainText(/\b\d+\s+(?:pending|total)\b/i);
     const approvalCard = page.locator('[data-testid^="messenger-approval-card-"]').first();
     await expect(approvalCard).toContainText("Messenger contract test");
+    await expect(approvalCard).toContainText("Agent proposed a new issue from chat");
+    await expect(approvalCard).toContainText("Messenger intake");
     await expect(approvalCard).toContainText("Project Atlas");
     await expect(approvalCard).toContainText("Me");
     await expect(approvalCard.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
@@ -406,11 +425,13 @@ test.describe("Messenger unified threads contract", () => {
     const approvalDialog = page.getByTestId("approval-detail-dialog");
     await expect(approvalDialog).toBeVisible();
     await expect(approvalDialog).toContainText("Messenger contract test");
+    await expect(approvalDialog).toContainText("Agent proposed a new issue from chat");
+    await expect(approvalDialog).toContainText("Messenger intake");
     await expect(approvalDialog).toContainText("Project Atlas");
     await expect(approvalDialog).toContainText("Me");
     await expect(approvalDialog.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
     await expect(approvalDialog.locator("strong", { hasText: "markdown" })).toBeVisible();
-    await expect(approvalDialog.locator('img[src="/api/assets/approval-screenshot/content"]')).toBeVisible();
+    await expect(approvalDialog.locator(`img[src="${approvalImage.contentPath}"]`)).toBeVisible();
     await expect(approvalDialog).not.toContainText(project.id);
     await expect(approvalDialog).not.toContainText(currentUserId);
     await page.getByRole("button", { name: "Close" }).click();

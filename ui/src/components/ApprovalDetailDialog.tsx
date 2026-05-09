@@ -5,6 +5,7 @@ import type { ApprovalComment } from "@rudderhq/shared";
 import { accessApi } from "@/api/access";
 import { agentsApi } from "@/api/agents";
 import { approvalsApi } from "@/api/approvals";
+import { chatsApi } from "@/api/chats";
 import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ import { MarkdownBody } from "./MarkdownBody";
 import {
   ApprovalPayloadRenderer,
   approvalLabel,
+  chatConversationIdFromApprovalPayload,
   defaultTypeIcon,
   typeIcon,
 } from "./ApprovalPayload";
@@ -84,6 +86,14 @@ export function ApprovalDetailDialog({
     queryKey: queryKeys.projects.list(resolvedOrgId ?? ""),
     queryFn: () => projectsApi.list(resolvedOrgId ?? ""),
     enabled: Boolean(resolvedOrgId && open),
+  });
+
+  const payload = (approval?.payload ?? {}) as Record<string, unknown>;
+  const chatConversationId = chatConversationIdFromApprovalPayload(payload);
+  const { data: chatConversation } = useQuery({
+    queryKey: queryKeys.chats.detail(chatConversationId ?? "__none__"),
+    queryFn: () => chatsApi.get(chatConversationId!),
+    enabled: Boolean(chatConversationId && open),
   });
 
   const { data: currentBoardAccess } = useQuery({
@@ -187,7 +197,6 @@ export function ApprovalDetailDialog({
     onError: (err) => setError(err instanceof Error ? err.message : "Delete failed"),
   });
 
-  const payload = (approval?.payload ?? {}) as Record<string, unknown>;
   const linkedAgentId = typeof payload.agentId === "string" ? payload.agentId : null;
   const isActionable = approval?.status === "pending" || approval?.status === "revision_requested";
   const isBudgetApproval = approval?.type === "budget_override_required";
@@ -302,7 +311,7 @@ export function ApprovalDetailDialog({
                       <ApprovalPayloadRenderer
                         type={approval.type}
                         payload={payload}
-                        context={{ agents, projects, currentUserId: currentBoardUserId }}
+                        context={{ agents, projects, chatConversation, currentUserId: currentBoardUserId }}
                       />
                     </ApprovalInset>
 

@@ -1,10 +1,11 @@
 import { UserPlus, Lightbulb, MessageSquare, Settings2, ShieldAlert, ShieldCheck } from "lucide-react";
-import type { Agent, Project } from "@rudderhq/shared";
+import type { Agent, ChatConversation, Project } from "@rudderhq/shared";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import { formatCents } from "../lib/utils";
 import { AgentIdentity } from "./AgentAvatar";
 import { MarkdownBody } from "./MarkdownBody";
 import { formatPriorityLabel } from "../lib/priorities";
+import { Link } from "@/lib/router";
 import {
   ApprovalCodeBlock,
   ApprovalField,
@@ -15,6 +16,7 @@ import {
 export interface ApprovalPayloadContext {
   agents?: Agent[] | null;
   projects?: Project[] | null;
+  chatConversation?: Pick<ChatConversation, "id" | "title"> | null;
   currentUserId?: string | null;
 }
 
@@ -22,7 +24,7 @@ export const typeLabel: Record<string, string> = {
   hire_agent: "Hire Agent",
   approve_ceo_strategy: "CEO Strategy",
   budget_override_required: "Budget Override",
-  chat_issue_creation: "Chat Issue Proposal",
+  chat_issue_creation: "Issue proposed from chat",
   chat_operation: "Chat Operation Proposal",
 };
 
@@ -62,6 +64,33 @@ function lookupProject(projectId: unknown, projects: Project[] | null | undefine
 function lookupAgent(agentId: unknown, agents: Agent[] | null | undefined) {
   if (typeof agentId !== "string" || !agentId.trim()) return null;
   return agents?.find((agent) => agent.id === agentId) ?? null;
+}
+
+export function chatConversationIdFromApprovalPayload(payload: Record<string, unknown> | null | undefined) {
+  const chatConversationId = payload?.chatConversationId;
+  return typeof chatConversationId === "string" && chatConversationId.trim() ? chatConversationId : null;
+}
+
+function ChatField({ chatConversationId, chatConversation }: {
+  chatConversationId: unknown;
+  chatConversation?: Pick<ChatConversation, "id" | "title"> | null;
+}) {
+  if (typeof chatConversationId !== "string" || !chatConversationId.trim()) return null;
+  const resolvedConversation = chatConversation?.id === chatConversationId ? chatConversation : null;
+  return (
+    <ApprovalField label="Source chat" align="start">
+      {resolvedConversation ? (
+        <div className="space-y-0.5">
+          <Link className="font-medium text-foreground underline-offset-4 hover:underline" to={`/messenger/chat/${resolvedConversation.id}`}>
+            {resolvedConversation.title.trim() || "Untitled chat"}
+          </Link>
+          <p className="text-xs text-muted-foreground">Conversation where the agent proposed this issue.</p>
+        </div>
+      ) : (
+        <span className="font-medium">Chat conversation</span>
+      )}
+    </ApprovalField>
+  );
 }
 
 function ProjectField({ projectId, projects }: { projectId: unknown; projects?: Project[] | null }) {
@@ -212,9 +241,13 @@ function ChatIssueCreationPayload({
       : null;
 
   return (
-    <div className="space-y-2 text-sm">
-      <PayloadField label="Chat" value={payload.chatConversationId} />
-      <PayloadField label="Title" value={proposal.title} />
+    <div className="space-y-3 text-sm">
+      <div className="rounded-[calc(var(--radius-sm)-1px)] border border-primary/15 bg-primary/5 px-3 py-2">
+        <div className="text-sm font-medium text-foreground">Agent proposed a new issue from chat</div>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Review the draft before Rudder creates it on the issue board.</p>
+      </div>
+      <ChatField chatConversationId={payload.chatConversationId} chatConversation={context?.chatConversation} />
+      <PayloadField label="Issue" value={proposal.title} />
       <PayloadField label="Priority" value={typeof proposal.priority === "string" ? formatPriorityLabel(proposal.priority) : proposal.priority} />
       <ProjectField projectId={proposal.projectId} projects={context?.projects} />
       <PayloadField label="Goal" value={proposal.goalId} />

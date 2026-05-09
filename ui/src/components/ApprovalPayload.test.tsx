@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Agent, Project } from "@rudderhq/shared";
 import { ThemeProvider } from "../context/ThemeContext";
 import { ApprovalPayloadRenderer } from "./ApprovalPayload";
+
+vi.mock("@/lib/router", () => ({
+  Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => <a href={to} {...props}>{children}</a>,
+}));
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -61,9 +66,12 @@ describe("ApprovalPayloadRenderer", () => {
           assigneeAgentId: agent.id,
         },
       },
-      { projects: [project], agents: [agent] },
+      { projects: [project], agents: [agent], chatConversation: { id: "chat-1", title: "Messenger intake" } },
     );
 
+    expect(html).toContain("Agent proposed a new issue from chat");
+    expect(html).toContain("Messenger intake");
+    expect(html).toContain('href="/messenger/chat/chat-1"');
     expect(html).toContain("Project Atlas");
     expect(html).toContain("Wesley");
     expect(html).toContain("<h2");
@@ -76,6 +84,7 @@ describe("ApprovalPayloadRenderer", () => {
 
   it("does not expose raw project or agent ids while context is loading", () => {
     const html = renderChatIssueApproval({
+      chatConversationId: "chat-raw-id",
       proposedIssue: {
         title: "Fix issue approval UI",
         description: "Render **markdown**.",
@@ -87,7 +96,9 @@ describe("ApprovalPayloadRenderer", () => {
 
     expect(html).toContain("Unknown project");
     expect(html).toContain("Unknown agent");
+    expect(html).toContain("Chat conversation");
     expect(html).not.toContain("project-raw-id");
     expect(html).not.toContain("agent-raw-id");
+    expect(html).not.toContain("chat-raw-id");
   });
 });

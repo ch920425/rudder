@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type {
   Agent,
+  ChatConversation,
   MessengerApprovalThreadItem,
   MessengerEvent,
   MessengerIssueThreadItem,
@@ -21,11 +22,13 @@ import type {
 import { accessApi } from "@/api/access";
 import { agentsApi } from "@/api/agents";
 import { approvalsApi } from "@/api/approvals";
+import { chatsApi } from "@/api/chats";
 import { heartbeatsApi } from "@/api/heartbeats";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { ApprovalDetailDialog } from "@/components/ApprovalDetailDialog";
+import { chatConversationIdFromApprovalPayload } from "@/components/ApprovalPayload";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { formatPriorityLabel } from "@/lib/priorities";
 import { Button } from "@/components/ui/button";
@@ -549,17 +552,23 @@ function MessengerApprovalCard({
   orgId,
   agents,
   projects,
+  chatConversations,
   currentUserId,
 }: {
   item: MessengerApprovalThreadItem;
   orgId: string;
   agents?: Agent[] | null;
   projects?: Project[] | null;
+  chatConversations?: Pick<ChatConversation, "id" | "title">[] | null;
   currentUserId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const pending = item.approval.status === "pending" || item.approval.status === "revision_requested";
+  const chatConversationId = chatConversationIdFromApprovalPayload(item.approval.payload as Record<string, unknown> | null);
+  const chatConversation = chatConversationId
+    ? chatConversations?.find((conversation) => conversation.id === chatConversationId) ?? null
+    : null;
 
   const invalidateApprovalViews = async () => {
     await Promise.all([
@@ -602,7 +611,7 @@ function MessengerApprovalCard({
           detailLink={`/messenger/approvals/${item.approval.id}`}
           detailLabel="Open full approval"
           supportingText={item.subtitle ?? "Approval update"}
-          payloadContext={{ agents, projects, currentUserId }}
+          payloadContext={{ agents, projects, chatConversation, currentUserId }}
           allowBudgetActions
           isPending={decisionMutation.isPending}
         />
@@ -625,6 +634,11 @@ export function MessengerApprovalsView() {
     queryFn: () => projectsApi.list(selectedOrganizationId ?? ""),
     enabled: Boolean(selectedOrganizationId),
   });
+  const { data: chatConversations } = useQuery({
+    queryKey: queryKeys.chats.list(selectedOrganizationId ?? "", "all"),
+    queryFn: () => chatsApi.list(selectedOrganizationId ?? "", "all"),
+    enabled: Boolean(selectedOrganizationId),
+  });
 
   if (!selectedOrganizationId) return null;
 
@@ -643,6 +657,7 @@ export function MessengerApprovalsView() {
             orgId={selectedOrganizationId}
             agents={agents}
             projects={projects}
+            chatConversations={chatConversations}
             currentUserId={currentUserId}
           />
         )}
