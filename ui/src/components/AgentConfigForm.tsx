@@ -915,7 +915,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 <span className="rounded-full border border-border p-2">
                   <Plus className="h-4 w-4" />
                 </span>
-                <span>Add fallback</span>
+                <span>Add fallback model</span>
               </div>
             </button>
           </div>
