@@ -748,9 +748,6 @@ function proposalReviewStatus(message: ChatMessage): "pending" | "approved" | "r
   return null;
 }
 
-function proposalReviewTitle(message: ChatMessage) {
-  return message.kind === "issue_proposal" ? "Review proposed issue" : "Review lightweight change";
-}
 
 function proposalReviewBannerCopy(status: "pending" | "approved" | "rejected" | "revision_requested" | null) {
   if (status === "approved") {
@@ -881,10 +878,6 @@ export function ProposalCard({
         conversation={conversation}
         agents={agents}
       />
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
-        {message.kind === "issue_proposal" ? <Sparkles className="h-3.5 w-3.5" /> : <Settings2 className="h-3.5 w-3.5" />}
-        <span>{proposalReviewTitle(message)}</span>
-      </div>
 
       {message.body.trim().length > 0 ? (
         <div className="mt-4 max-w-[72ch] text-[15px] leading-7 text-foreground">
