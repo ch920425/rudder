@@ -362,6 +362,32 @@ function isSelfAuthoredActivity(activity: IssueActivityRow, userId: string) {
 function summarizeApprovalPayload(approval: ApprovalRow) {
   const payload = redactEventPayload(approval.payload);
   if (!payload) return null;
+  if (approval.type === "chat_issue_creation") {
+    const proposal =
+      payload.proposedIssue &&
+      typeof payload.proposedIssue === "object" &&
+      !Array.isArray(payload.proposedIssue)
+        ? (payload.proposedIssue as Record<string, unknown>)
+        : payload;
+    const title = typeof proposal.title === "string" && proposal.title.trim() ? proposal.title.trim() : null;
+    const description =
+      typeof proposal.description === "string" && proposal.description.trim()
+        ? truncate(proposal.description.trim(), 120)
+        : null;
+    return [title ? `Issue: ${title}` : "Agent proposed an issue from chat", description]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (approval.type === "chat_operation") {
+    const proposal =
+      payload.operationProposal &&
+      typeof payload.operationProposal === "object" &&
+      !Array.isArray(payload.operationProposal)
+        ? (payload.operationProposal as Record<string, unknown>)
+        : payload;
+    const summary = typeof proposal.summary === "string" && proposal.summary.trim() ? proposal.summary.trim() : null;
+    return summary ? `Operation: ${truncate(summary, 120)}` : "Agent proposed a chat operation";
+  }
   if (approval.type === "hire_agent") {
     const name = typeof payload.name === "string" ? payload.name : null;
     const role = typeof payload.role === "string" ? payload.role : null;
@@ -545,11 +571,17 @@ function approvalCard(
 ): MessengerApprovalThreadItem {
   const payloadPreview = summarizeApprovalPayload(approval);
   const body = latestComment ? truncate(latestComment.body) : approval.decisionNote ?? payloadPreview;
+  const title =
+    approval.type === "chat_issue_creation"
+      ? "Review proposed issue"
+      : approval.type === "chat_operation"
+        ? "Review chat operation"
+        : approval.type.replaceAll("_", " ");
   return {
     id: approval.id,
     threadKey: "approvals",
     kind: "approvals",
-    title: approval.type.replaceAll("_", " "),
+    title,
     subtitle: `${approvalRequesterLabel(approval, currentUserId)} · ${approval.status.replaceAll("_", " ")}`,
     body,
     preview: body,

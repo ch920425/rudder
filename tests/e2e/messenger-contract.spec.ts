@@ -418,6 +418,8 @@ test.describe("Messenger unified threads contract", () => {
     await expect(approvalCard).toContainText("Me");
     await expect(approvalCard.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
     await expect(approvalCard.locator("strong", { hasText: "markdown" })).toBeVisible();
+    await expect(approvalCard.locator(`img[src="${approvalImage.contentPath}"]`)).toBeVisible();
+    await expect(approvalCard).not.toContainText(chat.id);
     await expect(approvalCard).not.toContainText(project.id);
     await expect(approvalCard).not.toContainText(currentUserId);
     await page.getByRole("link", { name: "Open full approval" }).click();
@@ -432,6 +434,7 @@ test.describe("Messenger unified threads contract", () => {
     await expect(approvalDialog.locator("h2", { hasText: "Approval Markdown" })).toBeVisible();
     await expect(approvalDialog.locator("strong", { hasText: "markdown" })).toBeVisible();
     await expect(approvalDialog.locator(`img[src="${approvalImage.contentPath}"]`)).toBeVisible();
+    await expect(approvalDialog).not.toContainText(chat.id);
     await expect(approvalDialog).not.toContainText(project.id);
     await expect(approvalDialog).not.toContainText(currentUserId);
     await page.getByRole("button", { name: "Close" }).click();

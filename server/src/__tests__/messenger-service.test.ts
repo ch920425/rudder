@@ -956,6 +956,50 @@ describe("messengerService and issue follows", () => {
     expect(approvalsSummary?.latestActivityAt?.toISOString()).toBe(newerActivityAt.toISOString());
   });
 
+  it("summarizes chat issue approvals without exposing raw payload ids", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-approval-summary";
+    const chatId = randomUUID();
+    const projectId = randomUUID();
+    const assigneeUserId = randomUUID();
+    const approvalId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Approval Summary Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Approval Summary Org"),
+      issuePrefix: `CA${orgId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(approvals).values({
+      id: approvalId,
+      orgId,
+      type: "chat_issue_creation",
+      status: "pending",
+      requestedByUserId: userId,
+      payload: {
+        chatConversationId: chatId,
+        proposedIssue: {
+          title: "Fix approval review copy",
+          description: "## Scope\nRender Markdown and readable assignee labels.",
+          priority: "medium",
+          projectId,
+          assigneeUserId,
+        },
+      },
+    });
+
+    const thread = await messengerSvc.getApprovalsThread(orgId, userId);
+    const item = thread.detail.items.find((approvalItem) => approvalItem.id === approvalId);
+
+    expect(item?.title).toBe("Review proposed issue");
+    expect(item?.preview).toContain("Fix approval review copy");
+    expect(item?.preview).not.toContain(chatId);
+    expect(item?.preview).not.toContain(projectId);
+    expect(item?.preview).not.toContain(assigneeUserId);
+  });
+
   it("returns Messenger failed-run detail items in chronological order while keeping the summary pinned to latest activity", async () => {
     const orgId = randomUUID();
     const userId = "board-user-failed-runs";
