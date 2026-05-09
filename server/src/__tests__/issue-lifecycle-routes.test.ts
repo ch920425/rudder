@@ -164,16 +164,16 @@ describe("issue lifecycle routes", () => {
     mockGoalService.getDefaultCompanyGoal.mockResolvedValue(null);
     mockProjectService.getById.mockResolvedValue(null);
     mockProjectService.listByIds.mockResolvedValue([]);
-    mockIssueService.addComment.mockResolvedValue({
+    mockIssueService.addComment.mockImplementation(async (_issueId: string, body: string, author: { agentId?: string; userId?: string }) => ({
       id: "comment-1",
       issueId: "11111111-1111-4111-8111-111111111111",
       orgId: "organization-1",
-      body: "hello",
+      body,
       createdAt: new Date(),
       updatedAt: new Date(),
-      authorAgentId: null,
-      authorUserId: "local-board",
-    });
+      authorAgentId: author.agentId ?? null,
+      authorUserId: author.userId ?? "local-board",
+    }));
   });
 
   it("does not log activity for unchanged document saves", async () => {
@@ -635,7 +635,7 @@ describe("issue lifecycle routes", () => {
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
   });
 
-  it("wakes the assignee when a reviewer requests changes", async () => {
+  it("wakes the assignee with reviewer comment context when a reviewer requests changes", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({
         status: "in_review",
@@ -665,12 +665,115 @@ describe("issue lifecycle routes", () => {
         payload: {
           issueId: "11111111-1111-4111-8111-111111111111",
           mutation: "review_changes_requested",
+          commentId: "comment-1",
         },
         contextSnapshot: expect.objectContaining({
+          issueId: "11111111-1111-4111-8111-111111111111",
+          taskId: "11111111-1111-4111-8111-111111111111",
+          commentId: "comment-1",
+          wakeCommentId: "comment-1",
           source: "issue.review_changes_requested",
           wakeSource: "assignment",
           wakeReason: "issue_changes_requested",
           issue: expect.objectContaining({ status: "in_progress" }),
+          comment: expect.objectContaining({
+            id: "comment-1",
+            body: "Please tighten the lifecycle tests.",
+            authorAgentId: REVIEWER_AGENT_ID,
+          }),
+        }),
+      }),
+    );
+
+    const changesRequestedWakeup = mockHeartbeatService.wakeup.mock.calls.find(
+      (call) => call[0] === ASSIGNEE_AGENT_ID,
+    )?.[1];
+    expect(changesRequestedWakeup).toBeDefined();
+    const context = changesRequestedWakeup?.contextSnapshot as Record<string, unknown>;
+    const promptTemplate = selectPromptTemplate(undefined, context);
+    const renderedPrompt = renderTemplate(promptTemplate, {
+      agent: { id: ASSIGNEE_AGENT_ID, name: "Assigned Agent" },
+      context,
+      issue: context.issue,
+      comment: context.comment,
+    });
+    expect(renderedPrompt).toContain("A reviewer requested changes on an issue you own.");
+    expect(renderedPrompt).toContain("Please tighten the lifecycle tests.");
+  });
+
+  it("wakes the assignee with reviewer comment context when a reviewer returns an issue to todo", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "todo",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({ status: "todo", comment: "Please rework the handoff payload." });
+
+    expect(res.status).toBe(200);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      ASSIGNEE_AGENT_ID,
+      expect.objectContaining({
+        reason: "issue_changes_requested",
+        payload: expect.objectContaining({
+          mutation: "review_changes_requested",
+          commentId: "comment-1",
+        }),
+        contextSnapshot: expect.objectContaining({
+          commentId: "comment-1",
+          wakeCommentId: "comment-1",
+          issue: expect.objectContaining({ status: "todo" }),
+          comment: expect.objectContaining({ body: "Please rework the handoff payload." }),
+        }),
+      }),
+    );
+  });
+
+  it("does not attach comment wake context when review return has no comment", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "in_review",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "in_progress",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({ status: "in_progress" });
+
+    expect(res.status).toBe(200);
+    await flushAsyncWork();
+    const changesRequestedWakeup = mockHeartbeatService.wakeup.mock.calls.find(
+      (call) => call[0] === ASSIGNEE_AGENT_ID,
+    )?.[1];
+    expect(changesRequestedWakeup).toEqual(
+      expect.objectContaining({
+        reason: "issue_changes_requested",
+        payload: expect.not.objectContaining({ commentId: expect.anything() }),
+        contextSnapshot: expect.not.objectContaining({
+          commentId: expect.anything(),
+          wakeCommentId: expect.anything(),
+          comment: expect.anything(),
         }),
       }),
     );
@@ -719,7 +822,18 @@ describe("issue lifecycle routes", () => {
     await flushAsyncWork();
     expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
       ASSIGNEE_AGENT_ID,
-      expect.objectContaining({ reason: "issue_changes_requested" }),
+      expect.objectContaining({
+        reason: "issue_changes_requested",
+        payload: expect.objectContaining({ commentId: "comment-1" }),
+        contextSnapshot: expect.objectContaining({
+          commentId: "comment-1",
+          wakeCommentId: "comment-1",
+          comment: expect.objectContaining({
+            body: "Please add the missing E2E proof.",
+            authorAgentId: REVIEWER_AGENT_ID,
+          }),
+        }),
+      }),
     );
   });
 

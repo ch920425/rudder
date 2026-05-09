@@ -1228,9 +1228,9 @@ export function issueRoutes(db: Db, storage: StorageService) {
       existing.status !== "blocked" &&
       issue.status === "blocked" &&
       updateFields.status !== undefined;
-    const statusChangedFromReviewToInProgress =
+    const statusReturnedFromReviewToAssignee =
       statusAcceptsReviewerDecision(existing.status) &&
-      issue.status === "in_progress" &&
+      (issue.status === "in_progress" || issue.status === "todo") &&
       updateFields.status !== undefined;
     const reviewerChangedInReviewableStatus =
       reviewerChanged &&
@@ -1289,16 +1289,33 @@ export function issueRoutes(db: Db, storage: StorageService) {
         });
       }
 
-      if (!assigneeChanged && statusChangedFromReviewToInProgress && issue.assigneeAgentId) {
+      if (!assigneeChanged && statusReturnedFromReviewToAssignee && issue.assigneeAgentId) {
+        const commentContext = comment
+          ? {
+              commentId: comment.id,
+              wakeCommentId: comment.id,
+              comment: {
+                id: comment.id,
+                body: comment.body,
+                authorAgentId: comment.authorAgentId,
+                authorUserId: comment.authorUserId,
+              },
+            }
+          : {};
         wakeups.set(issue.assigneeAgentId, {
           source: "assignment",
           triggerDetail: "system",
           reason: "issue_changes_requested",
-          payload: { issueId: issue.id, mutation: "review_changes_requested" },
+          payload: {
+            issueId: issue.id,
+            mutation: "review_changes_requested",
+            ...(comment ? { commentId: comment.id } : {}),
+          },
           requestedByActorType: actor.actorType,
           requestedByActorId: actor.actorId,
           contextSnapshot: {
             issueId: issue.id,
+            taskId: issue.id,
             source: "issue.review_changes_requested",
             wakeSource: "assignment",
             wakeReason: "issue_changes_requested",
@@ -1309,6 +1326,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
               status: issue.status,
               priority: issue.priority,
             },
+            ...commentContext,
           },
         });
       }

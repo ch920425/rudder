@@ -181,6 +181,37 @@ describe("selectPromptTemplate", () => {
     expect(rendered).toContain("## Issue Documents");
     expect(rendered).toContain("Check the document-backed requirements.");
   });
+
+  it("renders reviewer changes-requested comment context before generic assignment prompts", () => {
+    const context = {
+      wakeSource: "assignment",
+      wakeReason: "issue_changes_requested",
+      issue: {
+        id: "issue-4",
+        title: "Fix reviewer feedback",
+        status: "in_progress",
+        priority: "high",
+        description: "Address the review notes.",
+      },
+      comment: {
+        id: "comment-4",
+        body: "Please add coverage for the todo return path.",
+      },
+    };
+
+    const template = selectPromptTemplate(undefined, context);
+    const rendered = renderTemplate(template, {
+      agent: { id: "agent-5", name: "Builder" },
+      context,
+      issue: context.issue,
+      comment: context.comment,
+    });
+
+    expect(rendered).toContain("A reviewer requested changes on an issue you own.");
+    expect(rendered).toContain("Fix reviewer feedback");
+    expect(rendered).toContain("Please add coverage for the todo return path.");
+    expect(rendered).not.toContain("You have been assigned to work on an issue.");
+  });
 });
 
 describe("loadAgentInstructionsPrefix", () => {

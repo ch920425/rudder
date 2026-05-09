@@ -421,6 +421,26 @@ export const ISSUE_COMMENTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 
 Review the new comment and continue the issue from the current state. Respond or take action as needed.`;
 
+export const ISSUE_CHANGES_REQUESTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). A reviewer requested changes on an issue you own.
+
+{{context.rudderWorkspace.orgResourcesPrompt}}
+
+## Context
+
+**Issue:** {{issue.title}}
+**ID:** {{issue.id}}
+**Status:** {{issue.status}}
+
+**Issue Description:**
+{{issue.description}}
+
+{{context.issueDocumentsPrompt}}
+
+**Reviewer Comment:**
+{{comment.body}}
+
+Review the requested changes and continue the issue from the current state. Address the reviewer feedback before handing it back for review.`;
+
 export const ISSUE_RECOVERY_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). This is a recovery run, not a fresh task.
 
 {{context.rudderWorkspace.orgResourcesPrompt}}
@@ -498,6 +518,9 @@ Before changing the issue, inspect the current issue state and any side effects 
  * - comment.mention:
  *   "You were mentioned in a comment ..."
  *   Includes issue summary plus mention comment body so the agent can respond without extra fetches.
+ * - issue_changes_requested:
+ *   "A reviewer requested changes on an issue you own ..."
+ *   Includes issue summary plus reviewer comment body so the assignee can act on feedback immediately.
  * - issue_commented:
  *   "There is a new comment on an issue you own ..."
  *   Includes issue summary plus the newest comment body so the assignee can continue immediately.
@@ -551,6 +574,9 @@ export function selectPromptTemplate(
   }
   if (wakeReason === "issue_passive_followup") {
     return ISSUE_PASSIVE_FOLLOWUP_PROMPT_TEMPLATE;
+  }
+  if (wakeReason === "issue_changes_requested") {
+    return ISSUE_CHANGES_REQUESTED_PROMPT_TEMPLATE;
   }
   if (wakeSource === "assignment" || wakeReason === "issue_assigned") {
     return ISSUE_ASSIGN_PROMPT_TEMPLATE;
