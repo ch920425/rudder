@@ -21,7 +21,12 @@ import {
   projectWorkspaces,
   projects,
 } from "@rudderhq/db";
-import { extractAgentMentionIds, extractProjectMentionIds, type ReorderIssue } from "@rudderhq/shared";
+import {
+  extractAgentMentionIds,
+  extractProjectMentionIds,
+  type IssueSearchMatch,
+  type ReorderIssue,
+} from "@rudderhq/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import {
   defaultIssueExecutionWorkspaceSettingsForProject,
@@ -104,6 +109,7 @@ type IssueActiveRunRow = {
 };
 type IssueWithLabels = IssueRow & { labels: IssueLabelRow[]; labelIds: string[] };
 type IssueWithLabelsAndRun = IssueWithLabels & { activeRun: IssueActiveRunRow | null };
+type IssueWithSearchMatch = IssueWithLabelsAndRun & { searchMatch?: IssueSearchMatch | null };
 type IssueUserCommentStats = {
   issueId: string;
   myLastCommentAt: Date | null;
@@ -126,6 +132,38 @@ const TERMINAL_HEARTBEAT_RUN_STATUSES = new Set(["succeeded", "failed", "cancell
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function textContains(value: string | null | undefined, query: string): value is string {
+  return Boolean(value && value.toLowerCase().includes(query.toLowerCase()));
+}
+
+function buildSearchSnippet(value: string, query: string, maxLength = 160): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+
+  const index = compact.toLowerCase().indexOf(query.toLowerCase());
+  if (index < 0) return `${compact.slice(0, maxLength - 1).trimEnd()}…`;
+
+  const context = Math.max(20, Math.floor((maxLength - query.length) / 2));
+  const start = Math.max(0, index - context);
+  const end = Math.min(compact.length, start + maxLength);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < compact.length ? "…" : "";
+  return `${prefix}${compact.slice(start, end).trim()}${suffix}`;
+}
+
+function fieldSearchMatch(row: IssueRow, query: string): IssueSearchMatch | null {
+  if (textContains(row.identifier, query)) {
+    return { field: "identifier", snippet: buildSearchSnippet(row.identifier, query) };
+  }
+  if (textContains(row.title, query)) {
+    return { field: "title", snippet: buildSearchSnippet(row.title, query) };
+  }
+  if (textContains(row.description, query)) {
+    return { field: "description", snippet: buildSearchSnippet(row.description, query) };
+  }
+  return null;
 }
 
 function touchedByUserCondition(orgId: string, userId: string) {
@@ -537,6 +575,56 @@ export function issueService(db: Db) {
     return adopted;
   }
 
+  async function attachSearchMatches(
+    orgId: string,
+    rows: IssueWithLabelsAndRun[],
+    query: string,
+    containsPattern: string,
+  ): Promise<IssueWithSearchMatch[]> {
+    if (rows.length === 0) return [];
+
+    const matchesByIssueId = new Map<string, IssueSearchMatch>();
+    for (const row of rows) {
+      const match = fieldSearchMatch(row, query);
+      if (match) matchesByIssueId.set(row.id, match);
+    }
+
+    const commentMatchedIssueIds = rows
+      .map((row) => row.id)
+      .filter((id) => !matchesByIssueId.has(id));
+    if (commentMatchedIssueIds.length > 0) {
+      const commentRows = await db
+        .select({
+          id: issueComments.id,
+          issueId: issueComments.issueId,
+          body: issueComments.body,
+        })
+        .from(issueComments)
+        .where(
+          and(
+            eq(issueComments.orgId, orgId),
+            inArray(issueComments.issueId, commentMatchedIssueIds),
+            sql<boolean>`${issueComments.body} ILIKE ${containsPattern} ESCAPE '\\'`,
+          ),
+        )
+        .orderBy(asc(issueComments.createdAt));
+
+      for (const comment of commentRows) {
+        if (matchesByIssueId.has(comment.issueId)) continue;
+        matchesByIssueId.set(comment.issueId, {
+          field: "comment",
+          snippet: buildSearchSnippet(comment.body, query),
+          commentId: comment.id,
+        });
+      }
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      searchMatch: matchesByIssueId.get(row.id) ?? null,
+    }));
+  }
+
   return {
     listFollows: async (orgId: string, userId: string) => {
       const rows = await db
@@ -704,11 +792,14 @@ export function issueService(db: Db) {
       const withLabels = await withIssueLabels(db, rows);
       const runMap = await activeRunMapForIssues(db, withLabels);
       const withRuns = withActiveRuns(withLabels, runMap);
-      if (!contextUserId || withRuns.length === 0) {
-        return withRuns;
+      const withSearchMatches = hasSearch
+        ? await attachSearchMatches(orgId, withRuns, rawSearch, containsPattern)
+        : withRuns;
+      if (!contextUserId || withSearchMatches.length === 0) {
+        return withSearchMatches;
       }
 
-      const issueIds = withRuns.map((row) => row.id);
+      const issueIds = withSearchMatches.map((row) => row.id);
       const statsRows = await db
         .select({
           issueId: issueComments.issueId,
@@ -748,7 +839,7 @@ export function issueService(db: Db) {
       const statsByIssueId = new Map(statsRows.map((row) => [row.issueId, row]));
       const readByIssueId = new Map(readRows.map((row) => [row.issueId, row.myLastReadAt]));
 
-      return withRuns.map((row) => ({
+      return withSearchMatches.map((row) => ({
         ...row,
         ...deriveIssueUserContext(row, contextUserId, {
           myLastCommentAt: statsByIssueId.get(row.id)?.myLastCommentAt ?? null,

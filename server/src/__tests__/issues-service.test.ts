@@ -294,6 +294,52 @@ describe("issueService.list participantAgentId", () => {
     expect(result.map((issue) => issue.id)).toEqual([matchedIssueId]);
   });
 
+  it("finds issues by comment text when using server-side q search", async () => {
+    const orgId = randomUUID();
+    const matchedIssueId = randomUUID();
+    const otherIssueId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Comment Search Org",
+      urlKey: deriveOrganizationUrlKey("Comment Search Org"),
+      issuePrefix: `C${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values([
+      {
+        id: matchedIssueId,
+        orgId,
+        title: "Unrelated title",
+        status: "todo",
+        priority: "medium",
+      },
+      {
+        id: otherIssueId,
+        orgId,
+        title: "Another issue",
+        status: "todo",
+        priority: "medium",
+      },
+    ]);
+    await db.insert(issueComments).values({
+      id: randomUUID(),
+      orgId,
+      issueId: matchedIssueId,
+      authorUserId: "local-board",
+      body: "Only this comment mentions frobnicator-search-token.",
+    });
+
+    const result = await svc.list(orgId, { q: "frobnicator-search-token" });
+
+    expect(result.map((issue) => issue.id)).toEqual([matchedIssueId]);
+    expect(result[0]?.searchMatch).toMatchObject({
+      field: "comment",
+      snippet: "Only this comment mentions frobnicator-search-token.",
+    });
+  });
+
   it("persists and filters reviewer principals", async () => {
     const orgId = randomUUID();
     const reviewerAgentId = randomUUID();

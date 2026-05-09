@@ -150,7 +150,8 @@ Notes:
 ## Issue Commands
 
 ```sh
-pnpm rudder issue list --org-id <org-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
+pnpm rudder issue list --org-id <org-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--query text] [--match text]
+pnpm rudder issue search "keyword or phrase" --org-id <org-id>
 pnpm rudder issue get <issue-id-or-identifier>
 pnpm rudder issue create --org-id <org-id> --title "..." [--description "..."] [--status todo] [--priority high]
 pnpm rudder issue update <issue-id> [--status in_progress] [--comment "..."] [--image ./screenshot.png]
@@ -160,6 +161,12 @@ pnpm rudder issue block <issue-id> --comment "..." [--image ./screenshot.png]
 pnpm rudder issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
 pnpm rudder issue release <issue-id>
 ```
+
+`issue search` and `issue list --query` call the server-side `q` search on
+`GET /api/orgs/:orgId/issues`, covering identifier, title, description, and
+issue comments. Human output includes identifier, title, status, assignee,
+project, updated time, and a compact match snippet when the server provides one.
+`--match` remains a local filter over already returned rows for compatibility.
 
 `--image` may be repeated. The CLI uploads each local PNG/JPEG/WebP/GIF as an
 issue attachment and appends Markdown image links to the comment body.

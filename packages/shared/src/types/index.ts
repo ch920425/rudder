@@ -163,6 +163,7 @@ export type {
 export type {
   Issue,
   IssueAssigneeAgentRuntimeOverrides,
+  IssueSearchMatch,
   IssueComment,
   IssueDocument,
   IssueDocumentSummary,

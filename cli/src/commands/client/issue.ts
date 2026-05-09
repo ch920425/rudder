@@ -29,7 +29,14 @@ interface IssueBaseOptions extends BaseClientOptions {
   status?: string;
   assigneeAgentId?: string;
   projectId?: string;
+  query?: string;
   match?: string;
+}
+
+interface IssueSearchOptions extends BaseClientOptions {
+  status?: string;
+  assigneeAgentId?: string;
+  projectId?: string;
 }
 
 interface IssueCreateOptions extends BaseClientOptions {
@@ -159,43 +166,35 @@ export function registerIssueCommands(program: Command): void {
       .option("--status <csv>", "Comma-separated statuses")
       .option("--assignee-agent-id <id>", "Filter by assignee agent ID")
       .option("--project-id <id>", "Filter by project ID")
+      .option("--query <text>", "Server-side search on identifier/title/description/comments")
       .option("--match <text>", "Local text match on identifier/title/description")
       .action(async (opts: IssueBaseOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const params = new URLSearchParams();
-          if (opts.status) params.set("status", opts.status);
-          if (opts.assigneeAgentId) params.set("assigneeAgentId", opts.assigneeAgentId);
-          if (opts.projectId) params.set("projectId", opts.projectId);
-
-          const query = params.toString();
-          const path = `/api/orgs/${ctx.orgId}/issues${query ? `?${query}` : ""}`;
-          const rows = (await ctx.api.get<Issue[]>(path)) ?? [];
-
+          const rows = (await ctx.api.get<Issue[]>(buildIssueListPath(ctx.orgId!, opts, opts.query))) ?? [];
           const filtered = filterIssueRows(rows, opts.match);
-          if (ctx.json) {
-            printOutput(filtered, { json: true });
-            return;
-          }
+          printIssueRows(filtered, ctx.json);
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+    { includeCompany: false },
+  );
 
-          if (filtered.length === 0) {
-            printOutput([], { json: false });
-            return;
-          }
-
-          for (const item of filtered) {
-            console.log(
-              formatInlineRecord({
-                identifier: item.identifier,
-                id: item.id,
-                status: item.status,
-                priority: item.priority,
-                assigneeAgentId: item.assigneeAgentId,
-                title: item.title,
-                projectId: item.projectId,
-              }),
-            );
-          }
+  addCommonClientOptions(
+    issue
+      .command("search")
+      .description(getAgentCliCapabilityById("issue.search").description)
+      .argument("<query>", "Server-side issue search query")
+      .option("-O, --org-id <id>", "Organization ID")
+      .option("--status <csv>", "Comma-separated statuses")
+      .option("--assignee-agent-id <id>", "Filter by assignee agent ID")
+      .option("--project-id <id>", "Filter by project ID")
+      .action(async (query: string, opts: IssueSearchOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const rows = (await ctx.api.get<Issue[]>(buildIssueListPath(ctx.orgId!, opts, query))) ?? [];
+          printIssueRows(rows, ctx.json);
         } catch (err) {
           handleCommandError(err);
         }
@@ -726,4 +725,49 @@ function filterIssueRows(rows: Issue[], match: string | undefined): Issue[] {
       .toLowerCase();
     return text.includes(needle);
   });
+}
+
+function buildIssueListPath(orgId: string, opts: IssueSearchOptions, searchQuery?: string): string {
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.assigneeAgentId) params.set("assigneeAgentId", opts.assigneeAgentId);
+  if (opts.projectId) params.set("projectId", opts.projectId);
+  if (searchQuery?.trim()) params.set("q", searchQuery.trim());
+
+  const query = params.toString();
+  return `/api/orgs/${orgId}/issues${query ? `?${query}` : ""}`;
+}
+
+function printIssueRows(rows: Issue[], json: boolean): void {
+  if (json) {
+    printOutput(rows, { json: true });
+    return;
+  }
+
+  if (rows.length === 0) {
+    printOutput([], { json: false });
+    return;
+  }
+
+  for (const item of rows) {
+    console.log(
+      formatInlineRecord({
+        identifier: item.identifier,
+        id: item.id,
+        status: item.status,
+        priority: item.priority,
+        assigneeAgentId: item.assigneeAgentId,
+        assigneeUserId: item.assigneeUserId,
+        title: item.title,
+        projectId: item.projectId,
+        updatedAt: item.updatedAt,
+        ...(item.searchMatch ? { match: formatIssueSearchMatch(item.searchMatch) } : {}),
+      }),
+    );
+  }
+}
+
+function formatIssueSearchMatch(match: NonNullable<Issue["searchMatch"]>): string {
+  const commentSuffix = match.commentId ? `#${match.commentId}` : "";
+  return `${match.field}${commentSuffix}: ${match.snippet}`;
 }

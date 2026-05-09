@@ -317,6 +317,7 @@ export type {
   IssueWorkProductReviewState,
   Issue,
   IssueAssigneeAgentRuntimeOverrides,
+  IssueSearchMatch,
   IssueComment,
   IssueDocument,
   IssueDocumentSummary,

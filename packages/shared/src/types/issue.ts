@@ -53,6 +53,12 @@ export interface IssueAssigneeAgentRuntimeOverrides {
   useProjectWorkspace?: boolean;
 }
 
+export interface IssueSearchMatch {
+  field: "identifier" | "title" | "description" | "comment";
+  snippet: string;
+  commentId?: string | null;
+}
+
 export type DocumentFormat = "markdown";
 
 export interface IssueDocumentSummary {
@@ -144,6 +150,7 @@ export interface Issue {
   currentExecutionWorkspace?: ExecutionWorkspace | null;
   workProducts?: IssueWorkProduct[];
   mentionedProjects?: Project[];
+  searchMatch?: IssueSearchMatch | null;
   myLastTouchAt?: Date | null;
   lastExternalCommentAt?: Date | null;
   isUnreadForMe?: boolean;

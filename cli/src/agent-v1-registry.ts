@@ -188,6 +188,18 @@ const AGENT_CLI_CAPABILITIES: AgentCliCapability[] = [
     attachesRunIdWhenAvailable: false,
   },
   {
+    id: "issue.search",
+    command: "rudder issue search <query> [--org-id <id>]",
+    category: "issue",
+    description: "Search issues with the server-side issue index across title, identifier, description, and comments.",
+    mutating: false,
+    contract: "agent-v1",
+    requiresOrgId: true,
+    requiresAgentId: false,
+    requiresRunId: false,
+    attachesRunIdWhenAvailable: false,
+  },
+  {
     id: "issue.context",
     command: "rudder issue context <issue>",
     category: "issue",

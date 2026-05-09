@@ -587,6 +587,13 @@ describe("agent CLI e2e", () => {
     expect(comments.map((comment) => comment.id)).toContain(secondCommentId);
     expect(comments.length).toBeGreaterThanOrEqual(1);
 
+    const commentSearch = await runCliJson<Issue[]>(["issue", "search", "New requirement landed"], {
+      apiBase,
+      configPath,
+      env,
+    });
+    expect(commentSearch.map((issue) => issue.id)).toContain(issueId);
+
     const done = await runCliJson<Issue>(["issue", "done", issueId, "--comment", "Completed via CLI."], {
       apiBase,
       configPath,
