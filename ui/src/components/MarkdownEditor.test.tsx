@@ -487,6 +487,61 @@ describe("MarkdownEditor", () => {
     expect(onChange).toHaveBeenCalledWith("ask [memory](skill://memory) now");
   });
 
+  it("renders container skill mentions with chat composer styling", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const restoreCaretRect = stubCaretRect();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="@build"
+          onChange={() => undefined}
+          mentionMenuPlacement="container"
+          mentions={[
+            {
+              id: "skill:build-advisor",
+              name: "build-advisor",
+              kind: "skill",
+              skillRefLabel: "build-advisor",
+              skillMarkdownTarget: "/skills/build-advisor/SKILL.md",
+              skillDisplayName: "Build Advisor",
+              skillDescription: "Professional diagnosis for weak product or implementation results.",
+              skillCategoryLabel: "Org",
+              searchText: "build advisor product implementation",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, 6);
+
+    const menu = document.body.querySelector('[data-testid="markdown-mention-menu"]');
+    expect(menu?.className).toContain("chat-composer-context-menu");
+    expect(menu?.getAttribute("role")).toBe("menu");
+
+    const option = document.body.querySelector('[data-testid="markdown-mention-option-skill:build-advisor"]');
+    expect(option?.className).toContain("chat-composer-menu-row");
+    expect(option?.getAttribute("role")).toBe("menuitem");
+    expect(option?.getAttribute("data-chat-composer-menu-item")).toBe("true");
+    expect(option?.textContent).toContain("Build Advisor");
+    expect(option?.textContent).toContain("Org");
+    expect(option?.textContent).toContain("Professional diagnosis");
+    expect(option?.textContent).not.toContain("Skill");
+  });
+
   it("renders issue mention options with status, project, and assignee metadata", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

@@ -1315,11 +1315,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         ? createPortal(
             <div
               data-testid="markdown-mention-menu"
+              role={mentionMenuPlacement === "container" ? "menu" : undefined}
               className={cn(
-                "fixed z-50 overflow-y-auto border border-border bg-popover shadow-md",
                 mentionMenuPlacement === "container"
-                  ? "rounded-[var(--radius-lg)] p-1.5 shadow-[var(--shadow-lg)]"
-                  : "min-w-[180px] rounded-md",
+                  ? "chat-composer-context-menu motion-chat-composer-menu-pop surface-overlay fixed z-50 overflow-y-auto rounded-[var(--radius-lg)] border p-1.5 text-foreground"
+                  : "fixed z-50 min-w-[180px] overflow-y-auto rounded-md border border-border bg-popover shadow-md",
               )}
               style={mentionMenuPosition}
             >
@@ -1336,16 +1336,20 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                       const i = optionIndex;
                       optionIndex += 1;
                       const issueStatusLabel = option.issueStatus ? statusLabel(option.issueStatus) : "Issue";
+                      const isContainerMenu = mentionMenuPlacement === "container";
+                      const skillDescription = option.skillDescription ?? option.skillLocationLabel ?? option.skillDisplayName ?? option.name;
                       return (
                         <button
                           key={option.id}
+                          type="button"
                           data-testid={`markdown-mention-option-${option.id}`}
+                          data-chat-composer-menu-item={isContainerMenu ? true : undefined}
+                          role={isContainerMenu ? "menuitem" : undefined}
                           className={cn(
-                            "flex w-full items-center gap-2 text-left text-sm transition-colors hover:bg-accent/50",
-                            mentionMenuPlacement === "container"
-                              ? "rounded-[var(--radius-md)] px-3 py-2"
-                              : "px-3 py-1.5",
-                            i === mentionIndex && "bg-accent",
+                            isContainerMenu
+                              ? "chat-composer-menu-row"
+                              : "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent/50",
+                            i === mentionIndex && (isContainerMenu ? "bg-[color:var(--surface-active)] text-foreground" : "bg-accent"),
                           )}
                           onMouseDown={(e) => {
                             e.preventDefault(); // prevent blur
@@ -1353,7 +1357,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                           }}
                           onMouseEnter={() => setMentionIndex(i)}
                         >
-                          {option.kind === "skill" ? (
+                          {option.kind === "skill" && isContainerMenu ? (
+                            <>
+                              <Boxes className="h-4 w-4 shrink-0 text-[#2f80ed]" />
+                              <span className="flex min-w-0 flex-1 items-center gap-2">
+                                <span className="min-w-0 shrink truncate font-medium text-foreground">
+                                  {option.skillDisplayName ?? option.name}
+                                </span>
+                                {option.skillCategoryLabel ? (
+                                  <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
+                                    {option.skillCategoryLabel}
+                                  </span>
+                                ) : null}
+                                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                                  {skillDescription}
+                                </span>
+                              </span>
+                            </>
+                          ) : option.kind === "skill" ? (
                             <Boxes className="h-4 w-4 shrink-0 text-[#2f80ed]" />
                           ) : option.kind === "project" && option.projectId ? (
                             <span
@@ -1379,46 +1400,48 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                               className="h-4 w-4 shrink-0 text-muted-foreground"
                             />
                           )}
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-foreground">{option.name}</div>
-                            {option.kind === "issue" && option.issueId ? (
-                              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                                {option.issueStatus ? <span>{issueStatusLabel}</span> : null}
-                                {option.issueProjectName ? (
-                                  <span className="inline-flex min-w-0 items-center gap-1">
-                                    <span
-                                      className="h-2 w-2 shrink-0 rounded-full border border-border/50"
-                                      style={{ backgroundColor: option.issueProjectColor ?? "#64748b" }}
-                                      aria-hidden="true"
-                                    />
-                                    <span className="truncate">{option.issueProjectName}</span>
-                                  </span>
-                                ) : null}
-                                <span className="inline-flex min-w-0 items-center gap-1">
-                                  {option.issueAssigneeIcon ? (
-                                    <AgentIcon
-                                      icon={option.issueAssigneeIcon}
-                                      role={option.issueAssigneeRole}
-                                      className="h-3 w-3 shrink-0 text-muted-foreground"
-                                    />
+                          {!(option.kind === "skill" && isContainerMenu) ? (
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-foreground">{option.name}</div>
+                              {option.kind === "issue" && option.issueId ? (
+                                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                                  {option.issueStatus ? <span>{issueStatusLabel}</span> : null}
+                                  {option.issueProjectName ? (
+                                    <span className="inline-flex min-w-0 items-center gap-1">
+                                      <span
+                                        className="h-2 w-2 shrink-0 rounded-full border border-border/50"
+                                        style={{ backgroundColor: option.issueProjectColor ?? "#64748b" }}
+                                        aria-hidden="true"
+                                      />
+                                      <span className="truncate">{option.issueProjectName}</span>
+                                    </span>
                                   ) : null}
-                                  <span className="truncate">{option.issueAssigneeName ?? "Unassigned"}</span>
-                                </span>
-                              </div>
-                            ) : null}
-                            {option.kind === "skill" ? (
-                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-                                {option.skillCategoryLabel ? (
-                                  <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 leading-none">
-                                    {option.skillCategoryLabel}
+                                  <span className="inline-flex min-w-0 items-center gap-1">
+                                    {option.issueAssigneeIcon ? (
+                                      <AgentIcon
+                                        icon={option.issueAssigneeIcon}
+                                        role={option.issueAssigneeRole}
+                                        className="h-3 w-3 shrink-0 text-muted-foreground"
+                                      />
+                                    ) : null}
+                                    <span className="truncate">{option.issueAssigneeName ?? "Unassigned"}</span>
                                   </span>
-                                ) : null}
-                                <span className="min-w-0 truncate">
-                                  {option.skillDescription ?? option.skillLocationLabel ?? option.skillDisplayName}
-                                </span>
-                              </div>
-                            ) : null}
-                          </div>
+                                </div>
+                              ) : null}
+                              {option.kind === "skill" ? (
+                                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  {option.skillCategoryLabel ? (
+                                    <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-border/70 bg-muted/50 px-1.5 py-0.5 leading-none">
+                                      {option.skillCategoryLabel}
+                                    </span>
+                                  ) : null}
+                                  <span className="min-w-0 truncate">
+                                    {option.skillDescription ?? option.skillLocationLabel ?? option.skillDisplayName}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                           {option.kind === "issue" && option.issueId && (
                             <span className="ml-auto text-[11px] text-muted-foreground">
                               Issue
@@ -1429,7 +1452,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                               Project
                             </span>
                           )}
-                          {option.kind === "skill" && (
+                          {option.kind === "skill" && !isContainerMenu && (
                             <span className="ml-auto text-[11px] text-muted-foreground">
                               Skill
                             </span>

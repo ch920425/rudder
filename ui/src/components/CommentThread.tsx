@@ -10,6 +10,7 @@ import { AgentIdentity } from "./AgentAvatar";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { MarkdownBody } from "./MarkdownBody";
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
+import type { MarkdownSkillReferencePreview } from "./SkillReferenceToken";
 import { formatChatAgentLabel } from "../lib/agent-labels";
 import { StatusBadge } from "./StatusBadge";
 import { AgentIcon } from "./AgentIconPicker";
@@ -169,6 +170,7 @@ const TimelineList = memo(function TimelineList({
   runTranscriptById,
   runHasOutput,
   operatorDisplayName,
+  skillReferences,
   emptyMessage,
 }: {
   timeline: TimelineItem[];
@@ -179,6 +181,7 @@ const TimelineList = memo(function TimelineList({
   runTranscriptById: Map<string, TranscriptEntry[]>;
   runHasOutput: (runId: string) => boolean;
   operatorDisplayName?: string | null;
+  skillReferences?: MarkdownSkillReferencePreview[];
   emptyMessage: string;
 }) {
   if (timeline.length === 0) {
@@ -301,7 +304,7 @@ const TimelineList = memo(function TimelineList({
                 <CopyMarkdownButton text={comment.body} />
               </span>
             </div>
-            <MarkdownBody className="text-sm">{comment.body}</MarkdownBody>
+            <MarkdownBody className="text-sm" skillReferences={skillReferences}>{comment.body}</MarkdownBody>
             {orgId ? (
               <div className="mt-2 space-y-2">
                 <PluginSlotOutlet
@@ -455,6 +458,20 @@ export function CommentThread({
       }));
   }, [agentMap, providedMentions]);
 
+  const skillReferences = useMemo<MarkdownSkillReferencePreview[]>(() => (
+    mentions
+      .filter((mention) => mention.kind === "skill" && mention.skillMarkdownTarget)
+      .map((mention) => ({
+        href: mention.skillMarkdownTarget!,
+        label: mention.skillRefLabel ?? mention.name,
+        displayName: mention.skillDisplayName ?? mention.name,
+        description: mention.skillDescription,
+        categoryLabel: mention.skillCategoryLabel,
+        locationLabel: mention.skillLocationLabel,
+        detailsHref: mention.skillDetailsHref,
+      }))
+  ), [mentions]);
+
   useEffect(() => {
     if (!draftKey) return;
     setBody(loadDraft(draftKey));
@@ -560,12 +577,13 @@ export function CommentThread({
         runTranscriptById={transcriptByRun}
         runHasOutput={hasOutputForRun}
         operatorDisplayName={operatorDisplayName}
+        skillReferences={skillReferences}
         emptyMessage={emptyMessage}
       />
 
       {liveRunSlot}
 
-      <div ref={composerSurfaceRef} className="space-y-2">
+      <div ref={composerSurfaceRef} className="chat-composer rounded-[var(--radius-lg)] p-3">
         <MarkdownEditor
           ref={editorRef}
           value={body}
@@ -576,9 +594,11 @@ export function CommentThread({
           mentionMenuPlacement="container"
           onSubmit={handleSubmit}
           imageUploadHandler={imageUploadHandler}
-          contentClassName="min-h-[60px] text-sm"
+          className="rounded-[var(--radius-md)] bg-transparent"
+          contentClassName="min-h-[64px] bg-transparent text-sm leading-6 text-foreground"
+          bordered={false}
         />
-        <div className="flex items-center justify-end gap-3">
+        <div className="mt-3 flex items-center justify-end gap-3">
           {(imageUploadHandler || onAttachImage) && (
             <div className="mr-auto flex items-center gap-3">
               <input
