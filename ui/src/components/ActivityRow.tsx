@@ -5,6 +5,7 @@ import { resolveActivityActorName } from "@/lib/activity-actors";
 import { timeAgo } from "../lib/timeAgo";
 import { cn } from "../lib/utils";
 import { deriveProjectUrlKey, type ActivityEvent, type Agent } from "@rudderhq/shared";
+import { formatPriorityLabel } from "../lib/priorities";
 
 const ACTION_VERBS: Record<string, string> = {
   "issue.created": "created",
@@ -63,8 +64,8 @@ function formatVerb(action: string, details?: Record<string, unknown> | null): s
     if (details.priority !== undefined) {
       const from = previous.priority;
       return from
-        ? `changed priority from ${humanizeValue(from)} to ${humanizeValue(details.priority)} on`
-        : `changed priority to ${humanizeValue(details.priority)} on`;
+        ? `changed priority from ${formatPriorityLabel(humanizeValue(from))} to ${formatPriorityLabel(humanizeValue(details.priority))} on`
+        : `changed priority to ${formatPriorityLabel(humanizeValue(details.priority))} on`;
     }
   }
   return ACTION_VERBS[action] ?? action.replace(/[._]/g, " ");

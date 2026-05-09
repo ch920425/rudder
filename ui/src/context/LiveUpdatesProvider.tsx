@@ -14,6 +14,7 @@ import { toOrganizationRelativePath } from "../lib/organization-routes";
 import { useLocation } from "../lib/router";
 import { SETTINGS_PREFETCH_STALE_TIME_MS } from "@/lib/settings-prefetch";
 import { useOperatorDisplayName } from "@/hooks/useOperatorDisplayName";
+import { formatPriorityLabel } from "@/lib/priorities";
 
 const TOAST_COOLDOWN_WINDOW_MS = 10_000;
 const TOAST_COOLDOWN_MAX = 3;
@@ -352,7 +353,7 @@ function describeIssueUpdate(details: Record<string, unknown> | null): string | 
   if (!details) return null;
   const changes: string[] = [];
   if (typeof details.status === "string") changes.push(`status -> ${details.status.replace(/_/g, " ")}`);
-  if (typeof details.priority === "string") changes.push(`priority -> ${details.priority}`);
+  if (typeof details.priority === "string") changes.push(`priority -> ${formatPriorityLabel(details.priority)}`);
   if (typeof details.assigneeAgentId === "string" || typeof details.assigneeUserId === "string") {
     changes.push("reassigned");
   } else if (details.assigneeAgentId === null || details.assigneeUserId === null) {

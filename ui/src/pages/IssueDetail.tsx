@@ -38,6 +38,7 @@ import type { MentionOption } from "../components/MarkdownEditor";
 import { ScrollToBottom } from "../components/ScrollToBottom";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
+import { formatPriorityLabel } from "../lib/priorities";
 import { StatusBadge } from "../components/StatusBadge";
 import { Identity } from "../components/Identity";
 import { AgentIdentity } from "../components/AgentAvatar";
@@ -514,8 +515,8 @@ function formatAction(
       const from = previous.priority;
       parts.push(
         from
-          ? `changed the priority from ${humanizeValue(from)} to ${humanizeValue(details.priority)}`
-          : `changed the priority to ${humanizeValue(details.priority)}`
+          ? `changed the priority from ${formatPriorityLabel(humanizeValue(from))} to ${formatPriorityLabel(humanizeValue(details.priority))}`
+          : `changed the priority to ${formatPriorityLabel(humanizeValue(details.priority))}`
       );
     }
     if (details.assigneeAgentId !== undefined || details.assigneeUserId !== undefined) {

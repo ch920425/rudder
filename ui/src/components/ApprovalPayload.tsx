@@ -1,5 +1,6 @@
 import { UserPlus, Lightbulb, MessageSquare, Settings2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { formatCents } from "../lib/utils";
+import { formatPriorityLabel } from "../lib/priorities";
 import {
   ApprovalCodeBlock,
   ApprovalField,
@@ -141,7 +142,7 @@ function ChatIssueCreationPayload({ payload }: { payload: Record<string, unknown
     <div className="space-y-2 text-sm">
       <PayloadField label="Chat" value={payload.chatConversationId} />
       <PayloadField label="Title" value={proposal.title} />
-      <PayloadField label="Priority" value={proposal.priority} />
+      <PayloadField label="Priority" value={typeof proposal.priority === "string" ? formatPriorityLabel(proposal.priority) : proposal.priority} />
       <PayloadField label="Project" value={proposal.projectId} />
       <PayloadField label="Goal" value={proposal.goalId} />
       <PayloadField label="Assignee" value={proposal.assigneeAgentId ?? proposal.assigneeUserId} />

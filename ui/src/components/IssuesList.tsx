@@ -13,6 +13,7 @@ import { formatDate, cn } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
+import { formatPriorityLabel } from "../lib/priorities";
 import { AssigneeLabel } from "./AssigneeLabel";
 import { EmptyState } from "./EmptyState";
 import { IssueLabelChip } from "./IssueLabelChip";
@@ -433,7 +434,7 @@ export function IssuesList({
       const groups = groupBy(filtered, (i) => i.priority);
       return priorityOrder
         .filter((p) => groups[p]?.length)
-        .map((p) => ({ key: p, label: statusLabel(p), items: groups[p]! }));
+        .map((p) => ({ key: p, label: formatPriorityLabel(p), items: groups[p]! }));
     }
     if (viewState.groupBy === "project") {
       const groups = groupBy(filtered, (issue) => issue.projectId ?? "__no_project");
@@ -676,7 +677,7 @@ export function IssuesList({
                               onCheckedChange={() => updateView({ priorities: toggleInArray(viewState.priorities, p) })}
                             />
                             <PriorityIcon priority={p} />
-                            <span className="text-sm">{statusLabel(p)}</span>
+                            <span className="text-sm">{formatPriorityLabel(p)}</span>
                           </label>
                         ))}
                       </div>

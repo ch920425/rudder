@@ -1,5 +1,6 @@
 import type { AgentSkillAnalytics, HeartbeatRun } from "@rudderhq/shared";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatPriorityLabel } from "../lib/priorities";
 
 /* ---- Utilities ---- */
 
@@ -387,10 +388,10 @@ export function RunActivityChart({
 }
 
 const priorityColors: Record<string, string> = {
-  critical: "#ef4444",
+  critical: "#ea580c",
   high: "#f97316",
-  medium: "#eab308",
-  low: "#6b7280",
+  medium: "#fb923c",
+  low: "#fed7aa",
 };
 
 const priorityOrder = ["critical", "high", "medium", "low"] as const;
@@ -436,7 +437,7 @@ export function PriorityChart({
                       <TooltipMetricRow
                         key={p}
                         color={priorityColors[p]}
-                        label={p.charAt(0).toUpperCase() + p.slice(1)}
+                        label={formatPriorityLabel(p)}
                         value={entry[p]}
                       />
                     ))}
@@ -461,7 +462,7 @@ export function PriorityChart({
           })}
         </div>
         <DateLabels days={days} />
-        <ChartLegend items={priorityOrder.map(p => ({ color: priorityColors[p], label: p.charAt(0).toUpperCase() + p.slice(1) }))} />
+        <ChartLegend items={priorityOrder.map(p => ({ color: priorityColors[p], label: formatPriorityLabel(p) }))} />
       </div>
     </TooltipProvider>
   );

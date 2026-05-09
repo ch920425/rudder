@@ -19,6 +19,7 @@ import { issuesApi } from "@/api/issues";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { ApprovalDetailDialog } from "@/components/ApprovalDetailDialog";
 import { MarkdownBody } from "@/components/MarkdownBody";
+import { formatPriorityLabel } from "@/lib/priorities";
 import { Button } from "@/components/ui/button";
 import { HoverTimestampLabel } from "@/components/HoverTimestamp";
 import { Textarea } from "@/components/ui/textarea";
@@ -493,7 +494,7 @@ function MessengerIssueCard({
           </span>
           {typeof metadata.priority === "string" ? (
             <span className="rounded-[calc(var(--radius-sm)-1px)] bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-              {metadata.priority.replaceAll("_", " ")}
+              {formatPriorityLabel(metadata.priority)}
             </span>
           ) : null}
           {contextLabel ? (

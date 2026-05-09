@@ -132,7 +132,8 @@ const zhExactPhrases: Record<string, string> = {
   "Create new organization": "创建新组织",
   "Create new project": "创建新项目",
   "credits": "入账",
-  "Critical": "严重",
+  "Urgent": "紧急",
+  "Critical": "紧急",
   "Danger Zone": "危险操作区",
   "Dashboard": "总览",
   "Date": "日期",
@@ -809,7 +810,7 @@ function translateIssueStatus(status: string) {
 
 function translatePriority(priority: string) {
   const normalized = priority.toLowerCase();
-  if (normalized === "critical") return "严重";
+  if (normalized === "critical" || normalized === "urgent") return "紧急";
   if (normalized === "high") return "高";
   if (normalized === "medium") return "中";
   if (normalized === "low") return "低";

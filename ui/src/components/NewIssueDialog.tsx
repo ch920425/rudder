@@ -56,9 +56,7 @@ import {
   ChevronDown,
   CircleDot,
   Minus,
-  ArrowUp,
-  ArrowDown,
-  AlertTriangle,
+  Check,
   CheckCircle2,
   Tag,
   Calendar,
@@ -72,11 +70,13 @@ import { cn } from "../lib/utils";
 import { extractProviderIdWithFallback } from "../lib/model-utils";
 import { CODEX_LOCAL_REASONING_EFFORT_OPTIONS, withDefaultThinkingEffortOption } from "../lib/runtime-thinking-effort";
 import { resolveRuntimeModels } from "../lib/runtime-models";
-import { issueStatusText, issueStatusTextDefault, priorityColor, priorityColorDefault } from "../lib/status-colors";
+import { issueStatusText, issueStatusTextDefault } from "../lib/status-colors";
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
 import { AgentIcon } from "./AgentIconPicker";
 import { IssueLabelChip } from "./IssueLabelChip";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
+import { PriorityBarsIcon } from "./PriorityIcon";
+import { priorityOptions } from "../lib/priorities";
 
 const DEBOUNCE_MS = 800;
 
@@ -227,12 +227,7 @@ const statuses = [
   { value: "done", label: "Done", color: issueStatusText.done ?? issueStatusTextDefault },
 ];
 
-const priorities = [
-  { value: "critical", label: "Critical", icon: AlertTriangle, color: priorityColor.critical ?? priorityColorDefault },
-  { value: "high", label: "High", icon: ArrowUp, color: priorityColor.high ?? priorityColorDefault },
-  { value: "medium", label: "Medium", icon: Minus, color: priorityColor.medium ?? priorityColorDefault },
-  { value: "low", label: "Low", icon: ArrowDown, color: priorityColor.low ?? priorityColorDefault },
-];
+const priorities = priorityOptions;
 
 function defaultProjectWorkspaceIdForProject(project: {
   workspaces?: Array<{ id: string; isPrimary: boolean }>;
@@ -1557,7 +1552,7 @@ export function NewIssueDialog() {
               <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors">
                 {currentPriority ? (
                   <>
-                    <currentPriority.icon className={cn("h-3 w-3", currentPriority.color)} />
+                    <PriorityBarsIcon priority={currentPriority.value} className="h-3.5 w-4" />
                     {currentPriority.label}
                   </>
                 ) : (
@@ -1568,18 +1563,21 @@ export function NewIssueDialog() {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-36 p-1" align="start">
+            <PopoverContent className="w-44 rounded-2xl p-2" align="start">
               {priorities.map((p) => (
                 <button
                   key={p.value}
                   className={cn(
-                    "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
-                    p.value === priority && "bg-accent"
+                    "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
+                    p.value === priority && "bg-muted/80"
                   )}
                   onClick={() => { setPriority(p.value); setPriorityOpen(false); }}
                 >
-                  <p.icon className={cn("h-3 w-3", p.color)} />
-                  {p.label}
+                  <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold", p.chipClassName)}>
+                    <PriorityBarsIcon priority={p.value} className="text-current" />
+                    {p.label}
+                  </span>
+                  {p.value === priority ? <Check className="h-4 w-4 text-muted-foreground" /> : <span className="h-4 w-4" aria-hidden="true" />}
                 </button>
               ))}
             </PopoverContent>

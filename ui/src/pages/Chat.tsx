@@ -49,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MarkdownBody } from "@/components/MarkdownBody";
+import { formatPriorityLabel } from "@/lib/priorities";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 import type { MarkdownSkillReferencePreview } from "@/components/SkillReferenceToken";
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "@/components/MarkdownEditor";
@@ -895,7 +896,7 @@ export function ProposalCard({
               <>
                 <div className="text-base font-medium text-foreground">{String(issueProposal.title)}</div>
                 <div className="mt-1 text-xs font-medium text-muted-foreground">
-                  Priority · {String(issueProposal.priority ?? "medium")}
+                  Priority · {formatPriorityLabel(String(issueProposal.priority ?? "medium"))}
                 </div>
               </>
             ) : operationProposal ? (
