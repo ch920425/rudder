@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "../api/dashboard";
+import { costsApi } from "../api/costs";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
@@ -25,8 +26,8 @@ import { AgentIdentity } from "../components/AgentAvatar";
 import { useLiveRunTranscripts } from "../components/transcript/useLiveRunTranscripts";
 import type { TranscriptEntry } from "../agent-runtimes";
 import { timeAgo } from "../lib/timeAgo";
-import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, PauseCircle } from "lucide-react";
+import { cn, formatCents, formatTokens } from "../lib/utils";
+import { Bot, CircleDot, Coins, DollarSign, LayoutDashboard, PauseCircle } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart, SkillsUsageChart } from "../components/ActivityCharts";
 import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
@@ -247,6 +248,21 @@ export function Dashboard() {
   );
 
   const showFilteredSections = preset !== "custom" || customReady;
+
+  const { data: rangeCostSummary } = useQuery({
+    queryKey: queryKeys.costs(selectedOrganizationId ?? "__none__", from, to),
+    queryFn: () => costsApi.summary(selectedOrganizationId!, from, to),
+    enabled: Boolean(selectedOrganizationId) && showFilteredSections,
+  });
+  const hasTokenUsage = (rangeCostSummary?.tokenEventCount ?? 0) > 0;
+  const tokenMetricValue = hasTokenUsage && rangeCostSummary ? formatTokens(rangeCostSummary.totalTokens) : "—";
+  const tokenMetricDescription = hasTokenUsage && rangeCostSummary
+    ? `Input ${formatTokens(rangeCostSummary.inputTokens + rangeCostSummary.cachedInputTokens)} · Output ${formatTokens(
+        rangeCostSummary.outputTokens,
+      )}`
+    : showFilteredSections
+      ? "Not available for this time window"
+      : "Select a start and end date";
 
   const { data: skillAnalytics } = useQuery({
     queryKey: [
@@ -522,15 +538,13 @@ export function Dashboard() {
               }
             />
             <MetricCard
-              icon={ShieldCheck}
-              value={data.pendingApprovals + data.budgets.pendingApprovals}
-              label="Pending Approvals"
-              to="/messenger/approvals"
+              icon={Coins}
+              value={tokenMetricValue}
+              label="Tokens Used"
+              to="/costs"
               description={
                 <span>
-                  {data.budgets.pendingApprovals > 0
-                    ? `${data.budgets.pendingApprovals} budget overrides awaiting board review`
-                    : "Awaiting board review"}
+                  {tokenMetricDescription}
                 </span>
               }
             />

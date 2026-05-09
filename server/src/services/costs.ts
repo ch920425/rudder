@@ -150,12 +150,30 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
-      const [{ total }] = await db
+      const [summaryRow] = await db
         .select({
           total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
+          cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
+          outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
+          totalTokens:
+            sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}), 0)::int`,
+          eventCount: sql<number>`count(*)::int`,
+          tokenEventCount:
+            sql<number>`coalesce(sum(case when ${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens} > 0 then 1 else 0 end), 0)::int`,
         })
         .from(costEvents)
         .where(and(...conditions));
+
+      const {
+        total,
+        inputTokens,
+        cachedInputTokens,
+        outputTokens,
+        totalTokens,
+        eventCount,
+        tokenEventCount,
+      } = summaryRow;
 
       const spendCents = Number(total);
       const utilization =
@@ -168,6 +186,12 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         spendCents,
         budgetCents: organization.budgetMonthlyCents,
         utilizationPercent: Number(utilization.toFixed(2)),
+        inputTokens: Number(inputTokens),
+        cachedInputTokens: Number(cachedInputTokens),
+        outputTokens: Number(outputTokens),
+        totalTokens: Number(totalTokens),
+        eventCount: Number(eventCount),
+        tokenEventCount: Number(tokenEventCount),
       };
     },
 

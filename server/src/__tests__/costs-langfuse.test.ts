@@ -28,6 +28,36 @@ describe("costService Langfuse export", () => {
     vi.clearAllMocks();
   });
 
+  it("includes actual token totals in cost summaries", async () => {
+    const db = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([{ id: "org-1", budgetMonthlyCents: 10_000 }]))
+        .mockReturnValueOnce(selectChain([
+          {
+            total: 123,
+            inputTokens: 1_000,
+            cachedInputTokens: 250,
+            outputTokens: 500,
+            totalTokens: 1_750,
+            eventCount: 3,
+            tokenEventCount: 2,
+          },
+        ])),
+    };
+
+    const svc = costService(db as never);
+    await expect(svc.summary("org-1")).resolves.toMatchObject({
+      spendCents: 123,
+      inputTokens: 1_000,
+      cachedInputTokens: 250,
+      outputTokens: 500,
+      totalTokens: 1_750,
+      eventCount: 3,
+      tokenEventCount: 2,
+    });
+  });
+
   it("emits a detached cost event when tied to a heartbeat run", async () => {
     const db = {
       select: vi

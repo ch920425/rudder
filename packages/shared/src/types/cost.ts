@@ -26,6 +26,12 @@ export interface CostSummary {
   spendCents: number;
   budgetCents: number;
   utilizationPercent: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  eventCount: number;
+  tokenEventCount: number;
 }
 
 export interface CostTrendPoint {
