@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Settings, X } from "lucide-react";
-import { Link, Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
+import { Link, Outlet, useLocation, useNavigate, useNavigationType, useParams } from "@/lib/router";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { PrimaryRail } from "./PrimaryRail";
 import { ThreeColumnContextSidebar } from "./ThreeColumnContextSidebar";
@@ -107,20 +107,8 @@ function readRememberedWorkspacePath(): string {
   }
 }
 
-function hasInAppBackStack(): boolean {
-  if (typeof window === "undefined") return false;
-  const historyState = window.history.state as { idx?: unknown } | null;
-  if (typeof historyState?.idx === "number") {
-    return historyState.idx > 0;
-  }
-
-  try {
-    return window.history.length > 1
-      && Boolean(document.referrer)
-      && new URL(document.referrer).origin === window.location.origin;
-  } catch {
-    return false;
-  }
+function getLocationPath(location: { pathname: string; search: string; hash: string }): string {
+  return `${location.pathname}${location.search}${location.hash}`;
 }
 
 export function DesktopSettingsModalFrame({
@@ -240,6 +228,8 @@ export function Layout() {
   const { orgPrefix } = useParams<{ orgPrefix: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const navigationType = useNavigationType();
+  const inAppBackStackRef = useRef<string[]>([]);
   const macDesktopShell = useMemo(() => isMacDesktopShell(), []);
   const isInstanceSettingsRoute = location.pathname.startsWith("/instance/");
   const relativeBoardPath = useMemo(
@@ -577,9 +567,39 @@ export function Layout() {
     settingsTarget,
   ]);
 
+  useEffect(() => {
+    const currentPath = getLocationPath(location);
+    const stack = inAppBackStackRef.current;
+    if (stack.length === 0) {
+      stack.push(currentPath);
+      return;
+    }
+
+    const currentIndex = stack.lastIndexOf(currentPath);
+    if (navigationType === "POP") {
+      if (currentIndex >= 0) {
+        stack.splice(currentIndex + 1);
+      } else {
+        stack.push(currentPath);
+      }
+      return;
+    }
+
+    if (navigationType === "REPLACE") {
+      stack[stack.length - 1] = currentPath;
+      return;
+    }
+
+    if (stack[stack.length - 1] !== currentPath) {
+      stack.push(currentPath);
+    }
+    if (stack.length > 50) stack.splice(0, stack.length - 50);
+  }, [location, navigationType]);
+
   const navigateBack = useCallback(() => {
-    if (!hasInAppBackStack()) return;
+    if (inAppBackStackRef.current.length < 2) return false;
     navigate(-1);
+    return true;
   }, [navigate]);
 
   useKeyboardShortcuts({

@@ -1,6 +1,41 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Issue detail breadcrumb", () => {
+  test("uses the default breadcrumb fallback on Escape when opened directly", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `Issue-Detail-Direct-Escape-${Date.now()}` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Direct issue detail Escape should return to Issues",
+        description: "Direct issue detail loads should still have a usable Escape fallback.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+
+    await page.addInitScript((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/issues/${issue.identifier ?? issue.id}`);
+    await expect(page.getByRole("heading", { name: issue.title })).toBeVisible({ timeout: 15_000 });
+
+    const sourceLink = page.getByTestId("issue-detail-breadcrumb").getByRole("link", { name: "Issues", exact: true });
+    await expect(sourceLink).toBeVisible();
+    await expect(sourceLink).toHaveAttribute("href", /\/issues$/);
+
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/issues$/);
+  });
+
   test("keeps the source list in the header breadcrumb and returns there on Escape", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.goto("/");
