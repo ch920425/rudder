@@ -21,7 +21,8 @@ related_code:
   - ui/src/lib/messenger-memory.test.ts
   - server/src/__tests__/messenger-service.test.ts
   - tests/e2e/messenger-contract.spec.ts
-commit_refs: []
+commit_refs:
+  - fix: render pinned messenger threads from summaries
 updated_at: 2026-05-10
 ---
 
@@ -62,14 +63,14 @@ full chat list is still loading, causing pinned chats to appear late.
 
 ## Validation
 
-- Passed: `pnpm --filter @rudderhq/ui typecheck`
-- Passed: `pnpm --filter @rudderhq/server typecheck`
+- Passed: `pnpm --filter @rudderhq/ui exec vitest run src/components/MessengerContextSidebar.test.tsx --reporter=verbose`
+- Passed: `RUDDER_MESSENGER_SERVICE_TEST_DATABASE_URL=<external test db> pnpm --filter @rudderhq/server exec vitest run src/__tests__/messenger-service.test.ts --reporter=verbose`
+- Passed: `RUDDER_E2E_DATABASE_URL=<external test db> RUDDER_E2E_PORT=33287 pnpm exec playwright test --config tests/e2e/playwright.config.ts tests/e2e/messenger-contract.spec.ts -g "renders pinned Messenger chats from thread summaries" --project=chromium`
+- Passed: `pnpm --filter @rudderhq/shared typecheck && pnpm --filter @rudderhq/server typecheck && pnpm --filter @rudderhq/ui typecheck`
+- Passed: `pnpm -r typecheck`
 - Passed: `pnpm build`
-- Passed: `pnpm exec vitest run ui/src/components/MessengerContextSidebar.test.tsx ui/src/lib/inbox.test.ts ui/src/lib/messenger-memory.test.ts --reporter=dot`
-- Blocked by local embedded Postgres init failure: `pnpm test:run`
-- Blocked by local embedded Postgres init failure: `pnpm exec vitest run server/src/__tests__/messenger-service.test.ts --testNamePattern "includes chat pinned state" --reporter=dot`
-- Blocked by the same local embedded Postgres init failure: `npx playwright test --config tests/e2e/playwright.config.ts tests/e2e/messenger-contract.spec.ts --grep "renders pinned Messenger chats from thread summaries"`
+- Blocked by local embedded Postgres init failure: `pnpm test:run` failed across unrelated embedded-Postgres suites before tests could execute.
 
 ## Open Issues
 
-- Local embedded Postgres initialization exits during bootstrap script before server integration and E2E tests can start. Existing local/default Rudder Postgres clusters and many SysV shared-memory IDs are present.
+- Local embedded Postgres initialization still exits during bootstrap script for broad tests. Focused server and E2E coverage passed against an isolated external PostgreSQL database.
