@@ -475,6 +475,65 @@ function ThreadRow({
 
 type MessengerThreadSummaryItem = ReturnType<typeof useMessengerModel>["threadSummaries"][number];
 
+function chatConversationForThreadSummary(
+  thread: MessengerThreadSummaryItem,
+  orgId: string,
+  conversation: ChatConversation | null | undefined,
+): ChatConversation | null {
+  if (thread.kind !== "chat") return null;
+  const conversationId = threadConversationId(thread.threadKey);
+  if (!conversationId) return null;
+
+  const isPinned = typeof thread.isPinned === "boolean" ? thread.isPinned : Boolean(conversation?.isPinned);
+  if (conversation) {
+    return {
+      ...conversation,
+      lastReadAt: thread.lastReadAt ?? conversation.lastReadAt,
+      unreadCount: thread.unreadCount,
+      isUnread: thread.unreadCount > 0,
+      needsAttention: thread.needsAttention,
+      isPinned,
+    };
+  }
+
+  const activityAt = thread.latestActivityAt ? new Date(thread.latestActivityAt) : new Date();
+  const preview = thread.preview ?? thread.subtitle ?? null;
+  return {
+    id: conversationId,
+    orgId,
+    status: "active",
+    title: thread.title,
+    summary: preview,
+    latestReplyPreview: preview,
+    preferredAgentId: null,
+    routedAgentId: null,
+    primaryIssueId: null,
+    primaryIssue: null,
+    issueCreationMode: "manual_approval",
+    planMode: false,
+    createdByUserId: null,
+    lastMessageAt: activityAt,
+    lastReadAt: thread.lastReadAt,
+    isPinned,
+    isUnread: thread.unreadCount > 0,
+    unreadCount: thread.unreadCount,
+    needsAttention: thread.needsAttention,
+    resolvedAt: null,
+    contextLinks: [],
+    chatRuntime: {
+      sourceType: "unconfigured",
+      sourceLabel: "No agent selected",
+      runtimeAgentId: null,
+      agentRuntimeType: null,
+      model: null,
+      available: false,
+      error: null,
+    },
+    createdAt: activityAt,
+    updatedAt: activityAt,
+  };
+}
+
 interface OrganizedThreadEntry {
   thread: MessengerThreadSummaryItem;
   conversation: ChatConversation | null;
@@ -487,13 +546,12 @@ interface OrganizedThreadSection {
 }
 
 function isPinnedEntry(entry: OrganizedThreadEntry) {
-  return Boolean(entry.conversation?.isPinned);
+  if (entry.thread.kind !== "chat") return false;
+  return typeof entry.thread.isPinned === "boolean" ? entry.thread.isPinned : Boolean(entry.conversation?.isPinned);
 }
 
 function entryActivityTime(entry: OrganizedThreadEntry) {
-  const value = entry.thread.kind === "chat" && entry.conversation
-    ? entry.conversation.lastMessageAt ?? entry.conversation.updatedAt
-    : entry.thread.latestActivityAt;
+  const value = entry.thread.latestActivityAt ?? (entry.conversation?.lastMessageAt ?? entry.conversation?.updatedAt ?? null);
   return value ? new Date(value).getTime() : Number.NEGATIVE_INFINITY;
 }
 
@@ -574,10 +632,12 @@ export function MessengerContextSidebar() {
     setThreadOrganizationRule(readThreadOrganizationRule(model.selectedOrganizationId));
   }, [model.selectedOrganizationId]);
 
+  const shouldLoadSidebarConversations = threadOrganizationRule === "project";
+
   const chatsQuery = useQuery({
     queryKey: queryKeys.chats.list(model.selectedOrganizationId ?? "__none__", "all"),
     queryFn: () => chatsApi.list(model.selectedOrganizationId!, "all"),
-    enabled: !!model.selectedOrganizationId,
+    enabled: !!model.selectedOrganizationId && shouldLoadSidebarConversations,
   });
 
   const conversationsById = useMemo(() => {
@@ -591,13 +651,16 @@ export function MessengerContextSidebar() {
   const organizedThreadSections = useMemo(() => {
     const entries = model.threadSummaries.map((thread) => {
       const conversationId = threadConversationId(thread.threadKey);
+      const loadedConversation = conversationId ? conversationsById.get(conversationId) ?? null : null;
       return {
         thread,
-        conversation: conversationId ? conversationsById.get(conversationId) ?? null : null,
+        conversation: model.selectedOrganizationId
+          ? chatConversationForThreadSummary(thread, model.selectedOrganizationId, loadedConversation)
+          : null,
       };
     });
     return organizeThreadEntries(entries, threadOrganizationRule);
-  }, [conversationsById, model.threadSummaries, threadOrganizationRule]);
+  }, [conversationsById, model.selectedOrganizationId, model.threadSummaries, threadOrganizationRule]);
 
   const activeThreadKey = useMemo(() => {
     if (route.kind === "chat" && route.conversationId) return `chat:${route.conversationId}`;

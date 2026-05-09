@@ -1118,6 +1118,40 @@ describe("messengerService and issue follows", () => {
     expect(summaries).toEqual([]);
   });
 
+  it("includes chat pinned state in Messenger thread summaries", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-pinned-summary";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Pinned Summary Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Pinned Summary Org"),
+      issuePrefix: `P${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const pinnedConversation = await chatSvc.create(orgId, {
+      title: "Pinned from summary",
+      summary: "Pinned status should travel with /messenger/threads.",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    const unpinnedConversation = await chatSvc.create(orgId, {
+      title: "Unpinned from summary",
+      summary: "This one should remain recent only.",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    await chatSvc.setPinned(pinnedConversation.id, orgId, userId, true);
+
+    const summaries = await messengerSvc.listThreadSummaries(orgId, userId);
+
+    expect(summaries.find((item) => item.threadKey === `chat:${pinnedConversation.id}`)?.isPinned).toBe(true);
+    expect(summaries.find((item) => item.threadKey === `chat:${unpinnedConversation.id}`)?.isPinned).toBe(false);
+  });
+
   it("persists Messenger synthetic thread read state", async () => {
     const orgId = randomUUID();
     const userId = "board-user-2";

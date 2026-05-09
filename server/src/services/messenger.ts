@@ -418,6 +418,7 @@ function chatSummary(conversation: ChatConversationRow): MessengerThreadSummary 
     lastReadAt: conversation.lastReadAt,
     unreadCount: conversation.unreadCount,
     needsAttention: conversation.needsAttention,
+    isPinned: conversation.isPinned,
     href: `/messenger/chat/${conversation.id}`,
   };
 }
@@ -439,6 +440,7 @@ function issueSummary(
     lastReadAt,
     unreadCount,
     needsAttention: unreadCount > 0,
+    isPinned: false,
     href: "/messenger/issues",
   };
 }
@@ -463,6 +465,7 @@ function approvalSummary(
     lastReadAt,
     unreadCount,
     needsAttention: unreadCount > 0,
+    isPinned: false,
     href: "/messenger/approvals",
   };
 }
@@ -487,6 +490,7 @@ function systemSummary(
     lastReadAt,
     unreadCount,
     needsAttention: unreadCount > 0,
+    isPinned: false,
     href: `/messenger/system/${kind}`,
   };
 }
@@ -889,6 +893,7 @@ export function messengerService(db: Db) {
         lastReadAt,
         unreadCount,
         needsAttention: unreadCount > 0,
+        isPinned: false,
         href: "/messenger/issues",
         description: "Followed issues, issues I created, issues assigned to me, and issues ready for my review",
         items: chronologicalItems,
@@ -955,6 +960,7 @@ export function messengerService(db: Db) {
         lastReadAt,
         unreadCount,
         needsAttention: unreadCount > 0,
+        isPinned: false,
         href: "/messenger/approvals",
         description: "Approvals needing attention",
         items: chronologicalItems,
@@ -1018,6 +1024,7 @@ export function messengerService(db: Db) {
         lastReadAt,
         unreadCount,
         needsAttention: unreadCount > 0,
+        isPinned: false,
         href: "/messenger/system/failed-runs",
         description: "Recent failed heartbeat runs",
         items: chronologicalItems,
@@ -1054,6 +1061,7 @@ export function messengerService(db: Db) {
         lastReadAt,
         unreadCount,
         needsAttention: unreadCount > 0,
+        isPinned: false,
         href: "/messenger/system/budget-alerts",
         description: "Open budget incidents",
         items,
@@ -1093,6 +1101,7 @@ export function messengerService(db: Db) {
         lastReadAt,
         unreadCount,
         needsAttention: unreadCount > 0,
+        isPinned: false,
         href: "/messenger/system/join-requests",
         description: "Pending organization join requests",
         items,

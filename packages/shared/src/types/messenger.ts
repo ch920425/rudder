@@ -52,6 +52,7 @@ export interface MessengerThreadSummary {
   lastReadAt: Date | null;
   unreadCount: number;
   needsAttention: boolean;
+  isPinned: boolean;
   href: string;
 }
 

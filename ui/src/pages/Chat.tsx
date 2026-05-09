@@ -593,6 +593,7 @@ function buildMessengerChatThreadSummary(
     lastReadAt: conversation.lastReadAt,
     unreadCount: conversation.unreadCount,
     needsAttention: conversation.needsAttention,
+    isPinned: conversation.isPinned,
     href: `/messenger/chat/${conversation.id}`,
   };
 }

@@ -165,6 +165,62 @@ test.describe("Messenger unified threads contract", () => {
     ]);
   });
 
+  test("renders pinned Messenger chats from thread summaries before the full chat list responds", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Pin-Cold-${Date.now()}`);
+
+    const olderChatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Pinned summary chat",
+        summary: "Pinned should render from the Messenger thread summary payload.",
+        issueCreationMode: "manual_approval",
+        planMode: false,
+      },
+    });
+    expect(olderChatRes.ok()).toBe(true);
+    const olderChat = await olderChatRes.json();
+    await page.waitForTimeout(25);
+
+    const newerChatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Recent unpinned summary chat",
+        summary: "This chat is newer but should stay in Recent.",
+        issueCreationMode: "manual_approval",
+        planMode: false,
+      },
+    });
+    expect(newerChatRes.ok()).toBe(true);
+    const newerChat = await newerChatRes.json();
+
+    const pinRes = await page.request.post(`/api/chats/${olderChat.id}/user-state`, {
+      data: { pinned: true },
+    });
+    expect(pinRes.ok()).toBe(true);
+
+    let releaseFullChatList!: () => void;
+    const fullChatListBlocked = new Promise<void>((resolve) => {
+      releaseFullChatList = resolve;
+    });
+    await page.route((url) => {
+      return url.pathname === `/api/orgs/${organization.id}/chats` && url.searchParams.get("status") === "all";
+    }, async (route) => {
+      await fullChatListBlocked;
+      await route.continue();
+    });
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${newerChat.id}`, { waitUntil: "commit" });
+
+    await expect(page.getByTestId("messenger-thread-section-pinned")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(threadTestId(`chat:${olderChat.id}`))).toContainText("Pinned summary chat");
+    await expect(page.getByTestId(threadTestId(`chat:${newerChat.id}`))).toContainText("Recent unpinned summary chat");
+
+    releaseFullChatList();
+  });
+
   test("renders the mixed Messenger directory and supports issue + approval actions", async ({ page }, testInfo) => {
     const sessionRes = await page.request.get("/api/auth/get-session");
     expect(sessionRes.ok()).toBe(true);

@@ -189,6 +189,7 @@ function makeThreadSummary(
     lastReadAt: null,
     unreadCount: 0,
     needsAttention: false,
+    isPinned: false,
     href: "/messenger/issues",
     ...overrides,
   };
