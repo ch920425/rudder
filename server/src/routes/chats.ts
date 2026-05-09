@@ -233,6 +233,12 @@ export function chatRoutes(db: Db, storage: StorageService) {
     };
   }
 
+  function modelTurnInputFromInvocationMeta(invocationMeta: AgentRuntimeInvocationMeta) {
+    return typeof invocationMeta.prompt === "string" && invocationMeta.prompt.trim().length > 0
+      ? invocationMeta.prompt
+      : undefined;
+  }
+
   function buildChatTraceInput(
     input: {
       conversationId: string;
@@ -923,6 +929,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
           const assistantInput = await loadAssistantInput(conversation as ChatConversation, actor);
           const transcript: TranscriptEntry[] = [];
           const observedTranscript: TranscriptEntry[] = [];
+          let modelTurnInput: unknown;
           let fallbackOutput: string | null = null;
           let finalChatOutput: string | null = null;
           let finalChatStatus: "completed" | "failed" = "completed";
@@ -930,6 +937,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
             const streamed = await assistantSvc.streamChatAssistantReply({
               ...assistantInput,
               onInvocationMeta: async (meta) => {
+                modelTurnInput = modelTurnInputFromInvocationMeta(meta);
                 currentChatTraceInput = buildChatTraceInput(traceInputBase, meta);
                 mergeChatInvocationTraceMetadata(chatObservation!, meta);
                 updateExecutionObservation(observation, chatObservation!, {
@@ -985,6 +993,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
                 context: chatObservation!,
                 parentObservation: observation,
                 transcript: observedTranscript,
+                initialTurnInput: modelTurnInput,
                 fallbackResult: fallbackOutput
                   ? {
                     output: fallbackOutput,
@@ -1093,6 +1102,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     let chatObservation: ExecutionObservabilityContext | null = null;
     const transcript: TranscriptEntry[] = [];
     const observedTranscript: TranscriptEntry[] = [];
+    let modelTurnInput: unknown;
     let assistantProgressMessage: ChatMessage | null = null;
     let assistantProgressMessageId: string | null = null;
     let assistantDraftBody = "";
@@ -1202,6 +1212,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
               ...assistantInput,
               abortSignal: abortController.signal,
               onInvocationMeta: async (meta) => {
+                modelTurnInput = modelTurnInputFromInvocationMeta(meta);
                 currentChatTraceInput = buildChatTraceInput(traceInputBase, meta);
                 mergeChatInvocationTraceMetadata(chatObservation!, meta);
                 updateExecutionObservation(observation, chatObservation!, {
@@ -1320,6 +1331,14 @@ export function chatRoutes(db: Db, storage: StorageService) {
                 context: chatObservation!,
                 parentObservation: observation,
                 transcript: observedTranscript,
+                initialTurnInput: modelTurnInput,
+                fallbackResult: finalChatOutput
+                  ? {
+                    output: finalChatOutput,
+                    subtype: finalChatStatus,
+                    isError: finalChatStatus === "failed",
+                  }
+                  : null,
               });
               finalChatOutput = finalChatOutput ?? transcriptStats.finalOutput ?? null;
             } catch (error) {

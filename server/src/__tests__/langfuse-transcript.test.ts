@@ -4,10 +4,12 @@ import type { ExecutionObservabilityContext } from "@rudderhq/shared";
 
 const mockStartExecutionChildObservation = vi.hoisted(() => vi.fn());
 const mockUpdateExecutionObservation = vi.hoisted(() => vi.fn());
+const mockUpdateExecutionTraceIO = vi.hoisted(() => vi.fn());
 
 vi.mock("../langfuse.js", () => ({
   startExecutionChildObservation: mockStartExecutionChildObservation,
   updateExecutionObservation: mockUpdateExecutionObservation,
+  updateExecutionTraceIO: mockUpdateExecutionTraceIO,
 }));
 
 const { emitExecutionTranscriptTree } = await import("../langfuse-transcript.js");
@@ -133,6 +135,19 @@ describe("emitExecutionTranscriptTree", () => {
         },
       }),
     );
+    expect(mockUpdateExecutionTraceIO).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "obs-model_turn:1" }),
+      {
+        input: "System prompt sent to the runtime.",
+      },
+    );
+    expect(mockUpdateExecutionTraceIO).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "obs-model_turn:1" }),
+      {
+        input: "System prompt sent to the runtime.",
+        output: "Inspecting the issue.",
+      },
+    );
     expect(mockUpdateExecutionObservation).toHaveBeenCalledWith(
       expect.objectContaining({ id: "obs-root" }),
       expect.any(Object),
@@ -177,6 +192,13 @@ describe("emitExecutionTranscriptTree", () => {
       expect.objectContaining({
         name: "model_turn:1",
         input: "Please inspect the system prompt.",
+      }),
+    );
+    expect(mockUpdateExecutionTraceIO).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "obs-model_turn:1" }),
+      expect.objectContaining({
+        input: "Please inspect the system prompt.",
+        output: "Inspecting.",
       }),
     );
   });

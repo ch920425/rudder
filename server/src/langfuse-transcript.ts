@@ -1,7 +1,7 @@
 import type { LangfuseObservation } from "@langfuse/tracing";
 import type { TranscriptEntry, UsageSummary } from "@rudderhq/agent-runtime-utils";
 import type { ExecutionObservabilityContext } from "@rudderhq/shared";
-import { startExecutionChildObservation, updateExecutionObservation } from "./langfuse.js";
+import { startExecutionChildObservation, updateExecutionObservation, updateExecutionTraceIO } from "./langfuse.js";
 
 interface TranscriptFallbackResult {
   ts?: string | null;
@@ -196,6 +196,7 @@ export function emitExecutionTranscriptTree(
         sessionId: pendingSessionId,
       },
     });
+    updateExecutionTraceIO(turnObservation, { input: pendingTurnInput });
 
     activeTurn = {
       index: turnCount,
@@ -260,6 +261,10 @@ export function emitExecutionTranscriptTree(
         sessionId: turn.sessionId,
         errors,
       },
+    });
+    updateExecutionTraceIO(turn.observation, {
+      input: turn.input,
+      output,
     });
     turn.observation?.end(parseTs(ts));
     finalOutput = output;

@@ -10,6 +10,18 @@ const mockWithExecutionObservation = vi.hoisted(() => vi.fn(async (_context, _in
 const mockObserveExecutionEvent = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const mockUpdateExecutionObservation = vi.hoisted(() => vi.fn());
 const mockUpdateExecutionTraceIO = vi.hoisted(() => vi.fn());
+const mockEmitExecutionTranscriptTree = vi.hoisted(() =>
+  vi.fn(() => ({
+    turnCount: 0,
+    toolCount: 0,
+    eventCount: 0,
+    finalOutput: null,
+    finalModel: null,
+    finalUsage: null,
+    finalSessionId: null,
+    hasError: false,
+  })),
+);
 
 const mockChatService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -89,6 +101,10 @@ vi.mock("../langfuse.js", () => ({
   observeExecutionEvent: mockObserveExecutionEvent,
   updateExecutionObservation: mockUpdateExecutionObservation,
   updateExecutionTraceIO: mockUpdateExecutionTraceIO,
+}));
+
+vi.mock("../langfuse-transcript.js", () => ({
+  emitExecutionTranscriptTree: mockEmitExecutionTranscriptTree,
 }));
 
 function createConversation(overrides: Partial<Record<string, unknown>> = {}) {
@@ -858,6 +874,7 @@ describe("chat routes", () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Need help");
     const assistantMessage = createMessage("message-assistant", "assistant", "message", "Working on it");
+    const runtimePrompt = "You are Chat Specialist, replying inside Rudder's chat scene.\n\nConversation input:\n{}";
 
     mockChatService.getById.mockResolvedValue(conversation);
     mockChatService.listMessages.mockResolvedValue([userMessage]);
@@ -883,7 +900,7 @@ describe("chat routes", () => {
             description: "Verification helpers",
           },
         ],
-        prompt: "You are Chat Specialist, replying inside Rudder's chat scene.\n\nConversation input:\n{}",
+        prompt: runtimePrompt,
         promptMetrics: {
           promptChars: 85,
         },
@@ -935,25 +952,41 @@ describe("chat routes", () => {
       expect.objectContaining({
         input: expect.objectContaining({
           body: "Need help",
-          instruction: "You are Chat Specialist, replying inside Rudder's chat scene.\n\nConversation input:\n{}",
+          instruction: runtimePrompt,
           promptMetrics: {
             promptChars: 85,
           },
         }),
       }),
     );
+    expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      initialTurnInput: runtimePrompt,
+    }));
   });
 
   it("streams ack, transcript entries, deltas, and final persisted messages", async () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Need help");
     const assistantMessage = createMessage("message-assistant", "assistant", "message", "Streaming reply");
+    const runtimePrompt = "You are Chat Specialist in streaming mode.\n\nConversation input:\n{}";
 
     mockChatService.getById.mockResolvedValue(conversation);
     mockChatService.listMessages.mockResolvedValue([userMessage]);
     mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
     mockChatService.addMessage.mockResolvedValueOnce(assistantMessage);
     mockChatAssistantService.streamChatAssistantReply.mockImplementation(async (input) => {
+      await input.onInvocationMeta?.({
+        agentRuntimeType: "codex_local",
+        command: "codex",
+        cwd: "/tmp/chat-runtime",
+        commandNotes: [],
+        loadedSkills: [],
+        prompt: runtimePrompt,
+        promptMetrics: {
+          promptChars: runtimePrompt.length,
+        },
+        context: {},
+      });
       await input.onAssistantState?.("streaming");
       await input.onTranscriptEntry?.({
         kind: "thinking",
@@ -1043,6 +1076,9 @@ describe("chat routes", () => {
         ],
       }),
     );
+    expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      initialTurnInput: runtimePrompt,
+    }));
   });
 
   it("stores streamed chat attachments before invoking the assistant", async () => {
