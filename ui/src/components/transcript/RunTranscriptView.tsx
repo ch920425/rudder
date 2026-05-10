@@ -240,6 +240,8 @@ function filterRoutineStdout(value: string): string {
     .filter((line) => {
       const trimmed = line.trim();
       if (/^\[rudder\] Using Rudder-managed .+ home ".+"(?: \(seeded from ".+"\))?\.$/.test(trimmed)) return false;
+      if (/^\[rudder\] Prepared isolated Git config at .+ with user\.useConfigOnly=true \(.+\)\.$/.test(trimmed)) return false;
+      if (/^\[rudder\] Prepared repository Git config in .+ with user\.useConfigOnly=true \(.+\)\.$/.test(trimmed)) return false;
       if (/^\[rudder\] Realized \d+ Rudder-managed .+ skill entries in .+$/.test(trimmed)) return false;
       if (/^\[rudder\] Loaded agent (?:instructions|soul instructions|tool notes|memory instructions) file: .+$/.test(trimmed)) return false;
       return true;

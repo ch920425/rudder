@@ -588,6 +588,8 @@ describe("RunTranscriptView", () => {
               ts: "2026-03-12T00:00:02.000Z",
               text:
                 "[rudder] Using Rudder-managed Codex home \"/Users/zeeland/.rudder/instances/dev/codex\" (seeded from \"/Users/zeeland/.codex\").\n"
+                + "[rudder] Prepared isolated Git config at /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/.gitconfig with user.useConfigOnly=true (using global Git identity Zeeland <zeeland@example.com>).\n"
+                + "[rudder] Prepared repository Git config in /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system with user.useConfigOnly=true (using global Git identity Zeeland <zeeland@example.com>).\n"
                 + "[rudder] Realized 4 Rudder-managed Codex skill entries in /Users/zeeland/.rudder/instances/dev/codex/skills\n"
                 + "[rudder] Loaded agent instructions file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/AGENTS.md\n"
                 + "[rudder] Loaded agent soul instructions file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/SOUL.md\n"
@@ -601,6 +603,8 @@ describe("RunTranscriptView", () => {
 
     expect(html).toContain("model codex");
     expect(html).not.toContain("Using Rudder-managed Codex home");
+    expect(html).not.toContain("Prepared isolated Git config");
+    expect(html).not.toContain("Prepared repository Git config");
     expect(html).not.toContain("Rudder-managed Codex skill entries");
     expect(html).not.toContain("Loaded agent instructions file");
     expect(html).not.toContain("Loaded agent soul instructions file");
