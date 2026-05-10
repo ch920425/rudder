@@ -107,8 +107,13 @@ test.describe("Agent detail run cost chart", () => {
     const rows = chart.getByTestId("agent-run-cost-row");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText(largerRunId.slice(0, 8));
+    await expect(rows.first()).toContainText("1,000");
+    await expect(rows.first()).toContainText("500");
+    await expect(rows.first()).toContainText("250");
     await expect(rows.first()).toContainText("1.8k tok");
+    await expect(rows.first()).toContainText("1.0k / 500 / 250");
     await expect(rows.first()).toContainText("$0.4321");
+    await expect(chart.getByText("875")).toBeVisible();
 
     await rows.first().focus();
     await expect(page.getByRole("tooltip").getByText(largerRunId)).toBeVisible();

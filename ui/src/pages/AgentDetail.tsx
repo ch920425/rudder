@@ -558,6 +558,10 @@ function formatRunCostUsd(cost: number) {
   return cost > 0 ? `$${cost.toFixed(4)}` : "—";
 }
 
+function shouldShowInlineTokenLabel(value: number, maxTokens: number) {
+  return value > 0 && (value / Math.max(1, maxTokens)) * 100 >= 9;
+}
+
 type RunLogChunk = { ts: string; stream: "stdout" | "stderr" | "system"; chunk: string };
 
 function utf8ByteLength(value: string): number {
@@ -1813,6 +1817,7 @@ function CostsSection({
     .slice(0, 10);
   const maxTokens = Math.max(1, ...visibleRuns.map(({ metrics }) => metrics.totalTokens));
   const [openRunId, setOpenRunId] = useState<string | null>(null);
+  const axisMidpoint = Math.round(maxTokens / 2);
 
   return (
     <div className="space-y-4">
@@ -1839,7 +1844,7 @@ function CostsSection({
         </div>
       )}
       {visibleRuns.length > 0 ? (
-        <div className="rounded-lg border border-border" data-testid="agent-run-cost-chart">
+        <div className="overflow-hidden rounded-lg border border-border" data-testid="agent-run-cost-chart">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent/20 px-3 py-2 text-xs text-muted-foreground">
             <span>Recent run token mix</span>
             <div className="flex items-center gap-3" data-testid="agent-run-cost-legend">
@@ -1851,10 +1856,13 @@ function CostsSection({
           <div className="divide-y divide-border">
             {visibleRuns.map(({ run, metrics }) => {
               const totalTokens = metrics.totalTokens;
-              const barWidth = totalTokens > 0 ? Math.max(5, (totalTokens / maxTokens) * 100) : 0;
+              const barWidth = totalTokens > 0 ? Math.max(7, (totalTokens / maxTokens) * 100) : 0;
               const inputWidth = totalTokens > 0 ? (metrics.input / totalTokens) * 100 : 0;
               const cachedWidth = totalTokens > 0 ? (metrics.cached / totalTokens) * 100 : 0;
               const outputWidth = totalTokens > 0 ? (metrics.output / totalTokens) * 100 : 0;
+              const showInputLabel = shouldShowInlineTokenLabel(metrics.input, maxTokens);
+              const showCachedLabel = shouldShowInlineTokenLabel(metrics.cached, maxTokens);
+              const showOutputLabel = shouldShowInlineTokenLabel(metrics.output, maxTokens);
               const runLabel = run.id.slice(0, 8);
               const costLabel = formatRunCostUsd(metrics.cost);
               const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokens(totalTokens)} total tokens, ${formatExactTokens(metrics.input)} input, ${formatExactTokens(metrics.cached)} cached, ${formatExactTokens(metrics.output)} output, ${costLabel} cost`;
@@ -1875,24 +1883,55 @@ function CostsSection({
                             setOpenRunId((current) => current === run.id ? null : current);
                           }
                         }}
-                        className="group grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-xs no-underline text-inherit outline-none transition-colors hover:bg-accent/25 focus-visible:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="group grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-xs no-underline text-inherit outline-none transition-colors hover:bg-accent/25 focus-visible:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         <span className="min-w-0 space-y-0.5">
                           <span className="block truncate text-muted-foreground">{formatDate(run.createdAt)}</span>
                           <span className="block font-mono tabular-nums text-foreground">{runLabel}</span>
                         </span>
-                        <span className="h-3 rounded-sm bg-muted/60">
+                        <span
+                          className="relative h-9 rounded-sm bg-muted/45"
+                          style={{
+                            backgroundImage:
+                              "linear-gradient(to right, hsl(var(--border) / 0.75) 1px, transparent 1px)",
+                            backgroundSize: "25% 100%",
+                          }}
+                        >
                           <span
-                            className="flex h-full overflow-hidden rounded-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
+                            className="relative z-10 flex h-full overflow-hidden rounded-sm border border-background/50 shadow-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
                             style={{ width: `${barWidth}%` }}
                           >
-                            {metrics.input > 0 ? <span className="h-full bg-sky-500/75" style={{ width: `${inputWidth}%` }} /> : null}
-                            {metrics.cached > 0 ? <span className="h-full bg-violet-500/75" style={{ width: `${cachedWidth}%` }} /> : null}
-                            {metrics.output > 0 ? <span className="h-full bg-emerald-500/75" style={{ width: `${outputWidth}%` }} /> : null}
+                            {metrics.input > 0 ? (
+                              <span
+                                className="flex h-full min-w-0 items-center justify-center bg-sky-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
+                                style={{ width: `${inputWidth}%` }}
+                              >
+                                {showInputLabel ? formatExactTokens(metrics.input) : null}
+                              </span>
+                            ) : null}
+                            {metrics.cached > 0 ? (
+                              <span
+                                className="flex h-full min-w-0 items-center justify-center bg-violet-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
+                                style={{ width: `${cachedWidth}%` }}
+                              >
+                                {showCachedLabel ? formatExactTokens(metrics.cached) : null}
+                              </span>
+                            ) : null}
+                            {metrics.output > 0 ? (
+                              <span
+                                className="flex h-full min-w-0 items-center justify-center bg-emerald-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
+                                style={{ width: `${outputWidth}%` }}
+                              >
+                                {showOutputLabel ? formatExactTokens(metrics.output) : null}
+                              </span>
+                            ) : null}
                           </span>
                         </span>
-                        <span className="min-w-[5.5rem] text-right tabular-nums">
+                        <span className="min-w-[7rem] text-right tabular-nums">
                           <span className="block font-medium text-foreground">{formatTokens(totalTokens)} tok</span>
+                          <span className="block font-mono text-[10px] text-muted-foreground">
+                            {formatTokens(metrics.input)} / {formatTokens(metrics.cached)} / {formatTokens(metrics.output)}
+                          </span>
                           {metrics.cost > 0 ? (
                             <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
                           ) : null}
@@ -1924,6 +1963,15 @@ function CostsSection({
                 </TooltipProvider>
               );
             })}
+          </div>
+          <div className="grid grid-cols-[minmax(5.5rem,7rem)_minmax(0,1fr)_minmax(7rem,auto)] gap-3 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
+            <span />
+            <div className="flex justify-between tabular-nums">
+              <span>0</span>
+              <span>{formatTokens(axisMidpoint)}</span>
+              <span>{formatTokens(maxTokens)}</span>
+            </div>
+            <span className="text-right">tokens</span>
           </div>
         </div>
       ) : (
