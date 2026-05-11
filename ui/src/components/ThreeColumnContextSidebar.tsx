@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, type RefCallback, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -447,20 +447,26 @@ function SlidingContextNav({
   activeIndex,
   ariaLabel,
   className,
+  scrollRef,
   indicatorTestId,
+  testId,
   children,
 }: {
   activeIndex: number;
   ariaLabel: string;
   className?: string;
+  scrollRef?: RefCallback<HTMLElement>;
   indicatorTestId?: string;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
     <nav
+      ref={scrollRef}
       className={cn("motion-context-nav", className)}
       style={activeContextStyle(activeIndex)}
       data-active-index={activeIndex >= 0 ? activeIndex : undefined}
+      data-testid={testId}
       aria-label={ariaLabel}
     >
       {activeIndex >= 0 ? (
@@ -492,11 +498,13 @@ function ProjectListSection({
   activeProjectRef,
   closeMobileSidebar,
   onNewProject,
+  scrollRef,
 }: {
   visibleProjects: Array<{ id: string; name: string; description: string | null; color?: string | null; urlKey?: string | null }>;
   activeProjectRef: string | null;
   closeMobileSidebar: () => void;
   onNewProject: () => void;
+  scrollRef?: RefCallback<HTMLElement>;
 }) {
   const activeProjectIndex = visibleProjects.findIndex((project) => activeProjectRef === projectRouteRef(project));
 
@@ -525,8 +533,10 @@ function ProjectListSection({
       <SlidingContextNav
         activeIndex={activeProjectIndex}
         ariaLabel="Project workspaces"
-        className="motion-context-nav--project-card-list mt-2 min-h-0 flex-1 overflow-y-auto pb-3.5"
+        className="motion-context-nav--project-card-list scrollbar-auto-hide mt-2 min-h-0 flex-1 overflow-y-auto pb-3.5"
+        scrollRef={scrollRef}
         indicatorTestId="project-sidebar-active-indicator"
+        testId="workspace-projects-scroll"
       >
         {visibleProjects.map((project) => {
           const routeRef = projectRouteRef(project);
@@ -578,6 +588,7 @@ function RecentIssueListSection({
   onToggleCollapsed: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const recentIssueScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:recent-issues");
 
   if (issues.length === 0) return null;
 
@@ -598,10 +609,11 @@ function RecentIssueListSection({
       {collapsed ? null : (
         <>
       <div
+        ref={expanded ? recentIssueScrollRef : undefined}
         data-testid="issue-recent-list"
         className={cn(
           "mt-2 space-y-0.5",
-          expanded && "max-h-72 overflow-y-auto pr-1",
+          expanded && "scrollbar-auto-hide max-h-72 overflow-y-auto pr-1",
         )}
       >
         {visibleIssues.map((issue) => {
@@ -687,6 +699,10 @@ export function ThreeColumnContextSidebar() {
     }));
   }, []);
   const calendarSidebarScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:calendar");
+  const issueSidebarScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:issues");
+  const workspaceProjectsScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:workspace-projects");
+  const chatSidebarScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:chat");
+  const agentSidebarScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:agents");
   const {
     cursor,
     setCursor,
@@ -1251,7 +1267,11 @@ export function ThreeColumnContextSidebar() {
           </SlidingContextNav>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-3.5">
+        <div
+          ref={issueSidebarScrollRef}
+          data-testid="issue-sidebar-scroll"
+          className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto pb-3.5"
+        >
           <RecentIssueListSection
             issues={recentIssueRefs}
             activeIssueRef={activeIssueRef}
@@ -1382,6 +1402,7 @@ export function ThreeColumnContextSidebar() {
             activeProjectRef={activeProjectRef}
             closeMobileSidebar={closeMobileSidebar}
             onNewProject={openNewProject}
+            scrollRef={workspaceProjectsScrollRef}
           />
         </div>
       </aside>
@@ -1402,7 +1423,11 @@ export function ThreeColumnContextSidebar() {
         className="workspace-context-sidebar chat-sidebar flex min-h-0 w-full min-w-0 shrink-0 flex-col"
       >
         <ContextColumnHeader title={contextHeader.title} description={contextHeader.description} />
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1.5 py-2.5">
+        <nav
+          ref={chatSidebarScrollRef}
+          data-testid="chat-sidebar-scroll"
+          className="scrollbar-auto-hide flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1.5 py-2.5"
+        >
           <Link
             to="/messenger/chat"
             onClick={closeMobileSidebar}
@@ -1670,8 +1695,10 @@ export function ThreeColumnContextSidebar() {
       <SlidingContextNav
         activeIndex={activeAgentIndex}
         ariaLabel="Agent team"
-        className="motion-context-nav--agent-list mt-2 min-h-0 flex-1 overflow-y-auto pb-3.5"
+        className="motion-context-nav--agent-list scrollbar-auto-hide mt-2 min-h-0 flex-1 overflow-y-auto pb-3.5"
+        scrollRef={agentSidebarScrollRef}
         indicatorTestId="agent-sidebar-active-indicator"
+        testId="agent-sidebar-scroll"
       >
         {visibleAgents.map((agent) => {
           const liveCount = liveCountByAgent.get(agent.id) ?? 0;
