@@ -34,6 +34,15 @@ test.describe("Issue detail breadcrumb", () => {
 
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/\/issues$/);
+
+    await page.goto(`/${organization.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await expect(page.getByRole("heading", { name: issue.title })).toBeVisible({ timeout: 15_000 });
+    const emptyCommentEditor = page.locator(".chat-composer [contenteditable='true']").first();
+    await expect(emptyCommentEditor).toBeVisible({ timeout: 15_000 });
+    await emptyCommentEditor.click();
+
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(new RegExp(`/${organization.issuePrefix}/issues$`));
   });
 
   test("keeps the source list in the header breadcrumb and returns there on Escape", async ({ page }) => {
