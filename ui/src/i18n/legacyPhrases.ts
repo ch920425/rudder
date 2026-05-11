@@ -372,6 +372,7 @@ const zhExactPhrases: Record<string, string> = {
   "Figure out what 'make Messenger less noisy' should mean": "明确“让 Messenger 更不吵”到底意味着什么",
   "Translate a founder ask into acceptance criteria": "把创始人的需求翻译成验收标准",
   "Extract the next shippable task from this discussion": "从这段讨论中提炼下一个可交付任务",
+  "List my open tasks by priority": "按优先级列出我的未完成任务",
   "Split this conversation into scope, owner, and done criteria": "把这段对话拆成范围、负责人和完成标准",
   "Draft an issue from a decision we already made": "把已经做出的决定整理成 issue 草案",
   "Diagnose why a packaged desktop build is failing": "诊断为什么打包后的桌面构建失败",

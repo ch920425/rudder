@@ -117,7 +117,9 @@ type AttachmentPreviewState = {
   name: string;
 };
 
-const EMPTY_STATE_PROMPT_GROUPS = [
+export const OPEN_TASK_PRIORITY_PROMPT = "List my open tasks by priority";
+
+export const EMPTY_STATE_PROMPT_GROUPS = [
   {
     label: "Scope a new feature",
     examples: [
@@ -137,6 +139,7 @@ const EMPTY_STATE_PROMPT_GROUPS = [
   {
     label: "Turn a chat into an issue",
     examples: [
+      OPEN_TASK_PRIORITY_PROMPT,
       "Extract the next shippable task from this discussion",
       "Split this conversation into scope, owner, and done criteria",
       "Draft an issue from a decision we already made",
@@ -156,6 +159,54 @@ const NO_PROJECT_ID = "__none__";
 const CHAT_LAST_PROJECT_STORAGE_KEY = "rudder.chatLastProjectByOrg";
 
 type EmptyStatePromptLabel = (typeof EMPTY_STATE_PROMPT_GROUPS)[number]["label"];
+type EmptyStatePromptGroup = (typeof EMPTY_STATE_PROMPT_GROUPS)[number];
+
+export function ChatEmptyStatePromptOptions({
+  group,
+  optionsId,
+  entered,
+  originX,
+  onExampleSelect,
+}: {
+  group: EmptyStatePromptGroup;
+  optionsId: string;
+  entered: boolean;
+  originX: string;
+  onExampleSelect: (example: string) => void;
+}) {
+  return (
+    <div
+      key={group.label}
+      id={optionsId}
+      data-testid="chat-empty-state-prompt-options"
+      data-entered={entered ? "true" : "false"}
+      role="region"
+      aria-label={`${group.label} examples`}
+      style={{ "--chat-options-origin-x": originX } as CSSProperties}
+      className="motion-chat-options-pop mt-3 w-full max-w-3xl rounded-[var(--radius-lg)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-panel)_86%,transparent)] px-3 py-3 shadow-[var(--shadow-sm)]"
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Example use cases
+        </p>
+        <p className="text-sm text-foreground">{group.label}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {group.examples.map((example) => (
+          <button
+            key={example}
+            type="button"
+            data-chat-option
+            onClick={() => onExampleSelect(example)}
+            className="rounded-[calc(var(--radius-sm)+2px)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_72%,transparent)] px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-active)] hover:text-foreground"
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function readRememberedChatProjectId(orgId: string): string | null | undefined {
   if (typeof window === "undefined") return undefined;
@@ -3752,36 +3803,13 @@ function ChatWorkspace() {
                 </div>
 
                 {expandedPromptGroup ? (
-                  <div
-                    key={expandedPromptGroup.label}
-                    id={emptyStatePromptOptionsId}
-                    data-testid="chat-empty-state-prompt-options"
-                    data-entered={emptyStatePromptPanelEntered ? "true" : "false"}
-                    role="region"
-                    aria-label={`${expandedPromptGroup.label} examples`}
-                    style={{ "--chat-options-origin-x": emptyStatePromptOriginX } as React.CSSProperties}
-                    className="motion-chat-options-pop mt-3 w-full max-w-3xl rounded-[var(--radius-lg)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-panel)_86%,transparent)] px-3 py-3 shadow-[var(--shadow-sm)]"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Example use cases
-                      </p>
-                      <p className="text-sm text-foreground">{expandedPromptGroup.label}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {expandedPromptGroup.examples.map((example) => (
-                        <button
-                          key={example}
-                          type="button"
-                          data-chat-option
-                          onClick={() => applyEmptyStateExample(example)}
-                          className="rounded-[calc(var(--radius-sm)+2px)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_72%,transparent)] px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-active)] hover:text-foreground"
-                        >
-                          {example}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <ChatEmptyStatePromptOptions
+                    group={expandedPromptGroup}
+                    optionsId={emptyStatePromptOptionsId}
+                    entered={emptyStatePromptPanelEntered}
+                    originX={emptyStatePromptOriginX}
+                    onExampleSelect={applyEmptyStateExample}
+                  />
                 ) : null}
               </div>
             </div>
