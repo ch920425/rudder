@@ -326,8 +326,11 @@ export function Automations() {
 
           <div className="flex flex-col gap-3 border-t border-border/60 px-6 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-              <div className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/80 px-2.5 py-1.5">
-                <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <div
+                data-testid="automation-composer-assignee-pill"
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/80 px-2.5 py-1.5 transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-accent/50 hover:shadow-[0_8px_22px_-18px_color-mix(in_oklab,var(--accent-base)_56%,transparent)] focus-within:border-border focus-within:bg-accent/50"
+              >
+                {currentAssignee ? null : <User className="h-3.5 w-3.5 text-muted-foreground" />}
                 <InlineEntitySelector
                   ref={assigneeSelectorRef}
                   value={draft.assigneeAgentId}
@@ -337,6 +340,9 @@ export function Automations() {
                   searchPlaceholder="Search assignees..."
                   emptyMessage="No assignees found."
                   className="border-0 bg-transparent p-0 text-xs font-normal shadow-none hover:bg-transparent"
+                  disablePortal
+                  side="top"
+                  sideOffset={12}
                   onChange={(assigneeAgentId) => {
                     if (assigneeAgentId) trackRecentAssignee(assigneeAgentId);
                     setDraft((current) => ({ ...current, assigneeAgentId }));
@@ -369,8 +375,11 @@ export function Automations() {
                 />
               </div>
 
-              <div className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/80 px-2.5 py-1.5">
-                <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+              <div
+                data-testid="automation-composer-project-pill"
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/80 px-2.5 py-1.5 transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-accent/50 hover:shadow-[0_8px_22px_-18px_color-mix(in_oklab,var(--accent-base)_56%,transparent)] focus-within:border-border focus-within:bg-accent/50"
+              >
+                {currentProject ? null : <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />}
                 <InlineEntitySelector
                   ref={projectSelectorRef}
                   value={draft.projectId}
@@ -380,6 +389,9 @@ export function Automations() {
                   searchPlaceholder="Search projects..."
                   emptyMessage="No projects found."
                   className="border-0 bg-transparent p-0 text-xs font-normal shadow-none hover:bg-transparent"
+                  disablePortal
+                  side="top"
+                  sideOffset={12}
                   onChange={(projectId) => setDraft((current) => ({ ...current, projectId }))}
                   onConfirm={() => descriptionEditorRef.current?.focus()}
                   renderTriggerValue={(option) =>
