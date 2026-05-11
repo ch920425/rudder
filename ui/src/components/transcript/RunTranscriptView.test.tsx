@@ -772,6 +772,111 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Executed 4 commands");
   });
 
+  it("keeps mixed-success chat tool groups neutral and collapsed", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "Checking a few commands.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-ok-1",
+              input: { command: "pwd" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "cmd-ok-1",
+              content: "command: pwd\nstatus: completed\nexit_code: 0\n\n/workspace/rudder",
+              isError: false,
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:03.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-fail-1",
+              input: { command: "pnpm missing-script" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:04.000Z",
+              toolUseId: "cmd-fail-1",
+              content: "command: pnpm missing-script\nstatus: failed\nexit_code: 1\n\nCommand failed",
+              isError: true,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Expand tool activity");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).not.toContain("hover:bg-red-500/[0.05]");
+    expect(html).not.toContain("bg-red-500/[0.08]");
+    expect(html).not.toContain("Command failed");
+  });
+
+  it("highlights chat tool groups only when every tool call fails", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "Trying two commands.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-fail-1",
+              input: { command: "pnpm missing-script" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "cmd-fail-1",
+              content: "command: pnpm missing-script\nstatus: failed\nexit_code: 1\n\nFirst command failed",
+              isError: true,
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:03.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-fail-2",
+              input: { command: "pnpm another-missing-script" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:04.000Z",
+              toolUseId: "cmd-fail-2",
+              content: "command: pnpm another-missing-script\nstatus: failed\nexit_code: 1\n\nSecond command failed",
+              isError: true,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Collapse tool activity");
+    expect(html).toContain("aria-expanded=\"true\"");
+    expect(html).toContain("hover:bg-red-500/[0.05]");
+    expect(html).toContain("bg-red-500/[0.08]");
+    expect(html).toContain("First command failed");
+    expect(html).toContain("Second command failed");
+  });
+
   it("keeps errored tool details collapsed by default in detail presentation", () => {
     const hiddenHeaderTime = new Date("2026-03-12T00:00:00.000Z").toLocaleTimeString("en-US", {
       hour: "2-digit",

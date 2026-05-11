@@ -2426,6 +2426,10 @@ function DisclosureChevron({ open, className }: { open: boolean; className?: str
   );
 }
 
+function areAllToolEntriesErrored(entries: TranscriptToolCardEntry[]) {
+  return entries.length > 0 && entries.every((entry) => entry.status === "error");
+}
+
 function formatTranscriptLabel(label: string) {
   return label
     .split(/[_\s-]+/)
@@ -2441,12 +2445,12 @@ function TranscriptCommandGroup({
   block: Extract<TranscriptBlock, { type: "command_group" }>;
   density: TranscriptDensity;
 }) {
-  const [open, setOpen] = useState(block.items.some((item) => item.status === "error"));
   const compact = density === "compact";
   const runningItem = [...block.items].reverse().find((item) => item.status === "running");
-  const hasError = block.items.some((item) => item.status === "error");
+  const allToolsErrored = areAllToolEntriesErrored(block.items);
+  const [open, setOpen] = useState(allToolsErrored);
   const isRunning = Boolean(runningItem);
-  const showExpandedErrorState = open && hasError;
+  const showExpandedErrorState = open && allToolsErrored;
   const semanticItems = block.items.map((item) => describeToolSemanticInfo(item.name, item.input));
   const summary = formatSemanticDigest(semanticItems, 0, { preferDirectSummary: true });
 
@@ -2505,7 +2509,7 @@ function TranscriptCommandGroup({
         </button>
       </div>
       {open && (
-        <div className={cn("motion-disclosure-enter mt-3 space-y-3", hasError && "rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3")}>
+        <div className={cn("motion-disclosure-enter mt-3 space-y-3", allToolsErrored && "rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3")}>
           {block.items.map((item, index) => (
             <TranscriptToolCard
               key={`${item.ts}-${index}`}
@@ -3102,19 +3106,22 @@ function TranscriptChatActionGroup({
   const compact = density === "compact";
   const singleAction = actions[0];
   const hasSingleAction = actions.length === 1;
-  const hasError = actions.some((action) => action.type === "tool" && action.entry.status === "error");
+  const toolEntries = actions
+    .filter((action): action is Extract<ChatTranscriptAction, { type: "tool" }> => action.type === "tool")
+    .map((action) => action.entry);
+  const allToolsErrored = areAllToolEntriesErrored(toolEntries);
   const hasRunning = actions.some((action) => action.type === "tool" && action.entry.status === "running");
   const shouldInlineSingleStdoutAction = hasSingleAction && singleAction?.type === "stdout";
   const shouldRenderSingleToolAction = hasSingleAction && singleAction?.type === "tool";
   const summary = formatChatActionSummary(actions);
-  const highlightGroupError = hasError && !detailVariant;
-  const [detailsOpen, setDetailsOpen] = useState(() => (detailVariant ? false : hasError));
+  const highlightGroupError = allToolsErrored && !detailVariant;
+  const [detailsOpen, setDetailsOpen] = useState(() => (detailVariant ? false : allToolsErrored));
 
   useEffect(() => {
-    if (!detailVariant && hasError) {
+    if (!detailVariant && allToolsErrored) {
       setDetailsOpen(true);
     }
-  }, [detailVariant, hasError]);
+  }, [detailVariant, allToolsErrored]);
 
   if (shouldInlineSingleStdoutAction) {
     return (
