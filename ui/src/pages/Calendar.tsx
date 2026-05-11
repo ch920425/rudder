@@ -328,10 +328,9 @@ function CalendarDetailLink({
     <Link
       to={to}
       aria-label={ariaLabel}
-      className="inline-flex max-w-full items-center gap-1 rounded-[calc(var(--radius-sm)-2px)] font-medium leading-5 text-primary underline-offset-2 hover:text-primary/80 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex max-w-full items-center rounded-[calc(var(--radius-sm)-2px)] font-medium leading-5 text-blue-700 underline-offset-2 hover:text-blue-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-blue-300 dark:hover:text-blue-200"
     >
       <span className="min-w-0 truncate">{children}</span>
-      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
     </Link>
   );
 }
