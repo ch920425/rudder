@@ -108,6 +108,28 @@ afterEach(() => {
 });
 
 describe("CommandPalette", () => {
+  it("opens from the primary rail search event", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    cleanupFn = () => {
+      act(() => root.unmount());
+      container.remove();
+    };
+
+    act(() => {
+      root.render(<CommandPalette />);
+    });
+    act(() => {
+      document.dispatchEvent(new CustomEvent("rudder:open-command-palette", {
+        detail: { source: "primary-rail" },
+      }));
+    });
+
+    const input = container.querySelector("input");
+    expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects...");
+  });
+
   it("shows chat search results and navigates to the selected conversation", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

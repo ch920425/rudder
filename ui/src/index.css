@@ -611,6 +611,96 @@
     background: transparent;
   }
 
+  .command-palette-content {
+    transform-origin: center 42%;
+  }
+
+  .command-palette-content--from-rail {
+    transform-origin: 6% 18%;
+  }
+
+  .command-palette-content[data-state="open"] {
+    animation: command-palette-pop 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .command-palette-content[data-state="closed"] {
+    animation: command-palette-close 110ms ease-in;
+  }
+
+  @keyframes command-palette-pop {
+    0% {
+      opacity: 0;
+      filter: blur(6px);
+      transform: translate(-50%, calc(-50% - 10px)) scale(0.94);
+    }
+    65% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate(-50%, calc(-50% + 1px)) scale(1.01);
+    }
+    100% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+
+  @keyframes command-palette-close {
+    from {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      opacity: 0;
+      filter: blur(4px);
+      transform: translate(-50%, calc(-50% - 6px)) scale(0.97);
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .command-palette-content[data-state="open"] {
+      animation-name: command-palette-pop-mobile;
+    }
+
+    .command-palette-content[data-state="closed"] {
+      animation-name: command-palette-close-mobile;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .command-palette-content[data-state="open"],
+    .command-palette-content[data-state="closed"] {
+      animation: none;
+    }
+  }
+
+  @keyframes command-palette-pop-mobile {
+    0% {
+      opacity: 0;
+      filter: blur(5px);
+      transform: translate(-50%, -0.75rem) scale(0.97);
+    }
+    100% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate(-50%, 0) scale(1);
+    }
+  }
+
+  @keyframes command-palette-close-mobile {
+    from {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate(-50%, 0) scale(1);
+    }
+    to {
+      opacity: 0;
+      filter: blur(4px);
+      transform: translate(-50%, -0.5rem) scale(0.98);
+    }
+  }
+
   .settings-entry-button {
     transition:
       transform 120ms ease,
