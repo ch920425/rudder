@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MarkdownBody } from "@/components/MarkdownBody";
+import { TextDots } from "@/components/TextDots";
 import { formatPriorityLabel } from "@/lib/priorities";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 import type { MarkdownSkillReferencePreview } from "@/components/SkillReferenceToken";
@@ -1534,7 +1535,11 @@ function AssistantDraftItem({
           </div>
         ) : null}
         <div className="max-w-[72ch] text-[15px] leading-7 text-foreground">
-          {body.trim() ? <MarkdownBody skillReferences={skillReferences}>{body}</MarkdownBody> : <span className="text-muted-foreground">Thinking...</span>}
+          {body.trim() ? (
+            <MarkdownBody skillReferences={skillReferences}>{body}</MarkdownBody>
+          ) : (
+            <TextDots text="Thinking" className="text-muted-foreground" />
+          )}
         </div>
         {body.trim() ? (
           <div

@@ -333,6 +333,36 @@
   transform: rotate(90deg);
 }
 
+.rudder-text-dots {
+  --rudder-text-dots-duration: 1.2s;
+  --rudder-text-dots-step: 160ms;
+}
+
+.rudder-text-dots__dots {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 0.34em);
+  width: 1.02em;
+  color: currentColor;
+}
+
+.rudder-text-dots__dot {
+  opacity: 0.28;
+  animation: rudder-text-dots-pulse var(--rudder-text-dots-duration) ease-in-out infinite;
+  animation-delay: calc(var(--rudder-text-dot-index) * var(--rudder-text-dots-step));
+  will-change: opacity;
+}
+
+@keyframes rudder-text-dots-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
 @keyframes rudder-new-issue-created-banner {
   0% {
     opacity: 0;
@@ -566,8 +596,13 @@
   .motion-chat-composer-menu-pop [data-chat-composer-menu-item],
   .motion-organization-menu-pop,
   .motion-organization-menu-pop [data-org-menu-item],
-  .motion-disclosure-enter {
+  .motion-disclosure-enter,
+  .rudder-text-dots__dot {
     animation: none !important;
+  }
+
+  .rudder-text-dots__dot {
+    opacity: 1;
   }
 
   .motion-focus-ring,
