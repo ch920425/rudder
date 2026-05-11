@@ -29,10 +29,11 @@ describe("issue detail find helpers", () => {
     expect(root.textContent).toBe("Fix issue detail searchSearch should find issue text.");
   });
 
-  it("skips form controls, active editable regions, and find UI chrome", () => {
+  it("skips form controls, active editable regions, and find UI chrome while allowing button text", () => {
     const root = document.createElement("div");
     root.innerHTML = `
       <p>issue visible</p>
+      <button type="button">issue property trigger</button>
       <input value="issue input" />
       <div contenteditable="true">issue editable</div>
       <div data-issue-find-ui>issue overlay</div>
@@ -41,8 +42,9 @@ describe("issue detail find helpers", () => {
 
     const matches = highlightIssueFindMatches(root, "issue", { skipElement: editable });
 
-    expect(matches).toHaveLength(1);
+    expect(matches).toHaveLength(2);
     expect(matches[0]?.textContent).toBe("issue");
+    expect(matches[1]?.closest("button")?.textContent).toBe("issue property trigger");
   });
 
   it("can search inactive contenteditable text used by rendered markdown", () => {

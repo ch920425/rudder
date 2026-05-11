@@ -5,7 +5,6 @@ const ISSUE_FIND_SKIP_SELECTOR = [
   "input",
   "textarea",
   "select",
-  "button",
   "script",
   "style",
   "noscript",
