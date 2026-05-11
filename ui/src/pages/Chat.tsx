@@ -47,7 +47,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MarkdownBody } from "@/components/MarkdownBody";
+import { MarkdownBody, type MarkdownLinkClickHandler } from "@/components/MarkdownBody";
 import { TextDots } from "@/components/TextDots";
 import { formatPriorityLabel } from "@/lib/priorities";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
@@ -107,6 +107,8 @@ import {
   appendSkillReferencesToDraft,
 } from "@/lib/organization-skill-picker";
 import { formatAssigneeUserLabel } from "@/lib/assignees";
+import { readDesktopShell } from "@/lib/desktop-shell";
+import { resolveLocalFileTarget } from "@/lib/local-file-targets";
 import { cn, relativeTime } from "@/lib/utils";
 import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
 import { useI18n } from "@/context/I18nContext";
@@ -347,6 +349,10 @@ function attachmentDisplayName(input: { originalFilename?: string | null; assetI
   return input.originalFilename ?? input.name ?? input.assetId ?? "attachment";
 }
 
+function shouldHandlePlainChatLinkClick(event: Parameters<MarkdownLinkClickHandler>[0]["event"]) {
+  return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+
 function ChatImageAttachmentTile({
   src,
   name,
@@ -395,10 +401,12 @@ function ChatFileAttachmentChip({
   name,
   href,
   onRemove,
+  onOpenFile,
 }: {
   name: string;
   href?: string;
   onRemove?: () => void;
+  onOpenFile?: (targetPath: string) => void;
 }) {
   const content = (
     <>
@@ -408,6 +416,19 @@ function ChatFileAttachmentChip({
   );
 
   if (href) {
+    const localTargetPath = resolveLocalFileTarget(href);
+    if (localTargetPath && onOpenFile) {
+      return (
+        <button
+          type="button"
+          className="chat-chip inline-flex max-w-full items-center gap-2 rounded-[calc(var(--radius-sm)+2px)] px-3 py-1.5 text-xs transition-colors hover:bg-[color:var(--surface-active)] hover:text-foreground"
+          onClick={() => onOpenFile(localTargetPath)}
+        >
+          {content}
+        </button>
+      );
+    }
+
     return (
       <a
         href={href}
@@ -478,9 +499,11 @@ function PendingAttachmentPreview({
 function ChatAttachmentList({
   attachments,
   onOpenImage,
+  onOpenFile,
 }: {
   attachments: ChatMessage["attachments"];
   onOpenImage: (preview: AttachmentPreviewState) => void;
+  onOpenFile: (targetPath: string) => void;
 }) {
   if (attachments.length === 0) return null;
 
@@ -499,7 +522,14 @@ function ChatAttachmentList({
             />
           );
         }
-        return <ChatFileAttachmentChip key={attachment.id} name={name} href={attachment.contentPath} />;
+        return (
+          <ChatFileAttachmentChip
+            key={attachment.id}
+            name={name}
+            href={attachment.contentPath}
+            onOpenFile={onOpenFile}
+          />
+        );
       })}
     </div>
   );
@@ -897,6 +927,7 @@ export function ProposalCard({
   onConvertToIssue,
   actionPending,
   skillReferences,
+  onMarkdownLinkClick,
 }: {
   conversation: ChatConversation;
   message: ChatMessage;
@@ -908,6 +939,7 @@ export function ProposalCard({
   onConvertToIssue: (message: ChatMessage) => void;
   actionPending: boolean;
   skillReferences: MarkdownSkillReferencePreview[];
+  onMarkdownLinkClick?: MarkdownLinkClickHandler;
 }) {
   const issueProposal = message.kind === "issue_proposal" ? issueProposalFromMessage(message) : null;
   const planDocument = message.kind === "issue_proposal" ? planDocumentFromMessage(message) : null;
@@ -938,7 +970,9 @@ export function ProposalCard({
 
       {message.body.trim().length > 0 ? (
         <div className="mt-4 max-w-[72ch] text-[15px] leading-7 text-foreground">
-          <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
+          <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+            {message.body}
+          </MarkdownBody>
         </div>
       ) : null}
 
@@ -987,7 +1021,9 @@ export function ProposalCard({
 
         {issueProposal ? (
           <div className="mt-4 border-t border-[color:var(--border-soft)] pt-4 text-sm leading-6 text-muted-foreground">
-            <MarkdownBody skillReferences={skillReferences}>{String(issueProposal.description)}</MarkdownBody>
+            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+              {String(issueProposal.description)}
+            </MarkdownBody>
           </div>
         ) : null}
 
@@ -997,7 +1033,9 @@ export function ProposalCard({
               <div className="text-[11px] font-medium text-muted-foreground">{planDocument.title}</div>
             ) : null}
             <div className="mt-3 text-sm leading-6 text-foreground">
-              <MarkdownBody skillReferences={skillReferences}>{planDocument.body}</MarkdownBody>
+              <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+                {planDocument.body}
+              </MarkdownBody>
             </div>
           </div>
         ) : null}
@@ -1147,9 +1185,11 @@ function issueCreatedSystemMessageParts(message: ChatMessage) {
 export function ChatSystemMessageBody({
   message,
   skillReferences,
+  onMarkdownLinkClick,
 }: {
   message: ChatMessage;
   skillReferences: MarkdownSkillReferencePreview[];
+  onMarkdownLinkClick?: MarkdownLinkClickHandler;
 }) {
   const issueCreatedParts = issueCreatedSystemMessageParts(message);
 
@@ -1169,7 +1209,11 @@ export function ChatSystemMessageBody({
     );
   }
 
-  return <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>;
+  return (
+    <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+      {message.body}
+    </MarkdownBody>
+  );
 }
 
 function ChatMessageItem({
@@ -1186,6 +1230,8 @@ function ChatMessageItem({
   onEditUserMessage,
   onContinueInterruptedMessage,
   onOpenImage,
+  onOpenFile,
+  onMarkdownLinkClick,
   turnBranchControls,
   skillReferences,
 }: {
@@ -1202,6 +1248,8 @@ function ChatMessageItem({
   onEditUserMessage: (message: ChatMessage) => void;
   onContinueInterruptedMessage: (message: ChatMessage) => void;
   onOpenImage: (preview: AttachmentPreviewState) => void;
+  onOpenFile: (targetPath: string) => void;
+  onMarkdownLinkClick?: MarkdownLinkClickHandler;
   skillReferences: MarkdownSkillReferencePreview[];
   turnBranchControls?: {
     current: number;
@@ -1225,6 +1273,7 @@ function ChatMessageItem({
         onConvertToIssue={onConvertToIssue}
         actionPending={actionPending}
         skillReferences={skillReferences}
+        onMarkdownLinkClick={onMarkdownLinkClick}
       />
     );
   }
@@ -1234,7 +1283,11 @@ function ChatMessageItem({
       <div className="chat-system-pill rounded-[calc(var(--radius-sm)+2px)] px-4 py-2 text-sm transition-all duration-200">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-[color:var(--accent-strong)]" />
-          <ChatSystemMessageBody message={message} skillReferences={skillReferences} />
+          <ChatSystemMessageBody
+            message={message}
+            skillReferences={skillReferences}
+            onMarkdownLinkClick={onMarkdownLinkClick}
+          />
         </div>
       </div>
     );
@@ -1270,9 +1323,15 @@ function ChatMessageItem({
             </div>
           ) : null}
           <div className="max-w-[72ch] text-[15px] leading-7 text-foreground">
-            <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
+            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+              {message.body}
+            </MarkdownBody>
           </div>
-          <ChatAttachmentList attachments={message.attachments} onOpenImage={onOpenImage} />
+          <ChatAttachmentList
+            attachments={message.attachments}
+            onOpenImage={onOpenImage}
+            onOpenFile={onOpenFile}
+          />
           <div
             className={cn(
               "mt-2 flex h-7 items-center gap-1 text-muted-foreground",
@@ -1306,9 +1365,15 @@ function ChatMessageItem({
           className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]"
         >
           <div className="text-[15px] leading-7">
-            <MarkdownBody skillReferences={skillReferences}>{message.body}</MarkdownBody>
+            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+              {message.body}
+            </MarkdownBody>
           </div>
-          <ChatAttachmentList attachments={message.attachments} onOpenImage={onOpenImage} />
+          <ChatAttachmentList
+            attachments={message.attachments}
+            onOpenImage={onOpenImage}
+            onOpenFile={onOpenFile}
+          />
         </div>
         <div
           data-testid="chat-user-message-toolbar"
@@ -1375,19 +1440,23 @@ function OptimisticUserDraftItem({
   onCopyMessageText,
   onEditDraftOnly,
   skillReferences,
+  onMarkdownLinkClick,
 }: {
   body: string;
   createdAt: Date;
   onCopyMessageText: (text: string) => void | Promise<void>;
   onEditDraftOnly: (text: string) => void;
   skillReferences: MarkdownSkillReferencePreview[];
+  onMarkdownLinkClick?: MarkdownLinkClickHandler;
 }) {
   return (
     <div className="flex justify-end transition-all duration-200">
       <div className="group flex max-w-[82%] flex-col items-end text-left">
         <div className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]">
           <div className="text-[15px] leading-7">
-            <MarkdownBody skillReferences={skillReferences}>{body}</MarkdownBody>
+            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+              {body}
+            </MarkdownBody>
           </div>
         </div>
         <div
@@ -1565,6 +1634,7 @@ function AssistantDraftItem({
   agents,
   onCopyMessageText,
   skillReferences,
+  onMarkdownLinkClick,
 }: {
   body: string;
   createdAt: Date;
@@ -1574,6 +1644,7 @@ function AssistantDraftItem({
   agents: Agent[] | undefined;
   onCopyMessageText: (text: string) => void | Promise<void>;
   skillReferences: MarkdownSkillReferencePreview[];
+  onMarkdownLinkClick?: MarkdownLinkClickHandler;
 }) {
   const streamingActive = state === "streaming" || state === "finalizing";
   const statusLabel = streamingActive ? null : assistantStateLabel(state);
@@ -1599,7 +1670,9 @@ function AssistantDraftItem({
         ) : null}
         <div className="max-w-[72ch] text-[15px] leading-7 text-foreground">
           {body.trim() ? (
-            <MarkdownBody skillReferences={skillReferences}>{body}</MarkdownBody>
+            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+              {body}
+            </MarkdownBody>
           ) : (
             <TextDots text="Thinking" className="text-muted-foreground" />
           )}
@@ -1723,6 +1796,36 @@ function ChatWorkspace() {
   const pendingProjectPrefill = searchParams.get("projectId")?.trim() ?? "";
   const relativePath = toOrganizationRelativePath(location.pathname);
   const chatRouteBase = relativePath.startsWith("/messenger/chat") ? "/messenger/chat" : "/chat";
+  const openLocalFile = useCallback((targetPath: string) => {
+    const desktopShell = readDesktopShell();
+    if (!desktopShell) {
+      pushToast({
+        title: "Open from Desktop",
+        body: "Local chat file links can only be opened from the Rudder Desktop app.",
+        tone: "warn",
+      });
+      return;
+    }
+
+    void desktopShell.openPath(targetPath).catch((error) => {
+      pushToast({
+        title: "Failed to open file",
+        body: error instanceof Error ? error.message : `Could not open ${targetPath}.`,
+        tone: "error",
+      });
+    });
+  }, [pushToast]);
+  const handleChatMarkdownLinkClick = useCallback<MarkdownLinkClickHandler>(({ event, href }) => {
+    if (!shouldHandlePlainChatLinkClick(event)) return;
+
+    const targetPath = resolveLocalFileTarget(href);
+    if (!targetPath) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    openLocalFile(targetPath);
+    return true;
+  }, [openLocalFile]);
   const chatRootPath = chatRouteBase;
   const chatConversationPath = useCallback((id: string) => `${chatRouteBase}/${id}`, [chatRouteBase]);
   const composerContextMenuOpen = projectMenuOpen || agentMenuOpen || skillMenuOpen;
@@ -3719,6 +3822,8 @@ function ChatWorkspace() {
                                     });
                                   }}
                                   onOpenImage={setAttachmentPreview}
+                                  onOpenFile={openLocalFile}
+                                  onMarkdownLinkClick={handleChatMarkdownLinkClick}
                                   turnBranchControls={turnBranchControlsFor(message)}
                                   skillReferences={chatSkillReferences}
                                 />
@@ -3734,6 +3839,7 @@ function ChatWorkspace() {
                                   onCopyMessageText={copyChatMessageText}
                                   onEditDraftOnly={editDraftOnly}
                                   skillReferences={chatSkillReferences}
+                                  onMarkdownLinkClick={handleChatMarkdownLinkClick}
                                 />
                               ) : null}
                               <StreamTranscriptItem
@@ -3752,6 +3858,7 @@ function ChatWorkspace() {
                                 agents={agents}
                                 onCopyMessageText={copyChatMessageText}
                                 skillReferences={chatSkillReferences}
+                                onMarkdownLinkClick={handleChatMarkdownLinkClick}
                               />
                             </>
                           ) : null}
