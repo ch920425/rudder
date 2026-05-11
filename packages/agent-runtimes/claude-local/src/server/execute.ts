@@ -20,6 +20,7 @@ import {
   ensureCommandResolvable,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   renderTemplate,
   loadAgentInstructionsPrefix,
@@ -354,13 +355,14 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   }
 
   const sourceEnv = { ...process.env, ...env };
+  const operatorHome = resolveLocalOperatorHome(sourceEnv);
   env.HOME = await prepareManagedClaudeHome(
     sourceEnv,
     input.onLog ?? (async () => {}),
     agent.orgId,
   );
   await syncLocalCliCredentialHomeEntries({
-    sourceHome: sourceEnv.HOME,
+    sourceHome: operatorHome,
     targetHome: env.HOME,
     onLog: input.onLog,
   });
@@ -375,6 +377,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
+  env.RUDDER_OPERATOR_HOME = operatorHome;
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
 
   const runtimeEnv = ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env }));

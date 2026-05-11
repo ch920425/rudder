@@ -47,6 +47,7 @@ const payload = {
   home: process.env.HOME || null,
   userProfile: process.env.USERPROFILE || null,
   agentHome: process.env.AGENT_HOME || null,
+  rudderOperatorHome: process.env.RUDDER_OPERATOR_HOME || null,
   workspaceSkillEntries: fs.existsSync(workspaceSkillsPath)
     ? fs.readdirSync(workspaceSkillsPath).sort()
     : [],
@@ -260,6 +261,7 @@ type CapturePayload = {
   home: string | null;
   userProfile: string | null;
   agentHome: string | null;
+  rudderOperatorHome: string | null;
   workspaceSkillEntries: string[];
   codexSkillEntries: string[];
   rudderEnvKeys: string[];
@@ -475,10 +477,18 @@ describe("codex execute", () => {
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
+    const operatorHome = path.join(root, "operator-home");
+    const configIsolatedHome = path.join(root, "config-isolated-home");
     const sharedCodexHome = path.join(root, "shared-codex-home");
     const paperclipHome = path.join(root, "rudder-home");
     const managedCodexHome = managedCodexHomePath({ rudderHome: paperclipHome });
     await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(path.join(operatorHome, ".config", "gh"), { recursive: true });
+    await fs.writeFile(
+      path.join(operatorHome, ".config", "gh", "hosts.yml"),
+      "github.com:\n  oauth_token: operator\n",
+      "utf8",
+    );
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
     await fs.writeFile(path.join(sharedCodexHome, "config.toml"), 'model = "codex-mini-latest"\n', "utf8");
@@ -489,7 +499,7 @@ describe("codex execute", () => {
     const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
     const previousPaperclipInWorktree = process.env.RUDDER_IN_WORKTREE;
     const previousCodexHome = process.env.CODEX_HOME;
-    process.env.HOME = root;
+    process.env.HOME = operatorHome;
     process.env.RUDDER_HOME = paperclipHome;
     delete process.env.RUDDER_INSTANCE_ID;
     delete process.env.RUDDER_IN_WORKTREE;
@@ -516,6 +526,8 @@ describe("codex execute", () => {
           command: commandPath,
           cwd: workspace,
           env: {
+            HOME: configIsolatedHome,
+            RUDDER_OPERATOR_HOME: operatorHome,
             RUDDER_TEST_CAPTURE_PATH: capturePath,
           },
           rudderSkillSync: {
@@ -544,6 +556,7 @@ describe("codex execute", () => {
       expect(capture.home).toBe(path.join(managedCodexHome, "home"));
       expect(capture.userProfile).toBe(path.join(managedCodexHome, "home"));
       expect(capture.agentHome).toBe(path.join(managedCodexHome, "home"));
+      expect(capture.rudderOperatorHome).toBe(operatorHome);
       expect(capture.codexSkillEntries).toEqual(["rudder"]);
       expect(capture.argv).toEqual(expect.arrayContaining([
         "exec",
@@ -557,6 +570,7 @@ describe("codex execute", () => {
 
       const managedAuth = path.join(managedCodexHome, "auth.json");
       const managedConfig = path.join(managedCodexHome, "config.toml");
+      const managedGh = path.join(managedCodexHome, "home", ".config", "gh");
       const managedSkillLink = path.join(managedCodexHome, "skills", "rudder");
       expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedAuth)).toBe(await fs.realpath(path.join(sharedCodexHome, "auth.json")));
@@ -568,6 +582,8 @@ describe("codex execute", () => {
       expect(managedConfigContents).toContain("[features]");
       expect(managedConfigContents).toContain("plugins = false");
       expect(managedConfigContents).not.toContain("[[skills.config]]");
+      expect((await fs.lstat(managedGh)).isSymbolicLink()).toBe(true);
+      expect(await fs.realpath(managedGh)).toBe(await fs.realpath(path.join(operatorHome, ".config", "gh")));
       expect((await fs.lstat(managedSkillLink)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedSkillLink)).toBe(
         await fs.realpath(path.join(process.cwd(), "server", "resources", "bundled-skills", "rudder")),

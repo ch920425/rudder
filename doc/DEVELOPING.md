@@ -221,6 +221,11 @@ the workspace repo-local config, or the host global config. Runtime-created git 
 repo-local `user.useConfigOnly=true`. If no safe identity is available, `git commit` fails with Git's
 auto-detection-disabled error instead of creating a `*@*.local` fallback commit.
 
+Local runtimes expose `RUDDER_OPERATOR_HOME` for host desktop and CLI state while keeping child
+`HOME` isolated. Runtime code, scripts, and skills that need operator-owned app state such as `gh`,
+`ssh`, `npm`, or desktop app config should read `RUDDER_OPERATOR_HOME` and only bridge approved
+paths into the managed home; they should not set child `HOME` back to the operator home.
+
 Before asking an agent to commit in a new local workspace, set a safe repo-local identity when possible:
 
 ```sh
