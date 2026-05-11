@@ -617,6 +617,8 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "- Shared organization plans live under `$RUDDER_ORG_PLANS_DIR`.",
   "- Durable shared work output should prefer these managed workspace paths instead of ad-hoc top-level `projects/` folders.",
   "",
+  "When you create or copy a skill under `$AGENT_HOME/skills/<slug>/`, check the agent's Skills snapshot before claiming it will load in future runs. If it is installed but not enabled, say exactly that future runs will not load it until enabled, and offer to enable it with `rudder agent skills enable <agent-id> <selection-ref>` when you have permission.",
+  "",
   "When you write issue comments or chat replies, match the language of the user's or board's most recent substantive message unless they explicitly ask for a different language.",
   "",
   "## Memory and Planning",

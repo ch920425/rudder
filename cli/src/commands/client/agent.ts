@@ -66,6 +66,8 @@ interface AgentSkillSyncOptions extends BaseClientOptions {
   desiredSkills: string;
 }
 
+interface AgentSkillEnableOptions extends BaseClientOptions {}
+
 interface AgentConfigurationRow {
   id: string;
   orgId: string;
@@ -449,6 +451,25 @@ export function registerAgentCommands(program: Command): void {
   );
 
   const skills = agent.command("skills").description("Agent skill selection operations");
+
+  addCommonClientOptions(
+    skills
+      .command("enable")
+      .description(getAgentCliCapabilityById("agent.skills.enable").description)
+      .argument("<agentId>", "Agent ID")
+      .argument("<selectionRefs...>", "Skill selection refs to enable")
+      .action(async (agentId: string, selectionRefs: string[], opts: AgentSkillEnableOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const snapshot = await ctx.api.post<AgentSkillSnapshot>(`/api/agents/${agentId}/skills/enable`, {
+            skills: selectionRefs,
+          });
+          printOutput(snapshot, { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
 
   addCommonClientOptions(
     skills

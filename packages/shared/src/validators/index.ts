@@ -131,7 +131,9 @@ export {
   agentSkillEntrySchema,
   agentSkillSnapshotSchema,
   agentSkillSyncSchema,
+  agentSkillEnableSchema,
   type AgentSkillSync,
+  type AgentSkillEnable,
 } from "./adapter-skills.js";
 export {
   portabilityIncludeSchema,

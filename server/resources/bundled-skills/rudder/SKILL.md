@@ -227,8 +227,17 @@ rudder skill import --org-id "$RUDDER_ORG_ID" --source "<source>" --json
 rudder skill list --org-id "$RUDDER_ORG_ID" --json
 rudder skill get "<skill-id>" --org-id "$RUDDER_ORG_ID" --json
 rudder skill file "<skill-id>" --org-id "$RUDDER_ORG_ID" --path SKILL.md --json
+rudder agent skills enable "<agent-id>" "<selection-ref>" --json
 rudder agent skills sync "<agent-id>" --desired-skills "<csv>" --json
 ```
+
+Use `skills enable` when adding one or more skills because it preserves the
+agent's existing enabled selections. Use `skills sync` only when you intend to
+replace the full optional enabled-skill set.
+
+After creating or copying a skill under `AGENT_HOME/skills/<slug>/`, check the
+agent's Skills snapshot. If the skill is installed but not enabled, say:
+installed but not enabled; future runs will not load it until enabled.
 
 Do not fall back to raw `curl` for this workflow in local adapters or packaged desktop.
 

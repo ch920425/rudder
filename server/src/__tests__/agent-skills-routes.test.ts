@@ -49,6 +49,7 @@ const mockCompanySkillService = vi.hoisted(() => ({
   buildAgentSkillSnapshot: vi.fn(),
   resolveDesiredSkillSelectionForAgent: vi.fn(),
   replaceEnabledSkillKeysForAgent: vi.fn(),
+  addEnabledSkillKeysForAgent: vi.fn(),
 }));
 
 const mockSecretService = vi.hoisted(() => ({
@@ -260,6 +261,13 @@ describe("agent skill routes", () => {
         return enabledSkillState;
       },
     );
+    mockCompanySkillService.addEnabledSkillKeysForAgent.mockImplementation(
+      async (_orgId: string, _agentId: string, skillKeys: string[]) => {
+        enabledSkillState = Array.from(new Set([...enabledSkillState, ...skillKeys]))
+          .sort((left, right) => left.localeCompare(right));
+        return enabledSkillState;
+      },
+    );
     mockCompanySkillService.resolveDesiredSkillSelectionForAgent.mockImplementation(
       async (agent: { agentRuntimeType: string }, _runtimeConfig: Record<string, unknown>, requested: string[] | undefined) => ({
         desiredSkills: normalizeDesiredSkillSelectionRefs(agent.agentRuntimeType, requested ?? []),
@@ -419,6 +427,29 @@ describe("agent skill routes", () => {
       "11111111-1111-4111-8111-111111111111",
       [],
     );
+  });
+
+  it("additively enables skills without replacing existing selections", async () => {
+    mockAgentService.getById.mockResolvedValue(makeAgent("claude_local"));
+    enabledSkillState = ["org:organization/organization-1/alpha-test"];
+
+    const res = await request(createApp())
+      .post("/api/agents/11111111-1111-4111-8111-111111111111/skills/enable?orgId=organization-1")
+      .send({ skills: ["build-advisor"] });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(mockCompanySkillService.addEnabledSkillKeysForAgent).toHaveBeenCalledWith(
+      "organization-1",
+      "11111111-1111-4111-8111-111111111111",
+      [
+        "adapter:claude_local:build-advisor",
+        "org:organization/organization-1/alpha-test",
+      ],
+    );
+    expect(res.body.desiredSkills).toEqual([
+      "adapter:claude_local:build-advisor",
+      "org:organization/organization-1/alpha-test",
+    ]);
   });
 
   it("persists canonical desired skills when creating an agent directly", async () => {

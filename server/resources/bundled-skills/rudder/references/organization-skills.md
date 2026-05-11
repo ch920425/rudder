@@ -8,7 +8,7 @@ This workflow is now **CLI-first** for the bundled `rudder` skill.
 
 1. import or scan the skill into the organization library
 2. inspect the imported skill if needed
-3. sync the desired enabled skills onto the target agent
+3. enable the desired skills on the target agent
 
 ## Core CLI Surface
 
@@ -19,6 +19,7 @@ rudder skill file "<skill-id>" --org-id "$RUDDER_ORG_ID" --path SKILL.md --json
 rudder skill import --org-id "$RUDDER_ORG_ID" --source "<source>" --json
 rudder skill scan-local --org-id "$RUDDER_ORG_ID" --roots "<csv>" --json
 rudder skill scan-projects --org-id "$RUDDER_ORG_ID" --project-ids "<csv>" --workspace-ids "<csv>" --json
+rudder agent skills enable "<agent-id>" "<selection-ref>" --json
 rudder agent skills sync "<agent-id>" --desired-skills "<csv>" --json
 ```
 
@@ -124,26 +125,30 @@ rudder skill file "<skill-id>" --org-id "$RUDDER_ORG_ID" --path references/notes
 - exact slug when it is unique in the organization
 
 ```bash
-rudder agent skills sync \
+rudder agent skills enable \
   "<agent-id>" \
-  --desired-skills "vercel-labs/agent-browser/agent-browser" \
+  "vercel-labs/agent-browser/agent-browser" \
   --json
 ```
 
 For multiple skills:
 
 ```bash
-rudder agent skills sync \
+rudder agent skills enable \
   "<agent-id>" \
-  --desired-skills "agent-browser,design-md" \
+  "agent-browser" "design-md" \
   --json
 ```
+
+`rudder agent skills enable` is additive and preserves existing enabled
+selections. Use `rudder agent skills sync --desired-skills` only when replacing
+the full optional enabled-skill set intentionally.
 
 ## Permission Model
 
 - organization skill reads: any same-organization actor
 - organization skill mutations: board, CEO, or an agent with effective `agents:create`
-- agent skill sync: same permission model as updating that agent
+- agent skill enable/sync: same permission model as updating that agent
 
 ## Notes
 
@@ -151,5 +156,5 @@ rudder agent skills sync \
 - New organizations also seed optional community preset skills into the organization library. They stay organization-managed and default-off for agents.
 - If a skill reference is missing or ambiguous, Rudder returns `422`.
 - Prefer linking back to the relevant issue, approval, and agent when commenting about skill changes.
-- This document only covers library import/inspect/sync.
+- This document only covers library import/inspect/enable/sync.
 - Hire and create flows now live on the CLI-first `rudder-create-agent` path.

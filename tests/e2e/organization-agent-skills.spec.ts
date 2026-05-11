@@ -354,6 +354,7 @@ test.describe("Organization and agent skills", () => {
     expect(agentHeadingBox?.y ?? 0).toBeLessThan(orgHeadingBox?.y ?? Number.MAX_SAFE_INTEGER);
     await expect(agentMain.getByText("agent-helper")).toBeVisible();
     await expect(agentMain.getByText("Private agent helper skill.")).toBeVisible();
+    await expect(agentMain.getByText("Installed, not enabled").first()).toBeVisible();
     await expect(agentMain.getByText("alpha-test").first()).toBeVisible();
     await expect(agentMain.getByText("Alpha test skill.")).toBeVisible();
     const agentHelperToggle = agentMain.getByRole("switch", { name: "agent-helper" });

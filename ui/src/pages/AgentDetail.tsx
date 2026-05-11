@@ -3320,14 +3320,16 @@ function AgentSkillsTab({
           detail: compactSkillText(
             entry.detail
               ?? (entry.sourceClass === "agent_home"
-                ? "Discovered in AGENT_HOME/skills. Enable it here to load it for this agent."
+                ? "Installed, not enabled. Future runs will not load it until enabled."
                 : entry.sourceClass === "global"
                   ? "Discovered in ~/.agents/skills. Enable it here to load it for this agent."
                   : "Discovered in the current runtime adapter home. Enable it here to load it for this agent."),
           ),
           locationLabel: entry.locationLabel ?? null,
           badgeLabel: entry.sourceClass === "agent_home"
-            ? "Agent skill"
+            ? entry.desired
+              ? "Agent skill"
+              : "Installed, not enabled"
             : entry.sourceClass === "global"
               ? "Global skill"
               : "Adapter skill",

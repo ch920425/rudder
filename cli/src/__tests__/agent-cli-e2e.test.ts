@@ -114,6 +114,12 @@ async function getAvailablePort(): Promise<number> {
 }
 
 async function startTempDatabase() {
+  const externalConnectionString = process.env.RUDDER_E2E_DATABASE_URL?.trim();
+  if (externalConnectionString) {
+    await applyPendingMigrations(externalConnectionString);
+    return { connectionString: externalConnectionString, dataDir: "", instance: null };
+  }
+
   const dataDir = mkdtempSync(path.join(os.tmpdir(), "rudder-agent-cli-db-"));
   const port = await getAvailablePort();
   const EmbeddedPostgres = await getEmbeddedPostgresCtor();
@@ -942,6 +948,16 @@ describe("agent CLI e2e", () => {
           && entry.desired,
       ),
     ).toBe(true);
+
+    const additiveSnapshot = await runCliJson<AgentSkillSnapshot>(
+      ["agent", "skills", "enable", agentId, importedSkill!.key],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+    expect(additiveSnapshot.desiredSkills).toEqual(snapshot.desiredSkills);
   });
 
   it("runs the CLI-only create-agent path", { timeout: 60_000 }, async () => {

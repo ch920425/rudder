@@ -8,6 +8,7 @@ import { agents as agentsTable, organizations, heartbeatRuns } from "@rudderhq/d
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import {
   agentSkillSyncSchema,
+  agentSkillEnableSchema,
   createAgentKeySchema,
   createAgentHireSchema,
   createAgentSchema,
@@ -981,6 +982,65 @@ export function agentRoutes(db: Db, storage?: StorageService) {
         details: {
           agentRuntimeType: updated.agentRuntimeType,
           desiredSkills,
+          mode: snapshot.mode,
+          supported: snapshot.supported,
+          entryCount: snapshot.entries.length,
+          warningCount: snapshot.warnings.length,
+        },
+      });
+
+      res.json(snapshot);
+    },
+  );
+
+  router.post(
+    "/agents/:id/skills/enable",
+    validate(agentSkillEnableSchema),
+    async (req, res) => {
+      const id = req.params.id as string;
+      const agent = await svc.getById(id);
+      if (!agent) {
+        res.status(404).json({ error: "Agent not found" });
+        return;
+      }
+      await assertCanUpdateAgent(req, agent);
+
+      const requestedSkills = Array.from(
+        new Set(
+          (req.body.skills as string[])
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      );
+      const { config: runtimeConfig } = await secretsSvc.resolveAdapterConfigForRuntime(
+        agent.orgId,
+        agent.agentRuntimeConfig,
+      );
+      const currentDesiredSkills = await organizationSkills.getEnabledSkillKeysForAgent(agent.orgId, agent);
+      const { desiredSkills } = await resolveDesiredSkillAssignmentForAgent(
+        agent,
+        runtimeConfig,
+        [...currentDesiredSkills, ...requestedSkills],
+      );
+
+      const actor = getActorInfo(req);
+      await organizationSkills.addEnabledSkillKeysForAgent(agent.orgId, agent.id, desiredSkills);
+
+      const snapshot = await buildAgentSkillSnapshot(agent, runtimeConfig);
+
+      await logActivity(db, {
+        orgId: agent.orgId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        action: "agent.skills_enabled",
+        entityType: "agent",
+        entityId: agent.id,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        details: {
+          agentRuntimeType: agent.agentRuntimeType,
+          requestedSkills,
+          desiredSkills: snapshot.desiredSkills,
           mode: snapshot.mode,
           supported: snapshot.supported,
           entryCount: snapshot.entries.length,

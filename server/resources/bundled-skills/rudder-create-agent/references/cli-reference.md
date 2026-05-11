@@ -129,6 +129,7 @@ Post-hire adjustments use the normal agent and skill surfaces:
 
 ```sh
 rudder agent get "<agent-id-or-shortname>" --org-id "$RUDDER_ORG_ID" --json
+rudder agent skills enable "<agent-id>" "<selection-ref>" --json
 rudder agent skills sync "<agent-id>" --desired-skills "<csv>" --json
 rudder agent local-cli "<agent-id-or-shortname>" --org-id "$RUDDER_ORG_ID" --json
 ```

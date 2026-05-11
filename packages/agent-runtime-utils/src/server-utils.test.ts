@@ -223,6 +223,7 @@ describe("loadAgentInstructionsPrefix", () => {
 
     expect(loaded.prefix).toContain("# Rudder Agent Operating Contract");
     expect(loaded.prefix).toContain(RUDDER_AGENT_OPERATING_CONTRACT);
+    expect(loaded.prefix).toContain("installed but not enabled");
     expect(loaded.commandNotes).toEqual(["Loaded Rudder agent operating contract from runtime code"]);
     expect(loaded.readFailed).toBe(false);
     expect(loaded.memoryFilePath).toBeNull();

@@ -586,7 +586,7 @@ function buildAgentPrivateSkillEntry(
     sourcePath: skillDir,
     targetPath: null,
     workspaceEditPath: resolveWorkspaceEditPath(orgId, skillDir),
-    detail: "Created in AGENT_HOME/skills.",
+    detail: "Installed, not enabled. Future runs will not load it until enabled.",
     organizationSkillKey: null,
     runtimeSourcePath: skillDir,
   };
@@ -1827,7 +1827,7 @@ function applyDesiredSelectionsToCatalog(
       detail: desired
         ? entry.alwaysEnabled
           ? (entry.detail ?? "Always loaded by Rudder for every agent run.")
-          : (entry.detail ?? "Enabled for this agent and loaded on the next run.")
+          : "Enabled for this agent and loaded on the next run."
         : (entry.detail ?? null),
     };
   });
@@ -3813,5 +3813,10 @@ export function organizationSkillService(db: Db) {
       agentId: string,
       skillKeys: string[],
     ) => enabledSkills.replaceKeys(orgId, agentId, sortUniqueSelectionRefs(skillKeys)),
+    addEnabledSkillKeysForAgent: async (
+      orgId: string,
+      agentId: string,
+      skillKeys: string[],
+    ) => enabledSkills.addMissingKeys(orgId, agentId, sortUniqueSelectionRefs(skillKeys)),
   };
 }
