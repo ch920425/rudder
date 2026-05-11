@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export type GitIdentitySource = "environment" | "repository" | "rudder_confirmed" | "global";
+export type GitIdentitySource = "environment" | "repository" | "global";
 
 export type GitIdentity = {
   name: string;
@@ -16,13 +16,6 @@ export type GitIdentityPreparationResult = {
   configuredUseConfigOnly: boolean;
   warnings: string[];
 };
-
-const GIT_IDENTITY_ENV_KEYS = [
-  "GIT_AUTHOR_NAME",
-  "GIT_AUTHOR_EMAIL",
-  "GIT_COMMITTER_NAME",
-  "GIT_COMMITTER_EMAIL",
-] as const;
 
 type GitCommandResult = {
   code: number | null;
@@ -61,15 +54,8 @@ export function applyGitIdentityPreparationEnv(
   preparation: GitIdentityPreparationResult,
 ): void {
   env.GIT_CONFIG_GLOBAL = preparation.configTarget;
-  if (!preparation.identity) {
-    for (const key of GIT_IDENTITY_ENV_KEYS) env[key] = "";
-    return;
-  }
-
-  env.GIT_AUTHOR_NAME = preparation.identity.name;
-  env.GIT_AUTHOR_EMAIL = preparation.identity.email;
-  env.GIT_COMMITTER_NAME = preparation.identity.name;
-  env.GIT_COMMITTER_EMAIL = preparation.identity.email;
+  clearUnsafeIdentityEnvPair(env, "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL");
+  clearUnsafeIdentityEnvPair(env, "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL");
 }
 
 function buildIdentity(
@@ -95,15 +81,20 @@ function identityFromEnv(env: NodeJS.ProcessEnv): GitIdentity | null {
   );
 }
 
-export function normalizeConfirmedRudderGitIdentity(input: unknown): GitIdentity | null {
-  if (!input || typeof input !== "object") return null;
-  const record = input as { name?: unknown; email?: unknown; confirmed?: unknown };
-  if (record.confirmed === false) return null;
-  return buildIdentity(
-    typeof record.name === "string" ? record.name : null,
-    typeof record.email === "string" ? record.email : null,
-    "rudder_confirmed",
-  );
+function clearUnsafeIdentityEnvPair(
+  env: Record<string, string>,
+  nameKey: "GIT_AUTHOR_NAME" | "GIT_COMMITTER_NAME",
+  emailKey: "GIT_AUTHOR_EMAIL" | "GIT_COMMITTER_EMAIL",
+): void {
+  const hasValue = nonEmpty(env[nameKey]) || nonEmpty(env[emailKey]);
+  if (!hasValue) {
+    delete env[nameKey];
+    delete env[emailKey];
+    return;
+  }
+  if (buildIdentity(env[nameKey], env[emailKey], "environment")) return;
+  delete env[nameKey];
+  delete env[emailKey];
 }
 
 async function runGit(
@@ -211,10 +202,6 @@ async function writeGitConfigSeed(configPath: string, includePaths: string[]): P
 
 async function writeFallbackGitConfigFile(configPath: string, identity: GitIdentity | null, includePaths: string[] = []): Promise<void> {
   const lines = [...renderGitConfigIncludes(includePaths), "[user]", "\tuseConfigOnly = true"];
-  if (identity) {
-    lines.push(`\tname = ${identity.name}`);
-    lines.push(`\temail = ${identity.email}`);
-  }
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, `${lines.join("\n")}\n`, "utf8");
 }
@@ -222,7 +209,6 @@ async function writeFallbackGitConfigFile(configPath: string, identity: GitIdent
 async function resolveBestGitIdentity(input: {
   cwd: string;
   sourceEnv: NodeJS.ProcessEnv;
-  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentity | null> {
   return (
     identityFromEnv(input.sourceEnv) ??
@@ -230,7 +216,6 @@ async function resolveBestGitIdentity(input: {
       cwd: input.cwd,
       env: input.sourceEnv,
     })) ??
-    input.confirmedIdentity ??
     (await readIdentityFromGitConfig(["config", "--global"], "global", {
       cwd: input.cwd,
       env: input.sourceEnv,
@@ -243,7 +228,6 @@ export async function ensureGitIdentityFileConfig(input: {
   home: string;
   sourceEnv?: NodeJS.ProcessEnv;
   onLog?: LogFn | null;
-  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentityPreparationResult> {
   const sourceEnv = normalizeEnv(input.sourceEnv);
   const home = path.resolve(input.home);
@@ -254,7 +238,6 @@ export async function ensureGitIdentityFileConfig(input: {
   const identity = await resolveBestGitIdentity({
     cwd: input.cwd,
     sourceEnv,
-    confirmedIdentity: input.confirmedIdentity,
   });
   const includePaths = identity
     ? await resolveHostGlobalGitConfigIncludes(sourceEnv, gitConfigPath)
@@ -264,13 +247,8 @@ export async function ensureGitIdentityFileConfig(input: {
   try {
     await writeGitConfigSeed(gitConfigPath, includePaths);
     await setGitConfigValue(configArgs, "user.useConfigOnly", "true", { cwd: input.cwd, env: sourceEnv });
-    if (identity) {
-      await setGitConfigValue(configArgs, "user.name", identity.name, { cwd: input.cwd, env: sourceEnv });
-      await setGitConfigValue(configArgs, "user.email", identity.email, { cwd: input.cwd, env: sourceEnv });
-    } else {
-      await unsetGitConfigValue(configArgs, "user.name", { cwd: input.cwd, env: sourceEnv });
-      await unsetGitConfigValue(configArgs, "user.email", { cwd: input.cwd, env: sourceEnv });
-    }
+    await unsetGitConfigValue(configArgs, "user.name", { cwd: input.cwd, env: sourceEnv });
+    await unsetGitConfigValue(configArgs, "user.email", { cwd: input.cwd, env: sourceEnv });
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : String(error));
     await writeFallbackGitConfigFile(gitConfigPath, identity, includePaths);
@@ -298,7 +276,6 @@ export async function ensureGitRepositoryIdentityConfig(input: {
   cwd: string;
   sourceEnv?: NodeJS.ProcessEnv;
   onLog?: LogFn | null;
-  confirmedIdentity?: GitIdentity | null;
 }): Promise<GitIdentityPreparationResult> {
   const sourceEnv = normalizeEnv(input.sourceEnv);
   const cwd = path.resolve(input.cwd);
@@ -306,18 +283,10 @@ export async function ensureGitRepositoryIdentityConfig(input: {
   const identity = await resolveBestGitIdentity({
     cwd,
     sourceEnv,
-    confirmedIdentity: input.confirmedIdentity,
   });
   const warnings: string[] = [];
 
   await setGitConfigValue(configArgs, "user.useConfigOnly", "true", { cwd, env: sourceEnv });
-  if (identity) {
-    await setGitConfigValue(configArgs, "user.name", identity.name, { cwd, env: sourceEnv });
-    await setGitConfigValue(configArgs, "user.email", identity.email, { cwd, env: sourceEnv });
-  } else {
-    await unsetGitConfigValue(configArgs, "user.name", { cwd, env: sourceEnv });
-    await unsetGitConfigValue(configArgs, "user.email", { cwd, env: sourceEnv });
-  }
 
   if (input.onLog) {
     const detail = identity

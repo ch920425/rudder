@@ -32,11 +32,6 @@ export type {
 export type {
   InstanceLocale,
   InstanceGeneralSettings,
-  InstanceGitIdentitySettings,
-  InstanceGitIdentitySource,
-  InstanceDetectedGitIdentity,
-  InstanceGitIdentityStatus,
-  InstanceGitIdentityState,
   InstanceNotificationSettings,
   InstanceLangfuseSettings,
   OperatorProfileSettings,

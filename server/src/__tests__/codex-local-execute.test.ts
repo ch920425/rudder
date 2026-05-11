@@ -369,7 +369,7 @@ describe("codex execute", () => {
       expect(capture.ident.stdout).toContain("Rudder Agent <rudder-agent@example.com>");
       expect(capture.ident.stdout).not.toContain(".local");
       expect(capture.useConfigOnly.stdout).toBe("true\n");
-      expect(capture.email.stdout).toBe("rudder-agent@example.com\n");
+      expect(capture.email.stdout).toBe("");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -451,8 +451,8 @@ describe("codex execute", () => {
       });
 
       expect(result.exitCode).toBe(128);
-      expect(result.errorMessage).toContain("empty ident name");
-      expect(result.resultJson?.stderr).toContain("empty ident name");
+      expect(result.errorMessage).toContain("Author identity unknown");
+      expect(result.resultJson?.stderr).toContain("auto-detection is disabled");
       expect(result.resultJson?.stderr).not.toContain(".local");
       const count = await runGit(workspace, ["rev-list", "--count", "HEAD"]);
       expect(count.stdout.trim()).toBe("1");

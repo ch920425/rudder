@@ -2,47 +2,12 @@ import { z } from "zod";
 
 export const instanceLocaleSchema = z.enum(["en", "zh-CN"]);
 
-export const instanceGitIdentitySourceSchema = z.enum(["detected_global", "override"]);
-
-export const instanceGitIdentitySettingsSchema = z.object({
-  name: z.string().trim().min(1),
-  email: z.string().trim().min(1),
-  confirmed: z.boolean().default(true),
-  source: instanceGitIdentitySourceSchema,
-  lastDetectedAt: z.string().datetime().nullable().default(null),
-}).strict();
-
-export const instanceDetectedGitIdentitySchema = z.object({
-  name: z.string(),
-  email: z.string(),
-  source: z.literal("host_global"),
-  unsafe: z.boolean(),
-}).strict();
-
-export const instanceGitIdentityStatusSchema = z.enum(["confirmed", "detected", "missing", "unsafe"]);
-
-export const instanceGitIdentityStateSchema = z.object({
-  saved: instanceGitIdentitySettingsSchema.nullable(),
-  detected: instanceDetectedGitIdentitySchema.nullable(),
-  effective: z.union([instanceGitIdentitySettingsSchema, instanceDetectedGitIdentitySchema]).nullable(),
-  status: instanceGitIdentityStatusSchema,
-  warning: z.string().nullable(),
-}).strict();
-
-export const patchInstanceGitIdentitySettingsSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  confirmDetected: z.boolean().optional(),
-  clear: z.boolean().optional(),
-}).strict();
-
 export const instanceGeneralSettingsSchema = z.object({
   censorUsernameInLogs: z.boolean().default(false),
   locale: instanceLocaleSchema.default("en"),
-  gitIdentity: instanceGitIdentitySettingsSchema.nullable().default(null),
 }).strict();
 
-export const patchInstanceGeneralSettingsSchema = instanceGeneralSettingsSchema.omit({ gitIdentity: true }).partial();
+export const patchInstanceGeneralSettingsSchema = instanceGeneralSettingsSchema.partial();
 
 export const instanceNotificationSettingsSchema = z.object({
   desktopInboxNotifications: z.boolean().default(true),
@@ -91,10 +56,6 @@ export const instancePathPickerResultSchema = z.object({
   cancelled: z.boolean(),
 }).strict();
 
-export type InstanceGitIdentitySettings = z.infer<typeof instanceGitIdentitySettingsSchema>;
-export type InstanceDetectedGitIdentity = z.infer<typeof instanceDetectedGitIdentitySchema>;
-export type InstanceGitIdentityState = z.infer<typeof instanceGitIdentityStateSchema>;
-export type PatchInstanceGitIdentitySettings = z.infer<typeof patchInstanceGitIdentitySettingsSchema>;
 export type InstanceGeneralSettings = z.infer<typeof instanceGeneralSettingsSchema>;
 export type PatchInstanceGeneralSettings = z.infer<typeof patchInstanceGeneralSettingsSchema>;
 export type InstanceLangfuseSettings = z.infer<typeof instanceLangfuseSettingsSchema>;

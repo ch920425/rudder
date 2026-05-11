@@ -10,29 +10,11 @@ import { InstanceGeneralSettings } from "./InstanceGeneralSettings";
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: { queryKey?: readonly unknown[] }) => ({
-    data: options.queryKey?.[1] === "git-identity-settings"
-      ? {
-          saved: null,
-          detected: {
-            name: "Host Operator",
-            email: "host@example.com",
-            source: "host_global",
-            unsafe: false,
-          },
-          effective: {
-            name: "Host Operator",
-            email: "host@example.com",
-            source: "host_global",
-            unsafe: false,
-          },
-          status: "detected",
-          warning: "Confirm this detected host Git identity before Rudder uses it as the managed runtime identity.",
-        }
-      : {
-          censorUsernameInLogs: false,
-          locale: "en",
-        },
+  useQuery: () => ({
+    data: {
+      censorUsernameInLogs: false,
+      locale: "en",
+    },
     isLoading: false,
     error: null,
   }),
@@ -75,25 +57,6 @@ vi.mock("../context/I18nContext", () => ({
         "general.logs.description": "Logs section",
         "general.logs.censor.title": "Censor username in logs",
         "general.logs.censor.description": "Censor description",
-        "general.gitIdentity.title": "Git identity for local agents",
-        "general.gitIdentity.description": "Confirm the operator Git identity.",
-        "general.gitIdentity.loading": "Checking host Git identity...",
-        "general.gitIdentity.loadFailed": "Failed to load Git identity settings.",
-        "general.gitIdentity.updateFailed": "Failed to save Git identity settings.",
-        "general.gitIdentity.savedLabel": "Confirmed Rudder identity",
-        "general.gitIdentity.detectedLabel": "Detected host Git identity",
-        "general.gitIdentity.nameLabel": "Name",
-        "general.gitIdentity.emailLabel": "Email",
-        "general.gitIdentity.namePlaceholder": "Ada Lovelace",
-        "general.gitIdentity.emailPlaceholder": "ada@example.com",
-        "general.gitIdentity.confirmDetected": "Confirm detected identity",
-        "general.gitIdentity.saveOverride": "Save override",
-        "general.gitIdentity.clear": "Clear confirmed identity",
-        "general.gitIdentity.cliAuthNote": "Trusted local runtimes share common host CLI credentials.",
-        "general.gitIdentity.status.confirmed": "Confirmed",
-        "general.gitIdentity.status.detected": "Needs confirmation",
-        "general.gitIdentity.status.missing": "Missing",
-        "general.gitIdentity.status.unsafe": "Unsafe",
         "general.updates.title": "Desktop updates",
         "general.updates.description": "Update channel section",
         "general.updates.loadFailed": "Failed to load desktop update settings.",
@@ -164,20 +127,6 @@ describe("InstanceGeneralSettings", () => {
     expect(container.textContent).not.toContain("Language section");
   });
 
-
-  it("renders Git identity confirmation and remediation state", async () => {
-    const container = renderPage();
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).toContain("Git identity for local agents");
-    expect(container.textContent).toContain("Needs confirmation");
-    expect(container.textContent).toContain("Host Operator <host@example.com>");
-    expect(container.textContent).toContain("Confirm detected identity");
-    expect(container.textContent).toContain("Trusted local runtimes share common host CLI credentials.");
-  });
 
   it("renders appearance as a single color mode item", async () => {
     const container = renderPage();

@@ -1,11 +1,5 @@
 import { expect } from "vitest";
 
-export const confirmedRudderGitIdentity = {
-  name: "Confirmed Operator",
-  email: "confirmed@example.com",
-  confirmed: true,
-};
-
 export const clearInheritedGitIdentityEnv = {
   GIT_AUTHOR_NAME: "",
   GIT_AUTHOR_EMAIL: "",
@@ -38,14 +32,14 @@ function captureGitIdentityEnv() {
 }
 `;
 
-export function expectConfirmedGitIdentityCapture(capture: { gitIdentity: GitIdentityCapture }): void {
+export function expectPreparedGitConfigCapture(capture: { gitIdentity: GitIdentityCapture }): void {
   expect(capture.gitIdentity.configGlobal).toEqual(expect.any(String));
   expect(capture.gitIdentity.configGlobal).toContain(".gitconfig");
   expect(capture.gitIdentity.configGlobalContent).toContain("useConfigOnly = true");
-  expect(capture.gitIdentity.configGlobalContent).toContain("name = Confirmed Operator");
-  expect(capture.gitIdentity.configGlobalContent).toContain("email = confirmed@example.com");
-  expect(capture.gitIdentity.authorName).toBe("Confirmed Operator");
-  expect(capture.gitIdentity.authorEmail).toBe("confirmed@example.com");
-  expect(capture.gitIdentity.committerName).toBe("Confirmed Operator");
-  expect(capture.gitIdentity.committerEmail).toBe("confirmed@example.com");
+  expect(capture.gitIdentity.configGlobalContent).not.toContain("Confirmed Operator");
+  expect(capture.gitIdentity.configGlobalContent).not.toContain("confirmed@example.com");
+  expect(capture.gitIdentity.authorName).toBeNull();
+  expect(capture.gitIdentity.authorEmail).toBeNull();
+  expect(capture.gitIdentity.committerName).toBeNull();
+  expect(capture.gitIdentity.committerEmail).toBeNull();
 }

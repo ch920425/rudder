@@ -5,8 +5,7 @@ import path from "node:path";
 import { execute, resetOpenCodeModelsCacheForTests } from "@rudderhq/agent-runtime-opencode-local/server";
 import {
   clearInheritedGitIdentityEnv,
-  confirmedRudderGitIdentity,
-  expectConfirmedGitIdentityCapture,
+  expectPreparedGitConfigCapture,
   gitIdentityCaptureSnippet,
   type GitIdentityCapture,
 } from "./local-runtime-git-identity-helpers";
@@ -96,7 +95,6 @@ describe("opencode execute", () => {
           promptTemplate: "Follow the rudder heartbeat.",
         },
         context: {
-          rudderGitIdentity: confirmedRudderGitIdentity,
           rudderWorkspace: {
             orgWorkspaceRoot: path.join(root, "org-workspace"),
             orgSkillsDir: path.join(root, "org-workspace", "skills"),
@@ -118,7 +116,7 @@ describe("opencode execute", () => {
         rudderEnvKeys: string[];
         gitIdentity: GitIdentityCapture;
       };
-      expectConfirmedGitIdentityCapture(capture);
+      expectPreparedGitConfigCapture(capture);
       expect(capture.prompt).toContain("# Agent Instructions");
       expect(capture.prompt).toContain("# Tacit Memory");
       expect(capture.rudderEnvKeys).toEqual(

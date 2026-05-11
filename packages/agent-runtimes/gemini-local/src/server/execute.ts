@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
-import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig, normalizeConfirmedRudderGitIdentity } from "@rudderhq/agent-runtime-utils/git-identity";
+import { applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   asBoolean,
   asNumber,
@@ -272,7 +272,6 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     home: managedHome,
     sourceEnv,
     onLog,
-    confirmedIdentity: normalizeConfirmedRudderGitIdentity(context.rudderGitIdentity),
   });
   const geminiSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredGeminiSkillNames = resolveRudderDesiredSkillNames(config, geminiSkillEntries);

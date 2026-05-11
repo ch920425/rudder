@@ -990,43 +990,4 @@ test.describe("Settings sidebar", () => {
     await expect(modal.getByRole("textbox", { name: "Label name for Ops" })).toHaveCount(0);
   });
 
-  test("lets the operator save a local agent Git identity override", async ({ page }, testInfo) => {
-    const orgRes = await page.request.post("/api/orgs", {
-      data: {
-        name: `Git Identity Settings ${Date.now()}`,
-      },
-    });
-    expect(orgRes.ok()).toBe(true);
-    await orgRes.json();
-
-    await page.goto("/instance/settings/general");
-    const modal = page.getByTestId("settings-modal-shell");
-
-    await expect(modal.getByText("Git identity for local agents")).toBeVisible();
-    await modal.getByRole("textbox", { name: "Name" }).fill("E2E Operator");
-    await modal.getByRole("textbox", { name: "Email" }).fill("e2e.operator@example.com");
-
-    const saveResponse = page.waitForResponse((response) =>
-      response.request().method() === "PATCH"
-      && response.url().includes("/api/instance/settings/git-identity")
-      && response.ok(),
-    );
-    await modal.getByRole("button", { name: "Save override" }).click();
-    await saveResponse;
-
-    await expect(modal.getByText("Confirmed", { exact: true })).toBeVisible();
-    await expect(modal.getByText("E2E Operator <e2e.operator@example.com>")).toBeVisible();
-    await modal.screenshot({
-      path: testInfo.outputPath("settings-git-identity-override.png"),
-    });
-    const persistentScreenshotPath = process.env.RUDDER_E2E_GIT_IDENTITY_SCREENSHOT?.trim();
-    if (persistentScreenshotPath) {
-      await modal.screenshot({ path: persistentScreenshotPath });
-    }
-
-    await page.request.patch("/api/instance/settings/git-identity", {
-      data: { clear: true },
-    });
-  });
-
 });

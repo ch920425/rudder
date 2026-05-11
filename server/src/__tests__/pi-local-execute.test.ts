@@ -8,8 +8,7 @@ import {
 } from "@rudderhq/agent-runtime-pi-local/server";
 import {
   clearInheritedGitIdentityEnv,
-  confirmedRudderGitIdentity,
-  expectConfirmedGitIdentityCapture,
+  expectPreparedGitConfigCapture,
   gitIdentityCaptureSnippet,
   type GitIdentityCapture,
 } from "./local-runtime-git-identity-helpers";
@@ -111,7 +110,6 @@ describe("pi execute", () => {
           promptTemplate: "Follow the rudder heartbeat.",
         },
         context: {
-          rudderGitIdentity: confirmedRudderGitIdentity,
           rudderWorkspace: {
             orgWorkspaceRoot: path.join(root, "org-workspace"),
             orgSkillsDir: path.join(root, "org-workspace", "skills"),
@@ -129,7 +127,7 @@ describe("pi execute", () => {
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expectConfirmedGitIdentityCapture(capture);
+      expectPreparedGitConfigCapture(capture);
       const appendSystemPromptIndex = capture.argv.indexOf("--append-system-prompt");
       expect(appendSystemPromptIndex).toBeGreaterThanOrEqual(0);
       const systemPrompt = capture.argv[appendSystemPromptIndex + 1];

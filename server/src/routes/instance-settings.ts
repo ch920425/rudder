@@ -1,15 +1,11 @@
 import { Router, type Request } from "express";
 import type { Db } from "@rudderhq/db";
-import { isUnsafeGitIdentityEmail } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
   patchInstanceGeneralSettingsSchema,
-  patchInstanceGitIdentitySettingsSchema,
   patchInstanceLangfuseSettingsSchema,
   patchInstanceNotificationSettingsSchema,
   patchOperatorProfileSettingsSchema,
   instancePathPickerRequestSchema,
-  type InstanceGitIdentitySettings,
-  type PatchInstanceGitIdentitySettings,
   type PatchInstanceLangfuseSettings,
   type DeploymentMode,
 } from "@rudderhq/shared";
@@ -52,12 +48,6 @@ function assertLocalLangfuseSettings(deploymentMode: DeploymentMode) {
   }
 }
 
-function assertLocalGitIdentitySettings(deploymentMode: DeploymentMode) {
-  if (deploymentMode !== "local_trusted") {
-    throw unprocessable("Git identity settings are only available in local_trusted mode.");
-  }
-}
-
 function isLangfuseManagedByEnv() {
   return LANGFUSE_ENV_KEYS.some((key) => process.env[key] !== undefined);
 }
@@ -77,27 +67,6 @@ function getLangfuseSettings() {
     environment: resolveLangfuseEnvironmentName(config.langfuse.environment, localEnv) ?? "",
     secretKeyConfigured: Boolean(config.langfuse.secretKey),
     managedByEnv: isLangfuseManagedByEnv(),
-  };
-}
-
-function buildGitIdentityFromPatch(
-  patch: PatchInstanceGitIdentitySettings,
-  source: InstanceGitIdentitySettings["source"],
-): InstanceGitIdentitySettings {
-  const name = trimOptionalString(patch.name);
-  const email = trimOptionalString(patch.email);
-  if (!name || !email) {
-    throw unprocessable("Git identity name and email are required.");
-  }
-  if (isUnsafeGitIdentityEmail(email)) {
-    throw unprocessable("Git identity email must be a valid non-local email address.");
-  }
-  return {
-    name,
-    email,
-    confirmed: true,
-    source,
-    lastDetectedAt: source === "detected_global" ? new Date().toISOString() : null,
   };
 }
 
@@ -210,63 +179,6 @@ export function instanceSettingsRoutes(
         ),
       );
       res.json(updated.notifications);
-    },
-  );
-
-  router.get("/instance/settings/git-identity", async (req, res) => {
-    assertCanManageInstanceSettings(req);
-    assertLocalGitIdentitySettings(opts.deploymentMode);
-    res.json(await svc.getGitIdentity());
-  });
-
-  router.patch(
-    "/instance/settings/git-identity",
-    validate(patchInstanceGitIdentitySettingsSchema),
-    async (req, res) => {
-      assertCanManageInstanceSettings(req);
-      assertLocalGitIdentitySettings(opts.deploymentMode);
-
-      const patch = req.body as PatchInstanceGitIdentitySettings;
-      const updated = await (async () => {
-        if (patch.clear === true) {
-          return svc.clearGitIdentity();
-        }
-        if (patch.confirmDetected === true) {
-          const detected = await svc.detectGitIdentity();
-          if (!detected || detected.unsafe) {
-            throw unprocessable("No safe host Git identity is available to confirm.");
-          }
-          return svc.updateGitIdentity(buildGitIdentityFromPatch({
-            name: detected.name,
-            email: detected.email,
-          }, "detected_global"));
-        }
-        return svc.updateGitIdentity(buildGitIdentityFromPatch(patch, "override"));
-      })();
-
-      const actor = getActorInfo(req);
-      const orgIds = await svc.listCompanyIds();
-      await Promise.all(
-        orgIds.map((orgId) =>
-          logActivity(db, {
-            orgId,
-            actorType: actor.actorType,
-            actorId: actor.actorId,
-            agentId: actor.agentId,
-            runId: actor.runId,
-            action: "instance.settings.git_identity_updated",
-            entityType: "instance_settings",
-            entityId: "git_identity",
-            details: {
-              status: updated.status,
-              source: updated.saved?.source ?? null,
-              changedKeys: Object.keys(req.body).sort(),
-            },
-          }),
-        ),
-      );
-
-      res.json(updated);
     },
   );
 

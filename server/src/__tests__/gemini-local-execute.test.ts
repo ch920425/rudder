@@ -5,8 +5,7 @@ import path from "node:path";
 import { execute } from "@rudderhq/agent-runtime-gemini-local/server";
 import {
   clearInheritedGitIdentityEnv,
-  confirmedRudderGitIdentity,
-  expectConfirmedGitIdentityCapture,
+  expectPreparedGitConfigCapture,
   gitIdentityCaptureSnippet,
   type GitIdentityCapture,
 } from "./local-runtime-git-identity-helpers";
@@ -100,7 +99,6 @@ describe("gemini execute", () => {
           promptTemplate: "Follow the rudder heartbeat.",
         },
         context: {
-          rudderGitIdentity: confirmedRudderGitIdentity,
           rudderWorkspace: {
             orgWorkspaceRoot: path.join(root, "org-workspace"),
             orgSkillsDir: path.join(root, "org-workspace", "skills"),
@@ -118,7 +116,7 @@ describe("gemini execute", () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expectConfirmedGitIdentityCapture(capture);
+      expectPreparedGitConfigCapture(capture);
       expect(capture.argv).toContain("--output-format");
       expect(capture.argv).toContain("stream-json");
       expect(capture.argv).toContain("--prompt");

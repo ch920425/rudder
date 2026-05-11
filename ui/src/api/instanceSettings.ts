@@ -1,13 +1,11 @@
 import type {
   InstanceGeneralSettings,
-  InstanceGitIdentityState,
   InstanceLangfuseSettings,
   InstanceNotificationSettings,
   InstancePathPickerRequest,
   InstancePathPickerResult,
   OperatorProfileSettings,
   PatchInstanceGeneralSettings,
-  PatchInstanceGitIdentitySettings,
   PatchInstanceLangfuseSettings,
   PatchInstanceNotificationSettings,
   PatchOperatorProfileSettings,
@@ -23,10 +21,6 @@ export const instanceSettingsApi = {
     api.get<InstanceGeneralSettings>("/instance/settings/general"),
   updateGeneral: (patch: PatchInstanceGeneralSettings) =>
     api.patch<InstanceGeneralSettings>("/instance/settings/general", patch),
-  getGitIdentity: () =>
-    api.get<InstanceGitIdentityState>("/instance/settings/git-identity"),
-  updateGitIdentity: (patch: PatchInstanceGitIdentitySettings) =>
-    api.patch<InstanceGitIdentityState>("/instance/settings/git-identity", patch),
   getNotifications: () =>
     api.get<InstanceNotificationSettings>("/instance/settings/notifications"),
   updateNotifications: (patch: PatchInstanceNotificationSettings) =>

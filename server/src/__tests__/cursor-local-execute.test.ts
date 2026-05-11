@@ -5,8 +5,7 @@ import path from "node:path";
 import { execute } from "@rudderhq/agent-runtime-cursor-local/server";
 import {
   clearInheritedGitIdentityEnv,
-  confirmedRudderGitIdentity,
-  expectConfirmedGitIdentityCapture,
+  expectPreparedGitConfigCapture,
   gitIdentityCaptureSnippet,
   type GitIdentityCapture,
 } from "./local-runtime-git-identity-helpers";
@@ -134,7 +133,6 @@ describe("cursor execute", () => {
           promptTemplate: "Follow the rudder heartbeat.",
         },
         context: {
-          rudderGitIdentity: confirmedRudderGitIdentity,
           rudderWorkspace: {
             orgWorkspaceRoot: path.join(root, "org-workspace"),
             orgSkillsDir: path.join(root, "org-workspace", "skills"),
@@ -154,7 +152,7 @@ describe("cursor execute", () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expectConfirmedGitIdentityCapture(capture);
+      expectPreparedGitConfigCapture(capture);
       expect(capture.argv).not.toContain("Follow the rudder heartbeat.");
       expect(capture.argv).not.toContain("--mode");
       expect(capture.argv).not.toContain("ask");

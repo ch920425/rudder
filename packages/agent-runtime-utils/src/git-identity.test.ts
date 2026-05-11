@@ -9,7 +9,6 @@ import {
   ensureGitIdentityFileConfig,
   ensureGitRepositoryIdentityConfig,
   isUnsafeGitIdentityEmail,
-  normalizeConfirmedRudderGitIdentity,
 } from "./git-identity.js";
 
 const execFileAsync = promisify(execFile);
@@ -242,7 +241,7 @@ describe("git identity guard", () => {
     }
   });
 
-  it("applies an isolated Git config and blanks unsafe inherited identity env when identity is missing", async () => {
+  it("applies an isolated Git config and clears unsafe inherited identity env", async () => {
     const env = {
       GIT_AUTHOR_NAME: "Host User",
       GIT_AUTHOR_EMAIL: "host@machine.local",
@@ -259,14 +258,14 @@ describe("git identity guard", () => {
 
     expect(env).toMatchObject({
       GIT_CONFIG_GLOBAL: "/tmp/rudder-agent-home/.gitconfig",
-      GIT_AUTHOR_NAME: "",
-      GIT_AUTHOR_EMAIL: "",
-      GIT_COMMITTER_NAME: "",
-      GIT_COMMITTER_EMAIL: "",
     });
+    expect(env.GIT_AUTHOR_NAME).toBeUndefined();
+    expect(env.GIT_AUTHOR_EMAIL).toBeUndefined();
+    expect(env.GIT_COMMITTER_NAME).toBeUndefined();
+    expect(env.GIT_COMMITTER_EMAIL).toBeUndefined();
   });
 
-  it("applies isolated Git config and confirmed identity env when identity is available", async () => {
+  it("applies isolated Git config without injecting resolved identity env", async () => {
     const env: Record<string, string> = {};
 
     applyGitIdentityPreparationEnv(env, {
@@ -274,6 +273,34 @@ describe("git identity guard", () => {
         name: "Rudder Operator",
         email: "operator@example.com",
         source: "global",
+      },
+      configTarget: "/tmp/rudder-agent-home/.gitconfig",
+      configuredUseConfigOnly: true,
+      warnings: [],
+    });
+
+    expect(env).toMatchObject({
+      GIT_CONFIG_GLOBAL: "/tmp/rudder-agent-home/.gitconfig",
+    });
+    expect(env.GIT_AUTHOR_NAME).toBeUndefined();
+    expect(env.GIT_AUTHOR_EMAIL).toBeUndefined();
+    expect(env.GIT_COMMITTER_NAME).toBeUndefined();
+    expect(env.GIT_COMMITTER_EMAIL).toBeUndefined();
+  });
+
+  it("preserves explicit safe inherited identity env", async () => {
+    const env = {
+      GIT_AUTHOR_NAME: "Rudder Operator",
+      GIT_AUTHOR_EMAIL: "operator@example.com",
+      GIT_COMMITTER_NAME: "Rudder Operator",
+      GIT_COMMITTER_EMAIL: "operator@example.com",
+    };
+
+    applyGitIdentityPreparationEnv(env, {
+      identity: {
+        name: "Rudder Operator",
+        email: "operator@example.com",
+        source: "environment",
       },
       configTarget: "/tmp/rudder-agent-home/.gitconfig",
       configuredUseConfigOnly: true,
@@ -312,78 +339,6 @@ describe("git identity guard", () => {
       })).rejects.toMatchObject({
         stderr: expect.not.stringContaining(".local"),
       });
-    } finally {
-      await fs.rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("normalizes only safe confirmed Rudder identities", () => {
-    expect(normalizeConfirmedRudderGitIdentity({
-      name: "  Rudder Operator  ",
-      email: " operator@example.com ",
-      confirmed: true,
-    })).toEqual({
-      name: "Rudder Operator",
-      email: "operator@example.com",
-      source: "rudder_confirmed",
-    });
-    expect(normalizeConfirmedRudderGitIdentity({
-      name: "Host User",
-      email: "host@machine.local",
-      confirmed: true,
-    })).toBeNull();
-    expect(normalizeConfirmedRudderGitIdentity({
-      name: "Host User",
-      email: "host@example.com",
-      confirmed: false,
-    })).toBeNull();
-  });
-
-  it("prefers confirmed Rudder identity over host global identity for isolated config", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-git-identity-confirmed-"));
-    try {
-      const repo = await createRepoWithoutStoredIdentity(root);
-      const hostHome = path.join(root, "host-home");
-      const isolatedHome = path.join(root, "agent-home");
-      await fs.mkdir(hostHome, { recursive: true });
-      await fs.writeFile(
-        path.join(hostHome, ".gitconfig"),
-        [
-          "[user]",
-          "\tname = Host Operator",
-          "\temail = host@example.com",
-        ].join("\n") + "\n",
-        "utf8",
-      );
-
-      const result = await ensureGitIdentityFileConfig({
-        cwd: repo,
-        home: isolatedHome,
-        sourceEnv: baseGitTestEnv({
-          HOME: hostHome,
-          GIT_CONFIG_NOSYSTEM: "1",
-        }),
-        confirmedIdentity: normalizeConfirmedRudderGitIdentity({
-          name: "Confirmed Operator",
-          email: "confirmed@example.com",
-          confirmed: true,
-        }),
-      });
-
-      expect(result.identity).toMatchObject({
-        name: "Confirmed Operator",
-        email: "confirmed@example.com",
-        source: "rudder_confirmed",
-      });
-      await expect(runGit(repo, [
-        "config",
-        "--get",
-        "user.email",
-      ], {
-        HOME: isolatedHome,
-        GIT_CONFIG_GLOBAL: path.join(isolatedHome, ".gitconfig"),
-        GIT_CONFIG_NOSYSTEM: "1",
-      })).resolves.toMatchObject({ stdout: "confirmed@example.com\n" });
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

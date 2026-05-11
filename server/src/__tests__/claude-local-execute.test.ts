@@ -5,8 +5,7 @@ import path from "node:path";
 import { execute } from "@rudderhq/agent-runtime-claude-local/server";
 import {
   clearInheritedGitIdentityEnv,
-  confirmedRudderGitIdentity,
-  expectConfirmedGitIdentityCapture,
+  expectPreparedGitConfigCapture,
   gitIdentityCaptureSnippet,
   type GitIdentityCapture,
 } from "./local-runtime-git-identity-helpers";
@@ -129,7 +128,6 @@ describe("claude execute", () => {
           promptTemplate: "Follow the rudder heartbeat.",
         },
         context: {
-          rudderGitIdentity: confirmedRudderGitIdentity,
           rudderWorkspace: {
             orgWorkspaceRoot: path.join(root, "org-workspace"),
             orgSkillsDir: path.join(root, "org-workspace", "skills"),
@@ -167,7 +165,7 @@ describe("claude execute", () => {
         rudderEnvKeys: string[];
         gitIdentity: GitIdentityCapture;
       };
-      expectConfirmedGitIdentityCapture(capture);
+      expectPreparedGitConfigCapture(capture);
       expect(capture.appendedSystemPrompt).toContain("# Agent Instructions");
       expect(capture.appendedSystemPrompt).toContain("# Tacit Memory");
       expect(capture.rudderEnvKeys).toEqual(
