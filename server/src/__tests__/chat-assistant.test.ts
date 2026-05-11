@@ -161,6 +161,19 @@ function makeProjectContextLink(): ChatContextLink {
   };
 }
 
+function sentinelFromContext(ctx: { context?: Record<string, unknown> }) {
+  const prompt = String(ctx.context?.chatPrompt ?? "");
+  return prompt.match(/(__RUDDER_RESULT_[a-f0-9-]+__)/i)?.[1] ?? "__RUDDER_RESULT_TEST__";
+}
+
+function assistantSummary(ctx: { context?: Record<string, unknown> }, body: string) {
+  return `${sentinelFromContext(ctx)}${JSON.stringify({
+    kind: "message",
+    body,
+    structuredPayload: null,
+  })}`;
+}
+
 describe("chatAssistantService operator profile prompt injection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -201,17 +214,13 @@ describe("chatAssistantService operator profile prompt injection", () => {
       rudderWorkspace: { cwd: process.cwd(), source: "project_primary" },
       rudderWorkspaces: [],
     });
-    mockAdapter.execute.mockResolvedValue({
-      summary: JSON.stringify({
-        kind: "message",
-        body: "Clarify the goal first.",
-        structuredPayload: null,
-      }),
+    mockAdapter.execute.mockImplementation(async (ctx) => ({
+      summary: assistantSummary(ctx, "Clarify the goal first."),
       resultJson: null,
       timedOut: false,
       exitCode: 0,
       errorMessage: null,
-    });
+    }));
   });
 
   afterEach(() => {
@@ -473,11 +482,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
       });
 
       return {
-        summary: JSON.stringify({
-          kind: "message",
-          body: "Clarify the goal first.",
-          structuredPayload: null,
-        }),
+        summary: assistantSummary(ctx, "Clarify the goal first."),
         resultJson: null,
         timedOut: false,
         exitCode: 0,
@@ -512,12 +517,8 @@ describe("chatAssistantService operator profile prompt injection", () => {
       type: "claude_local",
       supportsLocalAgentJwt: true,
       parseStdoutLine: vi.fn(() => []),
-      execute: vi.fn(async () => ({
-        summary: JSON.stringify({
-          kind: "message",
-          body: "Fallback handled the chat.",
-          structuredPayload: null,
-        }),
+      execute: vi.fn(async (ctx) => ({
+        summary: assistantSummary(ctx, "Fallback handled the chat."),
         resultJson: null,
         timedOut: false,
         exitCode: 0,
@@ -903,6 +904,85 @@ describe("chatAssistantService operator profile prompt injection", () => {
         text: "Preparing the final chat reply.",
       }),
     ]);
+  });
+
+  it("extracts Codex image generation output into generated chat attachments", async () => {
+    const svc = chatAssistantService({} as any);
+    const pngBase64 = Buffer.from("fake-png").toString("base64");
+
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => {
+      const finalText = assistantSummary(ctx, "Generated a mockup.");
+      const stdout = [
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "image_generation_call",
+            id: "ig_test",
+            result: pngBase64,
+          },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: finalText },
+        }),
+      ].join("\n");
+
+      return {
+        summary: finalText,
+        resultJson: { stdout },
+        timedOut: false,
+        exitCode: 0,
+        errorMessage: null,
+      };
+    });
+
+    const result = await svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    });
+
+    expect(result.outcome).toBe("completed");
+    if (result.outcome !== "completed") throw new Error("expected completed");
+    expect(result.reply.generatedAttachments).toHaveLength(1);
+    expect(result.reply.generatedAttachments?.[0]).toMatchObject({
+      source: "codex_image_generation",
+      originalFilename: "ig_test.png",
+      contentType: "image/png",
+      toolCallId: "ig_test",
+    });
+    expect(result.reply.generatedAttachments?.[0]?.body.equals(Buffer.from("fake-png"))).toBe(true);
+  });
+
+  it("fails streaming chat completion when the adapter omits the required result sentinel", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onLog(
+        "stdout",
+        `${JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: "I am still working." },
+        })}\n`,
+      );
+      return {
+        summary: "I am still working.",
+        resultJson: null,
+        timedOut: false,
+        exitCode: 0,
+        errorMessage: null,
+      };
+    });
+
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      name: "ChatAssistantStreamError",
+      message: "Chat adapter completed without the required Rudder result sentinel",
+      partialBody: "I am still working.",
+    });
   });
 
   it("returns a stopped partial reply when the runtime abort signal fires", async () => {

@@ -38,6 +38,7 @@ import {
   ChatAssistantStreamError,
   chatAssistantService,
   type ChatAssistantResult,
+  type ChatGeneratedAttachment,
 } from "../services/chat-assistant.js";
 import { cancelActiveChatGeneration, claimChatGeneration, hasActiveChatGeneration } from "../services/chat-generation-locks.js";
 import {
@@ -613,6 +614,44 @@ export function chatRoutes(db: Db, storage: StorageService) {
   ) {
     const createdMessages: ChatMessage[] = [];
     const { chatTurnId, turnVariant } = turnContext;
+    const attachGeneratedFiles = async (message: ChatMessage, generatedAttachments: ChatGeneratedAttachment[] | undefined) => {
+      if (!generatedAttachments || generatedAttachments.length === 0) return message;
+      const attachments: ChatAttachment[] = [];
+      for (const generated of generatedAttachments) {
+        if (generated.body.length > MAX_ATTACHMENT_BYTES) {
+          throw new ChatAssistantStreamError(
+            `Generated attachment exceeds ${MAX_ATTACHMENT_BYTES} bytes`,
+            assistantReply.body,
+            generatedAttachments,
+          );
+        }
+        const stored = await storage.putFile({
+          orgId: conversation.orgId,
+          namespace: `chats/${conversation.id}/generated`,
+          originalFilename: generated.originalFilename,
+          contentType: generated.contentType,
+          body: generated.body,
+        });
+        const attachment = await svc.createAttachment({
+          orgId: conversation.orgId,
+          conversationId: conversation.id,
+          messageId: message.id,
+          provider: stored.provider,
+          objectKey: stored.objectKey,
+          contentType: stored.contentType,
+          byteSize: stored.byteSize,
+          sha256: stored.sha256,
+          originalFilename: stored.originalFilename,
+          createdByAgentId: replyingAgentId,
+          createdByUserId: null,
+        });
+        attachments.push(attachment as ChatAttachment);
+      }
+      return {
+        ...message,
+        attachments: [...(message.attachments ?? []), ...attachments],
+      } as ChatMessage;
+    };
     const saveAssistantMessage = async (input: {
       kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion";
       body: string;
@@ -657,7 +696,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
           body: assistantReply.body,
           structuredPayload: issueProposalStructuredPayload,
         });
-        createdMessages.push(proposalMessage as ChatMessage);
+        createdMessages.push(await attachGeneratedFiles(proposalMessage as ChatMessage, assistantReply.generatedAttachments));
 
         await assertCanConvertIssueProposal(req, conversation, {
           proposal: issueProposalStructuredPayload,
@@ -713,7 +752,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         structuredPayload: issueProposalStructuredPayload,
         approvalId: approval.id,
       });
-      createdMessages.push(proposalMessage as ChatMessage);
+      createdMessages.push(await attachGeneratedFiles(proposalMessage as ChatMessage, assistantReply.generatedAttachments));
       return createdMessages;
     }
 
@@ -745,7 +784,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         },
         approvalId: approval.id,
       });
-      createdMessages.push(proposalMessage as ChatMessage);
+      createdMessages.push(await attachGeneratedFiles(proposalMessage as ChatMessage, assistantReply.generatedAttachments));
       return createdMessages;
     }
 
@@ -754,8 +793,46 @@ export function chatRoutes(db: Db, storage: StorageService) {
       body: assistantReply.body,
       structuredPayload: assistantReply.structuredPayload,
     });
-    createdMessages.push(assistantMessage as ChatMessage);
+    createdMessages.push(await attachGeneratedFiles(assistantMessage as ChatMessage, assistantReply.generatedAttachments));
     return createdMessages;
+  }
+
+  async function attachGeneratedFilesToPartialMessage(
+    conversation: ChatConversation,
+    message: ChatMessage | null,
+    generatedAttachments: ChatGeneratedAttachment[] | undefined,
+    replyingAgentId: string | null,
+  ) {
+    if (!message || !generatedAttachments || generatedAttachments.length === 0) return message;
+    const attachments: ChatAttachment[] = [];
+    for (const generated of generatedAttachments) {
+      if (generated.body.length > MAX_ATTACHMENT_BYTES) continue;
+      const stored = await storage.putFile({
+        orgId: conversation.orgId,
+        namespace: `chats/${conversation.id}/generated`,
+        originalFilename: generated.originalFilename,
+        contentType: generated.contentType,
+        body: generated.body,
+      });
+      const attachment = await svc.createAttachment({
+        orgId: conversation.orgId,
+        conversationId: conversation.id,
+        messageId: message.id,
+        provider: stored.provider,
+        objectKey: stored.objectKey,
+        contentType: stored.contentType,
+        byteSize: stored.byteSize,
+        sha256: stored.sha256,
+        originalFilename: stored.originalFilename,
+        createdByAgentId: replyingAgentId,
+        createdByUserId: null,
+      });
+      attachments.push(attachment as ChatAttachment);
+    }
+    return {
+      ...message,
+      attachments: [...(message.attachments ?? []), ...attachments],
+    } as ChatMessage;
   }
 
   async function persistPartialAssistantMessage(
@@ -1446,8 +1523,9 @@ export function chatRoutes(db: Db, storage: StorageService) {
       );
     } catch (err) {
       const partialBody = err instanceof ChatAssistantStreamError ? err.partialBody : "";
+      const generatedAttachments = err instanceof ChatAssistantStreamError ? err.generatedAttachments : [];
       const failedReplyingAgentId = chatReplyingAgentId(assistantConversationForPartial);
-      const failedMessage = await persistPartialAssistantMessage(
+      let failedMessage = await persistPartialAssistantMessage(
         assistantConversationForPartial ?? (conversation as ChatConversation),
         partialBody,
         "failed",
@@ -1456,6 +1534,12 @@ export function chatRoutes(db: Db, storage: StorageService) {
         failedReplyingAgentId,
         assistantProgressMessageId,
       ).catch(() => null);
+      failedMessage = await attachGeneratedFilesToPartialMessage(
+        assistantConversationForPartial ?? (conversation as ChatConversation),
+        failedMessage as ChatMessage | null,
+        generatedAttachments,
+        failedReplyingAgentId,
+      ).catch(() => failedMessage as ChatMessage | null);
       if (failedMessage && assistantConversationForPartial) {
         await logChatMessagesAdded(assistantConversationForPartial, [failedMessage], {
           actorType: "system",
