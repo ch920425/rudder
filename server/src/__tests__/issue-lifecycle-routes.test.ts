@@ -26,6 +26,7 @@ const mockAccessService = vi.hoisted(() => ({
 }));
 
 const mockHeartbeatService = vi.hoisted(() => ({
+  getRun: vi.fn(),
   reportRunActivity: vi.fn(async () => undefined),
   wakeup: vi.fn(async () => undefined),
 }));
@@ -53,7 +54,10 @@ const mockLogActivity = vi.hoisted(() => vi.fn(async () => undefined));
 
 const ASSIGNEE_AGENT_ID = "22222222-2222-4222-8222-222222222222";
 const REVIEWER_AGENT_ID = "33333333-3333-4333-8333-333333333333";
-const RUN_ID = "run-1";
+const PEER_AGENT_ID = "44444444-4444-4444-8444-444444444444";
+const RUN_ID = "55555555-5555-4555-8555-555555555555";
+const PEER_RUN_ID = "66666666-6666-4666-8666-666666666666";
+const UNBOUND_RUN_ID = "77777777-7777-4777-8777-777777777777";
 
 vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,
@@ -82,13 +86,13 @@ function createBoardActor() {
   };
 }
 
-function createAgentActor(agentId = ASSIGNEE_AGENT_ID) {
+function createAgentActor(agentId = ASSIGNEE_AGENT_ID, runId: string | null = RUN_ID) {
   return {
     type: "agent" as const,
     agentId,
     orgId: "organization-1",
     orgIds: ["organization-1"],
-    runId: RUN_ID,
+    runId: runId ?? undefined,
   };
 }
 
@@ -111,6 +115,7 @@ function makeIssue(overrides?: Partial<{
   reviewerUserId: string | null;
   createdByAgentId: string | null;
   createdByUserId: string | null;
+  checkoutRunId: string | null;
   executionRunId: string | null;
   identifier: string;
   projectId: string | null;
@@ -129,6 +134,7 @@ function makeIssue(overrides?: Partial<{
     reviewerUserId: null,
     createdByAgentId: null,
     createdByUserId: "local-board",
+    checkoutRunId: null,
     executionRunId: null,
     identifier: "RUD-5",
     projectId: null,
@@ -149,6 +155,17 @@ describe("issue lifecycle routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIssueService.assertCheckoutOwner.mockResolvedValue({ adoptedFromRunId: null });
+    mockHeartbeatService.getRun.mockImplementation(async (runId: string) =>
+      runId === RUN_ID
+        ? {
+          id: RUN_ID,
+          orgId: "organization-1",
+          agentId: ASSIGNEE_AGENT_ID,
+          status: "running",
+          contextSnapshot: { issueId: "11111111-1111-4111-8111-111111111111" },
+        }
+        : null,
+    );
     mockIssueService.findMentionedAgents.mockResolvedValue([]);
     mockIssueService.getAncestors.mockResolvedValue([]);
     mockIssueService.getComment.mockResolvedValue(null);
@@ -290,6 +307,7 @@ describe("issue lifecycle routes", () => {
     const issue = makeIssue({
       status: "in_progress",
       assigneeAgentId: ASSIGNEE_AGENT_ID,
+      checkoutRunId: RUN_ID,
       title: "Add commit activity",
     });
     mockIssueService.getById.mockResolvedValue(issue);
@@ -338,6 +356,171 @@ describe("issue lifecycle routes", () => {
         }),
       }),
     );
+  });
+
+  it("rejects agent-reported commit activity when the run belongs to another agent", async () => {
+    const issue = makeIssue({
+      status: "todo",
+      assigneeAgentId: ASSIGNEE_AGENT_ID,
+      title: "Add commit activity",
+    });
+    mockIssueService.getById.mockResolvedValue(issue);
+    mockHeartbeatService.getRun.mockResolvedValueOnce({
+      id: RUN_ID,
+      orgId: issue.orgId,
+      agentId: PEER_AGENT_ID,
+      status: "running",
+      contextSnapshot: { issueId: issue.id },
+    });
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, RUN_ID)))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+      .send({
+        sha: "abc1234def5678",
+        message: "fix: forged run attribution",
+      });
+
+    expect(res.status).toBe(403);
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "issue.code_committed" }),
+    );
+    expect(mockHeartbeatService.reportRunActivity).not.toHaveBeenCalled();
+  });
+
+  it("rejects agent-reported commit activity when the run is not bound to the issue", async () => {
+    const issue = makeIssue({
+      status: "todo",
+      assigneeAgentId: ASSIGNEE_AGENT_ID,
+      title: "Add commit activity",
+    });
+    mockIssueService.getById.mockResolvedValue(issue);
+    mockHeartbeatService.getRun.mockResolvedValueOnce({
+      id: UNBOUND_RUN_ID,
+      orgId: issue.orgId,
+      agentId: ASSIGNEE_AGENT_ID,
+      status: "running",
+      contextSnapshot: { issueId: "99999999-9999-4999-8999-999999999999" },
+    });
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, UNBOUND_RUN_ID)))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+      .send({
+        sha: "abc1234def5678",
+        message: "fix: arbitrary run attribution",
+      });
+
+    expect(res.status).toBe(403);
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "issue.code_committed" }),
+    );
+    expect(mockHeartbeatService.reportRunActivity).not.toHaveBeenCalled();
+  });
+
+  it("records allowed agent-reported commit activity without run attribution", async () => {
+    const issue = makeIssue({
+      status: "todo",
+      assigneeAgentId: ASSIGNEE_AGENT_ID,
+      title: "Add commit activity",
+    });
+    mockIssueService.getById.mockResolvedValue(issue);
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, null)))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+      .send({
+        sha: "abc1234def5678",
+        message: "fix: report without run",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      ok: true,
+      issueId: issue.id,
+      runId: null,
+    });
+    expect(mockHeartbeatService.getRun).not.toHaveBeenCalled();
+    expect(mockHeartbeatService.reportRunActivity).not.toHaveBeenCalled();
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorType: "agent",
+        actorId: ASSIGNEE_AGENT_ID,
+        agentId: ASSIGNEE_AGENT_ID,
+        runId: null,
+        action: "issue.code_committed",
+      }),
+    );
+  });
+
+  it("records separate commit activity rows for multiple reporting agents", async () => {
+    const issue = makeIssue({
+      status: "todo",
+      assigneeAgentId: null,
+      title: "Add commit activity",
+    });
+    mockIssueService.getById.mockResolvedValue(issue);
+    mockHeartbeatService.getRun.mockImplementation(async (runId: string) => {
+      if (runId === RUN_ID) {
+        return {
+          id: RUN_ID,
+          orgId: issue.orgId,
+          agentId: ASSIGNEE_AGENT_ID,
+          status: "running",
+          contextSnapshot: { issueId: issue.id },
+        };
+      }
+      if (runId === PEER_RUN_ID) {
+        return {
+          id: PEER_RUN_ID,
+          orgId: issue.orgId,
+          agentId: PEER_AGENT_ID,
+          status: "running",
+          contextSnapshot: { issueId: issue.id },
+        };
+      }
+      return null;
+    });
+
+    const [first, second] = await Promise.all([
+      request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, RUN_ID)))
+        .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+        .send({
+          sha: "abc1234def5678",
+          message: "fix: first agent commit",
+        }),
+      request(createApp(createAgentActor(PEER_AGENT_ID, PEER_RUN_ID)))
+        .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+        .send({
+          sha: "def5678abc1234",
+          message: "fix: peer agent commit",
+        }),
+    ]);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorId: ASSIGNEE_AGENT_ID,
+        agentId: ASSIGNEE_AGENT_ID,
+        runId: RUN_ID,
+        action: "issue.code_committed",
+        details: expect.objectContaining({ shortSha: "abc1234" }),
+      }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorId: PEER_AGENT_ID,
+        agentId: PEER_AGENT_ID,
+        runId: PEER_RUN_ID,
+        action: "issue.code_committed",
+        details: expect.objectContaining({ shortSha: "def5678" }),
+      }),
+    );
+    expect(mockHeartbeatService.reportRunActivity).toHaveBeenCalledWith(RUN_ID);
+    expect(mockHeartbeatService.reportRunActivity).toHaveBeenCalledWith(PEER_RUN_ID);
   });
 
   it("reorders an issue within an organization lane and logs activity", async () => {

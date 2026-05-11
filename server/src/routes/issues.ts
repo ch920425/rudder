@@ -18,6 +18,7 @@ import {
   updateIssueWorkProductSchema,
   upsertIssueDocumentSchema,
   updateIssueSchema,
+  isUuidLike,
 } from "@rudderhq/shared";
 import type { StorageService } from "../storage/types.js";
 import { validate } from "../middleware/validate.js";
@@ -167,6 +168,56 @@ export function issueRoutes(db: Db, storage: StorageService) {
       });
     }
     return true;
+  }
+
+  function readIssueIdFromRunContext(contextSnapshot: unknown) {
+    if (!contextSnapshot || typeof contextSnapshot !== "object") return null;
+    const issueId = (contextSnapshot as Record<string, unknown>).issueId;
+    return typeof issueId === "string" && issueId.trim() ? issueId.trim() : null;
+  }
+
+  async function resolveAgentCommitRunId(
+    req: Request,
+    res: Response,
+    issue: {
+      id: string;
+      orgId: string;
+      checkoutRunId?: string | null;
+      executionRunId?: string | null;
+    },
+  ): Promise<{ ok: true; runId: string | null } | { ok: false }> {
+    if (req.actor.type !== "agent") return { ok: true, runId: null };
+    const actorAgentId = req.actor.agentId;
+    if (!actorAgentId) {
+      res.status(403).json({ error: "Agent authentication required" });
+      return { ok: false };
+    }
+
+    const runId = req.actor.runId?.trim();
+    if (!runId) return { ok: true, runId: null };
+    if (!isUuidLike(runId)) {
+      res.status(403).json({ error: "Run context is not valid for this issue" });
+      return { ok: false };
+    }
+
+    const run = await heartbeat.getRun(runId);
+    const runIssueId = readIssueIdFromRunContext(run?.contextSnapshot);
+    const runBoundToIssue =
+      issue.checkoutRunId === runId ||
+      issue.executionRunId === runId ||
+      runIssueId === issue.id;
+
+    if (
+      !run ||
+      run.orgId !== issue.orgId ||
+      run.agentId !== actorAgentId ||
+      !runBoundToIssue
+    ) {
+      res.status(403).json({ error: "Run context is not valid for this issue" });
+      return { ok: false };
+    }
+
+    return { ok: true, runId };
   }
 
   async function normalizeIssueIdentifier(rawId: string): Promise<string> {
@@ -1610,13 +1661,15 @@ export function issueRoutes(db: Db, storage: StorageService) {
     if (!(await assertAgentRunCheckoutOwnership(req, res, issue))) return;
 
     const actor = getActorInfo(req);
+    const commitRun = await resolveAgentCommitRunId(req, res, issue);
+    if (!commitRun.ok) return;
     const sha = req.body.sha.trim().toLowerCase();
     const subject = commitSubject(req.body.message);
     const shortSha = sha.slice(0, 7);
 
-    if (actor.runId) {
-      await heartbeat.reportRunActivity(actor.runId).catch((err) =>
-        logger.warn({ err, runId: actor.runId }, "failed to clear detached run warning after issue commit activity"));
+    if (commitRun.runId) {
+      await heartbeat.reportRunActivity(commitRun.runId).catch((err) =>
+        logger.warn({ err, runId: commitRun.runId }, "failed to clear detached run warning after issue commit activity"));
     }
 
     await logActivity(db, {
@@ -1624,7 +1677,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
-      runId: actor.runId,
+      runId: commitRun.runId,
       action: "issue.code_committed",
       entityType: "issue",
       entityId: issue.id,
@@ -1649,7 +1702,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       shortSha,
       message: req.body.message,
       subject,
-      runId: actor.runId,
+      runId: commitRun.runId,
     });
   });
 
