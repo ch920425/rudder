@@ -10,6 +10,7 @@ import { formatChatAgentLabel } from "../lib/agent-labels";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import { groupBy } from "../lib/groupBy";
 import { formatDate, cn } from "../lib/utils";
+import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
 import { timeAgo } from "../lib/timeAgo";
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
@@ -320,6 +321,10 @@ export function IssuesList({
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [issueSearch, setIssueSearch] = useState(initialSearch ?? "");
   const [debouncedIssueSearch, setDebouncedIssueSearch] = useState(issueSearch);
+  const filterAssigneeScrollRef = useScrollbarActivityRef();
+  const filterLabelsScrollRef = useScrollbarActivityRef();
+  const filterProjectsScrollRef = useScrollbarActivityRef();
+  const assigneePickerScrollRef = useScrollbarActivityRef();
   const normalizedIssueSearch = debouncedIssueSearch.trim();
 
   useEffect(() => {
@@ -686,7 +691,11 @@ export function IssuesList({
                     {/* Assignee */}
                     <div className="space-y-1">
                       <span className="text-xs text-muted-foreground">Assignee</span>
-                      <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                      <div
+                        ref={filterAssigneeScrollRef}
+                        data-testid="issues-filter-assignee-scroll"
+                        className="scrollbar-auto-hide space-y-0.5 max-h-32 overflow-y-auto"
+                      >
                         <label className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
                           <Checkbox
                             checked={viewState.assignees.includes("__unassigned")}
@@ -720,7 +729,11 @@ export function IssuesList({
                     {labels && labels.length > 0 && (
                       <div className="space-y-1">
                         <span className="text-xs text-muted-foreground">Labels</span>
-                        <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                        <div
+                          ref={filterLabelsScrollRef}
+                          data-testid="issues-filter-labels-scroll"
+                          className="scrollbar-auto-hide space-y-0.5 max-h-32 overflow-y-auto"
+                        >
                           {labels.map((label) => (
                             <label key={label.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
                               <Checkbox
@@ -738,7 +751,11 @@ export function IssuesList({
                     {projects && projects.length > 0 && (
                       <div className="space-y-1">
                         <span className="text-xs text-muted-foreground">Project</span>
-                        <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                        <div
+                          ref={filterProjectsScrollRef}
+                          data-testid="issues-filter-projects-scroll"
+                          className="scrollbar-auto-hide space-y-0.5 max-h-32 overflow-y-auto"
+                        >
                           {projects.map((project) => (
                             <label key={project.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
                               <Checkbox
@@ -1067,7 +1084,11 @@ export function IssuesList({
                             onChange={(e) => setAssigneeSearch(e.target.value)}
                             autoFocus
                           />
-                          <div className="max-h-48 overflow-y-auto overscroll-contain">
+                          <div
+                            ref={assigneePickerScrollRef}
+                            data-testid="issue-row-assignee-picker-scroll"
+                            className="scrollbar-auto-hide max-h-48 overflow-y-auto overscroll-contain"
+                          >
                             <button
                               className={cn(
                                 "flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50",

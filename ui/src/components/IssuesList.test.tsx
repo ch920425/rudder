@@ -21,6 +21,13 @@ vi.mock("@tanstack/react-query", () => ({
         error: null,
       };
     }
+    if (queryKey[0] === "issues" && queryKey[2] === "labels") {
+      return {
+        data: [label],
+        isLoading: false,
+        error: null,
+      };
+    }
     return {
       data: [],
       isLoading: false,
@@ -212,6 +219,65 @@ describe("IssuesList", () => {
       assigneeAgentId: "agent-1",
       assigneeUserId: null,
     });
+  });
+
+  it("uses auto-hiding scrollbars in issue filter and assignee popovers", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <IssuesList
+          issues={[baseIssue]}
+          agents={[
+            { id: "agent-1", name: "Alice", role: "engineer", title: null },
+            { id: "agent-2", name: "Bob", role: "engineer", title: null },
+          ]}
+          projects={[
+            { id: "project-1", name: "Rudder dev" },
+            { id: "project-2", name: "Rudder Release" },
+          ]}
+          viewStateKey="test:issues"
+          onUpdateIssue={vi.fn()}
+        />,
+      );
+    });
+
+    const filterButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Filter"),
+    );
+    expect(filterButton).toBeTruthy();
+
+    act(() => {
+      filterButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    for (const testId of [
+      "issues-filter-assignee-scroll",
+      "issues-filter-labels-scroll",
+      "issues-filter-projects-scroll",
+    ]) {
+      expect(document.body.querySelector(`[data-testid="${testId}"]`)?.classList.contains("scrollbar-auto-hide")).toBe(true);
+    }
+
+    const assigneeTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Assignee",
+    );
+    expect(assigneeTrigger).toBeTruthy();
+
+    act(() => {
+      assigneeTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(document.body.querySelector('[data-testid="issue-row-assignee-picker-scroll"]')?.classList.contains("scrollbar-auto-hide")).toBe(true);
   });
 
   it("renders project groups when the saved view groups issues by project", () => {
