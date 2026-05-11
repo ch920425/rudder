@@ -199,6 +199,8 @@ rudder issue block "<issue-id-or-identifier>" --comment "<markdown>" [--image "<
 
 Add `--image "<path>"` one or more times when the close-out/progress comment should include local screenshots or images. Supported local image types are PNG, JPEG, WebP, and GIF; the CLI uploads them as issue attachments and appends Markdown image links.
 
+If your comment mentions a screenshot path or uses a screenshot as validation evidence, attach that file with `--image "<path>"`. Do not leave only a local `/tmp/...` or workspace image path in the comment, because board users may not be able to inspect it from Rudder.
+
 ```bash
 rudder issue update "<issue-id-or-identifier>" ... --json
 ```

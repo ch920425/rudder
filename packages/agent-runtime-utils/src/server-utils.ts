@@ -621,6 +621,8 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "",
   "When you write issue comments or chat replies, match the language of the user's or board's most recent substantive message unless they explicitly ask for a different language.",
   "",
+  "When an issue comment, done comment, or blocker comment cites visual evidence from a local screenshot/image path, attach the image with the Rudder CLI `--image <path>` option instead of leaving only the filesystem path in the text.",
+  "",
   "## Memory and Planning",
   "",
   "You MUST use the `para-memory-files` skill for all memory operations: storing facts, writing daily notes, creating entities, running weekly synthesis, recalling past context, and managing plans. The skill defines your three-layer memory system (knowledge graph, daily notes, tacit knowledge), the PARA folder structure, atomic fact schemas, memory decay rules, and recall/planning conventions.",

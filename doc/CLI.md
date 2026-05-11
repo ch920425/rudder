@@ -170,6 +170,8 @@ project, updated time, and a compact match snippet when the server provides one.
 
 `--image` may be repeated. The CLI uploads each local PNG/JPEG/WebP/GIF as an
 issue attachment and appends Markdown image links to the comment body.
+If a comment cites a screenshot path or visual validation artifact, attach that
+file with `--image <path>` instead of leaving only the local path in the text.
 
 ## Agent Commands
 
