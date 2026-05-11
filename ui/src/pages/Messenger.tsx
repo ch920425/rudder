@@ -138,9 +138,14 @@ function sourceCommentLabel(item: MessengerIssueThreadItem) {
   const metadata = item.metadata as {
     sourceCommentAuthorKind?: unknown;
     sourceCommentByMe?: unknown;
+    sourceCommentAuthorLabel?: unknown;
   };
+  const authorLabel = typeof metadata.sourceCommentAuthorLabel === "string"
+    ? metadata.sourceCommentAuthorLabel.trim()
+    : item.sourceCommentAuthorLabel?.trim();
 
   if (metadata.sourceCommentByMe === true) return "Your comment";
+  if (authorLabel) return `${authorLabel} comment`;
   if (metadata.sourceCommentAuthorKind === "agent") return "Agent comment";
   if (metadata.sourceCommentAuthorKind === "user" && metadata.sourceCommentByMe === false) {
     return "Comment from someone else";
@@ -258,7 +263,7 @@ function ObjectMessageCard({
       data-testid={testId}
       className="overflow-hidden rounded-[var(--radius-md)] border border-border/70 bg-background shadow-[var(--shadow-sm)]"
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-[color:color-mix(in_oklab,var(--surface-inset)_78%,white)] px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-[color:color-mix(in_oklab,var(--surface-inset)_88%,transparent)] px-4 py-2">
         <span className="rounded-[calc(var(--radius-sm)-1px)] bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
           {eyebrow}
         </span>
@@ -280,9 +285,11 @@ function ObjectMessageCard({
 
 function MessengerIssueCommentPreview({
   body,
+  authorLabel,
   testId,
 }: {
   body: string;
+  authorLabel: string | null;
   testId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -305,13 +312,17 @@ function MessengerIssueCommentPreview({
   }, [body]);
 
   const collapsed = !expanded;
+  const sourceLabel = authorLabel?.trim()
+    ? `Source comment by ${authorLabel.trim()}`
+    : "Source comment on this issue";
+  const previewSurface = "color-mix(in oklab, var(--surface-inset) 88%, transparent)";
 
   return (
-    <div data-testid={testId} className="space-y-2 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_78%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_70%,white)] px-3 py-2.5">
+    <div data-testid={testId} className="space-y-2 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_78%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_88%,transparent)] px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--accent-strong)]">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <CircleCheckBig className="h-3 w-3" />
-          Source comment on this issue
+          {sourceLabel}
         </span>
       </div>
       <div className="relative">
@@ -324,7 +335,10 @@ function MessengerIssueCommentPreview({
           <MarkdownBody className="text-sm leading-5 text-foreground/90">{body}</MarkdownBody>
         </div>
         {overflowing && collapsed ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-b from-transparent to-background" />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-8"
+            style={{ background: `linear-gradient(to bottom, transparent, ${previewSurface})` }}
+          />
         ) : null}
       </div>
       {overflowing ? (
@@ -430,6 +444,7 @@ function MessengerIssueCard({
   const contextLabel = issueContextLabel(item);
   const sourceCommentBody = item.sourceCommentBody?.trim() ? item.sourceCommentBody : null;
   const sourceCommentBadge = sourceCommentBody ? sourceCommentLabel(item) : null;
+  const sourceCommentAuthorLabel = item.sourceCommentAuthorLabel?.trim() || null;
 
   const invalidateIssueViews = async () => {
     await Promise.all([
@@ -470,6 +485,7 @@ function MessengerIssueCard({
           sourceCommentBody ? (
             <MessengerIssueCommentPreview
               body={sourceCommentBody}
+              authorLabel={sourceCommentAuthorLabel}
               testId={`messenger-issue-comment-preview-${item.issueId}`}
             />
           ) : (

@@ -145,6 +145,7 @@ describe("Messenger page headers", () => {
           issueId: "issue-4",
           issueIdentifier: "RUD-4",
           sourceCommentId: "comment-4",
+          sourceCommentAuthorLabel: "Alex",
           sourceCommentBody: "## Review Summary\n\n- **Rendered** from markdown",
           title: "RUD-4 · Render markdown comments",
           subtitle: "commented",
@@ -161,6 +162,7 @@ describe("Messenger page headers", () => {
             assignedToMe: false,
             sourceCommentAuthorKind: "user",
             sourceCommentByMe: false,
+            sourceCommentAuthorLabel: "Alex",
           },
         },
       ],
@@ -170,8 +172,8 @@ describe("Messenger page headers", () => {
 
     expect(html).toContain("<h2>Review Summary</h2>");
     expect(html).toContain("<strong>Rendered</strong>");
-    expect(html).toContain("Comment from someone else");
-    expect(html).toContain("Source comment on this issue");
+    expect(html).toContain("Alex comment");
+    expect(html).toContain("Source comment by Alex");
     expect(html).toContain('href="/issues/RUD-4#comment-comment-4"');
     expect(html).not.toContain("Issues assistant");
   });
@@ -187,6 +189,7 @@ describe("Messenger page headers", () => {
           issueId: "issue-status-change",
           issueIdentifier: "RUD-5",
           sourceCommentId: null,
+          sourceCommentAuthorLabel: null,
           sourceCommentBody: "Ready for review.",
           title: "RUD-5 · Review status handoff",
           subtitle: "Status changed from todo to in review",

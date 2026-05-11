@@ -5,6 +5,7 @@ import {
   approvalComments,
   approvals,
   agents,
+  authUsers,
   chatConversations,
   heartbeatRuns,
   issueComments,
@@ -85,6 +86,8 @@ type IssueCommentRow = {
   body: string;
   authorAgentId: string | null;
   authorUserId: string | null;
+  authorAgentName: string | null;
+  authorUserName: string | null;
   createdAt: Date;
 };
 
@@ -355,6 +358,19 @@ function isSelfAuthoredComment(comment: IssueCommentRow, userId: string) {
   return comment.authorUserId === userId;
 }
 
+function issueCommentAuthorLabel(
+  comment: Pick<IssueCommentRow, "authorAgentId" | "authorUserId" | "authorAgentName" | "authorUserName"> | null,
+  currentUserId: string | null,
+) {
+  if (!comment) return null;
+  if (comment.authorAgentId) return comment.authorAgentName?.trim() || `Agent ${comment.authorAgentId.slice(0, 8)}`;
+  if (comment.authorUserId) {
+    if (currentUserId && comment.authorUserId === currentUserId) return "You";
+    return comment.authorUserName?.trim() || `User ${comment.authorUserId.slice(0, 8)}`;
+  }
+  return "System";
+}
+
 function isSelfAuthoredActivity(activity: IssueActivityRow, userId: string) {
   return activity.actorType === "user" && activity.actorId === userId;
 }
@@ -527,7 +543,7 @@ function issueCard(
   followed: boolean,
   latestPreview: string | null,
   latestActivityAt: Date,
-  sourceComment: Pick<IssueCommentRow, "id" | "body" | "authorAgentId" | "authorUserId"> | null,
+  sourceComment: Pick<IssueCommentRow, "id" | "body" | "authorAgentId" | "authorUserId" | "authorAgentName" | "authorUserName"> | null,
   latestActivity: IssueActivityRow | null,
 ): MessengerIssueThreadItem {
   const createdByMe = issue.createdByUserId === currentUserId;
@@ -538,6 +554,7 @@ function issueCard(
     ? "agent"
     : sourceComment?.authorUserId ? "user" : "system";
   const sourceCommentByMe = Boolean(sourceComment?.authorUserId && sourceComment.authorUserId === currentUserId);
+  const sourceCommentAuthorLabel = issueCommentAuthorLabel(sourceComment, currentUserId);
   return {
     id: issue.id,
     threadKey: "issues",
@@ -563,12 +580,14 @@ function issueCard(
         ? {
           sourceCommentAuthorKind,
           sourceCommentByMe,
+          sourceCommentAuthorLabel,
         }
         : {}),
     },
     issueId: issue.id,
     issueIdentifier: issue.identifier,
     sourceCommentId: sourceComment?.id ?? null,
+    sourceCommentAuthorLabel,
     sourceCommentBody: sourceComment?.body ?? null,
   };
 }
@@ -772,9 +791,13 @@ export function messengerService(db: Db) {
             body: issueComments.body,
             authorAgentId: issueComments.authorAgentId,
             authorUserId: issueComments.authorUserId,
+            authorAgentName: agents.name,
+            authorUserName: authUsers.name,
             createdAt: issueComments.createdAt,
           })
           .from(issueComments)
+          .leftJoin(agents, eq(issueComments.authorAgentId, agents.id))
+          .leftJoin(authUsers, eq(issueComments.authorUserId, authUsers.id))
           .where(and(eq(issueComments.orgId, orgId), inArray(issueComments.issueId, issueIds)))
           .orderBy(desc(issueComments.createdAt)),
       issueIds.length === 0
