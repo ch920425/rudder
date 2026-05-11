@@ -8,11 +8,21 @@ import {
   Check,
   ChevronRight,
   CircleAlert,
+  FileDiff,
+  FileSearch,
+  FileText,
+  FolderOpen,
+  Globe,
+  ListTree,
   Loader2,
+  Logs,
+  Plug,
+  Search,
   TerminalSquare,
   User,
   Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type TranscriptMode = "nice" | "raw";
 export type TranscriptDensity = "comfortable" | "compact";
@@ -39,6 +49,15 @@ type TranscriptDigestBucket =
   | "edit"
   | "run"
   | "tool";
+
+type TranscriptActionIconCategory = TranscriptToolCategory | "stdout";
+type TranscriptActionIconStatus = "running" | "completed" | "error" | "neutral";
+
+interface TranscriptActionIconTreatment {
+  key: string;
+  label: string;
+  Icon: LucideIcon;
+}
 
 interface TranscriptToolSemanticInfo {
   category: TranscriptToolCategory;
@@ -309,6 +328,72 @@ function formatTranscriptTimestamp(ts: string): string {
     second: "2-digit",
     hourCycle: "h23",
   });
+}
+
+function getTranscriptActionIconTreatment(category: TranscriptActionIconCategory): TranscriptActionIconTreatment {
+  switch (category) {
+    case "read":
+      return { key: "read", label: "Read file", Icon: FileText };
+    case "grep":
+    case "search":
+      return { key: "search", label: "Search", Icon: Search };
+    case "web_search":
+      return { key: "web_search", label: "Web search", Icon: Globe };
+    case "edit":
+      return { key: "edit", label: "Edit", Icon: FileDiff };
+    case "inspect":
+      return { key: "inspect", label: "Inspect", Icon: ListTree };
+    case "list":
+      return { key: "list", label: "Explore files", Icon: FolderOpen };
+    case "mcp":
+      return { key: "mcp", label: "MCP tool", Icon: Plug };
+    case "stdout":
+      return { key: "stdout", label: "Output", Icon: Logs };
+    case "help":
+      return { key: "help", label: "Help", Icon: FileSearch };
+    case "tool":
+      return { key: "tool", label: "Tool", Icon: Wrench };
+    case "bash":
+    case "script":
+    case "install":
+    default:
+      return { key: "command", label: "Command", Icon: TerminalSquare };
+  }
+}
+
+function getTranscriptActionIconTone(status: TranscriptActionIconStatus): string {
+  if (status === "error") return "text-red-600 dark:text-red-300";
+  if (status === "running") return "text-cyan-600 dark:text-cyan-300";
+  return "text-muted-foreground";
+}
+
+function TranscriptActionIcon({
+  category,
+  status,
+  className,
+}: {
+  category: TranscriptActionIconCategory;
+  status: TranscriptActionIconStatus;
+  className?: string;
+}) {
+  const treatment = getTranscriptActionIconTreatment(category);
+  const Icon = treatment.Icon;
+
+  return (
+    <span
+      data-transcript-action-icon={treatment.key}
+      className={cn(
+        "inline-flex h-4 w-4 shrink-0 items-center justify-center",
+        getTranscriptActionIconTone(status),
+        status === "running" && "animate-pulse",
+        className,
+      )}
+      aria-label={treatment.label}
+      title={treatment.label}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+    </span>
+  );
 }
 
 function getTranscriptTimestampTitle(ts: string): string | undefined {
@@ -2322,14 +2407,6 @@ function TranscriptToolCard({
     block.status === "error" && "rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3",
     detail && "rounded-xl border border-border/40 bg-background/60 p-3",
   );
-  const iconClass = cn(
-    "mt-0.5 h-3.5 w-3.5 shrink-0",
-    block.status === "error"
-      ? "text-red-600 dark:text-red-300"
-      : block.status === "completed"
-        ? "text-emerald-600 dark:text-emerald-300"
-        : "text-cyan-600 dark:text-cyan-300",
-  );
   const summary = semantic.summary;
   const outerClass = cn(
     detail && "rounded-xl border border-border/60 bg-background/80 p-3 shadow-sm",
@@ -2339,13 +2416,7 @@ function TranscriptToolCard({
   return (
     <div className={outerClass} title={getTranscriptTimestampTitle(block.ts)}>
       <div className="flex items-start gap-2">
-        {block.status === "error" ? (
-          <CircleAlert className={iconClass} />
-        ) : block.status === "completed" ? (
-          isCommand ? <TerminalSquare className={iconClass} /> : <Check className={iconClass} />
-        ) : (
-          isCommand ? <TerminalSquare className={iconClass} /> : <Wrench className={iconClass} />
-        )}
+        <TranscriptActionIcon category={semantic.category} status={block.status} className="mt-0.5" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground">
@@ -2453,6 +2524,7 @@ function TranscriptCommandGroup({
   const showExpandedErrorState = open && allToolsErrored;
   const semanticItems = block.items.map((item) => describeToolSemanticInfo(item.name, item.input));
   const summary = formatSemanticDigest(semanticItems, 0, { preferDirectSummary: true });
+  const visibleIconItems = block.items.slice(0, Math.min(block.items.length, 3));
 
   return (
     <div className={cn(showExpandedErrorState && "rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3")} title={getTranscriptTimestampTitle(block.ts)}>
@@ -2472,21 +2544,26 @@ function TranscriptCommandGroup({
         }}
       >
         <div className="mt-0.5 flex shrink-0 items-center">
-          {block.items.slice(0, Math.min(block.items.length, 3)).map((_, index) => (
-            <span
-              key={index}
-              className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm",
-                index > 0 && "-ml-1.5",
-                isRunning
-                  ? "border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-300"
-                  : "border-border/70 bg-background text-foreground/55",
-                isRunning && "animate-pulse",
-              )}
-            >
-              <TerminalSquare className="h-3.5 w-3.5" />
-            </span>
-          ))}
+          {visibleIconItems.map((item, index) => {
+            const semantic = semanticItems[index] ?? describeToolSemanticInfo(item.name, item.input);
+            const iconStatus = item.status === "error" ? "error" : item.status === "running" ? "running" : "completed";
+            return (
+              <span
+                key={index}
+                className={cn(
+                  "inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm",
+                  index > 0 && "-ml-1.5",
+                  item.status === "error"
+                    ? "border-red-500/25 bg-red-500/[0.08]"
+                    : item.status === "running"
+                      ? "border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-300"
+                      : "border-border/70 bg-background text-foreground/55",
+                )}
+              >
+                <TranscriptActionIcon category={semantic.category} status={iconStatus} />
+              </span>
+            );
+          })}
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold leading-none tracking-[0.05em] text-muted-foreground/70">
@@ -2832,7 +2909,7 @@ function TranscriptChatStdoutActionRow({
     return (
       <div className="py-1.5" title={getTranscriptTimestampTitle(block.ts)}>
         <div className="flex w-full items-start gap-2 text-left">
-          <TerminalSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <TranscriptActionIcon category="stdout" status="completed" className="mt-0.5" />
           <pre className={cn(
             "min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-foreground/80",
             density === "compact" ? "text-[11px] leading-5" : "text-xs leading-6",
@@ -2853,7 +2930,7 @@ function TranscriptChatStdoutActionRow({
         aria-expanded={open}
         aria-label={open ? "Collapse output details" : "Expand output details"}
       >
-        <TerminalSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <TranscriptActionIcon category="stdout" status="completed" className="mt-0.5" />
         <span className={cn("min-w-0 flex-1 break-words text-foreground/82", density === "compact" ? "text-xs leading-5" : "text-sm leading-6")}>
           {preview}
         </span>
@@ -2914,6 +2991,7 @@ function TranscriptChatToolActionRow({
     : block.status === "running"
       ? "text-cyan-700 dark:text-cyan-300"
       : "text-muted-foreground";
+  const iconStatus = block.status === "error" ? "error" : block.status === "running" ? "running" : "completed";
 
   return (
     <div
@@ -2937,15 +3015,7 @@ function TranscriptChatToolActionRow({
             : undefined
         }
       >
-        {block.status === "error" ? (
-          <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600 dark:text-red-300" />
-        ) : block.status === "running" ? (
-          <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-cyan-600 dark:text-cyan-300" />
-        ) : isCommand ? (
-          <TerminalSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        ) : (
-          <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
+        <TranscriptActionIcon category={semantic.category} status={iconStatus} className="mt-0.5" />
         <span className={cn("min-w-0 flex-1 break-words text-foreground/84", density === "compact" ? "text-xs leading-5" : "text-sm leading-6")}>
           {semantic.summary}
         </span>
@@ -3090,6 +3160,20 @@ function formatChatActionSummary(actions: ChatTranscriptAction[]): string {
   return formatSemanticDigest(infos, stdoutCount, { preferDirectSummary: true });
 }
 
+function getChatActionIconInfo(action: ChatTranscriptAction): {
+  category: TranscriptActionIconCategory;
+  status: TranscriptActionIconStatus;
+} {
+  if (action.type === "stdout") {
+    return { category: "stdout", status: "completed" };
+  }
+  const semantic = describeToolSemanticInfo(action.entry.name, action.entry.input);
+  return {
+    category: semantic.category,
+    status: action.entry.status === "error" ? "error" : action.entry.status === "running" ? "running" : "completed",
+  };
+}
+
 function TranscriptChatActionGroup({
   actions,
   density,
@@ -3110,7 +3194,6 @@ function TranscriptChatActionGroup({
     .filter((action): action is Extract<ChatTranscriptAction, { type: "tool" }> => action.type === "tool")
     .map((action) => action.entry);
   const allToolsErrored = areAllToolEntriesErrored(toolEntries);
-  const hasRunning = actions.some((action) => action.type === "tool" && action.entry.status === "running");
   const shouldInlineSingleStdoutAction = hasSingleAction && singleAction?.type === "stdout";
   const shouldRenderSingleToolAction = hasSingleAction && singleAction?.type === "tool";
   const summary = formatChatActionSummary(actions);
@@ -3166,22 +3249,27 @@ function TranscriptChatActionGroup({
         aria-label={expandedLabel}
       >
         <span className="flex shrink-0 items-center">
-          {actions.slice(0, Math.min(actions.length, 3)).map((_, index) => (
-            <span
-              key={index}
-              className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-full border",
-                index > 0 && "-ml-1.5",
-                highlightGroupError
-                  ? "border-red-500/20 bg-red-500/[0.08] text-red-700 dark:text-red-300"
-                  : hasRunning
-                    ? "border-cyan-500/20 bg-cyan-500/[0.08] text-cyan-700 dark:text-cyan-300"
-                    : "border-border/60 bg-background/80 text-muted-foreground",
-              )}
-            >
-              <TerminalSquare className="h-3.5 w-3.5" />
-            </span>
-          ))}
+          {actions.slice(0, Math.min(actions.length, 3)).map((action, index) => {
+            const icon = getChatActionIconInfo(action);
+            return (
+              <span
+                key={index}
+                className={cn(
+                  "inline-flex h-6 w-6 items-center justify-center rounded-full border",
+                  index > 0 && "-ml-1.5",
+                  highlightGroupError
+                    ? "border-red-500/20 bg-red-500/[0.08] text-red-700 dark:text-red-300"
+                    : icon.status === "error"
+                      ? "border-border/60 bg-background/80"
+                      : icon.status === "running"
+                        ? "border-cyan-500/20 bg-cyan-500/[0.08] text-cyan-700 dark:text-cyan-300"
+                        : "border-border/60 bg-background/80 text-muted-foreground",
+                )}
+              >
+                <TranscriptActionIcon category={icon.category} status={highlightGroupError ? "error" : icon.status} />
+              </span>
+            );
+          })}
         </span>
         <span className="min-w-0 flex-1">
           <span className={cn(

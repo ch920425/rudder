@@ -155,6 +155,62 @@ export const runTranscriptFixtureEntries: TranscriptEntry[] = [
   },
   {
     kind: "assistant",
+    ts: "2026-03-11T15:22:26.900Z",
+    text: "I’m checking the remaining transcript action shapes so the fixture covers exploration, inspection, and edits in the same visual pass.",
+  },
+  {
+    kind: "tool_call",
+    ts: "2026-03-11T15:22:27.101Z",
+    name: "command_execution",
+    toolUseId: "item_fixture_list",
+    input: {
+      command: "rg --files ui/src/components/transcript ui/src/pages",
+      cwd: "/workspace/rudder",
+    },
+  },
+  {
+    kind: "tool_result",
+    ts: "2026-03-11T15:22:27.248Z",
+    toolUseId: "item_fixture_list",
+    content: "command: rg --files ...\nstatus: completed\nexit_code: 0\n\nui/src/components/transcript/RunTranscriptView.tsx\nui/src/pages/RunTranscriptUxLab.tsx",
+    isError: false,
+  },
+  {
+    kind: "tool_call",
+    ts: "2026-03-11T15:22:27.526Z",
+    name: "command_execution",
+    toolUseId: "item_fixture_inspect",
+    input: {
+      command: "git status --short ui/src/components/transcript/RunTranscriptView.tsx",
+      cwd: "/workspace/rudder",
+    },
+  },
+  {
+    kind: "tool_result",
+    ts: "2026-03-11T15:22:27.708Z",
+    toolUseId: "item_fixture_inspect",
+    content: "command: git status --short ...\nstatus: completed\nexit_code: 0\n\nM ui/src/components/transcript/RunTranscriptView.tsx",
+    isError: false,
+  },
+  {
+    kind: "tool_call",
+    ts: "2026-03-11T15:22:28.041Z",
+    name: "command_execution",
+    toolUseId: "item_fixture_edit",
+    input: {
+      command: "apply_patch <<'PATCH'\n*** Begin Patch\n*** Update File: ui/src/components/transcript/RunTranscriptView.tsx\n*** End Patch\nPATCH",
+      cwd: "/workspace/rudder",
+    },
+  },
+  {
+    kind: "tool_result",
+    ts: "2026-03-11T15:22:28.408Z",
+    toolUseId: "item_fixture_edit",
+    content: "command: apply_patch ...\nstatus: completed\nexit_code: 0\n\nSuccess. Updated transcript icon treatment.",
+    isError: false,
+  },
+  {
+    kind: "assistant",
     ts: "2026-03-11T15:22:29.214Z",
     text: "I’ve confirmed the duplication: the run page has the only full transcript renderer, while live surfaces still collapse output into feed strings. I’m pulling markdown utilities and adapter shapes now so the new renderer can stay shared.",
   },
