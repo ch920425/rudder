@@ -75,6 +75,8 @@ interface RunTranscriptViewProps {
   presentation?: TranscriptPresentation;
   /** For embedded chat process logs, the final assistant answer is rendered as the message body. */
   hideAssistantMessages?: boolean;
+  /** For embedded chat process logs, remove only the final answer suffix while keeping progress notes visible. */
+  hiddenAssistantMessageText?: string | null;
 }
 
 type TranscriptBlock =
@@ -3247,6 +3249,66 @@ function TranscriptChatTurn({
   return content;
 }
 
+function trimTrailingWhitespace(value: string) {
+  return value.replace(/\s+$/g, "");
+}
+
+function redactAssistantSuffixFromChatTranscript(
+  entries: TranscriptEntry[],
+  hiddenAssistantMessageText: string | null | undefined,
+) {
+  let remaining = trimTrailingWhitespace(hiddenAssistantMessageText ?? "");
+  if (!remaining) return entries;
+
+  const nextEntries: TranscriptEntry[] = [];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]!;
+    if (entry.kind !== "assistant" || !remaining) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    const entryText = trimTrailingWhitespace(entry.text);
+    remaining = trimTrailingWhitespace(remaining);
+    if (!entryText) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    if (remaining.endsWith(entryText)) {
+      remaining = trimTrailingWhitespace(remaining.slice(0, remaining.length - entryText.length));
+      continue;
+    }
+
+    if (entryText.endsWith(remaining)) {
+      const visibleText = trimTrailingWhitespace(entryText.slice(0, entryText.length - remaining.length));
+      remaining = "";
+      if (visibleText) {
+        nextEntries.push({ ...entry, text: visibleText });
+      }
+      continue;
+    }
+
+    nextEntries.push(entry);
+  }
+
+  if (remaining) return entries;
+  return nextEntries.reverse();
+}
+
+function filterChatAssistantTranscriptEntries(
+  entries: TranscriptEntry[],
+  options: {
+    hideAssistantMessages: boolean;
+    hiddenAssistantMessageText?: string | null;
+  },
+) {
+  if (options.hideAssistantMessages) {
+    return entries.filter((entry) => entry.kind !== "assistant");
+  }
+  return redactAssistantSuffixFromChatTranscript(entries, options.hiddenAssistantMessageText);
+}
+
 function TranscriptChatTimeline({
   entries,
   density,
@@ -3254,6 +3316,7 @@ function TranscriptChatTimeline({
   collapseStdout,
   thinkingClassName,
   hideAssistantMessages,
+  hiddenAssistantMessageText,
   onMarkdownLinkClick,
 }: {
   entries: TranscriptEntry[];
@@ -3262,11 +3325,15 @@ function TranscriptChatTimeline({
   collapseStdout: boolean;
   thinkingClassName?: string;
   hideAssistantMessages: boolean;
+  hiddenAssistantMessageText?: string | null;
   onMarkdownLinkClick?: TranscriptMarkdownLinkClickHandler;
 }) {
   const timelineEntries = useMemo(
-    () => hideAssistantMessages ? entries.filter((entry) => entry.kind !== "assistant") : entries,
-    [entries, hideAssistantMessages],
+    () => filterChatAssistantTranscriptEntries(entries, {
+      hideAssistantMessages,
+      hiddenAssistantMessageText,
+    }),
+    [entries, hideAssistantMessages, hiddenAssistantMessageText],
   );
   const { preludeBlocks, turns } = useMemo(
     () => normalizeChatTranscriptTurns(timelineEntries, streaming),
@@ -3525,6 +3592,7 @@ export function RunTranscriptView({
   thinkingClassName,
   presentation = "default",
   hideAssistantMessages = false,
+  hiddenAssistantMessageText = null,
 }: RunTranscriptViewProps) {
   const toastContext = useOptionalToast();
   const handleMarkdownLinkClick = useCallback<TranscriptMarkdownLinkClickHandler>(({ event, href }) => {
@@ -3600,6 +3668,7 @@ export function RunTranscriptView({
           collapseStdout={collapseStdout}
           thinkingClassName={thinkingClassName}
           hideAssistantMessages={hideAssistantMessages}
+          hiddenAssistantMessageText={hiddenAssistantMessageText}
           onMarkdownLinkClick={handleMarkdownLinkClick}
         />
       </div>

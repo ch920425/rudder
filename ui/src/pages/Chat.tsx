@@ -1370,6 +1370,7 @@ function StreamTranscriptItem({
   state,
   streamStartedAt,
   streamEndedAt,
+  assistantMessageBody,
   defaultOpen = false,
   onOpenChange,
 }: {
@@ -1377,6 +1378,7 @@ function StreamTranscriptItem({
   state: ChatStreamDraftState | ChatMessage["status"];
   streamStartedAt: Date;
   streamEndedAt?: Date | null;
+  assistantMessageBody?: string | null;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -1463,7 +1465,7 @@ function StreamTranscriptItem({
               streaming={streamingActive}
               collapseStdout
               presentation="chat"
-              hideAssistantMessages
+              hiddenAssistantMessageText={assistantMessageBody}
             />
           </div>
         ) : null}
@@ -3556,6 +3558,7 @@ function ChatWorkspace() {
                                     state={message.status}
                                     streamStartedAt={persistedProcessStartedAt!}
                                     streamEndedAt={persistedProcessEndedAt}
+                                    assistantMessageBody={message.body}
                                     defaultOpen={Boolean(openProcessMessageIds[message.id])}
                                     onOpenChange={(open) => setProcessOpenForMessage(message.id, open)}
                                   />
@@ -3619,6 +3622,7 @@ function ChatWorkspace() {
                                 entries={activeStream.transcript}
                                 state={activeStream.state}
                                 streamStartedAt={activeStream.createdAt}
+                                assistantMessageBody={activeStream.body}
                               />
                               <AssistantDraftItem
                                 body={activeStream.body}

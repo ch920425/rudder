@@ -352,6 +352,54 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Final answer shown in the assistant message.");
   });
 
+  it("keeps chat assistant progress while redacting only the final answer suffix", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          hiddenAssistantMessageText="Final answer shown in the assistant message."
+          entries={[
+            {
+              kind: "system",
+              ts: "2026-03-12T00:00:01.000Z",
+              text: "turn started",
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:02.000Z",
+              text: "I am checking the chat surface first.",
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:03.000Z",
+              text: "Final answer shown ",
+              delta: true,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:04.000Z",
+              text: "in the assistant message.",
+              delta: true,
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:05.000Z",
+              name: "read_file",
+              toolUseId: "tool-1",
+              input: { path: "ui/src/pages/Chat.tsx" },
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("I am checking the chat surface first.");
+    expect(html).toContain("Read ui/src/pages/Chat.tsx");
+    expect(html).not.toContain("Final answer shown");
+    expect(html).not.toContain("in the assistant message.");
+  });
+
   it("renders chat thinking inline instead of behind a collapsed summary", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
