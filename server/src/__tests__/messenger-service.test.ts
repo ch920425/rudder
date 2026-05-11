@@ -449,6 +449,111 @@ describe("messengerService and issue follows", () => {
     expect(afterStatusOnlyUpdate?.needsAttention).toBe(false);
   });
 
+  it("searches chat conversations by title, summary, and message body without leaking organizations", async () => {
+    const orgId = randomUUID();
+    const otherOrgId = randomUUID();
+    const titleChatId = randomUUID();
+    const messageChatId = randomUUID();
+    const summaryChatId = randomUUID();
+    const otherOrgChatId = randomUUID();
+    const userId = "board-user-chat-search";
+    const olderAt = new Date("2026-05-01T10:00:00.000Z");
+    const newerAt = new Date("2026-05-01T11:00:00.000Z");
+
+    await db.insert(organizations).values([
+      {
+        id: orgId,
+        name: "Chat Search Org",
+        urlKey: deriveOrganizationUrlKey("Chat Search Org"),
+        issuePrefix: `S${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireBoardApprovalForNewAgents: false,
+      },
+      {
+        id: otherOrgId,
+        name: "Other Chat Search Org",
+        urlKey: deriveOrganizationUrlKey("Other Chat Search Org"),
+        issuePrefix: `O${otherOrgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireBoardApprovalForNewAgents: false,
+      },
+    ]);
+
+    await db.insert(chatConversations).values([
+      {
+        id: titleChatId,
+        orgId,
+        title: "Launch-token planning",
+        status: "active",
+        lastMessageAt: olderAt,
+        createdAt: olderAt,
+        updatedAt: olderAt,
+      },
+      {
+        id: messageChatId,
+        orgId,
+        title: "Message body only",
+        status: "active",
+        lastMessageAt: newerAt,
+        createdAt: newerAt,
+        updatedAt: newerAt,
+      },
+      {
+        id: summaryChatId,
+        orgId,
+        title: "Summary only",
+        summary: "Retains the launch-token deployment summary",
+        status: "resolved",
+        lastMessageAt: new Date("2026-05-01T09:00:00.000Z"),
+      },
+      {
+        id: otherOrgChatId,
+        orgId: otherOrgId,
+        title: "Launch-token private chat",
+        status: "active",
+        lastMessageAt: newerAt,
+      },
+    ]);
+
+    await db.insert(chatMessages).values([
+      {
+        orgId,
+        conversationId: messageChatId,
+        role: "user",
+        kind: "message",
+        body: "The only match is the launch-token buried in a user message.",
+        createdAt: newerAt,
+        updatedAt: newerAt,
+      },
+      {
+        orgId,
+        conversationId: messageChatId,
+        role: "assistant",
+        kind: "message",
+        body: "A second launch-token mention should not duplicate the conversation.",
+        createdAt: new Date("2026-05-01T11:01:00.000Z"),
+        updatedAt: new Date("2026-05-01T11:01:00.000Z"),
+      },
+      {
+        orgId: otherOrgId,
+        conversationId: otherOrgChatId,
+        role: "assistant",
+        kind: "message",
+        body: "launch-token from another org",
+        createdAt: newerAt,
+        updatedAt: newerAt,
+      },
+    ]);
+
+    const results = await chatSvc.list(orgId, { status: "all", q: "launch-token" }, userId);
+    const ids = results.map((conversation) => conversation.id);
+
+    expect(ids).toEqual([messageChatId, titleChatId, summaryChatId]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain(otherOrgChatId);
+    expect(results.find((conversation) => conversation.id === titleChatId)?.searchPreview).toBe("Launch-token planning");
+    expect(results.find((conversation) => conversation.id === summaryChatId)?.searchPreview).toBe("Retains the launch-token deployment summary");
+    expect(results.find((conversation) => conversation.id === messageChatId)?.searchPreview).toContain("launch-token");
+  });
+
   it("assigns approved chat issue proposals to the selected chat agent by default", async () => {
     const orgId = randomUUID();
     const agentId = randomUUID();

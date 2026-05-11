@@ -66,6 +66,7 @@ export interface ChatConversation {
   title: string;
   summary: string | null;
   latestReplyPreview: string | null;
+  searchPreview?: string | null;
   preferredAgentId: string | null;
   routedAgentId: string | null;
   primaryIssueId: string | null;

@@ -6,6 +6,7 @@ import { useSidebar } from "../context/SidebarContext";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
+import { chatsApi } from "../api/chats";
 import { queryKeys } from "../lib/queryKeys";
 import {
   CommandDialog,
@@ -26,6 +27,7 @@ import {
   DollarSign,
   History,
   Clock3,
+  MessagesSquare,
 } from "lucide-react";
 import { Identity } from "./Identity";
 import { AgentIdentity } from "./AgentAvatar";
@@ -67,6 +69,12 @@ export function CommandPalette() {
     enabled: !!selectedOrganizationId && open && searchQuery.length > 0,
   });
 
+  const { data: searchedChats = [] } = useQuery({
+    queryKey: queryKeys.chats.search(selectedOrganizationId!, searchQuery),
+    queryFn: () => chatsApi.list(selectedOrganizationId!, "all", { q: searchQuery }),
+    enabled: !!selectedOrganizationId && open && searchQuery.length > 0,
+  });
+
   const { data: agents = [] } = useQuery({
     queryKey: queryKeys.agents.list(selectedOrganizationId!),
     queryFn: () => agentsApi.list(selectedOrganizationId!),
@@ -105,7 +113,7 @@ export function CommandPalette() {
         if (v && isMobile) setSidebarOpen(false);
       }} className="sm:max-w-2xl">
       <CommandInput
-        placeholder="Search issues, agents, projects..."
+        placeholder="Search issues, chats, agents, projects..."
         value={query}
         onValueChange={setQuery}
         className="pr-8"
@@ -177,6 +185,35 @@ export function CommandPalette() {
                   })()}
                 </CommandItem>
               ))}
+            </CommandGroup>
+          </>
+        )}
+
+        {searchQuery.length > 0 && searchedChats.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Chats">
+              {searchedChats.slice(0, 10).map((chat) => {
+                const preview = chat.searchPreview ?? chat.latestReplyPreview ?? chat.summary;
+                return (
+                  <CommandItem
+                    key={chat.id}
+                    value={`${searchQuery} ${chat.title} ${preview ?? ""}`}
+                    onSelect={() => go(`/messenger/chat/${chat.id}`)}
+                  >
+                    <MessagesSquare className="mr-2 h-4 w-4" />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate">{chat.title}</span>
+                      {preview && (
+                        <span className="truncate text-xs text-muted-foreground">{preview}</span>
+                      )}
+                    </span>
+                    <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
+                      {chat.status}
+                    </span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </>
         )}

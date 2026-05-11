@@ -66,6 +66,8 @@ export const queryKeys = {
   chats: {
     list: (orgId: string, status: "active" | "resolved" | "archived" | "all" = "active") =>
       ["chats", orgId, status] as const,
+    search: (orgId: string, q: string, status: "active" | "resolved" | "archived" | "all" = "all") =>
+      ["chats", orgId, status, "search", q] as const,
     detail: (chatId: string) => ["chats", "detail", chatId] as const,
     messages: (chatId: string) => ["chats", "messages", chatId] as const,
   },
