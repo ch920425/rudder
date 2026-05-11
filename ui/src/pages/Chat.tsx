@@ -3399,8 +3399,19 @@ function ChatWorkspace() {
               openComposerContextMenu("agent");
             }}
           >
+            {activeSkillAgent ? (
+              <span
+                data-testid="chat-agent-selector-icon"
+                className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-muted-foreground"
+                aria-hidden="true"
+              >
+                <AgentIcon icon={activeSkillAgent.icon} role={activeSkillAgent.role} className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
             <span className="min-w-0 truncate">{agentPillLabel}</span>
-            {agentSelectionLocked ? null : <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />}
+            {agentSelectionLocked ? null : (
+              <ChevronDown data-testid="chat-agent-selector-chevron" className="h-3 w-3 shrink-0 opacity-70" />
+            )}
           </button>
 
           {showChatSkillsPicker ? (
