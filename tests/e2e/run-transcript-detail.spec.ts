@@ -48,6 +48,12 @@ test.describe("Run transcript detail", () => {
     await expect(page.getByText("Called fetch_pr via github", { exact: false })).toBeVisible();
     await expect(page.getByText("repo_full_name Undertone0809/rudder", { exact: false })).toBeVisible();
 
+    const skillUseRow = page.getByRole("button", { name: /Expand tool details/ }).filter({ hasText: "Use flomo-local-api skill" });
+    await expect(skillUseRow).toHaveCount(1);
+    await expect(page.getByText("/Users/zeeland/.codex/skills/flomo-local-api/SKILL.md", { exact: false })).toHaveCount(0);
+    await skillUseRow.click();
+    await expect(page.getByText("/Users/zeeland/.codex/skills/flomo-local-api/SKILL.md", { exact: false })).toBeVisible();
+
     await page.screenshot({
       path: "/tmp/rudder-run-transcript-detail-expanded.png",
       fullPage: true,

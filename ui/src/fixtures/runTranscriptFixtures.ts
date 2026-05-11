@@ -155,6 +155,27 @@ export const runTranscriptFixtureEntries: TranscriptEntry[] = [
   },
   {
     kind: "assistant",
+    ts: "2026-03-11T15:22:26.500Z",
+    text: "I’m loading the transcript skill instructions so the operator view can show the skill-level action while retaining the raw path in details.",
+  },
+  {
+    kind: "tool_call",
+    ts: "2026-03-11T15:22:26.600Z",
+    name: "read_file",
+    toolUseId: "skill_fixture_read",
+    input: {
+      path: "/Users/zeeland/.codex/skills/flomo-local-api/SKILL.md",
+    },
+  },
+  {
+    kind: "tool_result",
+    ts: "2026-03-11T15:22:26.700Z",
+    toolUseId: "skill_fixture_read",
+    content: "# flomo-local-api\n\nUse this skill when syncing notes.",
+    isError: false,
+  },
+  {
+    kind: "assistant",
     ts: "2026-03-11T15:22:26.900Z",
     text: "I’m checking the remaining transcript action shapes so the fixture covers exploration, inspection, and edits in the same visual pass.",
   },

@@ -1092,6 +1092,43 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Searched 1 location");
   });
 
+  it("summarizes SKILL.md file reads as skill use", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "read_file",
+              toolUseId: "tool-1",
+              input: { path: "/Users/zeeland/.codex/skills/flomo-local-api/SKILL.md" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "tool-1",
+              content: "skill instructions",
+              isError: false,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Use flomo-local-api skill");
+    expect(html).not.toContain("Read /Users/zeeland/.codex/skills/flomo-local-api/SKILL.md");
+  });
+
+  it("summarizes shell reads of SKILL.md as skill use", () => {
+    const html = renderCommandSummary("sed -n '1,220p' /Users/zeeland/.codex/skills/flomo-local-api/SKILL.md");
+
+    expect(html).toContain("Use flomo-local-api skill");
+    expect(html).not.toContain("Read /Users/zeeland/.codex/skills/flomo-local-api/SKILL.md");
+  });
+
   it("decodes shell-escaped search queries in chat activity summaries", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
@@ -1467,7 +1504,7 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Model turn");
     expect(html).not.toContain(`>${hiddenHeaderTime}<`);
     expect(html).toContain("Reviewing the bundled skills before deciding what to change.");
-    expect(html).toContain("Explored 2 files");
+    expect(html).toContain("Used 2 skills");
     expect(html).not.toContain("para-memory-files/SKILL.md");
     expect(html).not.toContain("rudder-create-agent/SKILL.md");
   });

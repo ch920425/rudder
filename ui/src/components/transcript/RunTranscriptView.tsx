@@ -65,7 +65,7 @@ interface TranscriptToolSemanticInfo {
   summary: string;
   bucket: TranscriptDigestBucket;
   quantity: number;
-  noun: "file" | "location" | "item" | "tool" | "command";
+  noun: "file" | "location" | "item" | "tool" | "command" | "skill";
 }
 
 interface TranscriptToolCardEntry {
@@ -743,6 +743,39 @@ function dedupeTargets(values: string[]): string[] {
   return unique;
 }
 
+function extractSkillSlugFromEntryPath(value: string): string | null {
+  const normalized = normalizePathTarget(value)?.replace(/\\/g, "/");
+  if (!normalized) return null;
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length < 2 || parts[parts.length - 1] !== "SKILL.md") return null;
+  const slug = parts[parts.length - 2];
+  if (!slug || slug === "." || slug === "..") return null;
+  return slug;
+}
+
+function extractSkillSlugsFromEntryPaths(values: string[]): string[] {
+  return dedupeTargets(values.flatMap((value) => {
+    const slug = extractSkillSlugFromEntryPath(value);
+    return slug ? [slug] : [];
+  }));
+}
+
+function formatSkillUseAction(slugs: string[]): Pick<TranscriptToolSemanticInfo, "summary" | "quantity" | "noun"> | null {
+  if (slugs.length === 0) return null;
+  if (slugs.length === 1) {
+    return {
+      summary: `Use ${slugs[0]} skill`,
+      quantity: 1,
+      noun: "skill",
+    };
+  }
+  return {
+    summary: `Use ${slugs.length} skills`,
+    quantity: slugs.length,
+    noun: "skill",
+  };
+}
+
 function isLikelyPathToken(token: string): boolean {
   const value = normalizePathTarget(token);
   if (!value || value.startsWith("-")) return false;
@@ -1231,6 +1264,15 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
       : fallbackTarget
         ? dedupeTargets([fallbackTarget])
         : [];
+    const skillAction = formatSkillUseAction(extractSkillSlugsFromEntryPaths(targets));
+    if (skillAction) {
+      return {
+        ...skillAction,
+        category: invocation.category,
+        label: "Use skill",
+        bucket: "explore",
+      };
+    }
     const action = formatTargetAction("Read", targets, "file", "Read file");
     return {
       ...action,
@@ -1547,6 +1589,15 @@ function describeToolSemanticInfo(name: string, input: unknown): TranscriptToolS
   const query = extractRecordQuery(record);
 
   if (invocation.category === "read") {
+    const skillAction = formatSkillUseAction(extractSkillSlugsFromEntryPaths(paths));
+    if (skillAction) {
+      return {
+        ...skillAction,
+        category: invocation.category,
+        label: "Use skill",
+        bucket: "explore",
+      };
+    }
     const action = formatTargetAction("Read", paths, "file", "Read file");
     return {
       ...action,
@@ -1653,7 +1704,11 @@ function formatSemanticDigest(
   const parts: string[] = [];
   if (exploreCount > 0) {
     const noun = exploreNouns.size === 1 ? [...exploreNouns][0] : "item";
-    parts.push(`Explored ${exploreCount} ${pluralize(noun, exploreCount)}`);
+    parts.push(
+      noun === "skill"
+        ? `Used ${exploreCount} ${pluralize(noun, exploreCount)}`
+        : `Explored ${exploreCount} ${pluralize(noun, exploreCount)}`,
+    );
   }
   if (searchCount > 0) {
     parts.push(`${searchCount} ${pluralize("search", searchCount)}`);
