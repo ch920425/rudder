@@ -301,7 +301,7 @@ export function OrgChart() {
     <div
       ref={containerRef}
       data-panning={dragging ? "true" : "false"}
-      className="motion-org-viewport w-full flex-1 min-h-0 overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+      className="motion-org-viewport w-full flex-1 min-h-[calc(100dvh-12rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg md:min-h-0"
       style={{ cursor: dragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
