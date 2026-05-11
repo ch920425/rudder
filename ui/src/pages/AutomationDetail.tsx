@@ -29,6 +29,7 @@ import { buildAutomationTriggerPatch } from "../lib/automation-trigger-patch";
 import { formatChatAgentLabel } from "../lib/agent-labels";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import { timeAgo } from "../lib/timeAgo";
+import { formatDateTime } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { AgentIcon } from "../components/AgentIconPicker";
@@ -111,7 +112,7 @@ function getLocalTimezone(): string {
 
 function formatAutomationTimestamp(value: Date | string | null | undefined, fallback: string) {
   if (!value) return fallback;
-  return new Date(value).toLocaleString();
+  return formatDateTime(value);
 }
 
 function summarizeTrigger(trigger: Pick<AutomationTrigger, "kind" | "cronExpression" | "label"> | null): string {
@@ -283,7 +284,7 @@ function TriggerEditor({
           </Badge>
           <span className="text-xs text-muted-foreground">
             {trigger.kind === "schedule" && trigger.nextRunAt
-              ? `Next: ${new Date(trigger.nextRunAt).toLocaleString()}`
+              ? `Next: ${formatDateTime(trigger.nextRunAt)}`
               : trigger.kind === "webhook"
                 ? "Webhook"
                 : "API"}

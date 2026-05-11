@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "../lib/utils";
+import { cn, formatTime } from "../lib/utils";
 import {
   extractModelName,
   extractProviderIdWithFallback
@@ -1801,7 +1801,7 @@ function AdapterEnvironmentResult({
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{statusLabel}</span>
         <span className="opacity-80">
-          {new Date(result.testedAt).toLocaleTimeString()}
+          {formatTime(result.testedAt)}
         </span>
       </div>
       {visibleChecks.length > 0 ? (

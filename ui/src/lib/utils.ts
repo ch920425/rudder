@@ -50,15 +50,26 @@ export function formatDateTime(date: Date | string): string {
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        hour12: false,
+        hourCycle: "h23",
       }
     : {
         month: "short",
         day: "numeric",
         year: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       }).format(new Date(date));
+}
+
+export function formatTime(date: Date | string, options: { seconds?: boolean; timeZoneName?: "short" } = {}): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(options.seconds ? { second: "2-digit" } : {}),
+    ...(options.timeZoneName ? { timeZoneName: options.timeZoneName } : {}),
+    hourCycle: "h23",
+  }).format(new Date(date));
 }
 
 export function formatDateTimeSeconds(date: Date | string): string {

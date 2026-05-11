@@ -31,7 +31,7 @@ import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useCalendarWorkspace } from "@/context/CalendarWorkspaceContext";
 import { useToast } from "@/context/ToastContext";
 import { useViewedOrganization } from "@/hooks/useViewedOrganization";
-import { agentUrl, cn, formatDateTime, issueUrl } from "@/lib/utils";
+import { agentUrl, cn, formatDateTime, formatTime, issueUrl } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
 import { layoutTimedEvents } from "@/lib/calendar-event-layout";
 import { timedEventSegmentsForDay, type TimedDaySegment } from "@/lib/calendar-day-segments";
@@ -240,7 +240,7 @@ function clusterParticipantText(cluster: SelectedDisplayCluster) {
 }
 
 function formatShortTime(date: Date | string) {
-  return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return formatTime(date);
 }
 
 function formatTimeRange(startAt: Date | string, endAt: Date | string) {
@@ -281,8 +281,8 @@ function eventIntersectsDay(event: CalendarEvent, day: Date) {
 function formatMonthEventTime(event: CalendarEvent, day: Date) {
   const eventStart = new Date(event.startAt);
   if (event.allDay) return "All day";
-  if (eventStart < startOfDay(day)) return "12 AM";
-  return eventStart.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (eventStart < startOfDay(day)) return "00:00";
+  return formatTime(eventStart);
 }
 
 function isWritableEvent(event: CalendarEvent | null) {
@@ -728,7 +728,7 @@ function CalendarGridView({
                   className="absolute left-0 right-0 border-t border-border/70 px-2 pt-0.5 text-[10px] text-muted-foreground"
                   style={{ top: hour * HOUR_HEIGHT }}
                 >
-                  {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
+                  {`${String(hour).padStart(2, "0")}:00`}
                 </div>
               ))}
             </div>
@@ -829,9 +829,9 @@ function CalendarGridView({
       </div>
       {eventDrag ? (
         <div className="border-t border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          {eventDrag.previewStartAt.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+          {eventDrag.previewStartAt.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
           {" - "}
-          {eventDrag.previewEndAt.toLocaleString([], { hour: "2-digit", minute: "2-digit" })}
+          {eventDrag.previewEndAt.toLocaleString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
         </div>
       ) : null}
     </div>
@@ -945,7 +945,7 @@ function AgendaView({
                 onClick={() => onSelect(event)}
               >
                 <span className="text-xs text-muted-foreground">
-                  {new Date(event.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {formatTime(event.startAt)}
                 </span>
                 <span className="truncate font-medium">{visibleEventTitle(event)}</span>
                 <span className="justify-self-end rounded-[calc(var(--radius-sm)-2px)] border border-border px-2 py-1 text-xs text-muted-foreground">

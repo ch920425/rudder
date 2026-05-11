@@ -709,7 +709,7 @@ function RunEventsList({
           return (
             <div key={evt.id} className="flex gap-2">
               <span className="text-neutral-400 dark:text-neutral-600 shrink-0 select-none w-16">
-                {new Date(evt.createdAt).toLocaleTimeString("en-US", { hour12: false })}
+                {new Date(evt.createdAt).toLocaleTimeString("en-US", { hourCycle: "h23" })}
               </span>
               <span
                 className={cn(
@@ -816,7 +816,7 @@ function WorkspaceOperationLogViewer({
               {chunks.map((chunk, index) => (
                 <div key={`${chunk.ts}-${index}`} className="flex gap-2">
                   <span className="shrink-0 text-neutral-500">
-                    {new Date(chunk.ts).toLocaleTimeString("en-US", { hour12: false })}
+                    {new Date(chunk.ts).toLocaleTimeString("en-US", { hourCycle: "h23" })}
                   </span>
                   <span
                     className={cn(
@@ -4111,7 +4111,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
     return () => clearInterval(id);
   }, [isRunning, run.startedAt]);
 
-  const timeFormat: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false };
+  const timeFormat: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" };
   const startTime = run.startedAt ? new Date(run.startedAt).toLocaleTimeString("en-US", timeFormat) : null;
   const endTime = run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString("en-US", timeFormat) : null;
   const durationSec = run.startedAt && run.finishedAt

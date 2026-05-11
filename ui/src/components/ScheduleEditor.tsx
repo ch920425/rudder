@@ -18,7 +18,7 @@ const PRESETS: { value: SchedulePreset; label: string }[] = [
 
 const HOURS = Array.from({ length: 24 }, (_, i) => ({
   value: String(i),
-  label: i === 0 ? "12 AM" : i < 12 ? `${i} AM` : i === 12 ? "12 PM" : `${i - 12} PM`,
+  label: String(i).padStart(2, "0"),
 }));
 
 const MINUTES = Array.from({ length: 12 }, (_, i) => ({
@@ -116,7 +116,7 @@ function buildCron(preset: SchedulePreset, hour: string, minute: string, dayOfWe
 function describeSchedule(cron: string): string {
   const { preset, hour, minute, dayOfWeek, dayOfMonth } = parseCronToPreset(cron);
   const hourLabel = HOURS.find((h) => h.value === hour)?.label ?? `${hour}`;
-  const timeStr = `${hourLabel.replace(/ (AM|PM)$/, "")}:${minute.padStart(2, "0")} ${hourLabel.match(/(AM|PM)$/)?.[0] ?? ""}`;
+  const timeStr = `${hourLabel.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 
   switch (preset) {
     case "every_minute":

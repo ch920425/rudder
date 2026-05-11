@@ -36,7 +36,7 @@ import {
   semanticBadgeToneClasses,
 } from "@/components/ui/semanticTones";
 import { Heart, ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, formatTime } from "../lib/utils";
 import { extractModelName, extractProviderId } from "../lib/model-utils";
 import { CODEX_LOCAL_REASONING_EFFORT_OPTIONS, withDefaultThinkingEffortOption } from "../lib/runtime-thinking-effort";
 import { resolveRuntimeModels } from "../lib/runtime-models";
@@ -1087,7 +1087,7 @@ export function AdapterEnvironmentResult({
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{label ? `${label}: ${statusLabel}` : statusLabel}</span>
         <span className="text-[11px] opacity-80">
-          {new Date(result.testedAt).toLocaleTimeString()}
+          {formatTime(result.testedAt)}
         </span>
       </div>
       {visibleChecks.length > 0 ? (

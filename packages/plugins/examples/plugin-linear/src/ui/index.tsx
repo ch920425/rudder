@@ -390,7 +390,14 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
   if (!timestamp) return "Unknown";
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return timestamp;
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
 }
 
 function issueHref(orgPrefix: string | null, issueId: string): string {

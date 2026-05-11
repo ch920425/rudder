@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDialog } from "@/context/DialogContext";
 import { useOrganization } from "@/context/OrganizationContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { formatDateTime } from "@/lib/utils";
 import { Link, useNavigate, useSearchParams } from "@/lib/router";
 import { resolveBoardActorLabel } from "@/lib/activity-actors";
 import { useOperatorDisplayName } from "@/hooks/useOperatorDisplayName";
@@ -476,7 +477,7 @@ export function ApprovalDetailDialog({
                             />
                           )}
                           <span className="text-xs text-muted-foreground">
-                            {new Date(comment.createdAt).toLocaleString()}
+                            {formatDateTime(comment.createdAt)}
                           </span>
                         </div>
                         <MarkdownBody className="text-sm">{comment.body}</MarkdownBody>
