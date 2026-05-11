@@ -265,6 +265,22 @@ describe("chat routes", () => {
     mockChatService.markInterruptedStreamingMessages.mockResolvedValue([]);
   });
 
+  it("passes chat search query and status to the chat list service", async () => {
+    mockChatService.list.mockResolvedValue([createConversation({ title: "Searchable chat" })]);
+
+    const res = await request(createApp())
+      .get("/api/orgs/organization-1/chats")
+      .query({ status: "all", q: "launch notes" });
+
+    expect(res.status).toBe(200);
+    expect(mockChatService.list).toHaveBeenCalledWith(
+      "organization-1",
+      { status: "all", q: "launch notes" },
+      "user-1",
+    );
+    expect(mockChatAssistantService.enrichConversations).toHaveBeenCalled();
+  });
+
   it("creates a conversation using the organization default issue creation mode", async () => {
     mockChatService.create.mockResolvedValue(createConversation());
 

@@ -88,6 +88,29 @@ function truncatePreview(value: string | null | undefined, max = 140) {
   return formatMessengerPreview(value, { max });
 }
 
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function textContains(value: string | null | undefined, query: string): value is string {
+  return Boolean(value && value.toLowerCase().includes(query.toLowerCase()));
+}
+
+function buildSearchSnippet(value: string, query: string, maxLength = 160) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+
+  const index = compact.toLowerCase().indexOf(query.toLowerCase());
+  if (index < 0) return `${compact.slice(0, maxLength - 1).trimEnd()}...`;
+
+  const context = Math.max(20, Math.floor((maxLength - query.length) / 2));
+  const start = Math.max(0, index - context);
+  const end = Math.min(compact.length, start + maxLength);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < compact.length ? "..." : "";
+  return `${prefix}${compact.slice(start, end).trim()}${suffix}`;
+}
+
 function chatTranscriptFromPayload(
   payload: Record<string, unknown> | null | undefined,
 ): ChatStreamTranscriptEntry[] {
@@ -528,6 +551,51 @@ export function chatService(db: Db) {
     return map;
   }
 
+  async function listSearchPreviews(
+    orgId: string,
+    rows: ConversationRow[],
+    query: string,
+    containsPattern: string,
+  ) {
+    if (rows.length === 0) return new Map<string, string | null>();
+
+    const previews = new Map<string, string | null>();
+    for (const row of rows) {
+      if (textContains(row.title, query)) {
+        previews.set(row.id, buildSearchSnippet(row.title, query));
+      } else if (textContains(row.summary, query)) {
+        previews.set(row.id, buildSearchSnippet(row.summary, query));
+      }
+    }
+
+    const messageSearchIds = rows
+      .map((row) => row.id)
+      .filter((id) => !previews.has(id));
+    if (messageSearchIds.length === 0) return previews;
+
+    const messageRows = await db
+      .select({
+        conversationId: chatMessages.conversationId,
+        body: chatMessages.body,
+      })
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.orgId, orgId),
+          inArray(chatMessages.conversationId, messageSearchIds),
+          isNull(chatMessages.supersededAt),
+          sql<boolean>`${chatMessages.body} ILIKE ${containsPattern} ESCAPE '\\'`,
+        ),
+      )
+      .orderBy(desc(chatMessages.createdAt));
+
+    for (const message of messageRows) {
+      if (previews.has(message.conversationId)) continue;
+      previews.set(message.conversationId, buildSearchSnippet(message.body, query));
+    }
+    return previews;
+  }
+
   async function hydrateConversations(rows: ConversationRow[], userId?: string | null) {
     if (userId) {
       await ensureConversationUserStates(rows, userId);
@@ -671,20 +739,43 @@ export function chatService(db: Db) {
 
   async function list(
       orgId: string,
-      options?: { status?: "active" | "resolved" | "archived" | "all" },
+      options?: { status?: "active" | "resolved" | "archived" | "all"; q?: string },
       userId?: string | null,
     ) {
       const status = options?.status ?? "active";
-      const where =
-        status === "all"
-          ? eq(chatConversations.orgId, orgId)
-          : and(eq(chatConversations.orgId, orgId), eq(chatConversations.status, status));
+      const rawSearch = options?.q?.trim() ?? "";
+      const hasSearch = rawSearch.length > 0;
+      const containsPattern = `%${escapeLikePattern(rawSearch)}%`;
+      const conditions = [eq(chatConversations.orgId, orgId)];
+      if (status !== "all") {
+        conditions.push(eq(chatConversations.status, status));
+      }
+      if (hasSearch) {
+        conditions.push(sql<boolean>`(
+          ${chatConversations.title} ILIKE ${containsPattern} ESCAPE '\\'
+          OR ${chatConversations.summary} ILIKE ${containsPattern} ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1
+            FROM ${chatMessages}
+            WHERE ${chatMessages.conversationId} = ${chatConversations.id}
+              AND ${chatMessages.orgId} = ${orgId}
+              AND ${chatMessages.supersededAt} IS NULL
+              AND ${chatMessages.body} ILIKE ${containsPattern} ESCAPE '\\'
+          )
+        )`);
+      }
       const rows = await db
         .select()
         .from(chatConversations)
-        .where(where)
+        .where(and(...conditions))
         .orderBy(desc(sql`coalesce(${chatConversations.lastMessageAt}, ${chatConversations.updatedAt})`));
-      return hydrateConversations(rows, userId);
+      const conversations = await hydrateConversations(rows, userId);
+      if (!hasSearch) return conversations;
+      const searchPreviews = await listSearchPreviews(orgId, rows, rawSearch, containsPattern);
+      return conversations.map((conversation) => ({
+        ...conversation,
+        searchPreview: searchPreviews.get(conversation.id) ?? null,
+      }));
   }
 
   async function getById(id: string, userId?: string | null) {
