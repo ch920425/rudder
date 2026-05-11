@@ -1197,6 +1197,211 @@ describe("RunTranscriptView", () => {
     expect(html).toContain("pr_number 123");
   });
 
+  it("uses semantic action icons for representative transcript categories", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "Reading the design doc.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "read_file",
+              toolUseId: "read-1",
+              input: { path: "doc/DESIGN.md" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "read-1",
+              content: "design",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:03.000Z",
+              text: "Searching transcript code.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:04.000Z",
+              name: "command_execution",
+              toolUseId: "search-1",
+              input: { command: "rg transcript ui/src/components/transcript" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:05.000Z",
+              toolUseId: "search-1",
+              content: "match",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:06.000Z",
+              text: "Editing the renderer.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:07.000Z",
+              name: "command_execution",
+              toolUseId: "edit-1",
+              input: { command: "apply_patch <<'PATCH'\n*** Begin Patch\n*** Update File: ui/src/components/transcript/RunTranscriptView.tsx\n*** End Patch\nPATCH" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:08.000Z",
+              toolUseId: "edit-1",
+              content: "patch applied",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:09.000Z",
+              text: "Inspecting repository state.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:10.000Z",
+              name: "command_execution",
+              toolUseId: "inspect-1",
+              input: { command: "git status --short" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:11.000Z",
+              toolUseId: "inspect-1",
+              content: "M ui/src/components/transcript/RunTranscriptView.tsx",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:12.000Z",
+              text: "Checking current docs online.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:13.000Z",
+              name: "web_search",
+              toolUseId: "web-1",
+              input: { query: "transcript icon semantics" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:14.000Z",
+              toolUseId: "web-1",
+              content: "results",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:15.000Z",
+              text: "Fetching GitHub context.",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:16.000Z",
+              name: "mcp__github__fetch_issue",
+              toolUseId: "mcp-1",
+              input: { repo_full_name: "rudder/rudder", issue_number: 126 },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:17.000Z",
+              toolUseId: "mcp-1",
+              content: "issue",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-03-12T00:00:18.000Z",
+              text: "Reviewing output.",
+            },
+            {
+              kind: "stdout",
+              ts: "2026-03-12T00:00:19.000Z",
+              text: "standalone output",
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('data-transcript-action-icon="read"');
+    expect(html).toContain('data-transcript-action-icon="search"');
+    expect(html).toContain('data-transcript-action-icon="edit"');
+    expect(html).toContain('data-transcript-action-icon="inspect"');
+    expect(html).toContain('data-transcript-action-icon="web_search"');
+    expect(html).toContain('data-transcript-action-icon="mcp"');
+    expect(html).toContain('data-transcript-action-icon="stdout"');
+    expect(countOccurrences(html, 'data-transcript-action-icon="command"')).toBe(0);
+  });
+
+  it("shows mixed grouped activity with category-specific icons", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          entries={[
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:01.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-read-1",
+              input: { command: "sed -n '1,120p' README.md" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:02.000Z",
+              toolUseId: "cmd-read-1",
+              content: "read",
+              isError: false,
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:03.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-search-1",
+              input: { command: "rg transcript ui/src" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:04.000Z",
+              toolUseId: "cmd-search-1",
+              content: "match",
+              isError: false,
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:05.000Z",
+              name: "command_execution",
+              toolUseId: "cmd-edit-1",
+              input: { command: "tee notes.txt > /dev/null" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:06.000Z",
+              toolUseId: "cmd-edit-1",
+              content: "wrote notes",
+              isError: false,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Explored 1 file, 1 search, edited 1 file");
+    expect(html).toContain('data-transcript-action-icon="read"');
+    expect(html).toContain('data-transcript-action-icon="search"');
+    expect(html).toContain('data-transcript-action-icon="edit"');
+  });
+
   it("groups detail transcripts so repeated reads stay collapsed behind one summary", () => {
     const hiddenHeaderTime = new Date("2026-03-12T00:00:02.000Z").toLocaleTimeString("en-US", {
       hour: "2-digit",
