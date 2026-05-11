@@ -124,7 +124,7 @@ describe("pi execute", () => {
       const systemPrompt = capture.argv[appendSystemPromptIndex + 1];
       expect(systemPrompt).toContain("# Agent Instructions");
       expect(systemPrompt).toContain("# Tacit Memory");
-      expect(commandNotes).toContain(`Loaded agent memory instructions from ${memoryPath}`);
+      expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
     } finally {

@@ -140,19 +140,19 @@ describe("claude execute", () => {
       expect(logs).toContainEqual(
         expect.objectContaining({
           stream: "stdout",
-          chunk: expect.stringContaining(`[rudder] Loaded agent instructions file: ${instructionsPath}`),
+          chunk: expect.stringContaining("[rudder] Loaded agent instructions file: $AGENT_HOME/instructions/AGENTS.md"),
         }),
       );
       expect(logs).toContainEqual(
         expect.objectContaining({
           stream: "stdout",
-          chunk: expect.stringContaining(`[rudder] Loaded agent memory instructions file: ${memoryPath}`),
+          chunk: expect.stringContaining("[rudder] Loaded agent memory instructions file: $AGENT_HOME/instructions/MEMORY.md"),
         }),
       );
       expect(logs).not.toContainEqual(
         expect.objectContaining({
           stream: "stderr",
-          chunk: expect.stringContaining(`[rudder] Loaded agent instructions file: ${instructionsPath}`),
+          chunk: expect.stringContaining("[rudder] Loaded agent instructions file: $AGENT_HOME/instructions/AGENTS.md"),
         }),
       );
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {

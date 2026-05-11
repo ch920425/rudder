@@ -639,10 +639,10 @@ describe("RunTranscriptView", () => {
                 + "[rudder] Prepared isolated Git config at /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/.gitconfig with user.useConfigOnly=true (using global Git identity Zeeland <zeeland@example.com>).\n"
                 + "[rudder] Prepared repository Git config in /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system with user.useConfigOnly=true (using global Git identity Zeeland <zeeland@example.com>).\n"
                 + "[rudder] Realized 4 Rudder-managed Codex skill entries in /Users/zeeland/.rudder/instances/dev/codex/skills\n"
-                + "[rudder] Loaded agent instructions file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/AGENTS.md\n"
-                + "[rudder] Loaded agent soul instructions file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/SOUL.md\n"
-                + "[rudder] Loaded agent tool notes file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/TOOLS.md\n"
-                + "[rudder] Loaded agent memory instructions file: /Users/zeeland/.rudder/instances/dev/workspaces/agents/rudder-copilot-system/instructions/MEMORY.md",
+                + "[rudder] Loaded agent instructions file: $AGENT_HOME/instructions/AGENTS.md\n"
+                + "[rudder] Loaded agent soul instructions file: $AGENT_HOME/instructions/SOUL.md\n"
+                + "[rudder] Loaded agent tool notes file: $AGENT_HOME/instructions/TOOLS.md\n"
+                + "[rudder] Loaded agent memory instructions file: $AGENT_HOME/instructions/MEMORY.md",
             },
           ]}
         />

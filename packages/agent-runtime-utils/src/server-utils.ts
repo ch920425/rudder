@@ -656,6 +656,35 @@ export interface LoadedAgentInstructionsPrefix {
   };
 }
 
+function toPromptPath(pathValue: string): string {
+  return pathValue.split(path.sep).join("/");
+}
+
+function isInsidePath(parentPath: string, childPath: string): boolean {
+  const relativePath = path.relative(parentPath, childPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+}
+
+function displayInstructionPath(filePath: string, instructionsFilePath: string): string {
+  const resolvedFilePath = path.resolve(filePath);
+  const resolvedInstructionsPath = path.resolve(instructionsFilePath);
+  const instructionsDir = path.dirname(resolvedInstructionsPath);
+  if (path.basename(instructionsDir) === "instructions") {
+    const agentHome = path.dirname(instructionsDir);
+    if (isInsidePath(agentHome, resolvedFilePath)) {
+      const relativePath = path.relative(agentHome, resolvedFilePath);
+      return relativePath ? `$AGENT_HOME/${toPromptPath(relativePath)}` : "$AGENT_HOME";
+    }
+  }
+  return filePath;
+}
+
+function displayInstructionDir(filePath: string, instructionsFilePath: string): string {
+  const displayPath = displayInstructionPath(filePath, instructionsFilePath);
+  const lastSlash = displayPath.lastIndexOf("/");
+  return lastSlash >= 0 ? `${displayPath.slice(0, lastSlash)}/` : "";
+}
+
 export async function loadAgentInstructionsPrefix(input: {
   instructionsFilePath: string;
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
@@ -663,6 +692,12 @@ export async function loadAgentInstructionsPrefix(input: {
 }): Promise<LoadedAgentInstructionsPrefix> {
   const instructionsFilePath = input.instructionsFilePath.trim();
   const instructionsDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
+  const displayInstructionsFilePath = instructionsFilePath
+    ? displayInstructionPath(instructionsFilePath, instructionsFilePath)
+    : "";
+  const displayInstructionsDir = instructionsFilePath
+    ? displayInstructionDir(instructionsFilePath, instructionsFilePath)
+    : "";
   const warningStream = input.warningStream ?? "stdout";
   const operatingContractSection =
     `${RUDDER_AGENT_OPERATING_CONTRACT}\n\n` +
@@ -696,11 +731,11 @@ export async function loadAgentInstructionsPrefix(input: {
     loadedPaths.add(path.resolve(instructionsFilePath));
     entrySection =
       `${instructionsContents}\n\n` +
-      `The above agent instructions were loaded from ${instructionsFilePath}. ` +
-      `Resolve any relative file references from ${instructionsDir}.`;
+      `The above agent instructions were loaded from ${displayInstructionsFilePath}. ` +
+      `Resolve any relative file references from ${displayInstructionsDir}.`;
     await input.onLog(
       "stdout",
-      `[rudder] Loaded agent instructions file: ${instructionsFilePath}\n`,
+      `[rudder] Loaded agent instructions file: ${displayInstructionsFilePath}\n`,
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -709,7 +744,7 @@ export async function loadAgentInstructionsPrefix(input: {
       `[rudder] Warning: could not read agent instructions file "${instructionsFilePath}": ${reason}\n`,
     );
     commandNotes.push(
-      `Configured instructionsFilePath ${instructionsFilePath}, but file could not be read; continuing without injected instructions.`,
+      `Configured instructionsFilePath ${displayInstructionsFilePath}, but file could not be read; continuing without injected instructions.`,
     );
   }
 
@@ -720,20 +755,22 @@ export async function loadAgentInstructionsPrefix(input: {
   }): Promise<{ path: string | null; section: string }> {
     const filePath = path.join(path.dirname(instructionsFilePath), siblingInput.fileName);
     const resolvedPath = path.resolve(filePath);
+    const displayFilePath = displayInstructionPath(filePath, instructionsFilePath);
+    const displayFileDir = displayInstructionDir(filePath, instructionsFilePath);
     if (loadedPaths.has(resolvedPath)) return { path: filePath, section: "" };
     try {
       const contents = await fs.readFile(filePath, "utf8");
       loadedPaths.add(resolvedPath);
       await input.onLog(
         "stdout",
-        `[rudder] Loaded ${siblingInput.logLabel}: ${filePath}\n`,
+        `[rudder] Loaded ${siblingInput.logLabel}: ${displayFilePath}\n`,
       );
       return {
         path: filePath,
         section:
           `${contents}\n\n` +
-          `The above ${siblingInput.label} were loaded from ${filePath}. ` +
-          `Resolve any relative file references from ${instructionsDir}.`,
+          `The above ${siblingInput.label} were loaded from ${displayFilePath}. ` +
+          `Resolve any relative file references from ${displayFileDir}.`,
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -752,25 +789,31 @@ export async function loadAgentInstructionsPrefix(input: {
     label: "agent role and persona instructions",
     logLabel: "agent soul instructions file",
   });
-  if (soul.section) commandNotes.push(`Loaded agent soul instructions from ${soul.path}`);
+  if (soul.section && soul.path) {
+    commandNotes.push(`Loaded agent soul instructions from ${displayInstructionPath(soul.path, instructionsFilePath)}`);
+  }
 
   const tools = await loadSiblingInstructionFile({
     fileName: "TOOLS.md",
     label: "agent tool notes",
     logLabel: "agent tool notes file",
   });
-  if (tools.section) commandNotes.push(`Loaded agent tool notes from ${tools.path}`);
+  if (tools.section && tools.path) {
+    commandNotes.push(`Loaded agent tool notes from ${displayInstructionPath(tools.path, instructionsFilePath)}`);
+  }
 
   const memory = await loadSiblingInstructionFile({
     fileName: "MEMORY.md",
     label: "agent memory instructions",
     logLabel: "agent memory instructions file",
   });
-  if (memory.section) commandNotes.push(`Loaded agent memory instructions from ${memory.path}`);
+  if (memory.section && memory.path) {
+    commandNotes.push(`Loaded agent memory instructions from ${displayInstructionPath(memory.path, instructionsFilePath)}`);
+  }
 
   const memoryFilePath = memory.section ? memory.path : null;
   const memorySection = memory.section;
-  if (entrySection) commandNotes.splice(1, 0, `Loaded agent instructions from ${instructionsFilePath}`);
+  if (entrySection) commandNotes.splice(1, 0, `Loaded agent instructions from ${displayInstructionsFilePath}`);
 
   const prefix = joinPromptSections([operatingContractSection, entrySection, soul.section, tools.section, memorySection]);
   return {

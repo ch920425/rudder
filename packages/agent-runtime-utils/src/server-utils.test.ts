@@ -251,11 +251,12 @@ describe("loadAgentInstructionsPrefix", () => {
 
       expect(loaded.prefix).toContain("# Rudder Agent Operating Contract");
       expect(loaded.prefix).toContain("# Agent Instructions");
-      expect(loaded.prefix).toContain(`loaded from ${instructionsPath}`);
+      expect(loaded.prefix).toContain("loaded from $AGENT_HOME/instructions/AGENTS.md");
+      expect(loaded.prefix).toContain("relative file references from $AGENT_HOME/instructions/");
       expect(loaded.prefix).not.toContain("Tacit Memory");
       expect(loaded.commandNotes).toEqual([
         "Loaded Rudder agent operating contract from runtime code",
-        `Loaded agent instructions from ${instructionsPath}`,
+        "Loaded agent instructions from $AGENT_HOME/instructions/AGENTS.md",
       ]);
       expect(loaded.memoryFilePath).toBeNull();
       expect(loaded.metrics.instructionsChars).toBe(loaded.prefix.length);
@@ -264,7 +265,7 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.metrics.memoryChars).toBe(0);
       expect(logs).toContainEqual(expect.objectContaining({
         stream: "stdout",
-        chunk: expect.stringContaining(`[rudder] Loaded agent instructions file: ${instructionsPath}`),
+        chunk: expect.stringContaining("[rudder] Loaded agent instructions file: $AGENT_HOME/instructions/AGENTS.md"),
       }));
     } finally {
       await fs.rm(root, { recursive: true, force: true });
@@ -293,10 +294,10 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).toContain("# Persona");
       expect(loaded.prefix).toContain("# Tools");
       expect(loaded.prefix).toContain("# Tacit Memory");
-      expect(loaded.commandNotes).toContain(`Loaded agent instructions from ${instructionsPath}`);
-      expect(loaded.commandNotes).toContain(`Loaded agent soul instructions from ${soulPath}`);
-      expect(loaded.commandNotes).toContain(`Loaded agent tool notes from ${toolsPath}`);
-      expect(loaded.commandNotes).toContain(`Loaded agent memory instructions from ${memoryPath}`);
+      expect(loaded.commandNotes).toContain("Loaded agent instructions from $AGENT_HOME/instructions/AGENTS.md");
+      expect(loaded.commandNotes).toContain("Loaded agent soul instructions from $AGENT_HOME/instructions/SOUL.md");
+      expect(loaded.commandNotes).toContain("Loaded agent tool notes from $AGENT_HOME/instructions/TOOLS.md");
+      expect(loaded.commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(loaded.soulFilePath).toBe(soulPath);
       expect(loaded.toolsFilePath).toBe(toolsPath);
       expect(loaded.memoryFilePath).toBe(memoryPath);
@@ -329,7 +330,7 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).not.toContain("# Agent Instructions");
       expect(loaded.readFailed).toBe(true);
       expect(loaded.commandNotes).toContain(
-        `Configured instructionsFilePath ${instructionsPath}, but file could not be read; continuing without injected instructions.`,
+        "Configured instructionsFilePath $AGENT_HOME/instructions/AGENTS.md, but file could not be read; continuing without injected instructions.",
       );
       expect(loaded.metrics.instructionsChars).toBe(loaded.prefix.length);
       expect(loaded.metrics.operatingContractChars).toBeGreaterThan(0);

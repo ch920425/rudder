@@ -163,7 +163,7 @@ describe("cursor execute", () => {
         ]),
       );
       expect(capture.prompt).toContain("Rudder runtime note:");
-      expect(commandNotes).toContain(`Loaded agent memory instructions from ${memoryPath}`);
+      expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
       expect(capture.prompt).toContain("RUDDER_API_KEY");
