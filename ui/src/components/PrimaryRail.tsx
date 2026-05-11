@@ -290,7 +290,11 @@ export function PrimaryRail({
   ]);
 
   function openSearch() {
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+    document.dispatchEvent(
+      new CustomEvent("rudder:open-command-palette", {
+        detail: { source: "primary-rail" },
+      }),
+    );
   }
 
   return (

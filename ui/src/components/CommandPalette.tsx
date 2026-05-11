@@ -36,6 +36,7 @@ import { agentUrl, projectUrl } from "../lib/utils";
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [launchSource, setLaunchSource] = useState<"shortcut" | "primary-rail">("shortcut");
   const navigate = useNavigate();
   const { selectedOrganizationId } = useOrganization();
   const { isMobile, setSidebarOpen } = useSidebar();
@@ -45,12 +46,27 @@ export function CommandPalette() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        setLaunchSource("shortcut");
         setOpen(true);
         if (isMobile) setSidebarOpen(false);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isMobile, setSidebarOpen]);
+
+  useEffect(() => {
+    function handleOpenCommandPalette(event: Event) {
+      const source = event instanceof CustomEvent && event.detail?.source === "primary-rail"
+        ? "primary-rail"
+        : "shortcut";
+      setLaunchSource(source);
+      setOpen(true);
+      if (isMobile) setSidebarOpen(false);
+    }
+
+    document.addEventListener("rudder:open-command-palette", handleOpenCommandPalette);
+    return () => document.removeEventListener("rudder:open-command-palette", handleOpenCommandPalette);
   }, [isMobile, setSidebarOpen]);
 
   useEffect(() => {
@@ -111,7 +127,10 @@ export function CommandPalette() {
     <CommandDialog open={open} onOpenChange={(v) => {
         setOpen(v);
         if (v && isMobile) setSidebarOpen(false);
-      }} className="sm:max-w-2xl">
+      }} className={launchSource === "primary-rail"
+        ? "command-palette-content command-palette-content--from-rail sm:max-w-2xl"
+        : "command-palette-content sm:max-w-2xl"
+      }>
       <CommandInput
         placeholder="Search issues, chats, agents, projects..."
         value={query}
