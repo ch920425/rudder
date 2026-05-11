@@ -86,6 +86,7 @@ export interface MessengerIssueThreadItem extends MessengerThreadItem {
   issueId: string;
   issueIdentifier: string | null;
   sourceCommentId: string | null;
+  sourceCommentAuthorLabel: string | null;
   sourceCommentBody: string | null;
 }
 

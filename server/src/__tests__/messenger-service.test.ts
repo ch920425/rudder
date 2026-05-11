@@ -156,6 +156,7 @@ describe("messengerService and issue follows", () => {
     const assignedIssueId = randomUUID();
     const createdIssueId = randomUUID();
     const unrelatedIssueId = randomUUID();
+    const commentingAgentId = randomUUID();
 
     await db.insert(organizations).values({
       id: orgId,
@@ -163,6 +164,17 @@ describe("messengerService and issue follows", () => {
       urlKey: deriveOrganizationUrlKey("Messenger Org"),
       issuePrefix: `M${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: commentingAgentId,
+      orgId,
+      name: "Build Agent",
+      role: "engineer",
+      status: "active",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
     });
 
     await db.insert(issues).values([
@@ -206,7 +218,7 @@ describe("messengerService and issue follows", () => {
     ].join("\n");
 
     await issueSvc.followIssue(orgId, followedIssueId, userId);
-    const followedComment = await issueSvc.addComment(followedIssueId, followedCommentBody, {});
+    const followedComment = await issueSvc.addComment(followedIssueId, followedCommentBody, { agentId: commentingAgentId });
     expect(await issueSvc.isFollowedByUser(orgId, followedIssueId, userId)).toBe(true);
 
     const thread = await messengerSvc.getIssuesThread(orgId, userId);
@@ -223,9 +235,11 @@ describe("messengerService and issue follows", () => {
     expect(itemIds.has(unrelatedIssueId)).toBe(false);
     expect(followedItem?.sourceCommentId).toBe(followedComment.id);
     expect(followedItem?.sourceCommentBody).toBe(followedCommentBody);
+    expect(followedItem?.sourceCommentAuthorLabel).toBe("Build Agent");
     expect(followedItem?.metadata).toMatchObject({
-      sourceCommentAuthorKind: "system",
+      sourceCommentAuthorKind: "agent",
       sourceCommentByMe: false,
+      sourceCommentAuthorLabel: "Build Agent",
     });
     expect(followedItem?.preview).toBe("Review Summary: render enough comment body to judge the issue update");
     expect(assignedItem?.metadata).toMatchObject({ assignedToMe: true, createdByMe: false });
@@ -332,12 +346,14 @@ describe("messengerService and issue follows", () => {
 
     expect(item?.sourceCommentId).toBe(comment.id);
     expect(item?.sourceCommentBody).toBe("Blocked on design review.");
+    expect(item?.sourceCommentAuthorLabel).toBe("System");
     expect(item?.preview).toBe("Blocked on design review.");
     expect(item?.metadata).toMatchObject({
       status: "blocked",
       statusChange: { from: "in_review", to: "blocked" },
       sourceCommentAuthorKind: "system",
       sourceCommentByMe: false,
+      sourceCommentAuthorLabel: "System",
     });
   });
 
@@ -965,6 +981,7 @@ describe("messengerService and issue follows", () => {
     expect(thread.detail.items.map((item) => item.issueId)).toEqual([issueId]);
     expect(thread.detail.items[0]?.preview).toBe("Status changed to in review");
     expect(thread.detail.items[0]?.sourceCommentId).toBeNull();
+    expect(thread.detail.items[0]?.sourceCommentAuthorLabel).toBeNull();
     expect(thread.detail.items[0]?.sourceCommentBody).toBeNull();
     expect(thread.detail.unreadCount).toBe(0);
     expect(thread.detail.needsAttention).toBe(false);
