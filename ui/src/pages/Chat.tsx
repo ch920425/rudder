@@ -3317,7 +3317,7 @@ function ChatWorkspace() {
                   className={cn(
                     "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-[background-color,border-color,box-shadow,opacity]",
                     activePlanMode
-                      ? "border-[color:color-mix(in_oklab,var(--accent)_85%,var(--border-soft))] bg-[color:color-mix(in_oklab,var(--accent)_82%,var(--surface-elevated))] text-accent-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent)_22%,transparent),0_8px_22px_color-mix(in_oklab,var(--accent)_20%,transparent)]"
+                      ? "border-[color:color-mix(in_oklab,var(--accent-base)_72%,white)] bg-[color:var(--accent-base)] text-primary-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent-base)_22%,transparent),0_8px_22px_color-mix(in_oklab,var(--accent-base)_20%,transparent)]"
                       : "border-[color:color-mix(in_oklab,var(--border-soft)_82%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_92%,transparent)] text-muted-foreground",
                   )}
                 >
