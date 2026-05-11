@@ -113,7 +113,9 @@ vi.mock("@/components/OrganizationSwitcher", () => ({
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
   DropdownMenuItem: ({
     children,
     onClick,
@@ -223,6 +225,12 @@ describe("PrimaryRail desktop inbox signals", () => {
 });
 
 describe("PrimaryRail active motion indicator", () => {
+  it("applies rail motion styling to the create menu", async () => {
+    await renderPrimaryRail();
+
+    expect(document.querySelector(".rail-create-menu-content")).not.toBeNull();
+  });
+
   it("positions the rail indicator on the active dashboard item", async () => {
     await renderPrimaryRail();
 

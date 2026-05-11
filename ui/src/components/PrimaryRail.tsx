@@ -331,7 +331,11 @@ export function PrimaryRail({
               <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start" className="surface-overlay w-48 text-foreground">
+          <DropdownMenuContent
+            side="right"
+            align="start"
+            className="rail-create-menu-content surface-overlay w-48 text-foreground"
+          >
             <DropdownMenuItem onClick={() => navigate("/messenger/chat")}>
               <MessageCirclePlus className="h-4 w-4" />
               Create new chat
