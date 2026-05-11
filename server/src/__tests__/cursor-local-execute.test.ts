@@ -133,7 +133,14 @@ describe("cursor execute", () => {
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: { rudderGitIdentity: confirmedRudderGitIdentity },
+        context: {
+          rudderGitIdentity: confirmedRudderGitIdentity,
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async () => {},
         onMeta: async (meta) => {
@@ -158,6 +165,7 @@ describe("cursor execute", () => {
           "RUDDER_AGENT_ID",
           "RUDDER_API_KEY",
           "RUDDER_API_URL",
+          "RUDDER_ORG_ARTIFACTS_DIR",
           "RUDDER_ORG_ID",
           "RUDDER_RUN_ID",
         ]),

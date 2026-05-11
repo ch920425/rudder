@@ -224,6 +224,8 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("# Rudder Agent Operating Contract");
     expect(loaded.prefix).toContain(RUDDER_AGENT_OPERATING_CONTRACT);
     expect(loaded.prefix).toContain("installed but not enabled");
+    expect(loaded.prefix).toContain("Shared organization artifacts live under `$RUDDER_ORG_ARTIFACTS_DIR`");
+    expect(loaded.prefix).toContain("Use `/tmp` only for transient scratch files");
     expect(loaded.prefix).toContain("attach the image with the Rudder CLI `--image <path>` option");
     expect(loaded.commandNotes).toEqual(["Loaded Rudder agent operating contract from runtime code"]);
     expect(loaded.readFailed).toBe(false);

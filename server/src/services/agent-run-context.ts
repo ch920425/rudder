@@ -451,6 +451,7 @@ export function agentRunContextService(db: Db) {
       orgAgentsDir: organizationWorkspace.agentsDir,
       orgSkillsDir: organizationWorkspace.skillsDir,
       orgPlansDir: organizationWorkspace.plansDir,
+      orgArtifactsDir: organizationWorkspace.artifactsDir,
       resourcesPrompt: compiledResourcesPrompt,
       orgResourcesPrompt: compiledResourcesPrompt,
     } satisfies Record<string, unknown>;

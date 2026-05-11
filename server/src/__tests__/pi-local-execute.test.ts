@@ -31,6 +31,9 @@ if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify({
     argv: process.argv.slice(2),
     stdin,
+    rudderEnvKeys: Object.keys(process.env)
+      .filter((key) => key.startsWith("RUDDER_"))
+      .sort(),
     gitIdentity: captureGitIdentityEnv(),
   }), "utf8");
 }
@@ -54,6 +57,7 @@ console.log(JSON.stringify({
 type CapturePayload = {
   argv: string[];
   stdin: string;
+  rudderEnvKeys: string[];
   gitIdentity: GitIdentityCapture;
 };
 
@@ -106,7 +110,14 @@ describe("pi execute", () => {
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: { rudderGitIdentity: confirmedRudderGitIdentity },
+        context: {
+          rudderGitIdentity: confirmedRudderGitIdentity,
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async () => {},
         onMeta: async (meta) => {
@@ -124,6 +135,9 @@ describe("pi execute", () => {
       const systemPrompt = capture.argv[appendSystemPromptIndex + 1];
       expect(systemPrompt).toContain("# Agent Instructions");
       expect(systemPrompt).toContain("# Tacit Memory");
+      expect(capture.rudderEnvKeys).toEqual(
+        expect.arrayContaining(["RUDDER_ORG_ARTIFACTS_DIR"]),
+      );
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
