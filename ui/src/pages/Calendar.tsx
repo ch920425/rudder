@@ -328,11 +328,28 @@ function CalendarDetailLink({
     <Link
       to={to}
       aria-label={ariaLabel}
-      className="inline-flex max-w-full items-center gap-1 rounded-[calc(var(--radius-sm)-2px)] px-1 py-0.5 font-medium text-primary underline-offset-2 hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      className="inline-flex max-w-full items-center gap-1 rounded-[calc(var(--radius-sm)-2px)] font-medium leading-5 text-primary underline-offset-2 hover:text-primary/80 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <span className="min-w-0 truncate">{children}</span>
       <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
     </Link>
+  );
+}
+
+function CalendarDetailRow({
+  label,
+  children,
+  valueClassName,
+}: {
+  label: string;
+  children: ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-baseline gap-x-3 sm:grid-cols-[112px_minmax(0,1fr)]">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn("min-w-0 leading-5", valueClassName)}>{children}</dd>
+    </div>
   );
 }
 
@@ -1859,11 +1876,11 @@ export function Calendar() {
           </SheetHeader>
           {selectedEvent ? (
             <div className="space-y-5 overflow-y-auto px-4 pb-4 text-sm">
-              <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[112px_minmax(0,1fr)]">
-                <span className="text-muted-foreground">Status</span>
-                <span>{statusLabel(selectedEvent.eventStatus)}</span>
-                <span className="text-muted-foreground">Source</span>
-                <span className="min-w-0">
+              <dl className="space-y-2 text-sm leading-5">
+                <CalendarDetailRow label="Status">
+                  {statusLabel(selectedEvent.eventStatus)}
+                </CalendarDetailRow>
+                <CalendarDetailRow label="Source">
                   {selectedEventRunHref ? (
                     <CalendarDetailLink to={selectedEventRunHref} ariaLabel={`Open source run ${selectedEvent.heartbeatRunId}`}>
                       {calendarEventSourceLabel(selectedEvent)}
@@ -1871,13 +1888,11 @@ export function Calendar() {
                   ) : (
                     calendarEventSourceLabel(selectedEvent)
                   )}
-                </span>
-                <span className="text-muted-foreground">Time</span>
-                <span className="min-w-0 overflow-x-auto whitespace-nowrap font-mono text-[12px] tabular-nums sm:text-sm">
+                </CalendarDetailRow>
+                <CalendarDetailRow label="Time" valueClassName="overflow-x-auto whitespace-nowrap font-mono tabular-nums">
                   {formatCalendarDetailTimeRange(selectedEvent.startAt, selectedEvent.endAt)}
-                </span>
-                <span className="text-muted-foreground">Agent</span>
-                <span className="min-w-0">
+                </CalendarDetailRow>
+                <CalendarDetailRow label="Agent">
                   {selectedEvent.agent ? (
                     <CalendarDetailLink to={agentUrl(selectedEvent.agent)} ariaLabel={`Open agent ${selectedEvent.agent.name}`}>
                       {selectedEvent.agent.name}
@@ -1885,9 +1900,8 @@ export function Calendar() {
                   ) : (
                     "None"
                   )}
-                </span>
-                <span className="text-muted-foreground">Issue</span>
-                <span className="min-w-0">
+                </CalendarDetailRow>
+                <CalendarDetailRow label="Issue">
                   {selectedEvent.issue ? (
                     <CalendarDetailLink
                       to={issueUrl(selectedEvent.issue)}
@@ -1898,8 +1912,8 @@ export function Calendar() {
                   ) : (
                     "None"
                   )}
-                </span>
-              </div>
+                </CalendarDetailRow>
+              </dl>
               {selectedEvent.description ? (
                 <p className="rounded-[var(--radius-sm)] border border-border bg-muted/30 p-3 text-sm leading-6">
                   {selectedEvent.description}
