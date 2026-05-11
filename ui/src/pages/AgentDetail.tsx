@@ -117,7 +117,7 @@ import {
   semanticBadgeToneClasses,
   semanticNoticeToneClasses,
 } from "@/components/ui/semanticTones";
-import { AgentIcon, AgentIconPicker } from "../components/AgentIconPicker";
+import { AgentIcon, AgentIconPicker, getAgentAvatarImageSrc } from "../components/AgentIconPicker";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
 import { useLiveRunTranscripts } from "../components/transcript/useLiveRunTranscripts";
 import {
@@ -1328,6 +1328,7 @@ export function AgentDetail() {
   }
   const isPendingApproval = agent.status === "pending_approval";
   const showConfigActionBar = (activeView === "configuration" || activeView === "instructions") && (configDirty || configSaving);
+  const agentAvatarImageSrc = getAgentAvatarImageSrc(agent.icon);
 
   return (
     <>
@@ -1378,10 +1379,15 @@ export function AgentDetail() {
             uploadError={uploadAvatar.error instanceof Error ? uploadAvatar.error.message : null}
           >
             <button
-              className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent hover:bg-accent/80 transition-colors"
+              className={cn(
+                "shrink-0 flex h-12 w-12 items-center justify-center transition-colors",
+                agentAvatarImageSrc
+                  ? "overflow-hidden rounded-full hover:opacity-85"
+                  : "rounded-lg bg-accent hover:bg-accent/80",
+              )}
               aria-label="Change agent avatar"
             >
-              <AgentIcon icon={agent.icon} role={agent.role} className="h-7 w-7" />
+              <AgentIcon icon={agent.icon} role={agent.role} className={agentAvatarImageSrc ? "h-full w-full" : "h-7 w-7"} />
             </button>
           </AgentIconPicker>
           <div className="min-w-0">

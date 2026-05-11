@@ -65,6 +65,31 @@ test.describe("Agent avatar", () => {
     expect(refreshedRes.ok()).toBe(true);
     const refreshedAgent = await refreshedRes.json();
     expect(refreshedAgent.icon).toMatch(/^asset:/);
-    await expect(avatarButton.locator("img")).toHaveAttribute("src", /\/api\/assets\/.+\/content/);
+    const detailAvatarImage = avatarButton.locator('img[src*="/api/assets/"]');
+    await expect(detailAvatarImage).toHaveAttribute("src", /\/api\/assets\/.+\/content/);
+    await expect(detailAvatarImage).toHaveCSS("object-fit", "cover");
+    await expect(detailAvatarImage.locator('xpath=ancestor::button[contains(@class, "bg-accent") or contains(@class, "rounded-lg")]')).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.screenshot({ path: "/tmp/rudder-agent-detail-image-avatar-desktop.png", fullPage: true });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(detailAvatarImage).toBeVisible();
+    await page.screenshot({ path: "/tmp/rudder-agent-detail-image-avatar-mobile.png", fullPage: true });
+
+    await page.setViewportSize({ width: 1280, height: 820 });
+    await page.goto(`/${organization.issuePrefix}/org`);
+    const orgCard = page.locator("[data-org-card]").filter({ hasText: "Avatar Agent" }).first();
+    await expect(orgCard).toBeVisible();
+    const orgAvatarImage = orgCard.locator('img[src*="/api/assets/"]').first();
+    await expect(orgAvatarImage).toBeVisible();
+    await expect(orgAvatarImage).toHaveCSS("object-fit", "cover");
+    await expect(orgAvatarImage.locator('xpath=parent::*[contains(@class, "bg-muted")]')).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/rudder-org-chart-image-avatar-desktop.png", fullPage: true });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(orgCard).toBeVisible();
+    await expect(orgAvatarImage).toBeVisible();
+    await page.screenshot({ path: "/tmp/rudder-org-chart-image-avatar-mobile.png", fullPage: true });
   });
 });
