@@ -627,6 +627,18 @@
     animation: command-palette-close 110ms ease-in;
   }
 
+  .rail-create-menu-content {
+    transform-origin: left 1.25rem;
+  }
+
+  .rail-create-menu-content[data-state="open"] {
+    animation: rail-create-menu-pop 170ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .rail-create-menu-content[data-state="closed"] {
+    animation: rail-create-menu-close 95ms ease-in;
+  }
+
   @keyframes command-palette-pop {
     0% {
       opacity: 0;
@@ -658,6 +670,37 @@
     }
   }
 
+  @keyframes rail-create-menu-pop {
+    0% {
+      opacity: 0;
+      filter: blur(5px);
+      transform: translateX(-10px) translateY(-4px) scale(0.94);
+    }
+    70% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateX(1px) translateY(0) scale(1.015);
+    }
+    100% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateX(0) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes rail-create-menu-close {
+    from {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateX(0) translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      filter: blur(4px);
+      transform: translateX(-6px) translateY(-2px) scale(0.97);
+    }
+  }
+
   @media (max-width: 767.98px) {
     .command-palette-content[data-state="open"] {
       animation-name: command-palette-pop-mobile;
@@ -670,7 +713,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .command-palette-content[data-state="open"],
-    .command-palette-content[data-state="closed"] {
+    .command-palette-content[data-state="closed"],
+    .rail-create-menu-content[data-state="open"],
+    .rail-create-menu-content[data-state="closed"] {
       animation: none;
     }
   }
