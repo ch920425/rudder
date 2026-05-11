@@ -61,6 +61,16 @@ export function formatDateTime(date: Date | string): string {
       }).format(new Date(date));
 }
 
+export function formatDateTimeSeconds(date: Date | string): string {
+  const timestamp = new Date(date);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return [
+    timestamp.getFullYear(),
+    pad(timestamp.getMonth() + 1),
+    pad(timestamp.getDate()),
+  ].join("-") + ` ${pad(timestamp.getHours())}:${pad(timestamp.getMinutes())}:${pad(timestamp.getSeconds())}`;
+}
+
 export function relativeTime(date: Date | string): string {
   const locale = getUiLocale();
   const now = Date.now();
