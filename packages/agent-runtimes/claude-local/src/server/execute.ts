@@ -213,6 +213,10 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const orgWorkspaceRoot = asString(workspaceContext.orgWorkspaceRoot, "") || null;
   const orgSkillsDir = asString(workspaceContext.orgSkillsDir, "") || null;
   const orgPlansDir = asString(workspaceContext.orgPlansDir, "") || null;
+  const orgArtifactsDir = asString(
+    workspaceContext.orgArtifactsDir,
+    orgWorkspaceRoot ? path.join(orgWorkspaceRoot, "artifacts") : "",
+  ) || null;
   const workspaceHints = Array.isArray(context.rudderWorkspaces)
     ? context.rudderWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
@@ -328,6 +332,9 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   }
   if (orgPlansDir) {
     env.RUDDER_ORG_PLANS_DIR = orgPlansDir;
+  }
+  if (orgArtifactsDir) {
+    env.RUDDER_ORG_ARTIFACTS_DIR = orgArtifactsDir;
   }
   if (workspaceHints.length > 0) {
     env.RUDDER_WORKSPACES_JSON = JSON.stringify(workspaceHints);

@@ -128,7 +128,14 @@ describe("claude execute", () => {
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: { rudderGitIdentity: confirmedRudderGitIdentity },
+        context: {
+          rudderGitIdentity: confirmedRudderGitIdentity,
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
@@ -157,11 +164,15 @@ describe("claude execute", () => {
       );
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
         appendedSystemPrompt: string | null;
+        rudderEnvKeys: string[];
         gitIdentity: GitIdentityCapture;
       };
       expectConfirmedGitIdentityCapture(capture);
       expect(capture.appendedSystemPrompt).toContain("# Agent Instructions");
       expect(capture.appendedSystemPrompt).toContain("# Tacit Memory");
+      expect(capture.rudderEnvKeys).toEqual(
+        expect.arrayContaining(["RUDDER_ORG_ARTIFACTS_DIR"]),
+      );
     } finally {
       if (previousHome === undefined) {
         delete process.env.HOME;

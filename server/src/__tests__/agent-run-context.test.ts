@@ -15,6 +15,7 @@ vi.mock("../home-paths.js", async (importOriginal) => {
       agentsDir: "/tmp/org-home/agents",
       skillsDir: "/tmp/org-home/skills",
       plansDir: "/tmp/org-home/plans",
+      artifactsDir: "/tmp/org-home/artifacts",
     })),
   };
 });
@@ -82,6 +83,7 @@ describe("agentRunContextService buildSceneContext", () => {
       orgAgentsDir: "/tmp/org-home/agents",
       orgSkillsDir: "/tmp/org-home/skills",
       orgPlansDir: "/tmp/org-home/plans",
+      orgArtifactsDir: "/tmp/org-home/artifacts",
     }));
   });
 

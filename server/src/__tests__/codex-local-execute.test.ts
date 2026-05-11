@@ -343,7 +343,13 @@ describe("codex execute", () => {
           },
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async () => {},
       });
@@ -431,7 +437,13 @@ describe("codex execute", () => {
           },
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async () => {},
       });
@@ -511,7 +523,13 @@ describe("codex execute", () => {
           },
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
@@ -749,7 +767,13 @@ describe("codex execute", () => {
           },
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
@@ -1269,7 +1293,13 @@ describe("codex execute", () => {
           },
           promptTemplate: "Follow the rudder heartbeat.",
         },
-        context: {},
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
@@ -1296,6 +1326,7 @@ describe("codex execute", () => {
           "RUDDER_AGENT_ID",
           "RUDDER_API_KEY",
           "RUDDER_API_URL",
+          "RUDDER_ORG_ARTIFACTS_DIR",
           "RUDDER_ORG_ID",
           "RUDDER_RUN_ID",
         ]),
