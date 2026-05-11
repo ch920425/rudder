@@ -23,6 +23,10 @@ const mockChatService = vi.hoisted(() => ({
   applyApprovedApproval: vi.fn(),
 }));
 
+const mockAccessService = vi.hoisted(() => ({
+  canUser: vi.fn(),
+}));
+
 const mockHeartbeatService = vi.hoisted(() => ({
   wakeup: vi.fn(),
 }));
@@ -39,6 +43,7 @@ const mockSecretService = vi.hoisted(() => ({
 const mockLogActivity = vi.hoisted(() => vi.fn());
 
 vi.mock("../services/index.js", () => ({
+  accessService: () => mockAccessService,
   approvalService: () => mockApprovalService,
   chatService: () => mockChatService,
   heartbeatService: () => mockHeartbeatService,
@@ -77,6 +82,14 @@ describe("approval routes chat application", () => {
     mockIssueApprovalService.listIssuesForApproval.mockResolvedValue([{ id: "issue-1" }]);
     mockLogActivity.mockResolvedValue(undefined);
     mockChatService.applyApprovedApproval.mockResolvedValue(null);
+    mockAccessService.canUser.mockResolvedValue(true);
+    mockApprovalService.getById.mockResolvedValue({
+      id: "approval-1",
+      orgId: "organization-1",
+      type: "chat_issue_creation",
+      status: "pending",
+      payload: { chatConversationId: "chat-1" },
+    });
   });
 
   it("applies chat approval side effects when a chat issue proposal is approved", async () => {
@@ -126,6 +139,33 @@ describe("approval routes chat application", () => {
         name: "chat.approval.applied",
       }),
     );
+  });
+
+  it("requires task assignment permission before approving reviewer-bearing chat issue proposals", async () => {
+    mockApprovalService.getById.mockResolvedValue({
+      id: "approval-1",
+      orgId: "organization-1",
+      type: "chat_issue_creation",
+      status: "pending",
+      payload: {
+        chatConversationId: "chat-1",
+        proposedIssue: {
+          title: "Reviewed work",
+          description: "Needs a reviewer.",
+          reviewerAgentId: "10000000-0000-4000-8000-000000000077",
+        },
+      },
+    });
+    mockAccessService.canUser.mockResolvedValue(false);
+
+    const res = await request(createApp())
+      .post("/api/approvals/approval-1/approve")
+      .send({ decisionNote: "Looks good" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Missing permission: tasks:assign");
+    expect(mockApprovalService.approve).not.toHaveBeenCalled();
+    expect(mockChatService.applyApprovedApproval).not.toHaveBeenCalled();
   });
 
   it("wakes the requester agent with linked issue context after approval is applied", async () => {

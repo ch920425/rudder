@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import type { LangfuseObservation } from "@langfuse/tracing";
 import type { Db } from "@rudderhq/db";
 import {
@@ -13,6 +13,7 @@ import { validate } from "../middleware/validate.js";
 import { observeExecutionEvent, withExecutionObservation } from "../langfuse.js";
 import { logger } from "../middleware/logger.js";
 import {
+  accessService,
   approvalService,
   chatService,
   heartbeatService,
@@ -22,6 +23,7 @@ import {
 } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { redactEventPayload } from "../redaction.js";
+import { forbidden } from "../errors.js";
 
 function redactApprovalPayload<T extends { payload: Record<string, unknown> }>(approval: T): T {
   return {
@@ -125,11 +127,36 @@ async function emitChatApprovalObservationEvent(
 export function approvalRoutes(db: Db) {
   const router = Router();
   const svc = approvalService(db);
+  const access = accessService(db);
   const heartbeat = heartbeatService(db);
   const chatsSvc = chatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
   const strictSecretsMode = process.env.RUDDER_SECRETS_STRICT_MODE === "true";
+
+  function proposalAssignsOrReviewsIssue(proposal: Record<string, unknown> | null | undefined) {
+    if (!proposal) return false;
+    return Boolean(
+      (typeof proposal.assigneeAgentId === "string" && proposal.assigneeAgentId.trim().length > 0)
+      || (typeof proposal.assigneeUserId === "string" && proposal.assigneeUserId.trim().length > 0)
+      || (typeof proposal.reviewerAgentId === "string" && proposal.reviewerAgentId.trim().length > 0)
+      || (typeof proposal.reviewerUserId === "string" && proposal.reviewerUserId.trim().length > 0),
+    );
+  }
+
+  async function assertCanApproveChatIssueConversion(req: Request, approval: { orgId: string; payload: Record<string, unknown> }) {
+    const proposedIssue =
+      approval.payload?.proposedIssue
+      && typeof approval.payload.proposedIssue === "object"
+      && !Array.isArray(approval.payload.proposedIssue)
+        ? (approval.payload.proposedIssue as Record<string, unknown>)
+        : null;
+    if (!proposalAssignsOrReviewsIssue(proposedIssue)) return;
+    assertCompanyAccess(req, approval.orgId);
+    if (req.actor.type === "board" && (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin)) return;
+    const allowed = await access.canUser(approval.orgId, req.actor.userId, "tasks:assign");
+    if (!allowed) throw forbidden("Missing permission: tasks:assign");
+  }
 
   router.get("/orgs/:orgId/approvals", async (req, res) => {
     const orgId = req.params.orgId as string;
@@ -218,6 +245,10 @@ export function approvalRoutes(db: Db) {
   router.post("/approvals/:id/approve", validate(resolveApprovalSchema), async (req, res) => {
     assertBoard(req);
     const id = req.params.id as string;
+    const pendingApproval = await svc.getById(id);
+    if (pendingApproval?.type === "chat_issue_creation") {
+      await assertCanApproveChatIssueConversion(req, pendingApproval);
+    }
     const { approval, applied } = await svc.approve(
       id,
       req.body.decidedByUserId ?? "board",

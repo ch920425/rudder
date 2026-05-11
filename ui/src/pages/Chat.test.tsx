@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ChatConversation, ChatMessage } from "@rudderhq/shared";
+import type { Agent, ChatConversation, ChatMessage } from "@rudderhq/shared";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
 import {
@@ -103,13 +103,13 @@ function renderSystemMessageBody(message: ChatMessage) {
   );
 }
 
-function renderProposalCard(message: ChatMessage, chat: ChatConversation = conversation({})) {
+function renderProposalCard(message: ChatMessage, chat: ChatConversation = conversation({}), agents?: Agent[]) {
   return renderToStaticMarkup(
     <ThemeProvider>
       <ProposalCard
         conversation={chat}
         message={message}
-        agents={undefined}
+        agents={agents}
         decisionNote=""
         onDecisionNoteChange={vi.fn()}
         onApprovalAction={vi.fn()}
@@ -178,6 +178,29 @@ describe("ProposalCard", () => {
     expect(reviewBlockHtml).toContain(issueTitle);
     expect(reviewBlockHtml).toContain(issueDescription);
     expect(reviewBlockHtml).not.toContain(assistantBody);
+  });
+
+  it("renders proposed reviewer metadata in issue proposal cards", () => {
+    const html = renderProposalCard(message({
+      role: "assistant",
+      kind: "issue_proposal",
+      body: "This should become a reviewed issue.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Implement reviewed flow",
+          priority: "medium",
+          description: "Create a tracked task with review.",
+          assigneeAgentId: "agent-1",
+          reviewerAgentId: "agent-2",
+        },
+      },
+    }), conversation({}), [
+      { id: "agent-1", name: "Wesley", role: "engineer", title: "Founding Engineer", icon: null } as Agent,
+      { id: "agent-2", name: "CTO", role: "cto", title: "Chief Technology Officer", icon: null } as Agent,
+    ]);
+
+    expect(html).toContain("Assignee · Wesley");
+    expect(html).toContain("Reviewer · CTO");
   });
 });
 

@@ -24,7 +24,7 @@ import {
 import type { StorageService } from "../storage/types.js";
 import type { AgentRuntimeInvocationMeta } from "../agent-runtimes/index.js";
 import { isAllowedContentType, MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
-import { HttpError } from "../errors.js";
+import { forbidden, HttpError, unauthorized } from "../errors.js";
 import {
   observeExecutionEvent,
   updateExecutionObservation,
@@ -41,6 +41,7 @@ import {
 } from "../services/chat-assistant.js";
 import { cancelActiveChatGeneration, claimChatGeneration, hasActiveChatGeneration } from "../services/chat-generation-locks.js";
 import {
+  accessService,
   agentService,
   chatService,
   operatorProfileService,
@@ -61,6 +62,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
   const projectsSvc = projectService(db);
   const agentsSvc = agentService(db);
   const goalsSvc = goalService(db);
+  const access = accessService(db);
   const assistantSvc = chatAssistantService(db);
   const operatorProfiles = operatorProfileService(db);
 
@@ -128,6 +130,31 @@ export function chatRoutes(db: Db, storage: StorageService) {
   function boardUserId(req: Request) {
     assertBoard(req);
     return req.actor.userId ?? "local-board";
+  }
+
+  function canCreateAgentsLegacy(agent: { permissions: Record<string, unknown> | null | undefined; role: string }) {
+    if (agent.role === "ceo") return true;
+    if (!agent.permissions || typeof agent.permissions !== "object") return false;
+    return Boolean((agent.permissions as Record<string, unknown>).canCreateAgents);
+  }
+
+  async function assertCanAssignTasks(req: Request, orgId: string) {
+    assertCompanyAccess(req, orgId);
+    if (req.actor.type === "board") {
+      if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
+      const allowed = await access.canUser(orgId, req.actor.userId, "tasks:assign");
+      if (!allowed) throw forbidden("Missing permission: tasks:assign");
+      return;
+    }
+    if (req.actor.type === "agent") {
+      if (!req.actor.agentId) throw forbidden("Agent authentication required");
+      const allowedByGrant = await access.hasPermission(orgId, "agent", req.actor.agentId, "tasks:assign");
+      if (allowedByGrant) return;
+      const actorAgent = await agentsSvc.getById(req.actor.agentId);
+      if (actorAgent && actorAgent.orgId === orgId && canCreateAgentsLegacy(actorAgent)) return;
+      throw forbidden("Missing permission: tasks:assign");
+    }
+    throw unauthorized();
   }
 
   function buildChatObservabilityContext(
@@ -520,6 +547,47 @@ export function chatRoutes(db: Db, storage: StorageService) {
         : structuredPayload;
   }
 
+  function proposalAssignsOrReviewsIssue(proposal: Record<string, unknown> | null | undefined) {
+    if (!proposal) return false;
+    return Boolean(
+      (typeof proposal.assigneeAgentId === "string" && proposal.assigneeAgentId.trim().length > 0)
+      || (typeof proposal.assigneeUserId === "string" && proposal.assigneeUserId.trim().length > 0)
+      || (typeof proposal.reviewerAgentId === "string" && proposal.reviewerAgentId.trim().length > 0)
+      || (typeof proposal.reviewerUserId === "string" && proposal.reviewerUserId.trim().length > 0),
+    );
+  }
+
+  async function proposedIssuePayloadForConversion(
+    conversationId: string,
+    input: {
+      messageId?: string | null;
+      proposal?: Record<string, unknown> | null;
+    },
+  ) {
+    if (input.proposal) return proposedIssuePayload(input.proposal);
+    if (input.messageId) {
+      const message = await svc.getMessage(conversationId, input.messageId);
+      return proposedIssuePayload(message?.structuredPayload ?? null);
+    }
+    const messages = await svc.listMessages(conversationId);
+    const message = [...messages].reverse().find((entry) => entry.kind === "issue_proposal");
+    return proposedIssuePayload(message?.structuredPayload ?? null);
+  }
+
+  async function assertCanConvertIssueProposal(
+    req: Request,
+    conversation: ChatConversation,
+    input: {
+      messageId?: string | null;
+      proposal?: Record<string, unknown> | null;
+    },
+  ) {
+    const proposal = await proposedIssuePayloadForConversion(conversation.id, input);
+    if (proposalAssignsOrReviewsIssue(proposal)) {
+      await assertCanAssignTasks(req, conversation.orgId);
+    }
+  }
+
   function proposedPlanDocumentPayload(structuredPayload: Record<string, unknown> | null | undefined) {
     if (!structuredPayload) return null;
     const rawDocument =
@@ -534,6 +602,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
   }
 
   async function persistAssistantReply(
+    req: Request,
     conversation: ChatConversation,
     actor: ActorInfo,
     assistantReply: ChatAssistantResult,
@@ -590,6 +659,9 @@ export function chatRoutes(db: Db, storage: StorageService) {
         });
         createdMessages.push(proposalMessage as ChatMessage);
 
+        await assertCanConvertIssueProposal(req, conversation, {
+          proposal: issueProposalStructuredPayload,
+        });
         const issue = await svc.convertToIssue(conversation.id, {
           actorUserId: actor.actorType === "user" ? actor.actorId : null,
           messageId: proposalMessage.id,
@@ -958,6 +1030,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
               throw new Error("Chat assistant reply was stopped before completion");
             }
             const created = await persistAssistantReply(
+              req,
               assistantInput.conversation,
               actor,
               streamed.reply,
@@ -1040,6 +1113,9 @@ export function chatRoutes(db: Db, storage: StorageService) {
         });
       }
       logger.warn({ err, conversationId: conversation.id }, "chat assistant reply failed");
+      if (err instanceof HttpError) {
+        throw err;
+      }
       res.status(502).json({
         error: err instanceof Error ? err.message : "Chat assistant failed to respond",
       });
@@ -1290,6 +1366,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
             }
 
             const createdMessages = await persistAssistantReply(
+              req,
               assistantInput.conversation,
               actor,
               streamed.reply,
@@ -1590,6 +1667,10 @@ export function chatRoutes(db: Db, storage: StorageService) {
         return;
       }
     }
+    await assertCanConvertIssueProposal(req, conversation as ChatConversation, {
+      messageId: req.body.messageId ?? null,
+      proposal: req.body.proposal ?? null,
+    });
     const chatObservation = buildChatObservabilityContext(conversation as ChatConversation, {
       rootExecutionId: req.body.messageId ?? `chat-convert:${conversation.id}`,
       trigger: "convert_to_issue",

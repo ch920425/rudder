@@ -489,6 +489,7 @@ describe("messengerService and issue follows", () => {
             title: "Implement selected work",
             description: "The chat-selected agent should receive this approved issue.",
             priority: "medium",
+            reviewerAgentId: agentId,
           },
         },
       })
@@ -497,7 +498,7 @@ describe("messengerService and issue follows", () => {
 
     const issue = await chatSvc.applyApprovedApproval(approval, userId);
     const persistedIssue = await db
-      .select({ assigneeAgentId: issues.assigneeAgentId })
+      .select({ assigneeAgentId: issues.assigneeAgentId, reviewerAgentId: issues.reviewerAgentId })
       .from(issues)
       .where(eq(issues.id, (issue as { id: string }).id))
       .then((rows) => rows[0]);
@@ -505,9 +506,11 @@ describe("messengerService and issue follows", () => {
     expect(issue).toMatchObject({
       title: "Implement selected work",
       assigneeAgentId: agentId,
+      reviewerAgentId: agentId,
       createdByUserId: userId,
     });
     expect(persistedIssue?.assigneeAgentId).toBe(agentId);
+    expect(persistedIssue?.reviewerAgentId).toBe(agentId);
   });
 
   it("writes a plan document only after approving a plan-mode chat issue proposal", async () => {

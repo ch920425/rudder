@@ -104,11 +104,13 @@ function ProjectField({ projectId, projects }: { projectId: unknown; projects?: 
 }
 
 function AssigneeField({
+  fieldLabel = "Assignee",
   agentId,
   userId,
   agents,
   currentUserId,
 }: {
+  fieldLabel?: string;
   agentId: unknown;
   userId: unknown;
   agents?: Agent[] | null;
@@ -117,7 +119,7 @@ function AssigneeField({
   if (typeof agentId === "string" && agentId.trim()) {
     const agent = lookupAgent(agentId, agents);
     return (
-      <ApprovalField label="Assignee">
+      <ApprovalField label={fieldLabel}>
         {agent ? (
           <AgentIdentity name={agent.name} icon={agent.icon} role={agent.role} size="sm" />
         ) : (
@@ -128,10 +130,11 @@ function AssigneeField({
   }
 
   if (typeof userId === "string" && userId.trim()) {
-    const label = formatAssigneeUserLabel(userId, currentUserId) ?? "Human assignee";
-    const readableLabel = label === userId.slice(0, 5) ? "Human assignee" : label;
+    const fallbackLabel = fieldLabel === "Reviewer" ? "Human reviewer" : "Human assignee";
+    const userLabel = formatAssigneeUserLabel(userId, currentUserId) ?? fallbackLabel;
+    const readableLabel = userLabel === userId.slice(0, 5) ? fallbackLabel : userLabel;
     return (
-      <ApprovalField label="Assignee">
+      <ApprovalField label={fieldLabel}>
         <span className="font-medium">{readableLabel}</span>
       </ApprovalField>
     );
@@ -254,6 +257,13 @@ function ChatIssueCreationPayload({
       <AssigneeField
         agentId={proposal.assigneeAgentId}
         userId={proposal.assigneeUserId}
+        agents={context?.agents}
+        currentUserId={context?.currentUserId}
+      />
+      <AssigneeField
+        fieldLabel="Reviewer"
+        agentId={proposal.reviewerAgentId}
+        userId={proposal.reviewerUserId}
         agents={context?.agents}
         currentUserId={context?.currentUserId}
       />

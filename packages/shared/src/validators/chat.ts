@@ -61,6 +61,8 @@ const chatIssueProposalSchema = z.object({
   parentId: z.string().uuid().optional().nullable(),
   assigneeAgentId: z.string().uuid().optional().nullable(),
   assigneeUserId: z.string().trim().optional().nullable(),
+  reviewerAgentId: z.string().uuid().optional().nullable(),
+  reviewerUserId: z.string().trim().optional().nullable(),
 });
 
 export const convertChatToIssueSchema = z.object({

@@ -654,6 +654,24 @@ function issueProposalFromMessage(message: ChatMessage) {
   return proposal;
 }
 
+function issueProposalPrincipalLabel(
+  proposal: Record<string, unknown>,
+  role: "assignee" | "reviewer",
+  agents: Agent[] | undefined,
+) {
+  const agentIdKey = role === "assignee" ? "assigneeAgentId" : "reviewerAgentId";
+  const userIdKey = role === "assignee" ? "assigneeUserId" : "reviewerUserId";
+  const agentId = typeof proposal[agentIdKey] === "string" ? proposal[agentIdKey].trim() : "";
+  if (agentId) {
+    return agents?.find((agent) => agent.id === agentId)?.name ?? (role === "assignee" ? "Unknown agent" : "Unknown reviewer");
+  }
+  const userId = typeof proposal[userIdKey] === "string" ? proposal[userIdKey].trim() : "";
+  if (userId) {
+    return formatAssigneeUserLabel(userId, null) ?? (role === "assignee" ? "Human assignee" : "Human reviewer");
+  }
+  return null;
+}
+
 function planDocumentFromMessage(message: ChatMessage) {
   const payload = message.structuredPayload;
   if (!payload) return null;
@@ -851,6 +869,8 @@ export function ProposalCard({
   const showRevisionAction = message.approval?.status === "pending";
   const decisionNoteId = `proposal-review-note-${message.id}`;
   const showReviewControls = showDecisionNote || canConvertDirectly || Boolean(message.approval?.decisionNote);
+  const proposalAssigneeLabel = issueProposal ? issueProposalPrincipalLabel(issueProposal, "assignee", agents) : null;
+  const proposalReviewerLabel = issueProposal ? issueProposalPrincipalLabel(issueProposal, "reviewer", agents) : null;
 
   return (
     <div className="text-foreground">
@@ -879,6 +899,12 @@ export function ProposalCard({
                 <div className="mt-1 text-xs font-medium text-muted-foreground">
                   Priority · {formatPriorityLabel(String(issueProposal.priority ?? "medium"))}
                 </div>
+                {proposalAssigneeLabel || proposalReviewerLabel ? (
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {proposalAssigneeLabel ? <span>Assignee · {proposalAssigneeLabel}</span> : null}
+                    {proposalReviewerLabel ? <span>Reviewer · {proposalReviewerLabel}</span> : null}
+                  </div>
+                ) : null}
               </>
             ) : operationProposal ? (
               <>

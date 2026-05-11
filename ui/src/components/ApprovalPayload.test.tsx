@@ -38,6 +38,14 @@ const agent = {
   icon: "🛠️",
 } as Agent;
 
+const reviewerAgent = {
+  id: "agent-2",
+  name: "CTO",
+  role: "cto",
+  title: "Chief Technology Officer",
+  icon: null,
+} as Agent;
+
 function renderChatIssueApproval(payload: Record<string, unknown>, context = {}) {
   return renderToStaticMarkup(
     <ThemeProvider>
@@ -64,9 +72,10 @@ describe("ApprovalPayloadRenderer", () => {
           priority: "medium",
           projectId: project.id,
           assigneeAgentId: agent.id,
+          reviewerAgentId: reviewerAgent.id,
         },
       },
-      { projects: [project], agents: [agent], chatConversation: { id: "chat-1", title: "Messenger intake" } },
+      { projects: [project], agents: [agent, reviewerAgent], chatConversation: { id: "chat-1", title: "Messenger intake" } },
     );
 
     expect(html).toContain("Agent proposed a new issue from chat");
@@ -74,6 +83,7 @@ describe("ApprovalPayloadRenderer", () => {
     expect(html).toContain('href="/messenger/chat/chat-1"');
     expect(html).toContain("Project Atlas");
     expect(html).toContain("Wesley");
+    expect(html).toContain("CTO");
     expect(html).toContain("<h2");
     expect(html).toContain("Review Summary");
     expect(html).toContain("<strong>markdown</strong>");

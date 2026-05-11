@@ -31,6 +31,7 @@ const mockChatService = vi.hoisted(() => ({
   markRead: vi.fn(),
   setPinned: vi.fn(),
   listMessages: vi.fn(),
+  getMessage: vi.fn(),
   addMessage: vi.fn(),
   updateMessage: vi.fn(),
   markInterruptedStreamingMessages: vi.fn(),
@@ -60,6 +61,11 @@ const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 
+const mockAccessService = vi.hoisted(() => ({
+  canUser: vi.fn(),
+  hasPermission: vi.fn(),
+}));
+
 const mockGoalService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
@@ -82,6 +88,7 @@ const mockStorage = vi.hoisted(() => ({
 }));
 
 vi.mock("../services/index.js", () => ({
+  accessService: () => mockAccessService,
   agentService: () => mockAgentService,
   chatService: () => mockChatService,
   organizationService: () => mockCompanyService,
@@ -226,6 +233,8 @@ describe("chat routes", () => {
       error: null,
     });
     mockLogActivity.mockResolvedValue(undefined);
+    mockAccessService.canUser.mockResolvedValue(true);
+    mockAccessService.hasPermission.mockResolvedValue(true);
     mockOperatorProfileService.get.mockResolvedValue({
       nickname: "Zee",
       moreAboutYou: "Prefers concise answers",
@@ -434,6 +443,7 @@ describe("chat routes", () => {
           title: "Implement auth flow",
           description: "Create a tracked auth implementation task.",
           priority: "high",
+          reviewerAgentId: "10000000-0000-4000-8000-000000000077",
         },
       },
     };
@@ -477,6 +487,11 @@ describe("chat routes", () => {
       "organization-1",
       expect.objectContaining({
         type: "chat_issue_creation",
+        payload: expect.objectContaining({
+          proposedIssue: expect.objectContaining({
+            reviewerAgentId: "10000000-0000-4000-8000-000000000077",
+          }),
+        }),
       }),
     );
     expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
@@ -1434,6 +1449,26 @@ describe("chat routes", () => {
         }),
       }),
     );
+  });
+
+  it("requires task assignment permission to convert reviewer-bearing chat proposals", async () => {
+    mockChatService.getById.mockResolvedValue(createConversation());
+    mockAccessService.canUser.mockResolvedValue(false);
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/convert-to-issue")
+      .send({
+        proposal: {
+          title: "Implement reviewed work",
+          description: "Create a reviewed issue from chat.",
+          priority: "medium",
+          reviewerAgentId: "10000000-0000-4000-8000-000000000077",
+        },
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Missing permission: tasks:assign");
+    expect(mockChatService.convertToIssue).not.toHaveBeenCalled();
   });
 
   it("traces operation proposal resolution as a chat action", async () => {

@@ -45,6 +45,8 @@ type ChatIssueProposalPayload = {
   parentId: string | null;
   assigneeAgentId: string | null;
   assigneeUserId: string | null;
+  reviewerAgentId: string | null;
+  reviewerUserId: string | null;
 };
 
 function isIssueProposalPriority(value: unknown): value is ChatIssueProposalPriority {
@@ -134,6 +136,8 @@ function issueProposalFromPayload(payload: Record<string, unknown> | null | unde
     parentId: safeTrim(typeof proposal.parentId === "string" ? proposal.parentId : null),
     assigneeAgentId: safeTrim(typeof proposal.assigneeAgentId === "string" ? proposal.assigneeAgentId : null),
     assigneeUserId: safeTrim(typeof proposal.assigneeUserId === "string" ? proposal.assigneeUserId : null),
+    reviewerAgentId: safeTrim(typeof proposal.reviewerAgentId === "string" ? proposal.reviewerAgentId : null),
+    reviewerUserId: safeTrim(typeof proposal.reviewerUserId === "string" ? proposal.reviewerUserId : null),
   };
 }
 

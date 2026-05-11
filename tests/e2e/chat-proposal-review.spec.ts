@@ -15,6 +15,9 @@ async function writeProposalStub(
         description: string;
         priority: string;
         assigneeAgentId?: string;
+        assigneeUserId?: string;
+        reviewerAgentId?: string;
+        reviewerUserId?: string;
       };
       planDocument?: {
         title: string;
@@ -214,6 +217,52 @@ test.describe("Chat proposal review block", () => {
     await expect(page.getByRole("heading", { name: "Selected chat agent assignment test" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Proposal Owner").first()).toBeVisible({ timeout: 15_000 });
   });
+
+  test("shows reviewer metadata on chat issue proposals and preserves it after approval", async ({ page }) => {
+    const command = await writeProposalStub("proposal-reviewer-metadata", {
+      kind: "issue_proposal",
+      body: "Create a scoped issue with a reviewer.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Reviewer metadata proposal test",
+          description: "Verify chat issue proposals can carry reviewer metadata.",
+          priority: "medium",
+        },
+      },
+    });
+    const organization = await createProposalOrg(page, `Reviewer-${Date.now()}`, command);
+    await writeProposalStub("proposal-reviewer-metadata", {
+      kind: "issue_proposal",
+      body: "Create a scoped issue with a reviewer.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Reviewer metadata proposal test",
+          description: "Verify chat issue proposals can carry reviewer metadata.",
+          priority: "medium",
+          reviewerAgentId: organization.chatAgent.id,
+        },
+      },
+    });
+
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill("please draft a reviewed issue");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    const reviewBlock = page.getByTestId("proposal-review-block").last();
+    await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
+    await expect(reviewBlock).toContainText("Reviewer · Proposal Agent");
+    await reviewBlock.getByRole("button", { name: "Approve" }).click();
+
+    await expect(reviewBlock).toHaveAttribute("data-status", "approved", { timeout: 15_000 });
+    const createdIssueLink = page.locator(".chat-system-issue-link").last();
+    await expect(createdIssueLink).toBeVisible({ timeout: 15_000 });
+    await createdIssueLink.click();
+    await expect(page.getByRole("heading", { name: "Reviewer metadata proposal test" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Proposal Agent").first()).toBeVisible({ timeout: 15_000 });
+  });
+
   test("keeps plan-mode proposals pending until approval and writes the plan document", async ({ page }) => {
     const command = await writeProposalStub("proposal-review-plan-mode", {
       kind: "issue_proposal",
