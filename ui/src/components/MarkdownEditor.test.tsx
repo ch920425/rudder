@@ -15,6 +15,10 @@ const mdxEditorMocks = vi.hoisted(() => ({
   lastEditorProps: null as null | {
     translation?: (key: string, defaultValue: string, interpolations?: Record<string, unknown>) => string;
   },
+  focusCalls: [] as Array<{
+    defaultSelection?: "rootStart" | "rootEnd";
+    preventScroll?: boolean;
+  } | undefined>,
 }));
 
 (
@@ -76,6 +80,7 @@ vi.mock("../lib/mention-deletion", () => ({
 }));
 
 vi.mock("../lib/mention-token-node", () => ({
+  $createMentionTokenNode: (label: string) => ({ label }),
   mentionTokenPlugin: () => ({}),
 }));
 
@@ -91,6 +96,7 @@ vi.mock("../lib/skill-token-dom", () => ({
 }));
 
 vi.mock("../lib/skill-token-node", () => ({
+  $createSkillTokenNode: (label: string) => ({ label }),
   skillTokenPlugin: () => ({}),
 }));
 
@@ -105,23 +111,65 @@ vi.mock("@mdxeditor/editor", async () => {
       onBlur?: () => void;
       translation?: (key: string, defaultValue: string, interpolations?: Record<string, unknown>) => string;
     },
-    ref: React.ForwardedRef<{ focus: () => void; setMarkdown: (value: string) => void }>,
+    ref: React.ForwardedRef<{
+      focus: () => void;
+      insertMarkdown: (value: string) => void;
+      setMarkdown: (value: string) => void;
+    }>,
   ) {
     mdxEditorMocks.lastEditorProps = props;
-    const [, setMarkdown] = React.useState(props.markdown);
+    const [markdown, setMarkdown] = React.useState(props.markdown);
+    React.useEffect(() => {
+      setMarkdown(props.markdown);
+    }, [props.markdown]);
     React.useImperativeHandle(ref, () => ({
-      focus: () => undefined,
+      focus: (_callbackFn?: () => void, opts?: { defaultSelection?: "rootStart" | "rootEnd"; preventScroll?: boolean }) => {
+        mdxEditorMocks.focusCalls.push(opts);
+      },
+      insertMarkdown: (value: string) => {
+        const selection = window.getSelection();
+        const anchorNode = selection?.anchorNode;
+        if (anchorNode?.nodeType === Node.TEXT_NODE && typeof selection?.anchorOffset === "number") {
+          const offset = selection.anchorOffset;
+          const text = anchorNode.textContent ?? "";
+          let atPos = -1;
+          for (let i = offset - 1; i >= 0; i -= 1) {
+            if (text[i] === "@") {
+              atPos = i;
+              break;
+            }
+            if (/\s/.test(text[i] ?? "")) break;
+          }
+          if (atPos !== -1) {
+            const replaceLength = value.endsWith(" ") && text[offset] === " "
+              ? offset - atPos + 1
+              : offset - atPos;
+            setMarkdown(text.slice(0, atPos) + value + text.slice(atPos + replaceLength));
+            return;
+          }
+        }
+        setMarkdown((current) => current + value);
+      },
       setMarkdown: (value: string) => {
         setMarkdown(value);
       },
     }));
 
-    const match = props.markdown.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+    const imageMatch = markdown.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+    const linkMatch = markdown.match(/\[([^\]]+)\]\(([^)]+)\)/);
 
     return (
       <div className={props.className}>
         <div contentEditable className={props.contentEditableClassName} onBlur={props.onBlur}>
-          {match ? <img src={match[2]} alt={match[1]} /> : props.markdown}
+          {imageMatch ? (
+            <img src={imageMatch[2]} alt={imageMatch[1]} />
+          ) : linkMatch ? (
+            <>
+              {markdown.slice(0, linkMatch.index)}
+              <a href={linkMatch[2]}>{linkMatch[1]}</a>
+              {markdown.slice((linkMatch.index ?? 0) + linkMatch[0].length)}
+            </>
+          ) : markdown}
         </div>
       </div>
     );
@@ -139,6 +187,8 @@ vi.mock("@mdxeditor/editor", async () => {
     listsPlugin: () => ({}),
     markdownShortcutPlugin: () => ({}),
     quotePlugin: () => ({}),
+    createRootEditorSubscription$: Symbol("createRootEditorSubscription"),
+    realmPlugin: (plugin: unknown) => () => plugin,
     tablePlugin: () => ({}),
     thematicBreakPlugin: () => ({}),
   };
@@ -188,12 +238,23 @@ async function chooseMentionOption(optionId: string) {
   });
 }
 
+async function flushAnimationFrames(count = 4) {
+  for (let i = 0; i < count; i += 1) {
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+}
+
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
   mdxEditorMocks.imagePlugin.mockClear();
   mdxEditorMocks.linkDialogPlugin.mockClear();
   mdxEditorMocks.lastEditorProps = null;
+  mdxEditorMocks.focusCalls = [];
   document.body.innerHTML = "";
 });
 
@@ -402,6 +463,15 @@ describe("MarkdownEditor", () => {
     await chooseMentionOption("agent:agent-1");
 
     expect(onChange).toHaveBeenCalledWith("before [Rudder Bot](agent://agent-1) after");
+    await flushAnimationFrames();
+
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.textContent).toBe(" after");
+    expect(selection?.anchorOffset).toBe(1);
+    expect(mdxEditorMocks.focusCalls).toContainEqual({
+      defaultSelection: "rootEnd",
+      preventScroll: true,
+    });
   });
 
   it("replaces only the active repeated mention query", async () => {

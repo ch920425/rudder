@@ -59,7 +59,7 @@ test("issue comment composer uses the chat-style mention panel without exposing 
   await page.setViewportSize({ width: 1440, height: 980 });
   await page.goto(`/${organization.issuePrefix}/issues/${primaryIssue.identifier ?? primaryIssue.id}`);
 
-  const composer = page.locator(".rudder-mdxeditor-content").last();
+  const composer = page.locator('.rudder-mdxeditor-content[contenteditable="true"]').last();
   await expect(composer).toBeVisible({ timeout: 15_000 });
 
   await composer.click();
@@ -80,12 +80,19 @@ test("issue comment composer uses the chat-style mention panel without exposing 
   expect(menuBox!.width).toBeGreaterThan(composerBox!.width - 8);
 
   await composer.press("ControlOrMeta+A");
+  await page.keyboard.type("before  after");
+  for (let i = 0; i < 6; i += 1) {
+    await page.keyboard.press("ArrowLeft");
+  }
   await page.keyboard.type("@dyl");
-  await page.getByTestId(`markdown-mention-option-agent:${agent.id}`).click();
+  await expect(page.getByTestId(`markdown-mention-option-agent:${agent.id}`)).toBeVisible();
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("next ");
 
   const agentChip = composer.locator("[data-mention-kind='agent']").first();
   await expect(agentChip).toBeVisible();
   await expect(agentChip).toContainText("Dylan");
+  await expect(composer).toContainText(/before Dylan.*next after/);
 
   await agentChip.click();
   await page.waitForTimeout(100);

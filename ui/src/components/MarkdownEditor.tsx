@@ -28,6 +28,8 @@ import {
   thematicBreakPlugin,
   type Translation,
   type RealmPlugin,
+  realmPlugin,
+  createRootEditorSubscription$,
 } from "@mdxeditor/editor";
 import { Boxes } from "lucide-react";
 import { buildAgentMentionHref, buildIssueMentionHref, buildProjectMentionHref, type AgentRole } from "@rudderhq/shared";
@@ -37,10 +39,12 @@ import { ImagePreviewDialog, type ImagePreviewState } from "@/components/ImagePr
 import { AgentIcon } from "./AgentIconPicker";
 import {
   $createRangeSelection,
+  $createTextNode,
   $getRoot,
   $isElementNode,
   $isTextNode,
   $setSelection,
+  type LexicalEditor,
   type LexicalNode,
   type TextNode,
 } from "lexical";
@@ -52,7 +56,7 @@ import {
 } from "../lib/mention-chips";
 import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
 import { mentionDeletionPlugin } from "../lib/mention-deletion";
-import { mentionTokenPlugin } from "../lib/mention-token-node";
+import { $createMentionTokenNode, mentionTokenPlugin } from "../lib/mention-token-node";
 import { issueStatusIcon, issueStatusIconDefault } from "../lib/status-colors";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import {
@@ -65,7 +69,7 @@ import {
   removeAtomicInlineTokenFromMarkdown,
   type AtomicInlineTokenElement,
 } from "../lib/inline-token-dom";
-import { skillTokenPlugin } from "../lib/skill-token-node";
+import { $createSkillTokenNode, skillTokenPlugin } from "../lib/skill-token-node";
 import { cn } from "../lib/utils";
 
 /* ---- Mention types ---- */
@@ -182,6 +186,13 @@ function getVisibleTextOffsetBeforeNode(editable: HTMLElement, node: Node) {
   const range = document.createRange();
   range.setStart(editable, 0);
   range.setEndBefore(node);
+  return range.toString().length;
+}
+
+function getVisibleTextOffsetAtPosition(editable: HTMLElement, textNode: Text, offset: number) {
+  const range = document.createRange();
+  range.setStart(editable, 0);
+  range.setEnd(textNode, offset);
   return range.toString().length;
 }
 
@@ -583,17 +594,39 @@ function statusLabel(status: string): string {
 }
 
 function mentionMarkdown(option: MentionOption): string {
-  if (option.kind === "skill" && option.skillMarkdownTarget && option.skillRefLabel) {
-    return `[${option.skillRefLabel}](${option.skillMarkdownTarget}) `;
+  const token = mentionTokenDetails(option);
+  return token ? `[${token.label}](${token.href}) ` : "";
+}
+
+function mentionVisibleLabel(option: MentionOption): string {
+  return mentionTokenDetails(option)?.label ?? option.name;
+}
+
+function mentionTokenDetails(option: MentionOption): { href: string; isSkill: boolean; label: string } | null {
+  if (option.kind === "skill") {
+    if (!option.skillMarkdownTarget || !option.skillRefLabel) return null;
+    return { href: option.skillMarkdownTarget, isSkill: true, label: option.skillRefLabel };
   }
   if (option.kind === "issue" && option.issueId) {
-    return `[${option.name}](${buildIssueMentionHref(option.issueId, option.issueIdentifier ?? null)}) `;
+    return {
+      href: buildIssueMentionHref(option.issueId, option.issueIdentifier ?? null),
+      isSkill: false,
+      label: option.name,
+    };
   }
   if (option.kind === "project" && option.projectId) {
-    return `[${option.name}](${buildProjectMentionHref(option.projectId, option.projectColor ?? null)}) `;
+    return {
+      href: buildProjectMentionHref(option.projectId, option.projectColor ?? null),
+      isSkill: false,
+      label: option.name,
+    };
   }
   const agentId = option.agentId ?? option.id.replace(/^agent:/, "");
-  return `[${option.name}](${buildAgentMentionHref(agentId, option.agentIcon ?? null)}) `;
+  return {
+    href: buildAgentMentionHref(agentId, option.agentIcon ?? null),
+    isSkill: false,
+    label: option.name,
+  };
 }
 
 function getAllSubstringIndexes(value: string, search: string): number[] {
@@ -666,6 +699,7 @@ function findActiveMentionIndex(markdown: string, state: MentionState, editable:
 function applyMention(markdown: string, state: MentionState, option: MentionOption, editable: HTMLElement | null): string {
   const search = `@${state.query}`;
   const replacement = mentionMarkdown(option);
+  if (!replacement) return markdown;
   const idx = findActiveMentionIndex(markdown, state, editable);
   if (idx === -1) return markdown;
   const replacementEnd = idx + search.length;
@@ -673,6 +707,63 @@ function applyMention(markdown: string, state: MentionState, option: MentionOpti
     ? search.length + 1
     : search.length;
   return markdown.slice(0, idx) + replacement + markdown.slice(idx + replaceLength);
+}
+
+function replaceMentionInLexicalEditor(
+  editor: LexicalEditor,
+  state: MentionState,
+  option: MentionOption,
+  editable: HTMLElement,
+) {
+  if (!editable.contains(state.textNode)) return false;
+  const token = mentionTokenDetails(option);
+  if (!token) return false;
+
+  const text = state.textNode.textContent ?? "";
+  const endPos = text[state.endPos] === " " ? state.endPos + 1 : state.endPos;
+  const startVisibleOffset = getVisibleTextOffsetAtPosition(editable, state.textNode, state.atPos);
+  const endVisibleOffset = getVisibleTextOffsetAtPosition(editable, state.textNode, endPos);
+  let replaced = false;
+
+  editor.update(() => {
+    const root = $getRoot();
+    const start = findLexicalTextPositionAtOffset(
+      root,
+      { value: startVisibleOffset },
+      { value: null },
+    );
+    const end = findLexicalTextPositionAtOffset(
+      root,
+      { value: endVisibleOffset },
+      { value: null },
+    );
+    if (!start || !end) return;
+
+    const selection = $createRangeSelection();
+    selection.setTextNodeRange(start.node, start.offset, end.node, end.offset);
+    $setSelection(selection);
+
+    const mentionNode = token.isSkill
+      ? $createSkillTokenNode(token.label, token.href)
+      : $createMentionTokenNode(token.label, token.href);
+    const trailingSpace = $createTextNode(" ");
+    selection.insertNodes([mentionNode, trailingSpace]);
+    trailingSpace.selectEnd();
+    replaced = true;
+  }, { discrete: true });
+
+  return replaced;
+}
+
+function rootEditorCapturePlugin(onEditor: (editor: LexicalEditor | null) => void): RealmPlugin {
+  return realmPlugin({
+    postInit(realm) {
+      realm.pub(createRootEditorSubscription$, (editor) => {
+        onEditor(editor);
+        return () => onEditor(null);
+      });
+    },
+  })();
 }
 
 /* ---- Component ---- */
@@ -695,6 +786,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   const { locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const ref = useRef<MDXEditorMethods>(null);
+  const lexicalEditorRef = useRef<LexicalEditor | null>(null);
   const latestValueRef = useRef(value);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -708,6 +800,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   // Mention state (ref kept in sync so callbacks always see the latest value)
   const [mentionState, setMentionState] = useState<MentionState | null>(null);
   const mentionStateRef = useRef<MentionState | null>(null);
+  const pendingMentionInputRef = useRef<{
+    markdownOffset: number;
+    visibleOffset: number;
+  } | null>(null);
+  const pendingMentionInputClearTimerRef = useRef<number | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionActive = mentionState !== null && mentions && mentions.length > 0;
   const mentionOptionByKey = useMemo(() => {
@@ -794,6 +891,50 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       selection.addRange(range);
     });
   }, []);
+
+  const clearPendingMentionInputSoon = useCallback(() => {
+    if (pendingMentionInputClearTimerRef.current !== null) {
+      window.clearTimeout(pendingMentionInputClearTimerRef.current);
+    }
+    pendingMentionInputClearTimerRef.current = window.setTimeout(() => {
+      pendingMentionInputRef.current = null;
+      pendingMentionInputClearTimerRef.current = null;
+    }, 750);
+  }, []);
+
+  const clearPendingMentionInput = useCallback(() => {
+    if (pendingMentionInputClearTimerRef.current !== null) {
+      window.clearTimeout(pendingMentionInputClearTimerRef.current);
+      pendingMentionInputClearTimerRef.current = null;
+    }
+    pendingMentionInputRef.current = null;
+  }, []);
+
+  const insertPendingMentionText = useCallback((text: string) => {
+    const pendingMentionInput = pendingMentionInputRef.current;
+    if (!pendingMentionInput) return false;
+
+    const current = latestValueRef.current;
+    const next = current.slice(0, pendingMentionInput.markdownOffset)
+      + text
+      + current.slice(pendingMentionInput.markdownOffset);
+    pendingMentionInput.markdownOffset += text.length;
+    pendingMentionInput.visibleOffset += text.length;
+    latestValueRef.current = next;
+    ref.current?.setMarkdown(next);
+    onChange(next);
+    clearPendingMentionInputSoon();
+
+    requestAnimationFrame(() => {
+      const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+      if (!(editable instanceof HTMLElement)) return;
+      ref.current?.focus(() => {
+        selectLexicalTextOffset(pendingMentionInput.visibleOffset);
+      }, { defaultSelection: "rootEnd", preventScroll: true });
+      placeCaretAtVisibleTextOffset(editable, pendingMentionInput.visibleOffset);
+    });
+    return true;
+  }, [clearPendingMentionInputSoon, onChange]);
 
   const removeAtomicToken = useCallback((token: AtomicInlineTokenElement) => {
     const current = latestValueRef.current;
@@ -884,6 +1025,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         }
       : undefined;
     const all: RealmPlugin[] = [
+      rootEditorCapturePlugin((editor) => {
+        lexicalEditorRef.current = editor;
+      }),
       headingsPlugin(),
       listsPlugin(),
       quotePlugin(),
@@ -1063,10 +1207,30 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       if (!state) return;
       const current = latestValueRef.current;
       const editable = containerRef.current?.querySelector('[contenteditable="true"]');
-      const next = applyMention(current, state, option, editable instanceof HTMLElement ? editable : null);
+      const editableElement = editable instanceof HTMLElement ? editable : null;
+      const visibleMentionStart = editableElement && editableElement.contains(state.textNode)
+        ? getVisibleTextOffsetAtPosition(editableElement, state.textNode, state.atPos)
+        : null;
+      const replacement = mentionMarkdown(option);
+      const activeMarkdownIndex = findActiveMentionIndex(current, state, editableElement);
+      const next = applyMention(current, state, option, editableElement);
+      let didReplaceInLexical = false;
       if (next !== current) {
         latestValueRef.current = next;
-        ref.current?.setMarkdown(next);
+        const lexicalEditor = lexicalEditorRef.current;
+        didReplaceInLexical = Boolean(lexicalEditor && editableElement
+          ? replaceMentionInLexicalEditor(lexicalEditor, state, option, editableElement)
+          : false);
+        if (!didReplaceInLexical) {
+          if (activeMarkdownIndex !== -1 && visibleMentionStart !== null) {
+            pendingMentionInputRef.current = {
+              markdownOffset: activeMarkdownIndex + replacement.length,
+              visibleOffset: visibleMentionStart + mentionVisibleLabel(option).length + 1,
+            };
+            clearPendingMentionInputSoon();
+          }
+          ref.current?.setMarkdown(next);
+        }
         onChange(next);
       }
 
@@ -1111,32 +1275,32 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           })[0] ?? null;
           if (!target) return;
 
-          const selection = window.getSelection();
-          if (!selection) return;
-          const range = document.createRange();
-          const nextSibling = target.nextSibling;
-          if (nextSibling?.nodeType === Node.TEXT_NODE) {
-            const text = nextSibling.textContent ?? "";
-            if (text.startsWith(" ")) {
-              range.setStart(nextSibling, 1);
-              range.collapse(true);
-              selection.removeAllRanges();
-              selection.addRange(range);
-              return;
-            }
-          }
+          const caretOffset = getVisibleTextOffsetBeforeNode(editable, target)
+            + mentionVisibleLabel(option).length
+            + 1;
+          const restoreFallbackCaretAfterMention = () => {
+            const currentEditable = containerRef.current?.querySelector('[contenteditable="true"]');
+            if (!(currentEditable instanceof HTMLElement) || !currentEditable.contains(target)) return;
+            ref.current?.focus(() => {
+              selectLexicalTextOffset(caretOffset);
+            }, { defaultSelection: "rootEnd", preventScroll: true });
+            placeCaretAtVisibleTextOffset(currentEditable, caretOffset);
+          };
 
-          range.setStartAfter(target);
-          range.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(range);
+          if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+          requestAnimationFrame(() => {
+            if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+            requestAnimationFrame(() => {
+              if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+            });
+          });
         });
       });
 
       mentionStateRef.current = null;
       setMentionState(null);
     },
-    [decorateInlineTokens, onChange],
+    [clearPendingMentionInputSoon, decorateInlineTokens, onChange],
   );
 
   function hasFilePayload(evt: DragEvent<HTMLDivElement>) {
@@ -1155,6 +1319,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         className,
       )}
       onKeyDownCapture={(e) => {
+        const hasPlainTextKey =
+          e.key.length === 1
+          && !e.altKey
+          && !e.ctrlKey
+          && !e.metaKey
+          && !e.nativeEvent.isComposing;
+        if (pendingMentionInputRef.current && hasPlainTextKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          insertPendingMentionText(e.key);
+          return;
+        }
+        if (pendingMentionInputRef.current && !hasPlainTextKey) {
+          clearPendingMentionInput();
+        }
+
         const shouldSubmitOnModEnter =
           submitShortcut === "mod-enter" && e.key === "Enter" && (e.metaKey || e.ctrlKey);
         const shouldSubmitOnEnter =
