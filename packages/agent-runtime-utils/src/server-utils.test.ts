@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildIssueDocumentsPrompt,
+  resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   loadAgentInstructionsPrefix,
   renderTemplate,
@@ -13,6 +14,7 @@ import {
 } from "./server-utils.js";
 
 const ORIGINAL_HOME = process.env.HOME;
+const ORIGINAL_RUDDER_OPERATOR_HOME = process.env.RUDDER_OPERATOR_HOME;
 const ORIGINAL_ZDOTDIR = process.env.ZDOTDIR;
 const ORIGINAL_GIT_AUTHOR_EMAIL = process.env.GIT_AUTHOR_EMAIL;
 const ORIGINAL_GIT_COMMITTER_EMAIL = process.env.GIT_COMMITTER_EMAIL;
@@ -20,6 +22,8 @@ const ORIGINAL_GIT_COMMITTER_EMAIL = process.env.GIT_COMMITTER_EMAIL;
 afterEach(() => {
   if (ORIGINAL_HOME === undefined) delete process.env.HOME;
   else process.env.HOME = ORIGINAL_HOME;
+  if (ORIGINAL_RUDDER_OPERATOR_HOME === undefined) delete process.env.RUDDER_OPERATOR_HOME;
+  else process.env.RUDDER_OPERATOR_HOME = ORIGINAL_RUDDER_OPERATOR_HOME;
   if (ORIGINAL_ZDOTDIR === undefined) delete process.env.ZDOTDIR;
   else process.env.ZDOTDIR = ORIGINAL_ZDOTDIR;
   if (ORIGINAL_GIT_AUTHOR_EMAIL === undefined) delete process.env.GIT_AUTHOR_EMAIL;
@@ -226,6 +230,7 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("installed but not enabled");
     expect(loaded.prefix).toContain("Shared organization artifacts live under `$RUDDER_ORG_ARTIFACTS_DIR`");
     expect(loaded.prefix).toContain("Use `/tmp` only for transient scratch files");
+    expect(loaded.prefix).toContain("Local trusted runtimes may expose the host operator home as `$RUDDER_OPERATOR_HOME`");
     expect(loaded.prefix).toContain("attach the image with the Rudder CLI `--image <path>` option");
     expect(loaded.commandNotes).toEqual(["Loaded Rudder agent operating contract from runtime code"]);
     expect(loaded.readFailed).toBe(false);
@@ -520,6 +525,35 @@ describe("runChildProcess", () => {
 });
 
 describe("syncLocalCliCredentialHomeEntries", () => {
+  it("uses explicit operator home when the source env HOME is already isolated", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-creds-operator-"));
+    const operatorHome = path.join(root, "operator-home");
+    const isolatedHome = path.join(root, "isolated-home");
+    const targetHome = path.join(root, "agent-home");
+    const operatorGh = path.join(operatorHome, ".config", "gh");
+    await fs.mkdir(operatorGh, { recursive: true });
+    await fs.writeFile(path.join(operatorGh, "hosts.yml"), "github.com:\n  oauth_token: operator\n", "utf8");
+    await fs.mkdir(path.join(isolatedHome, ".config", "gh"), { recursive: true });
+
+    try {
+      const resolvedSourceHome = resolveLocalOperatorHome({
+        HOME: isolatedHome,
+        RUDDER_OPERATOR_HOME: operatorHome,
+      } as NodeJS.ProcessEnv);
+      const result = await syncLocalCliCredentialHomeEntries({
+        sourceHome: resolvedSourceHome,
+        targetHome,
+        entries: [".config/gh"],
+      });
+
+      expect(resolvedSourceHome).toBe(operatorHome);
+      expect(result).toEqual({ linked: [".config/gh"], skipped: [] });
+      expect(await fs.realpath(path.join(targetHome, ".config", "gh"))).toBe(await fs.realpath(operatorGh));
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("links selected host CLI credential entries into a managed runtime home", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-creds-"));
     const sourceHome = path.join(root, "host-home");

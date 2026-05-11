@@ -17,6 +17,7 @@ import {
   ensureRudderSkillSymlink,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   renderTemplate,
   runChildProcess,
@@ -257,8 +258,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     if (typeof value === "string") env[key] = value;
   }
   const sourceEnv = { ...process.env, ...env };
+  const operatorHome = resolveLocalOperatorHome(sourceEnv);
   const managedHome = await prepareManagedOpenCodeHome(sourceEnv, onLog, agent.orgId);
-  await syncLocalCliCredentialHomeEntries({ sourceHome: sourceEnv.HOME, targetHome: managedHome, onLog });
+  await syncLocalCliCredentialHomeEntries({ sourceHome: operatorHome, targetHome: managedHome, onLog });
   const preparedGitIdentity = await ensureGitIdentityFileConfig({
     cwd,
     home: managedHome,
@@ -267,6 +269,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     confirmedIdentity: normalizeConfirmedRudderGitIdentity(context.rudderGitIdentity),
   });
   env.HOME = managedHome;
+  env.RUDDER_OPERATOR_HOME = operatorHome;
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }

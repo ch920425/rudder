@@ -618,6 +618,7 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "- Shared organization artifacts live under `$RUDDER_ORG_ARTIFACTS_DIR`.",
   "- Durable generated outputs such as screenshots, images, mockups, reports, CSVs, handoff logs, and other user-visible files should be written under `$RUDDER_ORG_ARTIFACTS_DIR` when available.",
   "- Use `/tmp` only for transient scratch files and temporary verification artifacts; do not put durable work product there.",
+  "- Local trusted runtimes may expose the host operator home as `$RUDDER_OPERATOR_HOME`; use it only when a local skill or script intentionally needs operator-owned desktop app or CLI state. Do not replace `$HOME` with it.",
   "- Durable shared work output should prefer these managed workspace paths instead of ad-hoc top-level `projects/` folders.",
   "",
   "When you create or copy a skill under `$AGENT_HOME/skills/<slug>/`, check the agent's Skills snapshot before claiming it will load in future runs. If it is installed but not enabled, say exactly that future runs will not load it until enabled, and offer to enable it with `rudder agent skills enable <agent-id> <selection-ref>` when you have permission.",
@@ -1394,6 +1395,16 @@ export function writeRudderSkillSyncPreference(
 
 function nonEmptyEnvPath(value: string | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0 ? path.resolve(value.trim()) : null;
+}
+
+export function resolveLocalOperatorHome(sourceEnv: NodeJS.ProcessEnv = process.env): string {
+  return (
+    nonEmptyEnvPath(sourceEnv.RUDDER_OPERATOR_HOME)
+    ?? nonEmptyEnvPath(process.env.RUDDER_OPERATOR_HOME)
+    ?? nonEmptyEnvPath(process.env.HOME)
+    ?? nonEmptyEnvPath(sourceEnv.HOME)
+    ?? path.resolve(os.homedir())
+  );
 }
 
 export function applyLocalCliHomeEnv(

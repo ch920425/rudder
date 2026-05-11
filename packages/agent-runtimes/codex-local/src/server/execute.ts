@@ -15,6 +15,7 @@ import {
   ensureCommandResolvable,
   ensureRudderCliInPath,
   ensurePathInEnv,
+  resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   readRudderRuntimeSkillEntries,
   resolveRudderDesiredSkillNames,
@@ -220,6 +221,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       ),
     ),
   };
+  const operatorHome = resolveLocalOperatorHome(sourceEnv);
   const preparedManagedCodexHome =
     configuredCodexHome ? null : await prepareManagedCodexHome(sourceEnv, onLog, agent.orgId, agent.id);
   const defaultCodexHome = resolveManagedCodexHomeDir(sourceEnv, agent.orgId, agent.id);
@@ -228,7 +230,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const isolatedHome = agentHome || path.join(effectiveCodexHome, "home");
   await fs.mkdir(isolatedHome, { recursive: true });
   await syncLocalCliCredentialHomeEntries({
-    sourceHome: sourceEnv.HOME,
+    sourceHome: operatorHome,
     targetHome: isolatedHome,
     onLog,
   });
@@ -370,6 +372,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   for (const [k, v] of Object.entries(envConfig)) {
     if (typeof v === "string") env[k] = v;
   }
+  env.HOME = isolatedHome;
+  env.USERPROFILE = isolatedHome;
+  env.RUDDER_OPERATOR_HOME = operatorHome;
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }
