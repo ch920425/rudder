@@ -74,6 +74,11 @@ import { organizationSkillsApi } from "@/api/organizationSkills";
 import { prefetchChatConversation } from "@/lib/chat-prefetch";
 import { readChatDraft, saveChatDraft } from "@/lib/chat-draft-storage";
 import {
+  readChatPendingAttachmentsForScope,
+  resolveChatPendingAttachmentScopeKey,
+  updateChatPendingAttachmentsForScope,
+} from "@/lib/chat-pending-attachments";
+import {
   NO_CHAT_AGENT_ID,
   isSelectableChatAgentId,
   rememberChatAgentId,
@@ -281,32 +286,6 @@ async function materializePendingAttachment(file: File, index: number) {
 
 function pendingAttachmentKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
-}
-
-export function readChatScopedPendingFiles<T>(
-  pendingFilesByScopeKey: Record<string, T[]>,
-  scopeKey: string,
-): T[] {
-  return pendingFilesByScopeKey[scopeKey] ?? [];
-}
-
-export function updateChatScopedPendingFiles<T>(
-  pendingFilesByScopeKey: Record<string, T[]>,
-  scopeKey: string,
-  updater: (current: T[]) => T[],
-): Record<string, T[]> {
-  const currentFiles = readChatScopedPendingFiles(pendingFilesByScopeKey, scopeKey);
-  const nextFiles = updater(currentFiles);
-
-  if (nextFiles.length === 0) {
-    if (!(scopeKey in pendingFilesByScopeKey)) return pendingFilesByScopeKey;
-    const remainingScopes = { ...pendingFilesByScopeKey };
-    delete remainingScopes[scopeKey];
-    return remainingScopes;
-  }
-
-  if (nextFiles === currentFiles) return pendingFilesByScopeKey;
-  return { ...pendingFilesByScopeKey, [scopeKey]: nextFiles };
 }
 
 function isImageAttachmentContentType(contentType: string | null | undefined) {
@@ -1598,7 +1577,8 @@ function ChatWorkspace() {
   } = useChatGenerations();
   const draftStorageOrgId = selectedOrganizationId!;
   const draftStorageConversationId = conversationId ?? null;
-  const draftStorageScopeKey = `${draftStorageOrgId}:${draftStorageConversationId ?? "__new__"}`;
+  const draftStorageScopeKey = resolveChatPendingAttachmentScopeKey(draftStorageOrgId, draftStorageConversationId);
+  const activeDraftScopeRef = useRef(draftStorageScopeKey);
   const [draftState, setDraftState] = useState(() => ({
     scopeKey: draftStorageScopeKey,
     value: readChatDraft(draftStorageOrgId, draftStorageConversationId),
@@ -1607,10 +1587,11 @@ function ChatWorkspace() {
   const setDraft = useCallback((nextDraft: string) => {
     setDraftState((current) => ({ ...current, value: nextDraft }));
   }, []);
-  const [pendingFilesByScopeKey, setPendingFilesByScopeKey] = useState<Record<string, File[]>>({});
-  const pendingFiles = readChatScopedPendingFiles(pendingFilesByScopeKey, draftStorageScopeKey);
+  const [, refreshPendingFiles] = useState(0);
+  const pendingFiles = readChatPendingAttachmentsForScope(draftStorageScopeKey);
   const setPendingFilesForCurrentScope = useCallback((updater: (current: File[]) => File[]) => {
-    setPendingFilesByScopeKey((current) => updateChatScopedPendingFiles(current, draftStorageScopeKey, updater));
+    updateChatPendingAttachmentsForScope(draftStorageScopeKey, updater);
+    refreshPendingFiles((version) => version + 1);
   }, [draftStorageScopeKey]);
   const clearPendingFilesForCurrentScope = useCallback(() => {
     setPendingFilesForCurrentScope(() => []);
@@ -1659,6 +1640,10 @@ function ChatWorkspace() {
   const chatRootPath = chatRouteBase;
   const chatConversationPath = useCallback((id: string) => `${chatRouteBase}/${id}`, [chatRouteBase]);
   const composerContextMenuOpen = projectMenuOpen || agentMenuOpen || skillMenuOpen;
+
+  useEffect(() => {
+    activeDraftScopeRef.current = draftStorageScopeKey;
+  }, [draftStorageScopeKey]);
 
   const closeComposerContextMenus = useCallback(() => {
     setProjectMenuOpen(false);
@@ -2334,6 +2319,14 @@ function ChatWorkspace() {
     }
 
     const filesToUpload = [...(options?.filesOverride ?? pendingFiles)];
+    const submittedComposerDraft = usesComposerState
+      ? {
+          body,
+          files: filesToUpload,
+          orgId: draftStorageOrgId,
+          conversationId: draftStorageConversationId,
+        }
+      : null;
     const editUserMessageId = usesComposerState ? editForkUserMessageId : null;
     const editTargetMessage = editUserMessageId
       ? rawMessages.find((message) => message.id === editUserMessageId) ?? null
@@ -2343,6 +2336,7 @@ function ChatWorkspace() {
     let activeChatId: string | null = null;
     let newConversationLockAcquired = false;
     let chatSendLockAcquired = false;
+    let userMessageAcknowledged = false;
     try {
       if (!conversation && conversationId) {
         conversation = await chatsApi.get(conversationId);
@@ -2433,6 +2427,7 @@ function ChatWorkspace() {
         files: filesToUpload,
         onEvent: async (event) => {
           if (event.type === "ack") {
+            userMessageAcknowledged = true;
             upsertMessages(chatId, [event.userMessage]);
             setStreamDraftForChat(
               chatId,
@@ -2507,6 +2502,24 @@ function ChatWorkspace() {
         );
         await refreshChat(conversation.id);
         setStreamDraftForChat(conversation.id, null);
+      }
+
+      if (submittedComposerDraft && !userMessageAcknowledged) {
+        const restoreConversationId = conversation?.id ?? submittedComposerDraft.conversationId;
+        const restoreScopeKey = resolveChatPendingAttachmentScopeKey(
+          submittedComposerDraft.orgId,
+          restoreConversationId,
+        );
+
+        saveChatDraft(submittedComposerDraft.orgId, restoreConversationId, submittedComposerDraft.body);
+        updateChatPendingAttachmentsForScope(restoreScopeKey, () => submittedComposerDraft.files);
+        refreshPendingFiles((version) => version + 1);
+        if (activeDraftScopeRef.current === restoreScopeKey) {
+          setDraftState({
+            scopeKey: restoreScopeKey,
+            value: submittedComposerDraft.body,
+          });
+        }
       }
 
       if (error instanceof ApiError) {

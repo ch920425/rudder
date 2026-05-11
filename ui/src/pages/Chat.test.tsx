@@ -14,12 +14,14 @@ import {
   computeDisplayedChatMessages,
   isChatAgentSelectionLocked,
   isUserVisibleIncomingChatMessage,
-  readChatScopedPendingFiles,
   scrollChatMessagesToBottom,
   statusChipClassName,
-  updateChatScopedPendingFiles,
   withOptimisticPlanMode,
 } from "./Chat";
+import {
+  readChatScopedPendingFiles,
+  updateChatScopedPendingFiles,
+} from "@/lib/chat-pending-attachments";
 
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
@@ -309,7 +311,7 @@ describe("chat scoped pending files", () => {
       "org-1:chat-2": chatTwoFiles,
     };
 
-    scopes = updateChatScopedPendingFiles(scopes, "org-1:chat-1", () => []);
+    scopes = updateChatScopedPendingFiles<{ name: string }>(scopes, "org-1:chat-1", () => []);
 
     expect(readChatScopedPendingFiles(scopes, "org-1:chat-1")).toEqual([]);
     expect(readChatScopedPendingFiles(scopes, "org-1:chat-2")).toBe(chatTwoFiles);
