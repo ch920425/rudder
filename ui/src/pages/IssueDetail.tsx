@@ -32,6 +32,7 @@ import {
   IssueDocumentsSection,
   type IssueDocumentFocusTarget,
 } from "../components/IssueDocumentsSection";
+import { IssueDetailFind } from "../components/IssueDetailFind";
 import { IssueProperties } from "../components/IssueProperties";
 import { LiveRunWidget } from "../components/LiveRunWidget";
 import type { MentionOption } from "../components/MarkdownEditor";
@@ -646,6 +647,7 @@ function shouldHandleIssueDetailEscape(event: KeyboardEvent) {
   }
 
   if (typeof document !== "undefined") {
+    if (document.querySelector("[data-issue-find-ui]")) return false;
     if (document.querySelector("[role='dialog']")) return false;
     if (document.querySelector("[data-radix-popper-content-wrapper]")) return false;
   }
@@ -846,6 +848,7 @@ export function IssueDetail() {
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [workspaceAttachOpen, setWorkspaceAttachOpen] = useState(false);
   const [documentFocusState, setDocumentFocusState] = useState<DocumentFocusState | null>(null);
+  const issueFindRootRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const documentFocusCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMarkedReadIssueIdRef = useRef<string | null>(null);
@@ -1657,6 +1660,14 @@ export function IssueDetail() {
   );
 
   const issueDisplayId = issue.identifier ?? issue.id.slice(0, 8);
+  const issueFindRefreshKey = [
+    issue.id,
+    issue.updatedAt,
+    commentsWithRunMeta.length,
+    issueActivityItems.length,
+    orderedChildIssues.length,
+    attachmentList.length,
+  ].join(":");
   const renderDesktopIssueActions = ({
     moreOpen,
     onMoreOpenChange,
@@ -1719,11 +1730,15 @@ export function IssueDetail() {
 
   return (
     <div
+      ref={issueFindRootRef}
       className={cn(
         "mx-auto max-w-6xl",
         !documentFocusTarget && "xl:grid xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start xl:gap-6",
       )}
     >
+      {!documentFocusTarget ? (
+        <IssueDetailFind rootRef={issueFindRootRef} refreshKey={issueFindRefreshKey} />
+      ) : null}
       {documentFocusTarget ? (
         <IssueDocumentFocusPage
           issue={issue}
