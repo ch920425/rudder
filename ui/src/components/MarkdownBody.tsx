@@ -5,6 +5,7 @@ import { cn } from "../lib/utils";
 import { useTheme } from "../context/ThemeContext";
 import { mentionChipInlineStyle, parseMentionChipHref, stripMentionChipLabelPrefix } from "../lib/mention-chips";
 import { parseSkillReference } from "../lib/skill-reference";
+import { ImagePreviewDialog, type ImagePreviewState } from "./ImagePreviewDialog";
 import { SkillReferenceToken, type MarkdownSkillReferencePreview } from "./SkillReferenceToken";
 
 interface MarkdownBodyProps {
@@ -14,6 +15,7 @@ interface MarkdownBodyProps {
   resolveImageSrc?: (src: string) => string | null;
   onLinkClick?: MarkdownLinkClickHandler;
   skillReferences?: MarkdownSkillReferencePreview[];
+  enableImagePreview?: boolean;
 }
 
 export type MarkdownLinkClickHandler = (input: {
@@ -67,6 +69,20 @@ function extractMermaidSource(children: ReactNode): string | null {
   if (typeof childProps.className !== "string") return null;
   if (!/\blanguage-mermaid\b/i.test(childProps.className)) return null;
   return flattenText(childProps.children).replace(/\n$/, "");
+}
+
+function getMarkdownImagePreviewName(image: HTMLImageElement) {
+  const alt = image.alt.trim();
+  if (alt) return alt;
+
+  const src = image.currentSrc || image.src;
+  try {
+    const parsed = new URL(src, window.location.href);
+    const basename = parsed.pathname.split("/").filter(Boolean).at(-1);
+    return basename ? decodeURIComponent(basename) : "Image preview";
+  } catch {
+    return "Image preview";
+  }
 }
 
 export function normalizeEscapedMarkdownNewlines(source: string) {
@@ -143,8 +159,16 @@ function MermaidDiagramBlock({ source, darkMode }: { source: string; darkMode: b
   );
 }
 
-export function MarkdownBody({ children, className, resolveImageSrc, onLinkClick, skillReferences }: MarkdownBodyProps) {
+export function MarkdownBody({
+  children,
+  className,
+  resolveImageSrc,
+  onLinkClick,
+  skillReferences,
+  enableImagePreview = true,
+}: MarkdownBodyProps) {
   const { resolvedTheme } = useTheme();
+  const [imagePreview, setImagePreview] = useState<ImagePreviewState | null>(null);
   const skillPreviewByHref = new Map(
     (skillReferences ?? [])
       .map((preview) => [normalizeSkillReferenceLookupKey(preview.href), preview] as const)
@@ -156,6 +180,23 @@ export function MarkdownBody({ children, className, resolveImageSrc, onLinkClick
       .filter(([key]) => key.length > 0),
   );
   const normalizedChildren = normalizeEscapedMarkdownNewlines(children);
+  const handleImageDoubleClick = (event: MouseEvent<HTMLImageElement>) => {
+    if (!enableImagePreview) return;
+    const image = event.currentTarget;
+    const src = image.currentSrc || image.src;
+    if (!src) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setImagePreview({
+      alt: image.alt,
+      name: getMarkdownImagePreviewName(image),
+      src,
+      naturalSize:
+        image.naturalWidth > 0 && image.naturalHeight > 0
+          ? { width: image.naturalWidth, height: image.naturalHeight }
+          : null,
+    });
+  };
   const components: Components = {
     pre: ({ node: _node, children: preChildren, ...preProps }) => {
       const mermaidSource = extractMermaidSource(preChildren);
@@ -217,24 +258,41 @@ export function MarkdownBody({ children, className, resolveImageSrc, onLinkClick
       );
     },
   };
-  if (resolveImageSrc) {
-    components.img = ({ node: _node, src, alt, ...imgProps }) => {
-      const resolved = src ? resolveImageSrc(src) : null;
-      return <img {...imgProps} src={resolved ?? src} alt={alt ?? ""} />;
-    };
-  }
+  components.img = ({ node: _node, src, alt, ...imgProps }) => {
+    const resolved = src && resolveImageSrc ? resolveImageSrc(src) : null;
+    return (
+      <img
+        {...imgProps}
+        src={resolved ?? src}
+        alt={alt ?? ""}
+        onDoubleClick={enableImagePreview ? handleImageDoubleClick : undefined}
+      />
+    );
+  };
 
   return (
-    <div
-      className={cn(
-        "rudder-markdown prose prose-sm max-w-none break-words overflow-hidden",
-        resolvedTheme === "dark" && "prose-invert",
-        className,
-      )}
-    >
-      <Markdown remarkPlugins={[remarkGfm]} components={components} urlTransform={(url) => url}>
-        {normalizedChildren}
-      </Markdown>
-    </div>
+    <>
+      <div
+        className={cn(
+          "rudder-markdown prose prose-sm max-w-none break-words overflow-hidden",
+          resolvedTheme === "dark" && "prose-invert",
+          className,
+        )}
+      >
+        <Markdown remarkPlugins={[remarkGfm]} components={components} urlTransform={(url) => url}>
+          {normalizedChildren}
+        </Markdown>
+      </div>
+      {enableImagePreview ? (
+        <ImagePreviewDialog
+          preview={imagePreview}
+          onOpenChange={(open) => {
+            if (!open) setImagePreview(null);
+          }}
+          testId="markdown-body-image-preview-dialog"
+          titleFallback="Image preview"
+        />
+      ) : null}
+    </>
   );
 }

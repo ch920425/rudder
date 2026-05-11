@@ -26,6 +26,31 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children: ReactNode;
+  }) => (open ? <div data-testid="mock-dialog-root">{children}</div> : null),
+  DialogContent: ({
+    children,
+    showCloseButton: _showCloseButton,
+    ...props
+  }: {
+    children: ReactNode;
+    showCloseButton?: boolean;
+  }) => <div data-slot="dialog-content" {...props}>{children}</div>,
+  DialogClose: ({
+    children,
+    ...props
+  }: {
+    children: ReactNode;
+  }) => <button data-slot="dialog-close" {...props}>{children}</button>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
 let cleanupFn: (() => void) | null = null;
 
 afterEach(() => {
@@ -72,6 +97,29 @@ describe("MarkdownBody", () => {
 
     expect(html).toContain('src="/resolved/images/org-chart.png"');
     expect(html).toContain('alt="Org chart"');
+  });
+
+  it("opens a markdown image preview dialog when an inline image is double-clicked", () => {
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>{"![Architecture diagram](/api/attachments/test/content)"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const image = container.querySelector("img");
+    expect(image).toBeTruthy();
+
+    act(() => {
+      image?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    });
+
+    const previewRoot = document.body.querySelector('[data-testid="markdown-body-image-preview-dialog"]');
+    const preview = previewRoot?.querySelector("img");
+    expect(preview).toBeTruthy();
+    expect(new URL(preview?.getAttribute("src") ?? "", "http://localhost:3000").pathname).toBe(
+      "/api/attachments/test/content",
+    );
+    expect(document.body.textContent).toContain("Architecture diagram");
   });
 
   it("renders agent and project mentions as chips", () => {

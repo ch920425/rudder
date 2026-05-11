@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Agent, Project } from "@rudderhq/shared";
 import { ThemeProvider } from "../context/ThemeContext";
 import { ApprovalPayloadRenderer } from "./ApprovalPayload";
@@ -10,6 +12,35 @@ import { ApprovalPayloadRenderer } from "./ApprovalPayload";
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => <a href={to} {...props}>{children}</a>,
 }));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children: ReactNode;
+  }) => (open ? <div data-testid="mock-dialog-root">{children}</div> : null),
+  DialogContent: ({
+    children,
+    showCloseButton: _showCloseButton,
+    ...props
+  }: {
+    children: ReactNode;
+    showCloseButton?: boolean;
+  }) => <div data-slot="dialog-content" {...props}>{children}</div>,
+  DialogClose: ({
+    children,
+    ...props
+  }: {
+    children: ReactNode;
+  }) => <button data-slot="dialog-close" {...props}>{children}</button>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -23,6 +54,14 @@ Object.defineProperty(window, "matchMedia", {
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
+});
+
+let cleanupFn: (() => void) | null = null;
+
+afterEach(() => {
+  cleanupFn?.();
+  cleanupFn = null;
+  document.body.innerHTML = "";
 });
 
 const project = {
@@ -52,6 +91,26 @@ function renderChatIssueApproval(payload: Record<string, unknown>, context = {})
       <ApprovalPayloadRenderer type="chat_issue_creation" payload={payload} context={context} />
     </ThemeProvider>,
   );
+}
+
+function renderChatIssueApprovalDom(payload: Record<string, unknown>, context = {}) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  cleanupFn = () => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  };
+  act(() => {
+    root.render(
+      <ThemeProvider>
+        <ApprovalPayloadRenderer type="chat_issue_creation" payload={payload} context={context} />
+      </ThemeProvider>,
+    );
+  });
+  return container;
 }
 
 describe("ApprovalPayloadRenderer", () => {
@@ -90,6 +149,26 @@ describe("ApprovalPayloadRenderer", () => {
     expect(html).toContain('src="/api/assets/approval-screenshot/content"');
     expect(html).not.toContain("project-1");
     expect(html).not.toContain("agent-1");
+  });
+
+  it("does not open inline image preview from issue approval descriptions", () => {
+    const container = renderChatIssueApprovalDom({
+      chatConversationId: "chat-1",
+      proposedIssue: {
+        title: "Fix issue approval UI",
+        description: "![Approval screenshot](/api/assets/approval-screenshot/content)",
+        priority: "medium",
+      },
+    });
+
+    const image = container.querySelector("img");
+    expect(image).toBeTruthy();
+
+    act(() => {
+      image?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    });
+
+    expect(document.body.querySelector('[data-testid="markdown-body-image-preview-dialog"]')).toBeNull();
   });
 
   it("does not expose raw project or agent ids while context is loading", () => {

@@ -270,7 +270,9 @@ function ChatIssueCreationPayload({
       {description ? (
         <ApprovalField label="Description" align="start">
           <ApprovalCodeBlock className="max-h-64 overflow-y-auto text-sm text-foreground/90">
-            <MarkdownBody className="text-sm leading-6 text-foreground/90">{description}</MarkdownBody>
+            <MarkdownBody className="text-sm leading-6 text-foreground/90" enableImagePreview={false}>
+              {description}
+            </MarkdownBody>
           </ApprovalCodeBlock>
         </ApprovalField>
       ) : null}
