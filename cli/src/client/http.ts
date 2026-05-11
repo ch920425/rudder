@@ -28,6 +28,7 @@ interface RecoverAuthInput {
 interface ApiClientOptions {
   apiBase: string;
   apiKey?: string;
+  agentId?: string;
   runId?: string;
   recoverAuth?: (input: RecoverAuthInput) => Promise<string | null>;
 }
@@ -35,12 +36,14 @@ interface ApiClientOptions {
 export class RudderApiClient {
   readonly apiBase: string;
   apiKey?: string;
+  readonly agentId?: string;
   readonly runId?: string;
   readonly recoverAuth?: (input: RecoverAuthInput) => Promise<string | null>;
 
   constructor(opts: ApiClientOptions) {
     this.apiBase = opts.apiBase.replace(/\/+$/, "");
     this.apiKey = opts.apiKey?.trim() || undefined;
+    this.agentId = opts.agentId?.trim() || undefined;
     this.runId = opts.runId?.trim() || undefined;
     this.recoverAuth = opts.recoverAuth;
   }
@@ -106,8 +109,13 @@ export class RudderApiClient {
       headers.authorization = `Bearer ${this.apiKey}`;
     }
 
-    if (this.runId && shouldAttachRunId(init.method)) {
-      headers["x-rudder-run-id"] = this.runId;
+    if (shouldAttachAgentContext(init.method)) {
+      if (this.agentId) {
+        headers["x-rudder-agent-id"] = this.agentId;
+      }
+      if (this.runId) {
+        headers["x-rudder-run-id"] = this.runId;
+      }
     }
 
     const response = await fetch(url, {
@@ -148,7 +156,7 @@ export class RudderApiClient {
   }
 }
 
-function shouldAttachRunId(method: string | undefined): boolean {
+function shouldAttachAgentContext(method: string | undefined): boolean {
   const normalized = String(method ?? "GET").toUpperCase();
   return normalized !== "GET" && normalized !== "HEAD";
 }
