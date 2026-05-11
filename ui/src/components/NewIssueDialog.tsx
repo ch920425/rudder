@@ -28,7 +28,8 @@ import {
 } from "../lib/new-issue-dialog";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { buildAgentSkillMentionOptions } from "../lib/agent-skill-mentions";
-import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels";
+import { agentTitleBadgeLabel } from "../lib/agent-labels";
+import { buildMarkdownMentionOptions } from "../lib/markdown-mention-options";
 import { getRecentAssigneeIds, sortAgentsByRecency, trackRecentAssignee } from "../lib/recent-assignees";
 import { useToast } from "../context/ToastContext";
 import {
@@ -319,6 +320,11 @@ export function NewIssueDialog() {
     queryFn: () => projectsApi.list(effectiveCompanyId!),
     enabled: !!effectiveCompanyId && newIssueOpen,
   });
+  const { data: allIssues } = useQuery({
+    queryKey: queryKeys.issues.list(effectiveCompanyId!),
+    queryFn: () => issuesApi.list(effectiveCompanyId!),
+    enabled: !!effectiveCompanyId && newIssueOpen,
+  });
   const { data: labels } = useQuery({
     queryKey: queryKeys.issues.labels(effectiveCompanyId!),
     queryFn: () => issuesApi.listLabels(effectiveCompanyId!),
@@ -338,7 +344,6 @@ export function NewIssueDialog() {
     orgId: effectiveCompanyId,
     userId: currentUserId,
   });
-
   const selectedAssignee = useMemo(() => parseAssigneeValue(assigneeValue), [assigneeValue]);
   const selectedAssigneeAgentId = selectedAssignee.assigneeAgentId;
   const selectedAssigneeUserId = selectedAssignee.assigneeUserId;
@@ -398,33 +403,16 @@ export function NewIssueDialog() {
     ],
   );
 
-  const mentionOptions = useMemo<MentionOption[]>(() => {
-    const options: MentionOption[] = [];
-    const activeAgents = [...(agents ?? [])]
-      .filter((agent) => agent.status !== "terminated")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    for (const agent of activeAgents) {
-      options.push({
-        id: `agent:${agent.id}`,
-        name: formatChatAgentLabel(agent),
-        kind: "agent",
-        agentId: agent.id,
-        agentIcon: agent.icon,
-        agentRole: agent.role,
-      });
-    }
-    for (const project of orderedProjects) {
-      options.push({
-        id: `project:${project.id}`,
-        name: project.name,
-        kind: "project",
-        projectId: project.id,
-        projectColor: project.color,
-      });
-    }
-    options.push(...skillMentionOptions);
-    return options;
-  }, [agents, orderedProjects, skillMentionOptions]);
+  const mentionOptions = useMemo<MentionOption[]>(
+    () => buildMarkdownMentionOptions({
+      agents,
+      projects: orderedProjects,
+      issues: allIssues,
+      skillMentionOptions,
+      currentUserId,
+    }),
+    [agents, allIssues, currentUserId, orderedProjects, skillMentionOptions],
+  );
 
   const { data: assigneeAgentRuntimeModels } = useQuery({
     queryKey:

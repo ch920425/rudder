@@ -96,7 +96,7 @@ export function buildAgentSkillMentionOptions(params: {
 }) {
   const agent = params.agent;
   const skillSnapshot = params.skillSnapshot;
-  if (!agent || !skillSnapshot) return [];
+  if (!agent || !skillSnapshot || !Array.isArray(skillSnapshot.entries)) return [];
 
   const orgUrlKey = params.orgUrlKey ?? "organization";
   const organizationSkillByKey = new Map(

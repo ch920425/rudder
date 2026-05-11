@@ -13,6 +13,7 @@ import { AutomationDetail } from "./AutomationDetail";
 const mockNavigate = vi.fn();
 const mockSetHeaderActions = vi.fn();
 const mockConfirm = vi.fn(async () => true);
+const markdownEditorProps = vi.hoisted(() => [] as Array<{ mentions?: Array<{ id: string; kind?: string; name: string }> }>);
 
 const automation = {
   id: "auto-1",
@@ -150,12 +151,59 @@ vi.mock("@tanstack/react-query", () => ({
         error: null,
       };
     }
+    if (queryKey[0] === "issues") {
+      return {
+        data: [
+          {
+            id: "issue-2",
+            identifier: "AUT-8",
+            title: "Review automation instructions",
+            status: "todo",
+            projectId: "project-1",
+            assigneeAgentId: "agent-1",
+            assigneeUserId: null,
+          },
+        ],
+        isLoading: false,
+        error: null,
+      };
+    }
+    if (queryKey[0] === "organization-skills") {
+      return { data: [], isLoading: false, error: null };
+    }
+    if (queryKey[0] === "agents" && queryKey[1] === "skills") {
+      return {
+        data: {
+          agentRuntimeType: "codex_local",
+          supported: true,
+          mode: "persistent",
+          desiredSkills: ["agent:build-advisor"],
+          entries: [
+            {
+              key: "build-advisor",
+              selectionKey: "agent:build-advisor",
+              runtimeName: "build-advisor",
+              desired: true,
+              configurable: true,
+              alwaysEnabled: false,
+              managed: false,
+              state: "configured",
+              sourceClass: "agent_home",
+              sourcePath: "/workspace/agents/ada/skills/build-advisor",
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
     if (queryKey[0] === "agents") {
       return {
         data: [
           {
             id: "agent-1",
             name: "Ada",
+            urlKey: "ada",
             role: "engineer",
             title: "Automation UX Agent",
             status: "active",
@@ -200,7 +248,10 @@ vi.mock("@/lib/router", () => ({
 }));
 
 vi.mock("../context/OrganizationContext", () => ({
-  useOrganization: () => ({ selectedOrganizationId: "org-1" }),
+  useOrganization: () => ({
+    selectedOrganizationId: "org-1",
+    selectedOrganization: { id: "org-1", urlKey: "zst" },
+  }),
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -228,9 +279,16 @@ vi.mock("../components/MarkdownEditor", () => ({
       value,
       onChange,
       placeholder,
-    }: { value: string; onChange: (value: string) => void; placeholder?: string },
+      mentions,
+    }: {
+      value: string;
+      onChange: (value: string) => void;
+      placeholder?: string;
+      mentions?: Array<{ id: string; kind?: string; name: string }>;
+    },
     ref,
   ) {
+    markdownEditorProps.push({ mentions });
     useImperativeHandle(ref, () => ({
       focus: vi.fn(),
     }));
@@ -307,6 +365,7 @@ afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
   document.body.innerHTML = "";
+  markdownEditorProps.length = 0;
   vi.clearAllMocks();
   mockConfirm.mockResolvedValue(true);
 });
@@ -385,6 +444,22 @@ describe("AutomationDetail", () => {
       headerRoot.unmount();
     });
     headerContainer.remove();
+  });
+
+  it("passes agent, project, issue, and assignee skill mentions to the instructions editor", async () => {
+    renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const mentionIds = markdownEditorProps.at(-1)?.mentions?.map((mention) => mention.id) ?? [];
+    expect(mentionIds).toEqual(expect.arrayContaining([
+      "agent:agent-1",
+      "project:project-1",
+      "issue:issue-2",
+      "skill:agent:build-advisor",
+    ]));
   });
 
   it("renders the trigger composer guidance next to the primary add action", async () => {

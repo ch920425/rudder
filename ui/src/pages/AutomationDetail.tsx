@@ -20,13 +20,17 @@ import { automationsApi, type AutomationTriggerResponse, type RotateAutomationTr
 import { heartbeatsApi } from "../api/heartbeats";
 import { LiveRunWidget } from "../components/LiveRunWidget";
 import { agentsApi } from "../api/agents";
+import { issuesApi } from "../api/issues";
+import { organizationSkillsApi } from "../api/organizationSkills";
 import { projectsApi } from "../api/projects";
 import { useOrganization } from "../context/OrganizationContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
+import { buildAgentSkillMentionOptions } from "../lib/agent-skill-mentions";
 import { buildAutomationTriggerPatch } from "../lib/automation-trigger-patch";
 import { formatChatAgentLabel } from "../lib/agent-labels";
+import { buildMarkdownMentionOptions } from "../lib/markdown-mention-options";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import { timeAgo } from "../lib/timeAgo";
 import { formatDateTime } from "../lib/utils";
@@ -391,7 +395,7 @@ function TriggerEditor({
 
 export function AutomationDetail() {
   const { automationId } = useParams<{ automationId: string }>();
-  const { selectedOrganizationId } = useOrganization();
+  const { selectedOrganizationId, selectedOrganization } = useOrganization();
   const { confirm } = useDialog();
   const { setBreadcrumbs, setHeaderActions } = useBreadcrumbs();
   const queryClient = useQueryClient();
@@ -471,6 +475,21 @@ export function AutomationDetail() {
     queryKey: queryKeys.projects.list(selectedOrganizationId!),
     queryFn: () => projectsApi.list(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
+  });
+  const { data: issues } = useQuery({
+    queryKey: queryKeys.issues.list(selectedOrganizationId!),
+    queryFn: () => issuesApi.list(selectedOrganizationId!),
+    enabled: !!selectedOrganizationId,
+  });
+  const { data: assigneeOrganizationSkills } = useQuery({
+    queryKey: queryKeys.organizationSkills.list(selectedOrganizationId ?? "__none__"),
+    queryFn: () => organizationSkillsApi.list(selectedOrganizationId!),
+    enabled: Boolean(selectedOrganizationId) && Boolean(editDraft.assigneeAgentId),
+  });
+  const { data: assigneeSkillSnapshot } = useQuery({
+    queryKey: queryKeys.agents.skills(editDraft.assigneeAgentId || "__none__"),
+    queryFn: () => agentsApi.skills(editDraft.assigneeAgentId, selectedOrganizationId!),
+    enabled: Boolean(selectedOrganizationId) && Boolean(editDraft.assigneeAgentId),
   });
 
   const automationDefaults = useMemo(
@@ -902,6 +921,24 @@ export function AutomationDetail() {
   );
   const currentAssignee = editDraft.assigneeAgentId ? agentById.get(editDraft.assigneeAgentId) ?? null : null;
   const currentProject = editDraft.projectId ? projectById.get(editDraft.projectId) ?? null : null;
+  const skillMentionOptions = useMemo(
+    () => buildAgentSkillMentionOptions({
+      agent: currentAssignee,
+      orgUrlKey: selectedOrganization?.urlKey ?? "organization",
+      organizationSkills: assigneeOrganizationSkills,
+      skillSnapshot: assigneeSkillSnapshot,
+    }),
+    [assigneeOrganizationSkills, assigneeSkillSnapshot, currentAssignee, selectedOrganization?.urlKey],
+  );
+  const mentionOptions = useMemo(
+    () => buildMarkdownMentionOptions({
+      agents,
+      projects,
+      issues,
+      skillMentionOptions,
+    }),
+    [agents, issues, projects, skillMentionOptions],
+  );
 
   if (!selectedOrganizationId) {
     return <EmptyState icon={Repeat} message="Select an organization to view automations." />;
@@ -1161,6 +1198,7 @@ export function AutomationDetail() {
               ref={descriptionEditorRef}
               value={editDraft.description}
               onChange={(description) => setEditDraft((current) => ({ ...current, description }))}
+              mentions={mentionOptions}
               placeholder="Add instructions..."
               bordered={false}
               className="bg-transparent"
