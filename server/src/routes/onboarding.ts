@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@rudderhq/db";
-import { issueService, logActivity, projectService } from "../services/index.js";
+import { agentService, issueService, logActivity, projectService } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 const ONBOARDING_PROJECT_NAME = "Getting Started";
@@ -10,7 +10,7 @@ This project is not a generic product tour. It teaches the core Rudder workflow:
 
 chat → issue → agent execution → activity → review → context → real work.
 
-Complete the first four issues to experience the basic loop. Then use the next issues to bring real work and reusable context into Rudder.`;
+Complete the core issues to experience the basic loop. Then use the next issues to bring real work and reusable context into Rudder.`;
 
 type OnboardingIssueGroup = "welcome" | "core" | "recommended" | "advanced";
 
@@ -20,6 +20,8 @@ type OnboardingIssueTemplate = {
   status: "backlog" | "todo" | "done";
   priority: "low" | "medium" | "high";
   group: OnboardingIssueGroup;
+  nextTitle?: string;
+  chatPrompt?: string;
 };
 
 const WELCOME_DESCRIPTION = `Welcome to Rudder.
@@ -48,8 +50,9 @@ It will guide you through your first collaboration loop:
 2. Ask your agent one quick question.
 3. Create and run your first agent issue.
 4. Review the result and close the loop.
-5. Add shared context.
-6. Bring one real task into Rudder.
+5. Create a project and add shared resources.
+6. Add shared context.
+7. Bring one real task into Rudder.
 
 No action is required on this welcome issue. Keep it as a quick reference while you learn how Rudder works.`;
 
@@ -66,6 +69,7 @@ const ONBOARDING_ISSUES: OnboardingIssueTemplate[] = [
     status: "todo",
     priority: "high",
     group: "core",
+    nextTitle: "2. Ask your agent one quick question",
     description: `Rudder works best when each kind of work happens in the right place.
 
 The main surfaces are Chat, Issues, Projects, and Activity.
@@ -93,13 +97,15 @@ You’ll know it worked when:
 - You know where project-level work is grouped.
 - You know where to look when you want to understand what changed.
 
-Next step: open “Ask your agent one quick question.”`,
+Next step: ask your agent one quick question.`,
   },
   {
     title: "2. Ask your agent one quick question",
     status: "todo",
     priority: "high",
     group: "core",
+    nextTitle: "3. Create and run your first agent issue",
+    chatPrompt: "What can you help me with in this workspace, and what is a good first issue for us to try in Rudder?",
     description: `Start by talking to your agent before giving it durable work.
 
 In human teams, you often ask a teammate a quick question before assigning them a full task. Rudder works the same way. Chat is the lightweight place to ask, clarify, and get oriented.
@@ -127,13 +133,15 @@ You’ll know it worked when:
 - You understand something about the agent’s role or how to work with it.
 - You have experienced the difference between a quick chat and tracked work.
 
-Next step: open “Create and run your first agent issue.”`,
+Next step: create and run your first agent issue.`,
   },
   {
     title: "3. Create and run your first agent issue",
     status: "todo",
     priority: "high",
     group: "core",
+    nextTitle: "4. Review the result and close the loop",
+    chatPrompt: "Help me turn this into a small first Rudder issue: Summarize how Rudder works in 5 bullets and suggest one useful next step for a new user.",
     description: `Chat is useful for figuring things out. Issues are where work becomes durable.
 
 A request should usually become an issue when it needs:
@@ -159,8 +167,9 @@ Try it now:
 3. Add a short description.
 4. Include the expected result.
 5. Assign it to your first agent.
-6. Move it to Todo or another runnable state.
-7. Open the issue Activity section and watch what happens.
+6. Leave reviewer blank for this first run unless you already know who should review it.
+7. Move it to Todo or another runnable state.
+8. Open the issue Activity section and watch what happens.
 
 Use a low-risk task for this first run. Avoid tasks that need secrets, production access, irreversible actions, or external spending.
 
@@ -173,13 +182,14 @@ You’ll know it worked when:
 - The agent starts working or leaves activity.
 - You can see the work happening on the issue.
 
-Next step: open “Review the result and close the loop.”`,
+Next step: review the result and close the loop.`,
   },
   {
     title: "4. Review the result and close the loop",
     status: "todo",
     priority: "high",
     group: "core",
+    nextTitle: "5. Create a project and add shared resources",
     description: `Agent collaboration improves when feedback stays attached to the work.
 
 In a human team, you rarely just receive work and walk away. You review it, ask for revisions, approve it, or create a follow-up. Rudder keeps that feedback loop on the issue so the context does not disappear.
@@ -214,13 +224,42 @@ You’ll know it worked when:
 - The next step is clear.
 - The issue is either Done or has a clear follow-up.
 
-Next step: continue with “Add shared context your agent should remember.”`,
+Next step: create a project and add shared resources.`,
   },
   {
-    title: "5. Add shared context your agent should remember",
+    title: "5. Create a project and add shared resources",
+    status: "todo",
+    priority: "high",
+    group: "core",
+    nextTitle: "6. Add shared context your agent should remember",
+    description: `Rudder gets more useful when work has a project home and agents can see the resources that matter.
+
+Create a small project for the kind of work you want to move into Rudder, then add one resource or workspace note that an agent should be able to reference.
+
+Try it now:
+
+1. Create a project for a real area of work.
+2. Add a short project description that explains what belongs there.
+3. Add one resource, file, or note that helps an agent understand the work.
+4. Open the project and confirm the resource is easy to find.
+5. Link or mention that project from a future issue.
+
+Keep the project small. You are not designing the whole operating system yet; you are giving future agent work a useful home.
+
+You’ll know it worked when:
+
+- A project exists for real work.
+- At least one useful resource or note is available.
+- You know where future related issues should go.
+
+Next step: add shared context your agent should remember.`,
+  },
+  {
+    title: "6. Add shared context your agent should remember",
     status: "backlog",
     priority: "medium",
     group: "recommended",
+    nextTitle: "7. Bring one real task into Rudder",
     description: `Good teammates remember the context they need to work well.
 
 Agents should not need you to repeat the same background every time. Rudder should accumulate shared context across work, so future issues become easier to start and easier to review.
@@ -253,13 +292,14 @@ You’ll know it worked when:
 - The context came from something you actually needed.
 - You can point an agent to this context instead of re-explaining it.
 
-Next step: open “Bring one real task into Rudder.”`,
+Next step: bring one real task into Rudder.`,
   },
   {
-    title: "6. Bring one real task into Rudder",
+    title: "7. Bring one real task into Rudder",
     status: "backlog",
     priority: "high",
     group: "recommended",
+    nextTitle: "8. Link this work to a goal",
     description: `Now bring one real task into Rudder.
 
 Choose something real, but keep it small. The goal is not to migrate your entire workflow at once. The goal is to let Rudder take responsibility for one piece of work and leave a result you can review.
@@ -293,10 +333,11 @@ You’ll know it worked when:
 Next step: continue with the Advanced Getting Started issues when you are ready.`,
   },
   {
-    title: "7. Link this work to a goal",
+    title: "8. Link this work to a goal",
     status: "backlog",
     priority: "medium",
     group: "advanced",
+    nextTitle: "9. Capture one reusable workflow",
     description: `Rudder work should eventually answer one question: why does this task exist?
 
 You do not need to define a perfect company goal on day one. It is normal for goals to become clearer after you have run a few issues. But once real work starts moving, it should connect back to a larger direction.
@@ -312,10 +353,11 @@ Try it now:
 You’ll know it worked when at least one real issue is linked to a goal and the goal explains why the work matters.`,
   },
   {
-    title: "8. Capture one reusable workflow",
+    title: "9. Capture one reusable workflow",
     status: "backlog",
     priority: "medium",
     group: "advanced",
+    nextTitle: "10. Add a second agent with a different role",
     description: `The best Rudder workflows compound over time.
 
 After an agent completes a useful task, do not let the process disappear into a single comment thread. Capture the repeatable parts so future work can start faster and with better instructions.
@@ -331,10 +373,11 @@ Try it now:
 This is one way agents self-iterate in Rudder: their future work improves because your feedback and reusable workflow context become part of the operating system.`,
   },
   {
-    title: "9. Add a second agent with a different role",
+    title: "10. Add a second agent with a different role",
     status: "backlog",
     priority: "low",
     group: "advanced",
+    nextTitle: "11. Set up a recurring loop or automation",
     description: `Human teams work better when responsibilities are clear. Agent teams work the same way.
 
 After your first agent has completed useful work, consider adding a second agent with a different role. Do not create another agent just to have more agents. Create one when the work would benefit from a separate responsibility.
@@ -344,7 +387,7 @@ Good second-agent roles include reviewer, researcher, planner, QA assistant, doc
 You’ll know it worked when the second agent has a distinct role and at least one issue clearly belongs to that agent.`,
   },
   {
-    title: "10. Set up a recurring loop or automation",
+    title: "11. Set up a recurring loop or automation",
     status: "backlog",
     priority: "low",
     group: "advanced",
@@ -358,10 +401,60 @@ You’ll know it worked when one recurring loop exists, the cadence is clear, th
   },
 ];
 
+function issueRef(issue: { identifier?: string | null; id: string }) {
+  return issue.identifier ?? issue.id;
+}
+
+function issueHref(issue: { identifier?: string | null; id: string }) {
+  return `/issues/${encodeURIComponent(issueRef(issue))}`;
+}
+
+function buildChatHref(input: {
+  prompt: string;
+  projectId: string;
+  agentId?: string | null;
+}) {
+  const params = new URLSearchParams();
+  params.set("prefill", input.prompt);
+  params.set("projectId", input.projectId);
+  if (input.agentId) {
+    params.set("agentId", input.agentId);
+  }
+  return `/chat?${params.toString()}`;
+}
+
+function appendActionLinks(
+  template: OnboardingIssueTemplate,
+  description: string,
+  input: {
+    projectId: string;
+    agentId?: string | null;
+    issueByTitle: ReadonlyMap<string, { identifier?: string | null; id: string }>;
+  },
+) {
+  const lines: string[] = [];
+  if (template.nextTitle) {
+    const nextIssue = input.issueByTitle.get(template.nextTitle);
+    if (nextIssue) {
+      lines.push(`Next issue: [${template.nextTitle}](${issueHref(nextIssue)}).`);
+    }
+  }
+  if (template.chatPrompt) {
+    lines.push(`Open chat ready to continue: [Start from this prompt](${buildChatHref({
+      prompt: template.chatPrompt,
+      projectId: input.projectId,
+      agentId: input.agentId,
+    })}).`);
+  }
+  if (lines.length === 0) return description;
+  return `${description.trim()}\n\n${lines.join("\n")}`;
+}
+
 export function onboardingRoutes(db: Db) {
   const router = Router();
   const projects = projectService(db);
   const issues = issueService(db);
+  const agents = agentService(db);
 
   router.post("/orgs/:orgId/onboarding/getting-started", async (req, res) => {
     const orgId = req.params.orgId as string;
@@ -370,6 +463,7 @@ export function onboardingRoutes(db: Db) {
 
     const actor = getActorInfo(req);
     const operatorUserId = req.actor.userId ?? "local-board";
+    const includeTutorial = req.body?.includeTutorial !== false;
 
     const existingProjects = await projects.list(orgId);
     let project = existingProjects.find(
@@ -407,7 +501,13 @@ export function onboardingRoutes(db: Db) {
     const seededIssues: Array<ExistingIssue | CreatedIssue> = [];
     let createdIssueCount = 0;
 
-    for (const [index, template] of ONBOARDING_ISSUES.entries()) {
+    const activeAgents = await agents.list(orgId);
+    const firstAgentId = activeAgents[0]?.id ?? null;
+    const templates = includeTutorial
+      ? ONBOARDING_ISSUES
+      : ONBOARDING_ISSUES.filter((template) => template.group === "welcome");
+
+    for (const [index, template] of templates.entries()) {
       let issue = issueByTitle.get(template.title);
       if (!issue) {
         issue = await issues.create(orgId, {
@@ -448,11 +548,32 @@ export function onboardingRoutes(db: Db) {
       seededIssues.push(issue);
     }
 
+    for (const template of templates) {
+      const issue = issueByTitle.get(template.title);
+      if (!issue) continue;
+      const linkedDescription = appendActionLinks(template, template.description, {
+        projectId: project.id,
+        agentId: firstAgentId,
+        issueByTitle,
+      });
+      if (issue.description !== linkedDescription) {
+        const updated = await issues.update(issue.id, { description: linkedDescription });
+        if (updated) {
+          issueByTitle.set(template.title, updated);
+          const seededIndex = seededIssues.findIndex((entry) => entry.id === issue.id);
+          if (seededIndex >= 0) {
+            seededIssues[seededIndex] = updated;
+          }
+        }
+      }
+    }
+
     res.status(createdProject || createdIssueCount > 0 ? 201 : 200).json({
       project,
       issues: seededIssues,
       createdProject,
       createdIssueCount,
+      includeTutorial,
     });
   });
 

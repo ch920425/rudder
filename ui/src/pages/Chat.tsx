@@ -1626,6 +1626,7 @@ function ChatWorkspace() {
   const chatSendLocksRef = useRef<Record<string, true>>({});
   const lastAppliedPrefillRef = useRef<string | null>(null);
   const lastAppliedAgentPrefillRef = useRef<string | null>(null);
+  const lastAppliedProjectPrefillRef = useRef<string | null>(null);
   const projectDefaultInitializedRef = useRef(false);
   const chatMessagesScrollElementRef = useRef<HTMLDivElement | null>(null);
   const initialScrolledConversationRef = useRef<string | null>(null);
@@ -1637,6 +1638,7 @@ function ChatWorkspace() {
   }, [chatMessagesActivityRef]);
   const pendingPrefill = searchParams.get("prefill")?.trim() ?? "";
   const pendingAgentPrefill = searchParams.get("agentId")?.trim() ?? "";
+  const pendingProjectPrefill = searchParams.get("projectId")?.trim() ?? "";
   const relativePath = toOrganizationRelativePath(location.pathname);
   const chatRouteBase = relativePath.startsWith("/messenger/chat") ? "/messenger/chat" : "/chat";
   const chatRootPath = chatRouteBase;
@@ -1787,37 +1789,58 @@ function ChatWorkspace() {
 
   useEffect(() => {
     if (pendingPrefill) return;
-    if (!pendingAgentPrefill) return;
-    if (pendingAgentPrefill === lastAppliedAgentPrefillRef.current) return;
 
-    const consumePendingAgentPrefill = () => {
-      lastAppliedAgentPrefillRef.current = pendingAgentPrefill;
-      const nextSearch = new URLSearchParams(searchParams);
-      nextSearch.delete("agentId");
-      navigate(
-        {
-          pathname: conversationId ? chatConversationPath(conversationId) : chatRootPath,
-          search: nextSearch.toString() ? `?${nextSearch.toString()}` : "",
-        },
-        { replace: true },
-      );
-    };
+    const hasAgentPrefill = pendingAgentPrefill.length > 0;
+    const hasProjectPrefill = pendingProjectPrefill.length > 0;
+    if (!hasAgentPrefill && !hasProjectPrefill) return;
 
-    if (conversationId) {
-      consumePendingAgentPrefill();
-      return;
-    }
+    const agentAlreadyApplied =
+      !hasAgentPrefill || pendingAgentPrefill === lastAppliedAgentPrefillRef.current;
+    const projectAlreadyApplied =
+      !hasProjectPrefill || pendingProjectPrefill === lastAppliedProjectPrefillRef.current;
+    if (agentAlreadyApplied && projectAlreadyApplied) return;
 
-    if (!agents) return;
+    if (!conversationId) {
+      if (hasAgentPrefill && !agentAlreadyApplied && !agents) return;
+      if (hasProjectPrefill && !projectAlreadyApplied && !projects) return;
 
-    const requestedAgentId = resolveRequestedPreferredAgentId(pendingAgentPrefill, agents);
-    if (requestedAgentId) {
-      setDraftPreferredAgentId(requestedAgentId);
-      if (selectedOrganizationId) {
-        rememberChatAgentId(selectedOrganizationId, requestedAgentId);
+      if (hasAgentPrefill && !agentAlreadyApplied && agents) {
+        const requestedAgentId = resolveRequestedPreferredAgentId(pendingAgentPrefill, agents);
+        if (requestedAgentId) {
+          setDraftPreferredAgentId(requestedAgentId);
+          if (selectedOrganizationId) {
+            rememberChatAgentId(selectedOrganizationId, requestedAgentId);
+          }
+        }
+      }
+
+      if (hasProjectPrefill && !projectAlreadyApplied && projects) {
+        const requestedProject = visibleProjects.find((project) => project.id === pendingProjectPrefill);
+        if (requestedProject) {
+          setDraftProjectId(requestedProject.id);
+          if (selectedOrganizationId) {
+            rememberChatProjectId(selectedOrganizationId, requestedProject.id);
+          }
+        }
       }
     }
-    consumePendingAgentPrefill();
+
+    const nextSearch = new URLSearchParams(searchParams);
+    if (hasAgentPrefill && !agentAlreadyApplied) {
+      lastAppliedAgentPrefillRef.current = pendingAgentPrefill;
+      nextSearch.delete("agentId");
+    }
+    if (hasProjectPrefill && !projectAlreadyApplied) {
+      lastAppliedProjectPrefillRef.current = pendingProjectPrefill;
+      nextSearch.delete("projectId");
+    }
+    navigate(
+      {
+        pathname: conversationId ? chatConversationPath(conversationId) : chatRootPath,
+        search: nextSearch.toString() ? `?${nextSearch.toString()}` : "",
+      },
+      { replace: true },
+    );
   }, [
     agents,
     chatConversationPath,
@@ -1826,8 +1849,11 @@ function ChatWorkspace() {
     navigate,
     pendingPrefill,
     pendingAgentPrefill,
+    pendingProjectPrefill,
+    projects,
     searchParams,
     selectedOrganizationId,
+    visibleProjects,
   ]);
 
   const selectedConversation = conversationQuery.data

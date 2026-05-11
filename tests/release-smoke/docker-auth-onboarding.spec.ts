@@ -16,12 +16,13 @@ const GETTING_STARTED_TITLES = [
   "2. Ask your agent one quick question",
   "3. Create and run your first agent issue",
   "4. Review the result and close the loop",
-  "5. Add shared context your agent should remember",
-  "6. Bring one real task into Rudder",
-  "7. Link this work to a goal",
-  "8. Capture one reusable workflow",
-  "9. Add a second agent with a different role",
-  "10. Set up a recurring loop or automation",
+  "5. Create a project and add shared resources",
+  "6. Add shared context your agent should remember",
+  "7. Bring one real task into Rudder",
+  "8. Link this work to a goal",
+  "9. Capture one reusable workflow",
+  "10. Add a second agent with a different role",
+  "11. Set up a recurring loop or automation",
 ];
 async function signIn(page: Page) {
   await page.goto("/");
@@ -126,7 +127,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
       [...GETTING_STARTED_TITLES].sort()
     );
     expect(issues.find((issue) => issue.title === GETTING_STARTED_TITLES[0])?.status).toBe("done");
-    expect(issues.filter((issue) => issue.status === "todo")).toHaveLength(4);
+    expect(issues.filter((issue) => issue.status === "todo")).toHaveLength(5);
     expect(issues.filter((issue) => issue.status === "backlog")).toHaveLength(6);
     for (const issue of issues) {
       expect(issue.assigneeAgentId).toBeNull();

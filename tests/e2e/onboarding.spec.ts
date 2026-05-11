@@ -8,12 +8,13 @@ const GETTING_STARTED_TITLES = [
   "2. Ask your agent one quick question",
   "3. Create and run your first agent issue",
   "4. Review the result and close the loop",
-  "5. Add shared context your agent should remember",
-  "6. Bring one real task into Rudder",
-  "7. Link this work to a goal",
-  "8. Capture one reusable workflow",
-  "9. Add a second agent with a different role",
-  "10. Set up a recurring loop or automation",
+  "5. Create a project and add shared resources",
+  "6. Add shared context your agent should remember",
+  "7. Bring one real task into Rudder",
+  "8. Link this work to a goal",
+  "9. Capture one reusable workflow",
+  "10. Add a second agent with a different role",
+  "11. Set up a recurring loop or automation",
 ];
 
 function onboardingHeading(page: Page, text: string) {
@@ -43,6 +44,7 @@ test.describe("Onboarding wizard", () => {
     await page.goto("/onboarding");
 
     await expectOnboardingStep(page, "Name your organization");
+    await expect(page.getByRole("checkbox", { name: /new to Rudder/i })).toBeChecked();
 
     await expect(
       page.locator('[data-testid="onboarding-step-tab-4"]')
@@ -130,19 +132,25 @@ test.describe("Onboarding wizard", () => {
       assigneeAgentId: string | null;
       assigneeUserId: string | null;
       projectId: string | null;
+      description: string | null;
     }>;
     expect(issues.map((issue) => issue.title).sort()).toEqual(
       [...GETTING_STARTED_TITLES].sort()
     );
     const issueByTitle = new Map(issues.map((issue) => [issue.title, issue]));
     expect(issueByTitle.get(GETTING_STARTED_TITLES[0]!)?.status).toBe("done");
-    for (const title of GETTING_STARTED_TITLES.slice(1, 5)) {
+    for (const title of GETTING_STARTED_TITLES.slice(1, 6)) {
       expect(issueByTitle.get(title)?.status).toBe("todo");
       expect(issueByTitle.get(title)?.priority).toBe("high");
     }
-    for (const title of GETTING_STARTED_TITLES.slice(5)) {
+    for (const title of GETTING_STARTED_TITLES.slice(6)) {
       expect(issueByTitle.get(title)?.status).toBe("backlog");
     }
+    expect(issueByTitle.get("1. Understand how Rudder work happens")?.description).toContain("/issues/");
+    const chatIssueDescription = issueByTitle.get("2. Ask your agent one quick question")?.description ?? "";
+    expect(chatIssueDescription).toContain("/chat?");
+    expect(chatIssueDescription).toContain(`projectId=${gettingStartedProject.id}`);
+    expect(chatIssueDescription).toContain(`agentId=${ceoAgent.id}`);
     for (const issue of issues) {
       expect(issue.projectId).toBe(gettingStartedProject.id);
       expect(issue.assigneeAgentId).toBeNull();
@@ -155,11 +163,57 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByText("Recommended next", { exact: true })).toBeVisible();
     await expect(page.getByText("Advanced", { exact: true })).toBeVisible();
 
-    await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}`, {
+    await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}&projectId=${gettingStartedProject.id}&prefill=${encodeURIComponent("What should I do next?")}`, {
       waitUntil: "commit",
     });
     await expect(page.locator(".chat-composer")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("chat-agent-selector")).toContainText(ceoAgent.name, { timeout: 15_000 });
+    await expect(page.getByTestId("chat-project-selector")).toContainText("Getting Started", { timeout: 15_000 });
     await expect(page.locator(".chat-warning")).toHaveCount(0);
+  });
+
+  test("getting started seed can create only the welcome issue for experienced users", async ({
+    page,
+  }) => {
+    await page.goto("/onboarding");
+    const baseUrl = new URL(page.url()).origin;
+
+    const createRes = await page.request.post(`${baseUrl}/api/orgs`, {
+      data: { name: `E2E-Experienced-${Date.now()}` },
+    });
+    expect(createRes.ok()).toBe(true);
+    const organization = await createRes.json();
+
+    const seedRes = await page.request.post(
+      `${baseUrl}/api/orgs/${organization.id}/onboarding/getting-started`,
+      { data: { includeTutorial: false } },
+    );
+    expect(seedRes.ok()).toBe(true);
+    const seed = await seedRes.json();
+    expect(seed.includeTutorial).toBe(false);
+    expect(seed.issues.map((issue: { title: string }) => issue.title)).toEqual([
+      "👋 Welcome to Rudder — work with agents like a team",
+    ]);
+
+    const projectsRes = await page.request.get(
+      `${baseUrl}/api/orgs/${organization.id}/projects`
+    );
+    expect(projectsRes.ok()).toBe(true);
+    const projects = await projectsRes.json();
+    const gettingStartedProject = projects.find(
+      (project: { name: string; archivedAt?: string | null }) =>
+        project.name === "Getting Started" && !project.archivedAt
+    );
+    expect(gettingStartedProject).toBeTruthy();
+
+    const issuesRes = await page.request.get(
+      `${baseUrl}/api/orgs/${organization.id}/issues?projectId=${gettingStartedProject.id}`
+    );
+    expect(issuesRes.ok()).toBe(true);
+    const issues = await issuesRes.json();
+    expect(issues.map((issue: { title: string }) => issue.title)).toEqual([
+      "👋 Welcome to Rudder — work with agents like a team",
+    ]);
   });
 
   test("existing organization onboarding starts at agent and runtime test stays valid", async ({

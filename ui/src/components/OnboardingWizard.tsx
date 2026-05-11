@@ -23,6 +23,7 @@ import {
   PopoverTrigger
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "../lib/utils";
 import {
   extractModelName,
@@ -136,6 +137,7 @@ export function OnboardingWizard() {
   // Step 1
   const [organizationName, setCompanyName] = useState("");
   const [companyGoal, setCompanyGoal] = useState("");
+  const [firstTimeUser, setFirstTimeUser] = useState(true);
 
   // Step 2
   const [agentName, setAgentName] = useState("");
@@ -243,6 +245,7 @@ export function OnboardingWizard() {
     setFurthestStep(cId ? 2 : 1);
     setAgentName("");
     setAutoSuggestedAgentName(null);
+    setFirstTimeUser(true);
     hasAppliedInitialAgentNameRef.current = false;
     setCreatedCompanyId(cId);
     setCreatedCompanyName(null);
@@ -504,6 +507,7 @@ export function OnboardingWizard() {
     setError(null);
     setCompanyName("");
     setCompanyGoal("");
+    setFirstTimeUser(true);
     setAgentName("");
     setAutoSuggestedAgentName(null);
     hasAppliedInitialAgentNameRef.current = false;
@@ -703,8 +707,10 @@ export function OnboardingWizard() {
     return project;
   }
 
-  async function seedGettingStartedOnboarding(organizationId: string) {
-    const result = await onboardingApi.seedGettingStarted(organizationId);
+  async function seedGettingStartedOnboarding(organizationId: string, includeTutorial = true) {
+    const result = await onboardingApi.seedGettingStarted(organizationId, {
+      includeTutorial,
+    });
     queryClient.invalidateQueries({
       queryKey: queryKeys.projects.list(organizationId)
     });
@@ -796,7 +802,7 @@ export function OnboardingWizard() {
       });
 
       if (createdNewOrganizationInSession) {
-        await seedGettingStartedOnboarding(createdCompanyId);
+        await seedGettingStartedOnboarding(createdCompanyId, firstTimeUser);
         shouldCleanupDraftOrganizationRef.current = false;
         draftOrganizationIdRef.current = null;
         if (typeof window !== "undefined") {
@@ -1097,6 +1103,19 @@ export function OnboardingWizard() {
                       onChange={(e) => setCompanyGoal(e.target.value)}
                     />
                   </div>
+                  <label className="flex items-start gap-2 rounded-md border border-border/70 px-3 py-2 text-xs">
+                    <Checkbox
+                      checked={firstTimeUser}
+                      onCheckedChange={(checked) => setFirstTimeUser(checked === true)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block font-medium text-foreground">I’m new to Rudder</span>
+                      <span className="block text-muted-foreground">
+                        Create guided Getting Started issues. Turn this off to seed only the welcome issue.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               )}
 

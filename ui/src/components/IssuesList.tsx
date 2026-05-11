@@ -106,7 +106,7 @@ const onboardingGroupCopy: Record<(typeof onboardingGroupOrder)[number], { label
   },
   core: {
     label: "Core loop",
-    description: "Complete these four issues to experience chat → issue → execution → review."
+    description: "Complete these issues to experience chat → issue → execution → review → project context."
   },
   recommended: {
     label: "Recommended next",
@@ -124,9 +124,9 @@ const onboardingGroupCopy: Record<(typeof onboardingGroupOrder)[number], { label
 
 function onboardingIssueGroup(issue: Issue): (typeof onboardingGroupOrder)[number] {
   if (issue.title.startsWith("👋 Welcome to Rudder")) return "welcome";
-  if (/^[1-4]\./.test(issue.title)) return "core";
-  if (/^[5-6]\./.test(issue.title)) return "recommended";
-  if (/^(?:[7-9]|10)\./.test(issue.title)) return "advanced";
+  if (/^[1-5]\./.test(issue.title)) return "core";
+  if (/^[6-7]\./.test(issue.title)) return "recommended";
+  if (/^(?:[8-9]|10|11)\./.test(issue.title)) return "advanced";
   return "other";
 }
 
