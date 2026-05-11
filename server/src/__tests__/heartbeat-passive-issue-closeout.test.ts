@@ -396,6 +396,43 @@ describe("heartbeat passive issue closeout", () => {
     });
   });
 
+  it("does not re-open reviewer closeout after a blocked review handoff is confirmed", async () => {
+    const { agentId, issueId, orgId } = await seedFixture({
+      issueStatus: "blocked",
+      reviewerAgent: true,
+    });
+    await db.insert(activityLog).values({
+      orgId,
+      actorType: "agent",
+      actorId: agentId,
+      action: "issue.review_decision_recorded",
+      entityType: "issue",
+      entityId: issueId,
+      agentId,
+      details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+    });
+
+    const run = await wakeReviewRun({ agentId, issueId, issueStatus: "blocked" });
+
+    await waitFor(async () => {
+      const current = await getRun(run.id);
+      return current?.status === "succeeded" ? current : null;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const runs = await db
+      .select()
+      .from(heartbeatRuns)
+      .where(eq(heartbeatRuns.agentId, agentId));
+    expect(runs).toHaveLength(1);
+
+    const closeoutActivities = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.action, "issue.review_closeout_missing"));
+    expect(closeoutActivities).toHaveLength(0);
+  }, 10_000);
+
   it("escalates reviewer closeout after bounded missing-decision attempts", async () => {
     const { agentId, issueId } = await seedFixture({
       issueStatus: "in_review",

@@ -56,7 +56,7 @@ export function buildIssueReviewWakeupOptions(input: {
 }) {
   const blockedInstructions =
     input.issue.status === "blocked"
-      ? "The issue is blocked and has been routed to you as reviewer. Decide whether to confirm the blocker, request changes, approve, or keep a specific follow-up open."
+      ? "The issue is blocked and has been routed to you as reviewer. Decide whether to confirm this as a human/external blocker, request changes, approve, or keep a specific follow-up open. If you confirm the blocker with `blocked`, write the next human action clearly; Rudder will record a human handoff and remove it from repeated reviewer pickup until the board changes the issue."
       : "The issue is ready for review.";
   return {
     source: "review" as const,

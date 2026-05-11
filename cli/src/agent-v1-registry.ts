@@ -614,9 +614,9 @@ export function renderAgentCliReferenceMarkdown(): string {
     "- approve: `rudder issue review <issue> --decision approve --comment <text>`",
     "- request changes: `rudder issue review <issue> --decision request_changes --comment <text>`",
     "- needs follow-up: `rudder issue review <issue> --decision needs_followup --comment <text>`",
-    "- blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment <text>`",
+    "- blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment <text>`; use this only for a confirmed human/external blocker and name the next human action.",
     "",
-    "Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal.",
+    "Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal. A blocked reviewer decision records a human handoff and removes the issue from repeated reviewer pickup until the board changes the issue.",
   );
 
   lines.push("", "## Compatibility Commands", "");

@@ -550,6 +550,7 @@ describe("issue lifecycle routes", () => {
           wakeReason: "issue_review_requested",
           role: "reviewer",
           issue: expect.objectContaining({ status: "blocked" }),
+          reviewInstructions: expect.stringContaining("human/external blocker"),
         }),
       }),
     );
@@ -917,6 +918,63 @@ describe("issue lifecycle routes", () => {
         details: expect.objectContaining({
           decision: "approve",
           status: "done",
+        }),
+      }),
+    );
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
+  });
+
+  it("records a blocked reviewer decision as a human handoff outcome", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        status: "blocked",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        status: patch.status as "blocked",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(REVIEWER_AGENT_ID)))
+      .patch("/api/issues/11111111-1111-4111-8111-111111111111")
+      .send({
+        reviewDecision: "blocked",
+        comment: "Confirmed: this needs operator input before the assignee can continue.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ status: "blocked" }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.review_decision_recorded",
+        details: expect.objectContaining({
+          decision: "blocked",
+          outcome: "human_handoff",
+          operatorActionRequired: true,
+          status: "blocked",
+        }),
+      }),
+    );
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.human_intervention_required",
+        details: expect.objectContaining({
+          decision: "blocked",
+          status: "blocked",
+          commentId: "comment-1",
+          previousReviewerAgentId: REVIEWER_AGENT_ID,
+          nextAction: "Human/operator intervention is required before agent review can continue.",
         }),
       }),
     );

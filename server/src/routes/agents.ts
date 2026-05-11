@@ -1142,6 +1142,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     const reviewerRows = await issuesSvc.list(req.actor.orgId, {
       reviewerAgentId: req.actor.agentId,
       status: "in_review,blocked",
+      excludeReviewerConfirmedBlockedHandoff: true,
     });
 
     const rowsByIssueId = new Map<string, {

@@ -58,6 +58,10 @@ If an issue has a reviewer, moving it to `blocked` is also a reviewer handoff: t
 
 If `RUDDER_WAKE_REASON=issue_passive_followup`, the run is close-out governance for the same issue. Inspect current issue state first, then leave a progress comment, completion, blocker, or explicit handoff.
 
+## Git Identity Policy
+
+Local runtime `HOME` is isolated from the operator home. Codex local runs and runtime-created git worktrees are prepared with `user.useConfigOnly=true` so missing identity fails fast instead of producing `*@*.local` commits. If Git reports missing author or committer identity, configure the repository explicitly with `git config user.name <name>` and `git config user.email <safe-email>`; do not unset the guard or accept auto-detected local-host metadata.
+
 ## Reviewer Close-Out Signals
 
 When the inbox row or wake context says `relationship: "reviewer"`, `role: "reviewer"`, or `wakeSource: "review"`, finish the review with one structured reviewer decision. Reviewer work can be either `in_review` or `blocked`; blocked reviewer work means blocker triage, not implementation takeover.
@@ -65,9 +69,9 @@ When the inbox row or wake context says `relationship: "reviewer"`, `role: "revi
 - approve: `rudder issue review <issue> --decision approve --comment <text>`
 - request changes: `rudder issue review <issue> --decision request_changes --comment <text>`
 - needs follow-up: `rudder issue review <issue> --decision needs_followup --comment <text>`
-- blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment <text>`
+- blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment <text>`; use this only for a confirmed human/external blocker and name the next human action.
 
-Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal.
+Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal. A blocked reviewer decision records a human handoff and removes the issue from repeated reviewer pickup until the board changes the issue.
 
 ## Compatibility Commands
 

@@ -175,6 +175,8 @@ rudder issue review "<issue-id-or-identifier>" --decision needs_followup --comme
 rudder issue review "<issue-id-or-identifier>" --decision blocked --comment "<markdown>" --json
 ```
 
+Use `blocked` to confirm a human/external blocker. The comment must name the next human action; Rudder records a human handoff and removes the issue from repeated reviewer pickup until the board changes the issue.
+
 - progress-only update:
 
 ```bash

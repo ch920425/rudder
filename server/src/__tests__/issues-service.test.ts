@@ -400,6 +400,118 @@ describe("issueService.list participantAgentId", () => {
     expect((await svc.list(orgId, { reviewerUserId })).map((issue) => issue.id)).toEqual([userReviewed.id]);
   });
 
+  it("can exclude blocked reviewer rows after the reviewer confirms operator handoff", async () => {
+    const orgId = randomUUID();
+    const reviewerAgentId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Reviewer Handoff Org",
+      urlKey: deriveOrganizationUrlKey("Reviewer Handoff Org"),
+      issuePrefix: `H${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: reviewerAgentId,
+      orgId,
+      name: "Reviewer Agent",
+      role: "reviewer",
+      status: "active",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    const pendingIssueId = randomUUID();
+    const confirmedIssueId = randomUUID();
+    const reblockedIssueId = randomUUID();
+    await db.insert(issues).values([
+      {
+        id: pendingIssueId,
+        orgId,
+        title: "Pending blocked review",
+        status: "blocked",
+        priority: "medium",
+        reviewerAgentId,
+      },
+      {
+        id: confirmedIssueId,
+        orgId,
+        title: "Confirmed blocked review",
+        status: "blocked",
+        priority: "medium",
+        reviewerAgentId,
+      },
+      {
+        id: reblockedIssueId,
+        orgId,
+        title: "Reblocked after an older decision",
+        status: "blocked",
+        priority: "medium",
+        reviewerAgentId,
+      },
+    ]);
+
+    await db.insert(activityLog).values([
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: confirmedIssueId,
+        agentId: reviewerAgentId,
+        details: { status: "blocked" },
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: confirmedIssueId,
+        agentId: reviewerAgentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:01:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: reblockedIssueId,
+        agentId: reviewerAgentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:02:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: reblockedIssueId,
+        agentId: reviewerAgentId,
+        details: { status: "blocked" },
+        createdAt: new Date("2026-05-01T00:03:00.000Z"),
+      },
+    ]);
+
+    const rows = await svc.list(orgId, {
+      reviewerAgentId,
+      status: "in_review,blocked",
+      excludeReviewerConfirmedBlockedHandoff: true,
+    });
+    const rowIds = new Set(rows.map((issue) => issue.id));
+
+    expect(rowIds.has(pendingIssueId)).toBe(true);
+    expect(rowIds.has(confirmedIssueId)).toBe(false);
+    expect(rowIds.has(reblockedIssueId)).toBe(true);
+  });
+
   it("clears reviewer and preserves reviewer when update omits reviewer fields", async () => {
     const orgId = randomUUID();
     const reviewerAgentId = randomUUID();

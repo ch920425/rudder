@@ -596,12 +596,40 @@ describe("IssueDetail", () => {
         details: { key: "note", title: "Hidden document update unique" },
         createdAt: new Date("2026-04-20T01:15:00.000Z"),
       },
+      {
+        id: "activity-review-handoff",
+        orgId: "org-2",
+        actorType: "agent",
+        actorId: "agent-1",
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: "agent-1",
+        runId: null,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-04-20T01:20:00.000Z"),
+      },
+      {
+        id: "activity-human-intervention",
+        orgId: "org-2",
+        actorType: "agent",
+        actorId: "agent-1",
+        action: "issue.human_intervention_required",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: "agent-1",
+        runId: null,
+        details: { decision: "blocked", nextAction: "Owner must grant GitHub Actions publish access." },
+        createdAt: new Date("2026-04-20T01:25:00.000Z"),
+      },
     ]);
 
     const html = renderToStaticMarkup(<IssueDetail />);
 
     expect(html).toContain("assigned the issue to Builder");
     expect(html).toContain("changed the reviewer from Builder to Me");
+    expect(html).toContain("confirmed blocker; operator handoff needed");
+    expect(html).toContain("requested human intervention");
     expect(html).not.toContain("updated the description");
     expect(html).not.toContain("Hidden document update unique");
   });

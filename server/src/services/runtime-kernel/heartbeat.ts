@@ -2528,6 +2528,36 @@ export function heartbeatService(db: Db) {
     return Boolean(existingReview);
   }
 
+  async function issueHasConfirmedBlockedReviewerHandoff(tx: any, issue: PassiveFollowupIssueRow, reviewerAgentId: string) {
+    if (issue.status !== "blocked") return false;
+    const existingHandoff = await tx
+      .select({ id: activityLog.id })
+      .from(activityLog)
+      .where(
+        and(
+          eq(activityLog.orgId, issue.orgId),
+          eq(activityLog.action, "issue.review_decision_recorded"),
+          eq(activityLog.entityType, "issue"),
+          sql`${activityLog.entityId} = ${issue.id}::text`,
+          eq(activityLog.actorType, "agent"),
+          sql`${activityLog.actorId} = ${reviewerAgentId}::text`,
+          sql`${activityLog.details} ->> 'decision' = 'blocked'`,
+          sql`${activityLog.createdAt} >= COALESCE((
+            SELECT MAX(status_activity.created_at)
+            FROM activity_log status_activity
+            WHERE status_activity.org_id = ${issue.orgId}
+              AND status_activity.entity_type = 'issue'
+              AND status_activity.entity_id = ${issue.id}::text
+              AND status_activity.action = 'issue.updated'
+              AND status_activity.details ? 'status'
+          ), to_timestamp(0))`,
+        ),
+      )
+      .limit(1)
+      .then((rows: Array<{ id: string }>) => rows[0] ?? null);
+    return Boolean(existingHandoff);
+  }
+
   async function evaluatePassiveIssueClosureForLockedIssue(input: {
     tx: any;
     run: typeof heartbeatRuns.$inferSelect;
@@ -2550,6 +2580,9 @@ export function heartbeatService(db: Db) {
     if (reviewerRun) {
       if (await runHasIssueReviewDecision(tx, run, issue.id)) {
         return { kind: "none", reason: "review_decision_recorded" };
+      }
+      if (await issueHasConfirmedBlockedReviewerHandoff(tx, issue, run.agentId)) {
+        return { kind: "none", reason: "blocked_reviewer_handoff_confirmed" };
       }
       if (await issueHasDeferredWake(tx, issue.orgId, issue.id)) {
         return { kind: "none", reason: "deferred_issue_wake_exists" };

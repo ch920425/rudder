@@ -133,6 +133,7 @@ describe("agent inbox reviewer rows", () => {
     expect(mockIssueService.list).toHaveBeenNthCalledWith(2, "org-1", {
       reviewerAgentId: "agent-1",
       status: "in_review,blocked",
+      excludeReviewerConfirmedBlockedHandoff: true,
     });
     expect(res.body).toMatchObject([
       {

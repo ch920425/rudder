@@ -84,6 +84,7 @@ export interface IssueFilters {
   assigneeUserId?: string;
   reviewerAgentId?: string;
   reviewerUserId?: string;
+  excludeReviewerConfirmedBlockedHandoff?: boolean;
   touchedByUserId?: string;
   unreadForUserId?: string;
   projectId?: string;
@@ -735,6 +736,33 @@ export function issueService(db: Db) {
       }
       if (filters?.reviewerAgentId) {
         conditions.push(eq(issues.reviewerAgentId, filters.reviewerAgentId));
+      }
+      if (filters?.excludeReviewerConfirmedBlockedHandoff && filters?.reviewerAgentId) {
+        conditions.push(sql<boolean>`
+          NOT (
+            ${issues.status} = 'blocked'
+            AND EXISTS (
+              SELECT 1
+              FROM activity_log confirmed_blocked_review
+              WHERE confirmed_blocked_review.org_id = ${orgId}
+                AND confirmed_blocked_review.entity_type = 'issue'
+                AND confirmed_blocked_review.entity_id = ${issues.id}::text
+                AND confirmed_blocked_review.action = 'issue.review_decision_recorded'
+                AND confirmed_blocked_review.actor_type = 'agent'
+                AND confirmed_blocked_review.actor_id = ${filters.reviewerAgentId}::text
+                AND confirmed_blocked_review.details ->> 'decision' = 'blocked'
+                AND confirmed_blocked_review.created_at >= COALESCE((
+                  SELECT MAX(status_activity.created_at)
+                  FROM activity_log status_activity
+                  WHERE status_activity.org_id = ${orgId}
+                    AND status_activity.entity_type = 'issue'
+                    AND status_activity.entity_id = ${issues.id}::text
+                    AND status_activity.action = 'issue.updated'
+                    AND status_activity.details ? 'status'
+                ), to_timestamp(0))
+            )
+          )
+        `);
       }
       if (filters?.reviewerUserId) {
         conditions.push(eq(issues.reviewerUserId, filters.reviewerUserId));
