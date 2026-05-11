@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Agent, CalendarEvent, CalendarSource, GoogleCalendarConnectResponse, GoogleCalendarOAuthConfig, Issue } from "@rudderhq/shared";
 import {
@@ -38,6 +38,11 @@ import { timedEventSegmentsForDay, type TimedDaySegment } from "@/lib/calendar-d
 import { compactDenseTimedSegments } from "@/lib/calendar-collision-clusters";
 import { buildCalendarDisplayItems, type CalendarDisplayCluster, type CalendarDisplayCollisionCluster, type CalendarDisplayItem } from "@/lib/calendar-display-items";
 import { formatSidebarAgentLabel } from "@/lib/agent-labels";
+import {
+  calendarEventRunHref,
+  calendarEventSourceLabel,
+  formatCalendarDetailTimeRange,
+} from "@/lib/calendar-detail";
 
 type CalendarView = "day" | "week" | "month" | "agenda";
 type DraftKind = "human_event" | "agent_work_block";
@@ -308,6 +313,27 @@ function newDraft(kind: DraftKind = "human_event") {
     startAt: toInputDateTime(start),
     endAt: toInputDateTime(end),
   };
+}
+
+function CalendarDetailLink({
+  to,
+  children,
+  ariaLabel,
+}: {
+  to: string;
+  children: ReactNode;
+  ariaLabel: string;
+}) {
+  return (
+    <Link
+      to={to}
+      aria-label={ariaLabel}
+      className="inline-flex max-w-full items-center gap-1 rounded-[calc(var(--radius-sm)-2px)] px-1 py-0.5 font-medium text-primary underline-offset-2 hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+    >
+      <span className="min-w-0 truncate">{children}</span>
+      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+    </Link>
+  );
 }
 
 function buildEventPayload(draft: ReturnType<typeof newDraft>, agents: Agent[], issues: Issue[]) {
@@ -1339,6 +1365,7 @@ export function Calendar() {
   const selectedClusterAgent = selectedCluster?.kind === "collision_cluster" && selectedCluster.agentIds.length !== 1
     ? null
     : selectedCluster?.events.find((event) => event.agent)?.agent ?? null;
+  const selectedEventRunHref = selectedEvent ? calendarEventRunHref(selectedEvent) : null;
 
   return (
     <div className="flex h-full min-h-[720px] min-w-0 flex-col gap-3">
@@ -1832,46 +1859,52 @@ export function Calendar() {
           </SheetHeader>
           {selectedEvent ? (
             <div className="space-y-5 overflow-y-auto px-4 pb-4 text-sm">
-              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-y-2">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[112px_minmax(0,1fr)]">
                 <span className="text-muted-foreground">Status</span>
                 <span>{statusLabel(selectedEvent.eventStatus)}</span>
                 <span className="text-muted-foreground">Source</span>
-                <span>
-                  {selectedEvent.eventStatus === "projected"
-                    ? "projected heartbeat"
-                    : selectedEvent.sourceMode === "derived"
-                      ? "run history"
-                      : selectedEvent.source?.name ?? "manual"}
+                <span className="min-w-0">
+                  {selectedEventRunHref ? (
+                    <CalendarDetailLink to={selectedEventRunHref} ariaLabel={`Open source run ${selectedEvent.heartbeatRunId}`}>
+                      {calendarEventSourceLabel(selectedEvent)}
+                    </CalendarDetailLink>
+                  ) : (
+                    calendarEventSourceLabel(selectedEvent)
+                  )}
                 </span>
                 <span className="text-muted-foreground">Time</span>
-                <span>{formatDateTime(selectedEvent.startAt)} - {formatDateTime(selectedEvent.endAt)}</span>
+                <span className="min-w-0 overflow-x-auto whitespace-nowrap font-mono text-[12px] tabular-nums sm:text-sm">
+                  {formatCalendarDetailTimeRange(selectedEvent.startAt, selectedEvent.endAt)}
+                </span>
                 <span className="text-muted-foreground">Agent</span>
-                <span>{selectedEvent.agent?.name ?? "None"}</span>
+                <span className="min-w-0">
+                  {selectedEvent.agent ? (
+                    <CalendarDetailLink to={agentUrl(selectedEvent.agent)} ariaLabel={`Open agent ${selectedEvent.agent.name}`}>
+                      {selectedEvent.agent.name}
+                    </CalendarDetailLink>
+                  ) : (
+                    "None"
+                  )}
+                </span>
                 <span className="text-muted-foreground">Issue</span>
-                <span>{selectedEvent.issue?.identifier ?? selectedEvent.issue?.title ?? "None"}</span>
+                <span className="min-w-0">
+                  {selectedEvent.issue ? (
+                    <CalendarDetailLink
+                      to={issueUrl(selectedEvent.issue)}
+                      ariaLabel={`Open issue ${selectedEvent.issue.identifier ?? selectedEvent.issue.title}`}
+                    >
+                      {selectedEvent.issue.identifier ?? selectedEvent.issue.title}
+                    </CalendarDetailLink>
+                  ) : (
+                    "None"
+                  )}
+                </span>
               </div>
               {selectedEvent.description ? (
                 <p className="rounded-[var(--radius-sm)] border border-border bg-muted/30 p-3 text-sm leading-6">
                   {selectedEvent.description}
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                {selectedEvent.issue ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={issueUrl(selectedEvent.issue)}>Open issue</Link>
-                  </Button>
-                ) : null}
-                {selectedEvent.agent ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={agentUrl(selectedEvent.agent)}>Open agent</Link>
-                  </Button>
-                ) : null}
-                {selectedEvent.heartbeatRunId && selectedEvent.agent ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={`${agentUrl(selectedEvent.agent)}/runs/${selectedEvent.heartbeatRunId}`}>Open run</Link>
-                  </Button>
-                ) : null}
-              </div>
               {isWritableEvent(selectedEvent) ? (
                 <div className="flex gap-2 border-t border-border pt-4">
                   <Button type="button" size="sm" onClick={() => openEdit(selectedEvent)}>

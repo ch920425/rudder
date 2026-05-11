@@ -373,8 +373,12 @@ test.describe("Calendar V1", () => {
     await expect(drawer).toBeVisible();
     await expect(drawer.getByText("planned", { exact: true })).toBeVisible();
     await expect(drawer.getByText("manual", { exact: true })).toBeVisible();
-    await expect(drawer.getByRole("link", { name: "Open issue" })).toBeVisible();
-    await expect(drawer.getByRole("link", { name: "Open agent" })).toBeVisible();
+    await expect(drawer.getByText("2026-05-01 14:00:00 - 15:00:00")).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /Open issue/ })).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /Open agent CEO/ })).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /^Open issue$/ })).toHaveCount(0);
+    await expect(drawer.getByRole("link", { name: /^Open agent$/ })).toHaveCount(0);
+    await expect(drawer.getByRole("link", { name: /^Open run$/ })).toHaveCount(0);
     await expect(drawer.getByRole("button", { name: /Edit calendar/i })).toHaveCount(0);
     await expect(drawer.getByText("Only My Calendar events can be edited.")).toBeVisible();
 
