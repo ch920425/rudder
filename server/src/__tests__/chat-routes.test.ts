@@ -975,7 +975,11 @@ describe("chat routes", () => {
       }),
     );
     expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      fallbackResult: {
+        output: "Working on it",
+      },
       initialTurnInput: runtimePrompt,
+      transcript: [],
     }));
   });
 
@@ -1008,7 +1012,19 @@ describe("chat routes", () => {
         ts: "2026-03-26T08:01:01.000Z",
         text: "Inspecting current request",
       });
+      await input.onObservedTranscriptEntry?.({
+        kind: "thinking",
+        ts: "2026-03-26T08:01:01.000Z",
+        text: "Inspecting current request",
+      });
       await input.onTranscriptEntry?.({
+        kind: "tool_call",
+        ts: "2026-03-26T08:01:02.000Z",
+        name: "read_file",
+        toolUseId: "tool-1",
+        input: { path: "ui/src/pages/Chat.tsx" },
+      });
+      await input.onObservedTranscriptEntry?.({
         kind: "tool_call",
         ts: "2026-03-26T08:01:02.000Z",
         name: "read_file",
@@ -1092,7 +1108,16 @@ describe("chat routes", () => {
       }),
     );
     expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      fallbackResult: {
+        output: "Streaming reply",
+        subtype: "completed",
+        isError: false,
+      },
       initialTurnInput: runtimePrompt,
+      transcript: [
+        expect.objectContaining({ kind: "thinking", text: "Inspecting current request" }),
+        expect.objectContaining({ kind: "tool_call", name: "read_file" }),
+      ],
     }));
   });
 

@@ -118,7 +118,7 @@ function createTranscriptEvent(
 export function emitExecutionTranscriptTree(
   input: EmitExecutionTranscriptTreeInput,
 ): ExecutionTranscriptTreeStats {
-  if (!input.parentObservation || input.transcript.length === 0) {
+  if (!input.parentObservation) {
     return {
       turnCount: 0,
       toolCount: 0,
@@ -143,6 +143,7 @@ export function emitExecutionTranscriptTree(
   let finalUsage: UsageSummary | null = null;
   let finalSessionId: string | null = pendingSessionId ?? null;
   let finalHasError = false;
+  let latestTranscriptTs: string | null = null;
   let activeTurn: ActiveTurnState | null = null;
   const pendingTools = new Map<string, PendingToolState>();
 
@@ -275,6 +276,7 @@ export function emitExecutionTranscriptTree(
   };
 
   for (const entry of input.transcript) {
+    latestTranscriptTs = entry.ts;
     switch (entry.kind) {
       case "init": {
         pendingModel = entry.model;
@@ -459,6 +461,16 @@ export function emitExecutionTranscriptTree(
         }
         break;
     }
+  }
+
+  if (
+    !activeTurn &&
+    turnCount === 0 &&
+    (pendingTurnInput !== undefined || (input.fallbackResult !== null && input.fallbackResult !== undefined))
+  ) {
+    const syntheticTs = input.fallbackResult?.ts ?? latestTranscriptTs ?? new Date().toISOString();
+    const syntheticTurn = ensureTurn(syntheticTs);
+    finalizeTurn(syntheticTurn, syntheticTs, input.fallbackResult ?? null);
   }
 
   const finalTurn = activeTurn as ActiveTurnState | null;
