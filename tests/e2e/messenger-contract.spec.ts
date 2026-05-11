@@ -1,7 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { eq } from "../../packages/db/node_modules/drizzle-orm/index.js";
-import { activityLog, createDb, heartbeatRuns, issues } from "../../packages/db/src/index.ts";
+import {
+  activityLog,
+  chatConversationUserStates,
+  chatConversations,
+  chatMessages,
+  createDb,
+  heartbeatRuns,
+  issues,
+} from "../../packages/db/src/index.ts";
 import { E2E_CODEX_STUB, E2E_DATABASE_URL } from "./support/e2e-env";
 
 const e2eDb = createDb(E2E_DATABASE_URL);
@@ -50,6 +58,18 @@ function chatUnreadBadgeTestId(chatId: string) {
   return `${`chat:${chatId}`.replace(/[^a-zA-Z0-9_-]/g, "-")}-unread-badge`;
 }
 
+async function isInElementViewport(page: Page, containerTestId: string, rowTestId: string) {
+  return page.evaluate(({ containerTestId, rowTestId }) => {
+    const container = document.querySelector(`[data-testid="${containerTestId}"] nav`);
+    const row = document.querySelector(`[data-testid="${rowTestId}"]`);
+    if (!container || !row) return false;
+
+    const containerRect = container.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    return rowRect.top >= containerRect.top && rowRect.bottom <= containerRect.bottom;
+  }, { containerTestId, rowTestId });
+}
+
 function exactTimestampPattern() {
   return /[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?, \d{1,2}:\d{2} [AP]M/;
 }
@@ -69,6 +89,84 @@ async function expectMessengerThreadStartsAtBottom(page: Page, heading: string) 
 }
 
 test.describe("Messenger unified threads contract", () => {
+  test("double-clicking primary rail Messenger scrolls the sidebar to unread threads", async ({ page }) => {
+    const sessionRes = await page.request.get("/api/auth/get-session");
+    expect(sessionRes.ok()).toBe(true);
+    const session = await sessionRes.json();
+    const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
+    expect(currentUserId).toBeTruthy();
+
+    const organization = await createOrganization(page, `Messenger-Unread-Scroll-${Date.now()}`);
+    const targetChatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Unread thread below the fold",
+        summary: "Double-clicking Messenger should reveal this unread thread.",
+        issueCreationMode: "manual_approval",
+        planMode: false,
+      },
+    });
+    expect(targetChatRes.ok()).toBe(true);
+    const targetChat = await targetChatRes.json();
+
+    const readAt = new Date("2026-01-01T00:00:00.000Z");
+    const messageAt = new Date("2026-01-01T00:01:00.000Z");
+    await e2eDb.insert(chatConversationUserStates).values({
+      orgId: organization.id,
+      conversationId: targetChat.id,
+      userId: currentUserId,
+      lastReadAt: readAt,
+      updatedAt: readAt,
+    });
+    await e2eDb.insert(chatMessages).values({
+      id: randomUUID(),
+      orgId: organization.id,
+      conversationId: targetChat.id,
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Unread assistant reply",
+      createdAt: messageAt,
+      updatedAt: messageAt,
+    });
+    await e2eDb
+      .update(chatConversations)
+      .set({ lastMessageAt: messageAt, updatedAt: messageAt })
+      .where(eq(chatConversations.id, targetChat.id));
+
+    for (let index = 0; index < 18; index += 1) {
+      const fillerRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+        data: {
+          title: `Read filler chat ${String(index + 1).padStart(2, "0")}`,
+          summary: "This read chat keeps the unread target below the visible sidebar area.",
+          issueCreationMode: "manual_approval",
+          planMode: false,
+        },
+      });
+      expect(fillerRes.ok()).toBe(true);
+    }
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+    await page.goto(`/${organization.issuePrefix}/messenger/chat`, { waitUntil: "commit" });
+
+    const targetThreadTestId = threadTestId(`chat:${targetChat.id}`);
+    await expect(page.getByTestId(targetThreadTestId)).toContainText("Unread thread below the fold", { timeout: 15_000 });
+    await expect(page.getByTestId(chatUnreadBadgeTestId(targetChat.id))).toHaveText("1");
+    await expect(page.getByTestId("rail-badge-messenger")).toHaveText("1");
+
+    const sidebarNav = page.getByTestId("workspace-sidebar").locator("nav").first();
+    await sidebarNav.evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    await expect.poll(() => isInElementViewport(page, "workspace-sidebar", targetThreadTestId)).toBe(false);
+
+    await page.getByTestId("primary-rail").getByRole("link", { name: "Messenger" }).dblclick();
+
+    await expect.poll(() => isInElementViewport(page, "workspace-sidebar", targetThreadTestId)).toBe(true);
+  });
+
   test("archives a Messenger chat from the sidebar and removes it from the thread list", async ({ page }) => {
     const organization = await createOrganization(page, `Messenger-Archive-${Date.now()}`);
 

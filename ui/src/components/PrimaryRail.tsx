@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  useCallback,
   useEffect,
   useRef,
 } from "react";
@@ -33,9 +34,11 @@ import {
   requestDesktopNotificationPermission,
 } from "@/lib/desktop-notification-permission";
 import { queryKeys } from "@/lib/queryKeys";
+import { requestMessengerUnreadScroll } from "@/lib/messenger-unread-scroll";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { useI18n } from "@/context/I18nContext";
 import { toOrganizationRelativePath } from "@/lib/organization-routes";
+import { useSidebar } from "@/context/SidebarContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,6 +85,7 @@ function RailNavItem({
   badgeTone = "default",
   badgeTestId,
   active,
+  onDoubleClick,
 }: {
   to: string;
   label: string;
@@ -90,11 +94,13 @@ function RailNavItem({
   badgeTone?: "default" | "danger";
   badgeTestId?: string;
   active?: boolean;
+  onDoubleClick?: () => void;
 }) {
   return (
     <NavLink
       to={to}
       aria-current={active ? "page" : undefined}
+      onDoubleClick={onDoubleClick}
       className={({ isActive }) =>
         cn(
           "relative z-10 flex min-h-[56px] w-[66px] translate-x-1 flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] px-1 py-2 text-[9px] font-medium leading-[1.05] transition-colors",
@@ -139,6 +145,7 @@ export function PrimaryRail({
 }) {
   const { t } = useI18n();
   const { openNewIssue, openNewAgent, openNewProject } = useDialog();
+  const { setSidebarOpen } = useSidebar();
   const { selectedOrganizationId } = useOrganization();
   const inboxBadge = useInboxBadge(selectedOrganizationId);
   const notificationsSettingsQuery = useQuery({
@@ -213,6 +220,11 @@ export function PrimaryRail({
   const activeRailStyle = activeRailIndex >= 0
     ? ({ "--motion-rail-active-index": activeRailIndex } as CSSProperties)
     : undefined;
+  const handleMessengerDoubleClick = useCallback(() => {
+    if ((inboxBadge.inbox ?? 0) <= 0) return;
+    setSidebarOpen(true);
+    requestMessengerUnreadScroll();
+  }, [inboxBadge.inbox, setSidebarOpen]);
 
   useEffect(() => {
     if (notificationsSettingsQuery.isLoading) return;
@@ -379,6 +391,7 @@ export function PrimaryRail({
             badgeTone={item.badgeTone}
             badgeTestId={item.badgeTestId}
             active={item.active}
+            onDoubleClick={item.key === "messenger" ? handleMessengerDoubleClick : undefined}
           />
         ))}
       </nav>

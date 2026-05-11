@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -28,6 +28,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useChatGenerations } from "@/context/ChatGenerationContext";
 import { messengerThreadKindLabel, resolveMessengerRoute, useMessengerModel } from "@/hooks/useMessenger";
 import { rememberMessengerPath } from "@/lib/messenger-memory";
+import { getMessengerUnreadScrollRequestId, MESSENGER_SCROLL_TO_UNREAD_EVENT } from "@/lib/messenger-unread-scroll";
 import { toOrganizationRelativePath } from "@/lib/organization-routes";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -280,6 +281,7 @@ function ChatThreadRow({
   return (
     <div
       data-testid={`messenger-thread-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
+      data-messenger-thread-key={`chat:${conversation.id}`}
       className={cn(
         "group relative mx-1.5 flex items-start gap-3 rounded-[calc(var(--radius-md)-2px)] border px-3 py-2.5 transition-[background-color,border-color,color]",
         active
@@ -428,6 +430,7 @@ function ThreadRow({
       to={thread.href}
       onClick={() => onSelect(thread.href)}
       data-testid={`messenger-thread-${sanitizeThreadKey(thread.threadKey)}`}
+      data-messenger-thread-key={thread.threadKey}
       className={cn(
         "mx-1.5 flex items-start gap-3 rounded-[calc(var(--radius-md)-2px)] border px-3 py-2.5 transition-[background-color,border-color,color]",
         active
@@ -621,9 +624,11 @@ export function MessengerContextSidebar() {
   const queryClient = useQueryClient();
   const route = resolveMessengerRoute(relativePath);
   const markedThreadRef = useRef<string | null>(null);
-  const sidebarScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:messenger");
+  const sidebarScrollbarActivityRef = useScrollbarActivityRef("rudder:sidebar-scroll:messenger");
+  const sidebarScrollElementRef = useRef<HTMLElement | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [unreadScrollRequestId, setUnreadScrollRequestId] = useState(() => getMessengerUnreadScrollRequestId());
   const [threadOrganizationRule, setThreadOrganizationRule] = useState<ThreadOrganizationRule>(() =>
     readThreadOrganizationRule(model.selectedOrganizationId),
   );
@@ -661,6 +666,18 @@ export function MessengerContextSidebar() {
     });
     return organizeThreadEntries(entries, threadOrganizationRule);
   }, [conversationsById, model.selectedOrganizationId, model.threadSummaries, threadOrganizationRule]);
+  const firstUnreadThreadKey = useMemo(() => {
+    for (const section of organizedThreadSections) {
+      for (const entry of section.entries) {
+        if (entry.thread.unreadCount > 0) return entry.thread.threadKey;
+      }
+    }
+    return null;
+  }, [organizedThreadSections]);
+  const setSidebarScrollRef = useCallback((element: HTMLElement | null) => {
+    sidebarScrollElementRef.current = element;
+    sidebarScrollbarActivityRef(element);
+  }, [sidebarScrollbarActivityRef]);
 
   const activeThreadKey = useMemo(() => {
     if (route.kind === "chat" && route.conversationId) return `chat:${route.conversationId}`;
@@ -800,6 +817,39 @@ export function MessengerContextSidebar() {
     });
   }, [activeThread, activeThreadDetailReady, activeThreadKey, activeThreadReadAt, model.selectedOrganizationId, queryClient, route]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleUnreadScrollRequest = () => {
+      setUnreadScrollRequestId(getMessengerUnreadScrollRequestId());
+    };
+
+    document.addEventListener(MESSENGER_SCROLL_TO_UNREAD_EVENT, handleUnreadScrollRequest);
+    return () => {
+      document.removeEventListener(MESSENGER_SCROLL_TO_UNREAD_EVENT, handleUnreadScrollRequest);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!firstUnreadThreadKey) return;
+    if (unreadScrollRequestId <= 0) return;
+
+    const scrollFirstUnreadThreadIntoView = () => {
+      const container = sidebarScrollElementRef.current;
+      if (!container) return;
+
+      const unreadRow = Array.from(container.querySelectorAll<HTMLElement>("[data-messenger-thread-key]"))
+        .find((row) => row.dataset.messengerThreadKey === firstUnreadThreadKey);
+
+      unreadRow?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+
+    const frame = requestAnimationFrame(scrollFirstUnreadThreadIntoView);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [firstUnreadThreadKey, unreadScrollRequestId]);
+
   if (!model.selectedOrganizationId) return null;
 
   return (
@@ -818,7 +868,7 @@ export function MessengerContextSidebar() {
         onRuleChange={handleThreadOrganizationRuleChange}
       />
       <nav
-        ref={sidebarScrollRef}
+        ref={setSidebarScrollRef}
         className="scrollbar-auto-hide mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1.5 pb-3.5"
       >
         <Link

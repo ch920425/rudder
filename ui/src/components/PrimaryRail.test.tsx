@@ -28,6 +28,7 @@ const mockState = vi.hoisted(() => ({
     },
   },
   navigate: vi.fn(),
+  setSidebarOpen: vi.fn(),
   requestPermission: vi.fn(),
   pathname: "/dashboard",
 }));
@@ -72,6 +73,12 @@ vi.mock("@/context/OrganizationContext", () => ({
   }),
 }));
 
+vi.mock("@/context/SidebarContext", () => ({
+  useSidebar: () => ({
+    setSidebarOpen: mockState.setSidebarOpen,
+  }),
+}));
+
 vi.mock("@/context/I18nContext", () => ({
   useI18n: () => ({
     t: (key: string) => key,
@@ -91,6 +98,7 @@ vi.mock("@/lib/router", () => ({
     children,
     className,
     to,
+    ...props
   }: {
     children: ReactNode;
     className?: string | ((input: { isActive: boolean }) => string);
@@ -99,6 +107,7 @@ vi.mock("@/lib/router", () => ({
     <a
       href={to}
       className={typeof className === "function" ? className({ isActive: false }) : className}
+      {...props}
     >
       {children}
     </a>
@@ -144,6 +153,7 @@ beforeEach(() => {
     },
   };
   mockState.pathname = "/dashboard";
+  mockState.setSidebarOpen.mockReset();
 });
 
 afterEach(() => {
@@ -249,5 +259,29 @@ describe("PrimaryRail active motion indicator", () => {
     const nav = document.querySelector(".motion-rail-nav");
 
     expect(nav?.getAttribute("data-active-index")).toBe("2");
+  });
+});
+
+describe("PrimaryRail Messenger double click", () => {
+  it("opens the sidebar and requests an unread Messenger scroll when unread items exist", async () => {
+    const scrollRequest = vi.fn();
+    document.addEventListener("rudder:messenger-scroll-to-unread", scrollRequest);
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    }) as typeof globalThis.requestAnimationFrame;
+
+    await renderPrimaryRail();
+
+    const messengerLink = Array.from(document.querySelectorAll("a"))
+      .find((link) => link.textContent?.includes("Messenger"));
+    expect(messengerLink).toBeTruthy();
+
+    messengerLink?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+
+    expect(mockState.setSidebarOpen).toHaveBeenCalledWith(true);
+    expect(scrollRequest).toHaveBeenCalled();
+
+    document.removeEventListener("rudder:messenger-scroll-to-unread", scrollRequest);
   });
 });
