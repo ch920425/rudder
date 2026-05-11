@@ -202,6 +202,61 @@ describe("ProposalCard", () => {
     expect(html).toContain("Assignee · Wesley");
     expect(html).toContain("Reviewer · CTO");
   });
+
+  it("renders uploaded replying agent avatars without the assistant avatar shell", () => {
+    const html = renderProposalCard(message({
+      role: "assistant",
+      kind: "issue_proposal",
+      body: "Use the uploaded image avatar directly.",
+      replyingAgentId: "agent-1",
+      structuredPayload: {
+        title: "Review image avatar",
+        priority: "medium",
+        description: "The assistant attribution should use the raw avatar image.",
+      },
+    }), conversation({}), [
+      {
+        id: "agent-1",
+        name: "Wesley",
+        role: "engineer",
+        title: "Founding Engineer",
+        icon: "asset:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      } as Agent,
+    ]);
+
+    expect(html).toContain('src="/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content"');
+    expect(html).toContain("h-8 w-8 shrink-0");
+    expect(html).not.toContain("border-border/70");
+    expect(html).not.toContain("bg-muted/90");
+    expect(html).not.toContain("shadow-sm");
+  });
+
+  it("keeps the assistant avatar shell for emoji replying agent avatars", () => {
+    const html = renderProposalCard(message({
+      role: "assistant",
+      kind: "issue_proposal",
+      body: "Keep custom text avatars inside the existing shell.",
+      replyingAgentId: "agent-1",
+      structuredPayload: {
+        title: "Review emoji avatar",
+        priority: "medium",
+        description: "The assistant attribution should keep the non-image shell.",
+      },
+    }), conversation({}), [
+      {
+        id: "agent-1",
+        name: "Wesley",
+        role: "engineer",
+        title: "Founding Engineer",
+        icon: "WE",
+      } as Agent,
+    ]);
+
+    expect(html).toContain("border-border/70");
+    expect(html).toContain("bg-muted/90");
+    expect(html).toContain("shadow-sm");
+    expect(html).toContain(">WE</span>");
+  });
 });
 
 describe("interrupted chat messages", () => {
