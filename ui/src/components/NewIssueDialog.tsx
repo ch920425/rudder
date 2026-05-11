@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent, type DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Agent } from "@rudderhq/shared";
 import { pickTextColorForSolidBg } from "@/lib/color-contrast";
 import { findIssueLabelExactMatch, normalizeIssueLabelName, pickIssueLabelColor } from "@/lib/issue-labels";
 import { useDialog } from "../context/DialogContext";
@@ -27,7 +28,7 @@ import {
 } from "../lib/new-issue-dialog";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { buildAgentSkillMentionOptions } from "../lib/agent-skill-mentions";
-import { formatChatAgentLabel } from "../lib/agent-labels";
+import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels";
 import { getRecentAssigneeIds, sortAgentsByRecency, trackRecentAssignee } from "../lib/recent-assignees";
 import { useToast } from "../context/ToastContext";
 import {
@@ -72,6 +73,7 @@ import { resolveRuntimeModels } from "../lib/runtime-models";
 import { issueStatusText, issueStatusTextDefault } from "../lib/status-colors";
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
 import { AgentIcon } from "./AgentIconPicker";
+import { AgentTitleBadge } from "./AssigneeLabel";
 import { IssueLabelChip } from "./IssueLabelChip";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { PriorityBarsIcon, PriorityPickerOption, priorityPickerContentClassName } from "./PriorityIcon";
@@ -93,6 +95,24 @@ const STAGED_FILE_ACCEPT = "image/*,application/pdf,text/plain,text/markdown,app
 type ViewTransitionDocument = Document & {
   startViewTransition?: (callback: () => void) => { finished: Promise<void> };
 };
+
+function AgentSelectorLabel({
+  agent,
+  label,
+  className,
+}: {
+  agent: Pick<Agent, "name" | "role" | "title">;
+  label?: string;
+  className?: string;
+}) {
+  const badgeLabel = agentTitleBadgeLabel(agent);
+  return (
+    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
+      <span className="truncate">{label ?? agent.name}</span>
+      {badgeLabel ? <AgentTitleBadge label={badgeLabel} className="max-w-[8rem]" /> : null}
+    </span>
+  );
+}
 
 function buildCreatedIssueDetailHref(input: {
   issue: { id: string; identifier: string | null };
@@ -954,7 +974,7 @@ export function NewIssueDialog() {
         recentAssigneeIds,
       ).map((agent) => ({
         id: assigneeValueFromSelection({ assigneeAgentId: agent.id }),
-        label: formatChatAgentLabel(agent),
+        label: agent.name,
         searchText: `${agent.name} ${agent.role} ${agent.title ?? ""}`,
       })),
     ],
@@ -968,7 +988,7 @@ export function NewIssueDialog() {
         recentAssigneeIds,
       ).map((agent) => ({
         id: assigneeValueFromSelection({ assigneeAgentId: agent.id }),
-        label: formatChatAgentLabel(agent),
+        label: agent.name,
         searchText: `${agent.name} ${agent.role} ${agent.title ?? ""}`,
       })),
     ],
@@ -1239,7 +1259,7 @@ export function NewIssueDialog() {
                     currentAssignee ? (
                       <>
                         <AgentIcon icon={currentAssignee.icon} role={currentAssignee.role} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{option.label}</span>
+                        <AgentSelectorLabel agent={currentAssignee} label={option.label} className="flex-1" />
                       </>
                     ) : (
                       <span className="truncate">{option.label}</span>
@@ -1254,10 +1274,14 @@ export function NewIssueDialog() {
                     ? (agents ?? []).find((agent) => agent.id === parseAssigneeValue(option.id).assigneeAgentId)
                     : null;
                   return (
-                    <>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
                       {assignee ? <AgentIcon icon={assignee.icon} role={assignee.role} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
-                      <span className="truncate">{option.label}</span>
-                    </>
+                      {assignee ? (
+                        <AgentSelectorLabel agent={assignee} label={option.label} className="flex-1" />
+                      ) : (
+                        <span className="truncate">{option.label}</span>
+                      )}
+                    </span>
                   );
                 }}
               />
@@ -1334,7 +1358,7 @@ export function NewIssueDialog() {
                     currentReviewer ? (
                       <>
                         <AgentIcon icon={currentReviewer.icon} role={currentReviewer.role} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{option.label}</span>
+                        <AgentSelectorLabel agent={currentReviewer} label={option.label} className="flex-1" />
                       </>
                     ) : (
                       <span className="truncate">{option.label}</span>
@@ -1349,10 +1373,14 @@ export function NewIssueDialog() {
                     ? (agents ?? []).find((agent) => agent.id === parseAssigneeValue(option.id).assigneeAgentId)
                     : null;
                   return (
-                    <>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
                       {reviewer ? <AgentIcon icon={reviewer.icon} role={reviewer.role} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
-                      <span className="truncate">{option.label}</span>
-                    </>
+                      {reviewer ? (
+                        <AgentSelectorLabel agent={reviewer} label={option.label} className="flex-1" />
+                      ) : (
+                        <span className="truncate">{option.label}</span>
+                      )}
+                    </span>
                   );
                 }}
               />

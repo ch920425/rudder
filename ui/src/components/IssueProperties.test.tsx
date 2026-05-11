@@ -132,11 +132,14 @@ describe("IssueProperties", () => {
     const label = container.querySelector('[data-slot="assignee-label"][data-kind="agent"]');
     const trigger = label?.closest("button");
 
-    expect(label?.textContent).toContain("Ella (Chief Technology Officer)");
+    expect(label?.textContent).toContain("Ella");
+    expect(label?.textContent).toContain("Chief Technology Officer");
+    expect(label?.textContent).not.toContain("Ella (Chief Technology Officer)");
     expect(trigger?.classList.contains("min-w-0")).toBe(true);
     expect(trigger?.classList.contains("max-w-full")).toBe(true);
     expect(label?.classList.contains("min-w-0")).toBe(true);
-    expect(label?.querySelector("span:last-child")?.classList.contains("truncate")).toBe(true);
+    expect(label?.querySelector('[data-slot="agent-title-badge"]')).toBeTruthy();
+    expect(label?.querySelector('[data-slot="agent-title-badge"] span')?.classList.contains("truncate")).toBe(true);
   });
 
   it("does not render a workspace property row", () => {

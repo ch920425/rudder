@@ -8,7 +8,7 @@ import { authApi } from "../api/auth";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { useOrganization } from "../context/OrganizationContext";
-import { formatChatAgentLabel } from "../lib/agent-labels";
+import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import { queryKeys } from "../lib/queryKeys";
 import { useProjectOrder } from "../hooks/useProjectOrder";
@@ -327,7 +327,8 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
   const assigneeTrigger = assignee ? (
     <AssigneeLabel
       kind="agent"
-      label={formatChatAgentLabel(assignee)}
+      label={assignee.name}
+      badgeLabel={agentTitleBadgeLabel(assignee)}
       agentIcon={assignee.icon}
       agentRole={assignee.role}
     />
@@ -402,7 +403,13 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
             )}
             onClick={() => { trackRecentAssignee(a.id); onUpdate({ assigneeAgentId: a.id, assigneeUserId: null }); setAssigneeOpen(false); }}
           >
-            <AssigneeLabel kind="agent" label={formatChatAgentLabel(a)} agentIcon={a.icon} agentRole={a.role} />
+            <AssigneeLabel
+              kind="agent"
+              label={a.name}
+              badgeLabel={agentTitleBadgeLabel(a)}
+              agentIcon={a.icon}
+              agentRole={a.role}
+            />
           </button>
         ))}
       </div>
@@ -412,7 +419,8 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
   const reviewerTrigger = reviewer ? (
     <AssigneeLabel
       kind="agent"
-      label={formatChatAgentLabel(reviewer)}
+      label={reviewer.name}
+      badgeLabel={agentTitleBadgeLabel(reviewer)}
       agentIcon={reviewer.icon}
       agentRole={reviewer.role}
     />
@@ -470,7 +478,13 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
             )}
             onClick={() => { trackRecentAssignee(a.id); onUpdate({ reviewerAgentId: a.id, reviewerUserId: null }); setReviewerOpen(false); }}
           >
-            <AssigneeLabel kind="agent" label={formatChatAgentLabel(a)} agentIcon={a.icon} agentRole={a.role} />
+            <AssigneeLabel
+              kind="agent"
+              label={a.name}
+              badgeLabel={agentTitleBadgeLabel(a)}
+              agentIcon={a.icon}
+              agentRole={a.role}
+            />
           </button>
         ))}
       </div>

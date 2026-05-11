@@ -6,7 +6,7 @@ import { issuesApi } from "../api/issues";
 import { authApi } from "../api/auth";
 import { AgentIcon } from "./AgentIconPicker";
 import { queryKeys } from "../lib/queryKeys";
-import { formatChatAgentLabel } from "../lib/agent-labels";
+import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import { groupBy } from "../lib/groupBy";
 import { formatDate, cn } from "../lib/utils";
@@ -1057,7 +1057,8 @@ export function IssuesList({
                             {issue.assigneeAgentId && agentById.get(issue.assigneeAgentId) ? (
                               <AssigneeLabel
                                 kind="agent"
-                                label={formatChatAgentLabel(agentById.get(issue.assigneeAgentId)!)}
+                                label={agentById.get(issue.assigneeAgentId)!.name}
+                                badgeLabel={agentTitleBadgeLabel(agentById.get(issue.assigneeAgentId)!)}
                                 agentIcon={agentById.get(issue.assigneeAgentId)?.icon}
                                 agentRole={agentById.get(issue.assigneeAgentId)?.role}
                               />
@@ -1139,7 +1140,8 @@ export function IssuesList({
                                 >
                                   <AssigneeLabel
                                     kind="agent"
-                                    label={formatChatAgentLabel(agent)}
+                                    label={agent.name}
+                                    badgeLabel={agentTitleBadgeLabel(agent)}
                                     agentIcon={agent.icon}
                                     agentRole={agent.role}
                                     className="min-w-0"
