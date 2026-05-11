@@ -10,8 +10,8 @@ test.describe("Chat agent selector naming", () => {
     });
     expect(orgRes.ok()).toBe(true);
     const organization = await orgRes.json();
-    await createE2EChatAgent(page.request, organization.id, { name: "Builder" });
-    await createE2EChatAgent(page.request, organization.id, { name: "Reviewer" });
+    await createE2EChatAgent(page.request, organization.id, { name: "Builder", icon: "BB" });
+    await createE2EChatAgent(page.request, organization.id, { name: "Reviewer", icon: "RR" });
 
     await page.goto("/");
     await page.evaluate((orgId) => {
@@ -22,6 +22,7 @@ test.describe("Chat agent selector naming", () => {
 
     const agentSelector = page.getByTestId("chat-agent-selector");
     await expect(agentSelector).toContainText("Builder", { timeout: 15_000 });
+    await expect(agentSelector.getByTestId("chat-agent-selector-icon")).toContainText("BB");
     await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
     await agentSelector.click();
@@ -31,6 +32,7 @@ test.describe("Chat agent selector naming", () => {
     await agentMenuItem.click();
 
     await expect(page.getByRole("button", { name: /Reviewer/ })).toBeVisible();
+    await expect(agentSelector.getByTestId("chat-agent-selector-icon")).toContainText("RR");
     await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
     const composer = page.locator(".rudder-mdxeditor-content").first();

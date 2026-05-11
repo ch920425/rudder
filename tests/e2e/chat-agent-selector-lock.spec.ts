@@ -119,7 +119,8 @@ test.describe("Chat agent selector lock", () => {
     await page.getByRole("button", { name: "Send" }).click();
 
     await expect(agentSelector).toBeDisabled({ timeout: 15_000 });
-    await expect(agentSelector.locator("svg")).toHaveCount(0);
+    await expect(agentSelector.getByTestId("chat-agent-selector-icon")).toBeVisible();
+    await expect(agentSelector.getByTestId("chat-agent-selector-chevron")).toHaveCount(0);
 
     const backgroundBeforeHover = await agentSelector.evaluate((element) => getComputedStyle(element).backgroundColor);
     await agentSelector.hover({ force: true });

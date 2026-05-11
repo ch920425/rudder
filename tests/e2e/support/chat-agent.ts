@@ -7,6 +7,7 @@ export async function createE2EChatAgent(
   options: {
     name?: string;
     role?: string;
+    icon?: string | null;
     command?: string;
     model?: string;
     agentRuntimeConfig?: Record<string, unknown>;
@@ -16,6 +17,7 @@ export async function createE2EChatAgent(
     data: {
       name: options.name ?? "Chat Agent",
       role: options.role ?? "engineer",
+      icon: options.icon,
       agentRuntimeType: "codex_local",
       agentRuntimeConfig: options.agentRuntimeConfig ?? {
         model: options.model ?? "gpt-5.4",
