@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, forwardRef } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Automations } from "./Automations";
 
 (
@@ -11,6 +11,7 @@ import { Automations } from "./Automations";
 
 const mockNavigate = vi.fn();
 const mockSetHeaderActions = vi.fn();
+const markdownEditorProps = vi.hoisted(() => [] as Array<{ mentions?: Array<{ id: string; kind?: string; name: string }> }>);
 
 const automation = {
   id: "auto-1",
@@ -57,12 +58,59 @@ vi.mock("@tanstack/react-query", () => ({
     if (queryKey[0] === "automations") {
       return { data: [automation], isLoading: false, error: null };
     }
+    if (queryKey[0] === "organization-skills") {
+      return { data: [], isLoading: false, error: null };
+    }
+    if (queryKey[0] === "issues") {
+      return {
+        data: [
+          {
+            id: "issue-1",
+            identifier: "AUT-7",
+            title: "Review automation output",
+            status: "todo",
+            projectId: "project-1",
+            assigneeAgentId: "agent-1",
+            assigneeUserId: null,
+          },
+        ],
+        isLoading: false,
+        error: null,
+      };
+    }
+    if (queryKey[0] === "agents" && queryKey[1] === "skills") {
+      return {
+        data: {
+          agentRuntimeType: "codex_local",
+          supported: true,
+          mode: "persistent",
+          desiredSkills: ["agent:build-advisor"],
+          entries: [
+            {
+              key: "build-advisor",
+              selectionKey: "agent:build-advisor",
+              runtimeName: "build-advisor",
+              desired: true,
+              configurable: true,
+              alwaysEnabled: false,
+              managed: false,
+              state: "configured",
+              sourceClass: "agent_home",
+              sourcePath: "/workspace/agents/mira/skills/build-advisor",
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
     if (queryKey[0] === "agents") {
       return {
         data: [
           {
             id: "agent-1",
             name: "Mira",
+            urlKey: "mira",
             role: "assistant",
             title: "Zeeland Personal Assistant",
             status: "active",
@@ -101,7 +149,10 @@ vi.mock("@/lib/router", () => ({
 }));
 
 vi.mock("../context/OrganizationContext", () => ({
-  useOrganization: () => ({ selectedOrganizationId: "org-1" }),
+  useOrganization: () => ({
+    selectedOrganizationId: "org-1",
+    selectedOrganization: { id: "org-1", urlKey: "zst" },
+  }),
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -118,11 +169,29 @@ vi.mock("../context/ToastContext", () => ({
 }));
 
 vi.mock("../components/MarkdownEditor", () => ({
-  MarkdownEditor: () => <textarea aria-label="Instructions" />,
+  MarkdownEditor: forwardRef(function MockMarkdownEditor(
+    props: { mentions?: Array<{ id: string; kind?: string; name: string }> },
+    _ref,
+  ) {
+    markdownEditorProps.push(props);
+    return <textarea aria-label="Instructions" />;
+  }),
 }));
 
 vi.mock("../components/InlineEntitySelector", () => ({
-  InlineEntitySelector: () => <button type="button">Select</button>,
+  InlineEntitySelector: ({
+    options,
+    onChange,
+    placeholder,
+  }: {
+    options: Array<{ id: string; label: string }>;
+    onChange: (value: string) => void;
+    placeholder?: string;
+  }) => (
+    <button type="button" onClick={() => onChange(options[0]?.id ?? "")}>
+      {placeholder ?? "Select"}
+    </button>
+  ),
 }));
 
 vi.mock("../components/PageSkeleton", () => ({
@@ -139,10 +208,27 @@ vi.mock("../components/AgentIconPicker", () => ({
 
 let cleanupFn: (() => void) | null = null;
 
+beforeEach(() => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        storage.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        storage.delete(key);
+      }),
+    },
+  });
+});
+
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
   document.body.innerHTML = "";
+  markdownEditorProps.length = 0;
   vi.clearAllMocks();
 });
 
@@ -175,5 +261,48 @@ describe("Automations", () => {
 
     expect(container.textContent).toContain("2026-05-11 12:35:18");
     expect(container.textContent).not.toContain("issue created");
+  });
+
+  it("passes agent, project, issue, and selected-assignee skill mentions to the create editor", async () => {
+    renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const headerContainer = document.createElement("div");
+    document.body.appendChild(headerContainer);
+    const headerRoot = createRoot(headerContainer);
+    cleanupFn = ((previousCleanup) => () => {
+      act(() => {
+        headerRoot.unmount();
+      });
+      headerContainer.remove();
+      previousCleanup?.();
+    })(cleanupFn);
+
+    act(() => {
+      headerRoot.render(mockSetHeaderActions.mock.calls.at(-1)?.[0]);
+    });
+    await act(async () => {
+      headerContainer.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const baseMentionIds = markdownEditorProps.at(-1)?.mentions?.map((mention) => mention.id) ?? [];
+    expect(baseMentionIds).toEqual(expect.arrayContaining([
+      "agent:agent-1",
+      "project:project-1",
+      "issue:issue-1",
+    ]));
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent === "Assignee")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const selectedMentionIds = markdownEditorProps.at(-1)?.mentions?.map((mention) => mention.id) ?? [];
+    expect(selectedMentionIds).toContain("skill:agent:build-advisor");
   });
 });

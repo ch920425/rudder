@@ -317,6 +317,7 @@ function stopAtomicInlineTokenEvent(
 /* ---- Mention detection helpers ---- */
 
 interface MentionState {
+  trigger: "@" | "$";
   query: string;
   top: number;
   left: number;
@@ -415,20 +416,22 @@ function detectMention(container: HTMLElement): MentionState | null {
   const text = textNode.textContent ?? "";
   const offset = range.startOffset;
 
-  // Walk backwards from cursor to find @
+  // Walk backwards from cursor to find a mention trigger.
   let atPos = -1;
+  let trigger: MentionState["trigger"] | null = null;
   for (let i = offset - 1; i >= 0; i--) {
     const ch = text[i];
-    if (ch === "@") {
+    if (ch === "@" || ch === "$") {
       if (i === 0 || /\s/.test(text[i - 1])) {
         atPos = i;
+        trigger = ch;
       }
       break;
     }
     if (/\s/.test(ch)) break;
   }
 
-  if (atPos === -1) return null;
+  if (atPos === -1 || !trigger) return null;
 
   const query = text.slice(atPos + 1, offset);
 
@@ -440,6 +443,7 @@ function detectMention(container: HTMLElement): MentionState | null {
   const containerRect = container.getBoundingClientRect();
 
   return {
+    trigger,
     query,
     top: rect.bottom - containerRect.top,
     left: rect.left - containerRect.left,
@@ -670,7 +674,7 @@ function getVisibleMentionOrdinal(editable: HTMLElement | null, state: MentionSt
 }
 
 function findActiveMentionIndex(markdown: string, state: MentionState, editable: HTMLElement | null): number {
-  const search = `@${state.query}`;
+  const search = `${state.trigger}${state.query}`;
   const indexes = getAllSubstringIndexes(markdown, search);
   if (indexes.length === 0) return -1;
   if (indexes.length === 1) return indexes[0]!;
@@ -695,9 +699,9 @@ function findActiveMentionIndex(markdown: string, state: MentionState, editable:
   return ordinalIndex ?? indexes[indexes.length - 1]!;
 }
 
-/** Replace the active `@<query>` range with the selected mention token. */
+/** Replace the active trigger query range with the selected mention token. */
 function applyMention(markdown: string, state: MentionState, option: MentionOption, editable: HTMLElement | null): string {
-  const search = `@${state.query}`;
+  const search = `${state.trigger}${state.query}`;
   const replacement = mentionMarkdown(option);
   if (!replacement) return markdown;
   const idx = findActiveMentionIndex(markdown, state, editable);
@@ -829,11 +833,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     const q = mentionState.query.toLowerCase();
     return mentions
       .filter((mention) => {
+        if (mentionState.trigger === "$") {
+          if (mention.kind !== "skill") return false;
+        } else if (mention.kind === "skill") {
+          return false;
+        }
         const searchText = (mention.searchText ?? mention.name).toLowerCase();
         return searchText.includes(q);
       })
       .slice(0, 8);
-  }, [mentionState?.query, mentions]);
+  }, [mentionState?.query, mentionState?.trigger, mentions]);
   const mentionMenuPosition = useMemo(
     () => {
       if (!mentionState) return null;

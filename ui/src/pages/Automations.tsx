@@ -4,11 +4,15 @@ import { useNavigate } from "@/lib/router";
 import { ArrowRight, CircleHelp, FolderOpen, MoreHorizontal, Play, Plus, Repeat, User } from "lucide-react";
 import { automationsApi } from "../api/automations";
 import { agentsApi } from "../api/agents";
+import { issuesApi } from "../api/issues";
+import { organizationSkillsApi } from "../api/organizationSkills";
 import { projectsApi } from "../api/projects";
 import { useOrganization } from "../context/OrganizationContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToast } from "../context/ToastContext";
 import { formatChatAgentLabel } from "../lib/agent-labels";
+import { buildAgentSkillMentionOptions } from "../lib/agent-skill-mentions";
+import { buildMarkdownMentionOptions } from "../lib/markdown-mention-options";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import { queryKeys } from "../lib/queryKeys";
 import { getRecentAssigneeIds, sortAgentsByRecency, trackRecentAssignee } from "../lib/recent-assignees";
@@ -68,7 +72,7 @@ function nextAutomationStatus(currentStatus: string, enabled: boolean) {
 }
 
 export function Automations() {
-  const { selectedOrganizationId } = useOrganization();
+  const { selectedOrganizationId, selectedOrganization } = useOrganization();
   const { setBreadcrumbs, setHeaderActions } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -125,6 +129,21 @@ export function Automations() {
     queryKey: queryKeys.projects.list(selectedOrganizationId!),
     queryFn: () => projectsApi.list(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
+  });
+  const { data: issues } = useQuery({
+    queryKey: queryKeys.issues.list(selectedOrganizationId!),
+    queryFn: () => issuesApi.list(selectedOrganizationId!),
+    enabled: !!selectedOrganizationId && composerOpen,
+  });
+  const { data: assigneeOrganizationSkills } = useQuery({
+    queryKey: queryKeys.organizationSkills.list(selectedOrganizationId ?? "__none__"),
+    queryFn: () => organizationSkillsApi.list(selectedOrganizationId!),
+    enabled: Boolean(selectedOrganizationId) && composerOpen && Boolean(draft.assigneeAgentId),
+  });
+  const { data: assigneeSkillSnapshot } = useQuery({
+    queryKey: queryKeys.agents.skills(draft.assigneeAgentId || "__none__"),
+    queryFn: () => agentsApi.skills(draft.assigneeAgentId, selectedOrganizationId!),
+    enabled: Boolean(selectedOrganizationId) && composerOpen && Boolean(draft.assigneeAgentId),
   });
 
   useEffect(() => {
@@ -237,6 +256,24 @@ export function Automations() {
   );
   const currentAssignee = draft.assigneeAgentId ? agentById.get(draft.assigneeAgentId) ?? null : null;
   const currentProject = draft.projectId ? projectById.get(draft.projectId) ?? null : null;
+  const skillMentionOptions = useMemo(
+    () => buildAgentSkillMentionOptions({
+      agent: currentAssignee,
+      orgUrlKey: selectedOrganization?.urlKey ?? "organization",
+      organizationSkills: assigneeOrganizationSkills,
+      skillSnapshot: assigneeSkillSnapshot,
+    }),
+    [assigneeOrganizationSkills, assigneeSkillSnapshot, currentAssignee, selectedOrganization?.urlKey],
+  );
+  const mentionOptions = useMemo(
+    () => buildMarkdownMentionOptions({
+      agents,
+      projects,
+      issues,
+      skillMentionOptions,
+    }),
+    [agents, issues, projects, skillMentionOptions],
+  );
   const isDraftReady = Boolean(draft.title.trim() && draft.projectId && draft.assigneeAgentId);
 
   if (!selectedOrganizationId) {
@@ -313,6 +350,7 @@ export function Automations() {
               ref={descriptionEditorRef}
               value={draft.description}
               onChange={(description) => setDraft((current) => ({ ...current, description }))}
+              mentions={mentionOptions}
               placeholder="Add prompt e.g. look for crashes in Sentry"
               bordered={false}
               className="bg-transparent"

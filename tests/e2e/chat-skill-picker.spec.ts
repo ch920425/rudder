@@ -290,7 +290,7 @@ test.describe("Chat skill picker", () => {
     await expect(adapterRow).not.toContainText("Adapter skill · ~/.codex/skills");
   });
 
-  test("surfaces skills inside @ mentions and inserts a skill token", async ({ page }) => {
+  test("surfaces skills inside $ mentions and inserts a skill token", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Mention-Skill-${Date.now()}`,
@@ -338,13 +338,13 @@ test.describe("Chat skill picker", () => {
 
     const composer = page.locator(".rudder-mdxeditor-content").first();
     await expect(composer).toBeVisible({ timeout: 15_000 });
-    await composer.fill("Use @advisor");
+    await composer.fill("Use $advisor");
 
     const mentionMenu = page.getByTestId("markdown-mention-menu");
     await expect(mentionMenu).toBeVisible({ timeout: 15_000 });
     const skillOption = mentionMenu.locator('[data-testid^="markdown-mention-option-skill:"]').first();
-    await expect(skillOption).toContainText("build-advisor", { timeout: 15_000 });
-    await skillOption.click();
+    await expect(skillOption).toContainText("Build Advisor", { timeout: 15_000 });
+    await skillOption.dispatchEvent("mousedown");
 
     const insertedSkillToken = page.locator(".rudder-mdxeditor-content [data-skill-token='true']").first();
     await expect(insertedSkillToken).toBeVisible({ timeout: 15_000 });

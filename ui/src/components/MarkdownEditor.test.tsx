@@ -134,7 +134,7 @@ vi.mock("@mdxeditor/editor", async () => {
           const text = anchorNode.textContent ?? "";
           let atPos = -1;
           for (let i = offset - 1; i >= 0; i -= 1) {
-            if (text[i] === "@") {
+            if (text[i] === "@" || text[i] === "$") {
               atPos = i;
               break;
             }
@@ -515,7 +515,7 @@ describe("MarkdownEditor", () => {
     expect(onChange).toHaveBeenCalledWith("@rud first and [Rudder Project](project://project-1) second");
   });
 
-  it("uses the same active range for skill mentions", async () => {
+  it("uses $ as the active range for skill mentions", async () => {
     const restoreCaretRect = stubCaretRect();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -533,7 +533,7 @@ describe("MarkdownEditor", () => {
     act(() => {
       root.render(
         <MarkdownEditor
-          value="ask @mem now"
+          value="ask $mem now"
           onChange={onChange}
           mentions={[
             {
@@ -551,10 +551,89 @@ describe("MarkdownEditor", () => {
 
     const editable = container.querySelector('[contenteditable="true"]');
     expect(editable).toBeTruthy();
-    await placeCaretAndOpenMentionMenu(editable!, "ask @mem".length);
+    await placeCaretAndOpenMentionMenu(editable!, "ask $mem".length);
     await chooseMentionOption("skill:memory");
 
     expect(onChange).toHaveBeenCalledWith("ask [memory](skill://memory) now");
+  });
+
+  it("keeps skill options out of @ mention results", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="@build"
+          onChange={() => undefined}
+          mentions={[
+            {
+              id: "skill:build-advisor",
+              name: "build-advisor",
+              kind: "skill",
+              skillRefLabel: "build-advisor",
+              skillMarkdownTarget: "/skills/build-advisor/SKILL.md",
+              searchText: "build advisor",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "@build".length);
+
+    expect(document.body.querySelector('[data-testid="markdown-mention-menu"]')).toBeNull();
+  });
+
+  it("keeps entity options out of $ mention results", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="$rud"
+          onChange={() => undefined}
+          mentions={[
+            {
+              id: "agent:agent-1",
+              name: "Rudder Bot",
+              kind: "agent",
+              agentId: "agent-1",
+              searchText: "rudder bot",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "$rud".length);
+
+    expect(document.body.querySelector('[data-testid="markdown-mention-menu"]')).toBeNull();
   });
 
   it("renders container skill mentions with chat composer styling", async () => {
@@ -574,7 +653,7 @@ describe("MarkdownEditor", () => {
     act(() => {
       root.render(
         <MarkdownEditor
-          value="@build"
+          value="$build"
           onChange={() => undefined}
           mentionMenuPlacement="container"
           mentions={[
