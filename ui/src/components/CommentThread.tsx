@@ -72,6 +72,7 @@ interface CommentThreadProps {
   heading?: ReactNode;
   hideHeading?: boolean;
   emptyMessage?: string;
+  escapeBackWhenEmpty?: boolean;
 }
 
 const DRAFT_DEBOUNCE_MS = 800;
@@ -368,6 +369,7 @@ export function CommentThread({
   heading,
   hideHeading = false,
   emptyMessage = "No comments or runs yet.",
+  escapeBackWhenEmpty = false,
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const canReopen = shouldOfferReopen(issueStatus);
@@ -583,7 +585,11 @@ export function CommentThread({
 
       {liveRunSlot}
 
-      <div ref={composerSurfaceRef} className="chat-composer rounded-[var(--radius-lg)] p-3">
+      <div
+        ref={composerSurfaceRef}
+        className="chat-composer rounded-[var(--radius-lg)] p-3"
+        data-issue-detail-escape-back={escapeBackWhenEmpty ? (body.trim() ? "dirty" : "empty") : undefined}
+      >
         <MarkdownEditor
           ref={editorRef}
           value={body}

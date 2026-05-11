@@ -537,6 +537,42 @@ async function verifySettingsOverlayFlow(page, companyId, issuePrefix) {
   console.log("[desktop-smoke] settings modal closed");
 }
 
+async function verifyIssueDetailEscapeNavigation(page, companyId, issuePrefix, issue) {
+  console.log("[desktop-smoke] verifying issue detail Escape navigation");
+  const issueRouteId = issue.identifier ?? issue.id;
+  await page.evaluate(({ nextCompanyId, nextPath }) => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", nextCompanyId);
+    window.history.replaceState({}, "", nextPath);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, {
+    nextCompanyId: companyId,
+    nextPath: `/${issuePrefix}/issues/${issueRouteId}`,
+  });
+  await page.waitForURL(new RegExp(`/${issuePrefix}/issues/${issueRouteId}$`), { timeout: 30_000 });
+  await page.getByRole("heading", { name: issue.title }).waitFor({ state: "visible", timeout: 30_000 });
+
+  await page.keyboard.press("Escape");
+  await page.waitForURL(new RegExp(`/${issuePrefix}/issues$`), { timeout: 15_000 });
+
+  await page.evaluate(({ nextCompanyId, nextPath }) => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", nextCompanyId);
+    window.history.replaceState({}, "", nextPath);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, {
+    nextCompanyId: companyId,
+    nextPath: `/${issuePrefix}/issues/${issueRouteId}`,
+  });
+  await page.waitForURL(new RegExp(`/${issuePrefix}/issues/${issueRouteId}$`), { timeout: 30_000 });
+  await page.getByRole("heading", { name: issue.title }).waitFor({ state: "visible", timeout: 30_000 });
+
+  const commentEditor = page.locator(".chat-composer [contenteditable='true']").first();
+  await commentEditor.waitFor({ state: "visible", timeout: 30_000 });
+  await commentEditor.click();
+  await page.keyboard.press("Escape");
+  await page.waitForURL(new RegExp(`/${issuePrefix}/issues$`), { timeout: 15_000 });
+  console.log("[desktop-smoke] issue detail Escape navigation returned to issues");
+}
+
 async function assertDesktopServiceWorkersDisabled(page) {
   const state = await page.evaluate(async () => {
     const registrations = "serviceWorker" in navigator
@@ -661,6 +697,7 @@ async function runCleanScenario(mode) {
     }
     firstRun.page = await verifyReloadRecovery(firstRun.electronApp, firstRun.page, company.id, company.issuePrefix);
     firstRun.page = await verifyNativeApplicationMenu(firstRun.electronApp, firstRun.page, company.id, company.issuePrefix);
+    await verifyIssueDetailEscapeNavigation(firstRun.page, company.id, company.issuePrefix, issue);
     await verifySettingsOverlayFlow(firstRun.page, company.id, company.issuePrefix);
     console.log("[desktop-smoke] closing first app run");
     await closeDesktop(firstRun.electronApp);

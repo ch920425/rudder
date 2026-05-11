@@ -649,8 +649,13 @@ function shouldHandleIssueDetailEscape(event: KeyboardEvent) {
 
   const target = event.target instanceof HTMLElement ? event.target : null;
   if (target) {
-    if (target.isContentEditable) return false;
-    if (target.closest("input, textarea, select, [contenteditable='true']")) return false;
+    const editable = target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']");
+    if (target.isContentEditable || editable) {
+      const emptyEscapeBackSurface = target.closest("[data-issue-detail-escape-back='empty']");
+      const isContentEditableTarget = target.isContentEditable
+        || Boolean(target.closest("[contenteditable='true'], [contenteditable='plaintext-only']"));
+      if (!emptyEscapeBackSurface || !isContentEditableTarget) return false;
+    }
   }
 
   if (typeof document !== "undefined") {
@@ -1549,6 +1554,7 @@ export function IssueDetail() {
         return;
       }
       if (!shouldHandleIssueDetailEscape(event)) return;
+      event.preventDefault();
       navigate(sourceBreadcrumb.href);
     };
 
@@ -2199,6 +2205,7 @@ export function IssueDetail() {
           operatorDisplayName={operatorDisplayName}
           hideHeading
           emptyMessage="No activity yet."
+          escapeBackWhenEmpty
           onAdd={async (body, reopen, reassignment) => {
             if (reassignment) {
               await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
