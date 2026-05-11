@@ -14,7 +14,8 @@ test.describe("Issue reviewer routing", () => {
     const reviewerRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/agents`, {
       data: {
         name: "Review Bot",
-        role: "reviewer",
+        role: "cto",
+        title: "Chief Technology Officer",
       },
     });
     expect(reviewerRes.ok()).toBe(true);
@@ -33,7 +34,11 @@ test.describe("Issue reviewer routing", () => {
     await dialog.getByPlaceholder("Issue title").fill("Reviewer routed issue");
     await dialog.getByRole("button", { name: "Reviewer" }).click();
     await dialog.getByPlaceholder("Search reviewers...").fill("Review Bot");
+    const reviewerBadge = dialog.locator('[data-slot="agent-title-badge"]').filter({ hasText: "Chief Technology Officer" });
+    await expect(reviewerBadge.first()).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Review Bot (Chief Technology Officer)" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Review Bot" }).click();
+    await expect(reviewerBadge.first()).toBeVisible();
 
     const createResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" &&
@@ -48,5 +53,6 @@ test.describe("Issue reviewer routing", () => {
     await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues/${createdIssue.identifier}`);
     await expect(page.getByText("Reviewer", { exact: true })).toBeVisible();
     await expect(page.getByText("Review Bot", { exact: true })).toBeVisible();
+    await expect(page.locator('[data-slot="agent-title-badge"]').filter({ hasText: "Chief Technology Officer" })).toBeVisible();
   });
 });

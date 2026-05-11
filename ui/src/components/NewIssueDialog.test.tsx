@@ -45,6 +45,8 @@ vi.mock("@tanstack/react-query", () => ({
             name: "Ella",
             urlKey: "ella",
             icon: null,
+            role: "cto",
+            title: "Chief Technology Officer",
             status: "active",
             agentRuntimeType: "codex_local",
           },
@@ -163,9 +165,37 @@ vi.mock("./MarkdownEditor", () => ({
 }));
 
 vi.mock("./InlineEntitySelector", () => ({
-  InlineEntitySelector: ({ placeholder, variant }: { placeholder?: string; variant?: string }) => (
-    <button type="button" data-variant={variant}>{placeholder ?? "selector"}</button>
-  ),
+  InlineEntitySelector: ({
+    value,
+    options,
+    placeholder,
+    renderTriggerValue,
+    renderOption,
+    variant,
+  }: {
+    value?: string;
+    options?: Array<{ id: string; label: string }>;
+    placeholder?: string;
+    renderTriggerValue?: (option: { id: string; label: string } | null) => ReactNode;
+    renderOption?: (option: { id: string; label: string }, isSelected: boolean) => ReactNode;
+    variant?: string;
+  }) => {
+    const selectedOption = options?.find((option) => option.id === value) ?? null;
+    return (
+      <div data-selector-placeholder={placeholder} data-variant={variant}>
+        <button type="button">
+          {renderTriggerValue ? renderTriggerValue(selectedOption) : (selectedOption?.label ?? placeholder ?? "selector")}
+        </button>
+        <div>
+          {(options ?? []).map((option) => (
+            <div key={option.id || "__none__"} data-option-id={option.id}>
+              {renderOption ? renderOption(option, option.id === value) : option.label}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  },
 }));
 
 vi.mock("./AgentIconPicker", () => ({
@@ -246,6 +276,14 @@ describe("NewIssueDialog", () => {
 
     expect(html).toContain('data-variant="field"');
     expect((html.match(/data-variant="field"/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("renders agent selector titles as badges instead of parenthesized label text", () => {
+    const html = renderToStaticMarkup(<NewIssueDialog />);
+
+    expect(html).toContain('data-slot="agent-title-badge"');
+    expect(html).toContain("Chief Technology Officer");
+    expect(html).not.toContain("Ella (Chief Technology Officer)");
   });
 
   it("uses a wider dialog with a compact description editor", () => {

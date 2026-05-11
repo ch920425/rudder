@@ -9,13 +9,29 @@ type AssigneeLabelKind = "agent" | "user" | "unassigned";
 interface AssigneeLabelProps {
   kind: AssigneeLabelKind;
   label: string;
+  badgeLabel?: string | null;
   agentIcon?: string | null;
   agentRole?: AgentRole | null;
   className?: string;
   muted?: boolean;
 }
 
-export function AssigneeLabel({ kind, label, agentIcon, agentRole, className, muted = false }: AssigneeLabelProps) {
+export function AgentTitleBadge({ label, className }: { label: string; className?: string }) {
+  return (
+    <span
+      data-slot="agent-title-badge"
+      className={cn(
+        "inline-flex min-w-0 max-w-[9rem] shrink items-center rounded-sm border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-muted-foreground",
+        className,
+      )}
+      title={label}
+    >
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+export function AssigneeLabel({ kind, label, badgeLabel, agentIcon, agentRole, className, muted = false }: AssigneeLabelProps) {
   return (
     <span
       data-slot="assignee-label"
@@ -37,7 +53,10 @@ export function AssigneeLabel({ kind, label, agentIcon, agentRole, className, mu
           </AvatarFallback>
         </Avatar>
       )}
-      <span className={cn("truncate text-xs", muted && "text-muted-foreground")}>{label}</span>
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+        <span className={cn("truncate text-xs", muted && "text-muted-foreground")}>{label}</span>
+        {badgeLabel ? <AgentTitleBadge label={badgeLabel} /> : null}
+      </span>
     </span>
   );
 }
