@@ -244,6 +244,7 @@ afterEach(() => {
   cleanupFn = null;
   resetIssueDraftStorage();
   document.body.innerHTML = "";
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -259,6 +260,63 @@ function renderSidebar() {
 }
 
 describe("ThreeColumnContextSidebar issue draft recovery", () => {
+  it("uses auto-hidden scrollbars for the issues sidebar main scroll region", () => {
+    vi.useFakeTimers();
+
+    renderSidebar();
+
+    const scrollRegion = document.querySelector("[data-testid='issue-sidebar-scroll']") as HTMLDivElement | null;
+    expect(scrollRegion).not.toBeNull();
+    expect(scrollRegion?.classList.contains("scrollbar-auto-hide")).toBe(true);
+    expect(scrollRegion?.classList.contains("overflow-y-auto")).toBe(true);
+
+    act(() => {
+      scrollRegion?.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(scrollRegion?.classList.contains("is-scrolling")).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(701);
+    });
+
+    expect(scrollRegion?.classList.contains("is-scrolling")).toBe(false);
+  });
+
+  it("uses auto-hidden scrollbars for sibling context sidebar scroll regions", () => {
+    mockState.pathname = "/RUD/projects";
+    mockState.relativePath = "/projects";
+    mockState.projects = [
+      { id: "project-1", name: "Launch Prep", archivedAt: null, color: "blue", urlKey: "launch-prep" },
+    ];
+
+    renderSidebar();
+
+    expect(document.querySelector("[data-testid='workspace-projects-scroll']")?.classList.contains("scrollbar-auto-hide")).toBe(true);
+  });
+
+  it("uses auto-hidden scrollbars for chat and agent context sidebars", () => {
+    mockState.pathname = "/RUD/chat/chat-1";
+    mockState.relativePath = "/chat/chat-1";
+
+    renderSidebar();
+
+    expect(document.querySelector("[data-testid='chat-sidebar-scroll']")?.classList.contains("scrollbar-auto-hide")).toBe(true);
+
+    act(() => {
+      cleanupFn?.();
+    });
+    cleanupFn = null;
+    document.body.innerHTML = "";
+
+    mockState.pathname = "/RUD/agents/penelope/dashboard";
+    mockState.relativePath = "/agents/penelope/dashboard";
+
+    renderSidebar();
+
+    expect(document.querySelector("[data-testid='agent-sidebar-scroll']")?.classList.contains("scrollbar-auto-hide")).toBe(true);
+  });
+
   it("collapses the desktop workspace sidebar from the context header", () => {
     mockState.isMobile = false;
 
@@ -402,6 +460,7 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
 
     const recentList = document.querySelector("[data-testid='issue-recent-list']") as HTMLDivElement | null;
     expect(recentList?.className).toContain("max-h-72");
+    expect(recentList?.className).toContain("scrollbar-auto-hide");
     expect(recentList?.className).toContain("overflow-y-auto");
     expect(document.querySelector("[data-testid='issue-recent-row-issue-12']")?.textContent).toContain("Recent issue 12");
     expect(document.body.textContent).not.toContain("Showing latest 12 of 12");
