@@ -840,6 +840,105 @@ describe("chat routes", () => {
     );
   });
 
+  it("stores generated assistant images as chat attachments", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Generate a UI");
+    const assistantMessage = createMessage("message-assistant", "assistant", "message", "Generated a mockup.");
+    const generatedAttachment = {
+      id: "attachment-generated",
+      orgId: "organization-1",
+      conversationId: "chat-1",
+      messageId: "message-assistant",
+      assetId: "asset-generated",
+      provider: "local_disk",
+      objectKey: "chats/chat-1/generated/ig_test.png",
+      contentType: "image/png",
+      byteSize: 8,
+      sha256: "sha256-generated",
+      originalFilename: "ig_test.png",
+      createdByAgentId: "agent-1",
+      createdByUserId: null,
+      contentPath: "/api/assets/asset-generated/content",
+      createdAt: new Date("2026-03-26T08:01:00.000Z"),
+      updatedAt: new Date("2026-03-26T08:01:00.000Z"),
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(assistantMessage);
+    mockChatService.createAttachment.mockResolvedValueOnce(generatedAttachment);
+    mockStorage.putFile.mockResolvedValueOnce({
+      provider: "local_disk",
+      objectKey: "chats/chat-1/generated/ig_test.png",
+      contentType: "image/png",
+      byteSize: 8,
+      sha256: "sha256-generated",
+      originalFilename: "ig_test.png",
+    });
+    mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
+      outcome: "completed",
+      partialBody: "Generated a mockup.",
+      replyingAgentId: "agent-1",
+      reply: {
+        kind: "message",
+        body: "Generated a mockup.",
+        structuredPayload: null,
+        replyingAgentId: "agent-1",
+        generatedAttachments: [{
+          source: "codex_image_generation",
+          originalFilename: "ig_test.png",
+          contentType: "image/png",
+          body: Buffer.from("fake-png"),
+          toolCallId: "ig_test",
+        }],
+      },
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages/stream")
+      .send({ body: "Generate a UI" })
+      .buffer(true)
+      .parse((response, callback) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          text += chunk;
+        });
+        response.on("end", () => callback(null, text));
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockStorage.putFile).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: "organization-1",
+      namespace: "chats/chat-1/generated",
+      originalFilename: "ig_test.png",
+      contentType: "image/png",
+      body: Buffer.from("fake-png"),
+    }));
+    expect(mockChatService.createAttachment).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: "organization-1",
+      conversationId: "chat-1",
+      messageId: "message-assistant",
+      createdByAgentId: "agent-1",
+      createdByUserId: null,
+    }));
+
+    const events = String(res.body)
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events.at(-1)).toEqual(expect.objectContaining({
+      type: "final",
+      messages: [
+        expect.objectContaining({
+          id: "message-assistant",
+          attachments: [expect.objectContaining({ id: "attachment-generated", contentPath: "/api/assets/asset-generated/content" })],
+        }),
+      ],
+    }));
+  });
+
   it("persists the selected agent as replyingAgentId for preferred-agent chats", async () => {
     const conversation = createConversation({
       preferredAgentId: "agent-1",

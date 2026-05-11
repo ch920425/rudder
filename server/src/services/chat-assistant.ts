@@ -34,6 +34,15 @@ export interface ChatAssistantResult {
   body: string;
   structuredPayload: Record<string, unknown> | null;
   replyingAgentId?: string | null;
+  generatedAttachments?: ChatGeneratedAttachment[];
+}
+
+export interface ChatGeneratedAttachment {
+  source: "codex_image_generation";
+  originalFilename: string;
+  contentType: string;
+  body: Buffer;
+  toolCallId?: string | null;
 }
 
 export interface GenerateChatAssistantReplyInput {
@@ -67,11 +76,13 @@ export type StreamChatAssistantReplyResult =
 
 export class ChatAssistantStreamError extends Error {
   partialBody: string;
+  generatedAttachments: ChatGeneratedAttachment[];
 
-  constructor(message: string, partialBody: string) {
+  constructor(message: string, partialBody: string, generatedAttachments: ChatGeneratedAttachment[] = []) {
     super(message);
     this.name = "ChatAssistantStreamError";
     this.partialBody = partialBody;
+    this.generatedAttachments = generatedAttachments;
   }
 }
 
@@ -348,6 +359,80 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function extractImageGenerationItem(event: Record<string, unknown>) {
+  const direct = event.type === "image_generation_call" ? event : null;
+  const item = asRecord(event.item);
+  const payload = asRecord(event.payload);
+  const candidate = direct ?? item ?? payload;
+  if (candidate?.type !== "image_generation_call") return null;
+  return candidate;
+}
+
+function base64PngToBuffer(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const base64 = trimmed.includes(",") ? trimmed.slice(trimmed.indexOf(",") + 1) : trimmed;
+  if (!/^[a-zA-Z0-9+/=\s]+$/.test(base64)) return null;
+  try {
+    const buffer = Buffer.from(base64.replace(/\s+/g, ""), "base64");
+    if (buffer.length <= 0) return null;
+    return buffer;
+  } catch {
+    return null;
+  }
+}
+
+function extractGeneratedAttachments(result: AgentRuntimeExecutionResult): ChatGeneratedAttachment[] {
+  const raw =
+    result.resultJson && typeof result.resultJson === "object" && !Array.isArray(result.resultJson)
+      ? (result.resultJson as Record<string, unknown>)
+      : null;
+  const stdout = typeof raw?.stdout === "string" ? raw.stdout : "";
+  if (!stdout) return [];
+
+  const attachments: ChatGeneratedAttachment[] = [];
+  const seen = new Set<string>();
+  for (const rawLine of stdout.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || !line.includes("image_generation_call")) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    const event = asRecord(parsed);
+    if (!event) continue;
+    const item = extractImageGenerationItem(event);
+    if (!item) continue;
+    const buffer = base64PngToBuffer(item.result);
+    if (!buffer) continue;
+
+    const toolCallId = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+    const key = toolCallId ?? `${buffer.length}:${buffer.subarray(0, 32).toString("base64")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const filenameStem = toolCallId?.replace(/[^a-zA-Z0-9._-]+/g, "_") || `generated-image-${attachments.length + 1}`;
+    attachments.push({
+      source: "codex_image_generation",
+      originalFilename: `${filenameStem}.png`,
+      contentType: "image/png",
+      body: buffer,
+      toolCallId,
+    });
+  }
+  return attachments;
 }
 
 function validateAssistantResult(
@@ -698,8 +783,18 @@ function parseAssistantEnvelope(rawText: string, resultSentinel: string) {
   };
 }
 
-function parseCompletedAssistantReply(rawText: string, resultSentinel: string): ChatAssistantResult {
+function parseCompletedAssistantReply(
+  rawText: string,
+  resultSentinel: string,
+  options: { requireSentinel?: boolean } = {},
+): ChatAssistantResult {
   const enveloped = parseAssistantEnvelope(rawText, resultSentinel);
+  if (options.requireSentinel && !enveloped.usedSentinel) {
+    throw new Error("Chat adapter completed without the required Rudder result sentinel");
+  }
+  if (options.requireSentinel && enveloped.usedSentinel && !enveloped.jsonPayload) {
+    throw new Error("Chat adapter emitted the Rudder result sentinel without a valid JSON payload");
+  }
   if (enveloped.jsonPayload) {
     return validateAssistantResult(enveloped.jsonPayload, {
       bodyFallback: enveloped.usedSentinel ? enveloped.visibleBody : null,
@@ -1159,9 +1254,22 @@ export function chatAssistantService(db: Db) {
     await maybeEmitAssistantState(input.onAssistantState, "finalizing");
 
     const raw = resultText(result) || assistantTextAccumulator.fullText;
-    const reply = parseCompletedAssistantReply(raw, resultSentinel);
+    const generatedAttachments = extractGeneratedAttachments(result);
+    let reply: ChatAssistantResult;
+    try {
+      reply = parseCompletedAssistantReply(raw, resultSentinel, { requireSentinel: true });
+    } catch (error) {
+      throw new ChatAssistantStreamError(
+        error instanceof Error ? error.message : "Chat adapter returned an invalid final reply",
+        partialBody,
+        generatedAttachments,
+      );
+    }
     const finalBody = reply.body;
     reply.replyingAgentId = runtimeAgentId;
+    if (generatedAttachments.length > 0) {
+      reply.generatedAttachments = generatedAttachments;
+    }
 
     const streamedBody = safeTrim(sentinelStream.visibleText) ?? "";
     if (finalBody && finalBody !== streamedBody) {
