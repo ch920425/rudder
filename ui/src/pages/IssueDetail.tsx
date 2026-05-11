@@ -136,6 +136,7 @@ const ACTION_LABELS: Record<string, string> = {
   "issue.updated": "updated the issue",
   "issue.checked_out": "checked out the issue",
   "issue.released": "released the issue",
+  "issue.code_committed": "committed code",
   "issue.passive_followup_queued": "queued passive follow-up",
   "issue.closure_needs_operator_review": "needs operator review for close-out",
   "issue.review_decision_recorded": "recorded a reviewer decision",
@@ -502,6 +503,12 @@ function formatAction(
   agentMap: Map<string, Agent>,
   currentBoardUserId?: string | null,
 ): string {
+  if (action === "issue.code_committed" && details) {
+    const shortSha = typeof details.shortSha === "string" ? details.shortSha : null;
+    const subject = typeof details.subject === "string" ? details.subject : null;
+    if (shortSha && subject) return `committed ${shortSha}: ${subject}`;
+    if (shortSha) return `committed ${shortSha}`;
+  }
   if (action === "issue.updated" && details) {
     const previous = (details._previous ?? {}) as Record<string, unknown>;
     const parts: string[] = [];

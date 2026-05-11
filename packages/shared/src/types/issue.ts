@@ -169,6 +169,16 @@ export interface IssueComment {
   updatedAt: Date;
 }
 
+export interface IssueCommitReport {
+  ok: true;
+  issueId: string;
+  sha: string;
+  shortSha: string;
+  message: string;
+  subject: string;
+  runId: string | null;
+}
+
 export type IssueAttachmentUsage =
   | "issue"
   | "description_inline"

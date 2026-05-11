@@ -286,6 +286,60 @@ describe("issue lifecycle routes", () => {
     expect(res.body.issueDocumentsPrompt).toContain("Confirm whether agents can see issue docs.");
   });
 
+  it("records agent-reported commit activity with the authenticated agent and run", async () => {
+    const issue = makeIssue({
+      status: "in_progress",
+      assigneeAgentId: ASSIGNEE_AGENT_ID,
+      title: "Add commit activity",
+    });
+    mockIssueService.getById.mockResolvedValue(issue);
+
+    const res = await request(createApp(createAgentActor()))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/commit")
+      .send({
+        sha: "ABC1234def5678",
+        message: "fix: record commit activity",
+        branch: "feature/commit-activity",
+        repoPath: "/repo/rudder",
+        workspacePath: "/workspace/rudder",
+        commitCount: 2,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      ok: true,
+      issueId: issue.id,
+      sha: "abc1234def5678",
+      shortSha: "abc1234",
+      subject: "fix: record commit activity",
+      runId: RUN_ID,
+    });
+    expect(mockIssueService.assertCheckoutOwner).toHaveBeenCalledWith(issue.id, ASSIGNEE_AGENT_ID, RUN_ID);
+    expect(mockHeartbeatService.reportRunActivity).toHaveBeenCalledWith(RUN_ID);
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        orgId: issue.orgId,
+        actorType: "agent",
+        actorId: ASSIGNEE_AGENT_ID,
+        agentId: ASSIGNEE_AGENT_ID,
+        runId: RUN_ID,
+        action: "issue.code_committed",
+        entityType: "issue",
+        entityId: issue.id,
+        details: expect.objectContaining({
+          sha: "abc1234def5678",
+          shortSha: "abc1234",
+          subject: "fix: record commit activity",
+          branch: "feature/commit-activity",
+          repoPath: "/repo/rudder",
+          workspacePath: "/workspace/rudder",
+          commitCount: 2,
+        }),
+      }),
+    );
+  });
+
   it("reorders an issue within an organization lane and logs activity", async () => {
     const issue = makeIssue({
       boardOrder: 2000,

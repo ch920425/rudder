@@ -13,6 +13,7 @@ const ACTION_VERBS: Record<string, string> = {
   "issue.checked_out": "checked out",
   "issue.released": "released",
   "issue.comment_added": "commented on",
+  "issue.code_committed": "committed",
   "issue.attachment_added": "attached file to",
   "issue.attachment_removed": "removed attachment from",
   "issue.document_created": "created document for",
@@ -54,6 +55,12 @@ function humanizeValue(value: unknown): string {
 }
 
 function formatVerb(action: string, details?: Record<string, unknown> | null): string {
+  if (action === "issue.code_committed" && details) {
+    const shortSha = typeof details.shortSha === "string" ? details.shortSha : null;
+    const subject = typeof details.subject === "string" ? details.subject : null;
+    if (shortSha && subject) return `committed ${shortSha}: ${subject} to`;
+    if (shortSha) return `committed ${shortSha} to`;
+  }
   if (action === "issue.updated" && details) {
     const previous = (details._previous ?? {}) as Record<string, unknown>;
     if (details.status !== undefined) {

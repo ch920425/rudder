@@ -5,6 +5,7 @@ import {
   addIssueCommentSchema,
   checkoutIssueSchema,
   createIssueSchema,
+  reportIssueCommitSchema,
   updateIssueSchema,
   upsertIssueDocumentSchema,
   type DocumentRevision,
@@ -14,6 +15,7 @@ import {
   type Issue,
   type IssueAttachment,
   type IssueComment,
+  type IssueCommitReport,
 } from "@rudderhq/shared";
 import {
   addCommonClientOptions,
@@ -72,6 +74,15 @@ interface IssueCommentOptions extends BaseClientOptions {
   body: string;
   image?: string[];
   reopen?: boolean;
+}
+
+interface IssueCommitOptions extends BaseClientOptions {
+  sha: string;
+  message: string;
+  branch?: string;
+  repoPath?: string;
+  workspacePath?: string;
+  count?: string;
 }
 
 interface IssueCheckoutOptions extends BaseClientOptions {
@@ -368,6 +379,36 @@ export function registerIssueCommands(program: Command): void {
             comment: opts.comment,
           });
           printOutput(updated, { json: ctx.json });
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    issue
+      .command("commit")
+      .description(getAgentCliCapabilityById("issue.commit").description)
+      .argument("<issueId>", "Issue ID")
+      .requiredOption("--sha <sha>", "Commit SHA")
+      .requiredOption("--message <subject>", "Commit subject or message")
+      .option("--branch <name>", "Branch name")
+      .option("--repo-path <path>", "Repository path")
+      .option("--workspace-path <path>", "Workspace path")
+      .option("--count <n>", "Number of commits represented by this report")
+      .action(async (issueId: string, opts: IssueCommitOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const payload = reportIssueCommitSchema.parse({
+            sha: opts.sha,
+            message: opts.message,
+            branch: opts.branch,
+            repoPath: opts.repoPath,
+            workspacePath: opts.workspacePath,
+            commitCount: parseOptionalInt(opts.count),
+          });
+          const reported = await ctx.api.post<IssueCommitReport>(`/api/issues/${issueId}/commit`, payload);
+          printOutput(reported, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }

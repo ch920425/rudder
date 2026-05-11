@@ -27,6 +27,7 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 | `rudder issue comments get <issue> <comment-id>` | Read one issue comment by id. | no | no | no | no |
 | `rudder issue update <issue> ... [--image <path>]` | Apply generic issue updates when workflow commands are not enough, optionally uploading images for the update comment. | yes | no | no | attached when available |
 | `rudder issue review <issue> --decision <decision> --comment <text>` | Record a structured reviewer decision with a required comment. | yes | no | no | attached when available |
+| `rudder issue commit <issue> --sha <sha> --message <subject>` | Report a code commit created during issue work as structured issue activity. | yes | no | no | attached when available |
 | `rudder issue done <issue> --comment <text> [--image <path>]` | Mark an issue done with a required completion comment, optionally uploading images. | yes | no | no | attached when available |
 | `rudder issue block <issue> --comment <text> [--image <path>]` | Mark an issue blocked with a required blocker comment, optionally uploading images. | yes | no | no | attached when available |
 | `rudder issue release <issue>` | Release an issue back to todo and clear ownership. | yes | no | no | attached when available |

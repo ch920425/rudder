@@ -167,6 +167,7 @@ export type {
   IssueAssigneeAgentRuntimeOverrides,
   IssueSearchMatch,
   IssueComment,
+  IssueCommitReport,
   IssueDocument,
   IssueDocumentSummary,
   DocumentRevision,

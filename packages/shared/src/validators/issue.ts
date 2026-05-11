@@ -116,6 +116,17 @@ export const addIssueCommentSchema = z.object({
 
 export type AddIssueComment = z.infer<typeof addIssueCommentSchema>;
 
+export const reportIssueCommitSchema = z.object({
+  sha: z.string().trim().regex(/^[0-9a-f]{7,64}$/i, "Commit SHA must be 7 to 64 hexadecimal characters"),
+  message: z.string().trim().min(1).max(500),
+  branch: z.string().trim().min(1).max(255).optional().nullable(),
+  repoPath: z.string().trim().min(1).max(2048).optional().nullable(),
+  workspacePath: z.string().trim().min(1).max(2048).optional().nullable(),
+  commitCount: z.number().int().positive().max(1000).optional(),
+});
+
+export type ReportIssueCommit = z.infer<typeof reportIssueCommitSchema>;
+
 export const linkIssueApprovalSchema = z.object({
   approvalId: z.string().uuid(),
 });

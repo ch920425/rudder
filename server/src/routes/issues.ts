@@ -11,6 +11,7 @@ import {
   checkoutIssueSchema,
   createIssueSchema,
   linkIssueApprovalSchema,
+  reportIssueCommitSchema,
   issueDocumentKeySchema,
   reorderIssueSchema,
   updateIssueLabelSchema,
@@ -212,6 +213,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
   function reviewerDecisionRequiresHumanHandoff(decision: string) {
     return decision === "blocked";
+  }
+
+  function commitSubject(message: string) {
+    return message.split(/\r?\n/, 1)[0]?.trim() || message.trim();
   }
 
   // Resolve issue identifiers (e.g. "PAP-39") to UUIDs for all /issues/:id routes
@@ -1588,6 +1593,64 @@ export function issueRoutes(db: Db, storage: StorageService) {
     });
 
     res.json(released);
+  });
+
+  router.post("/issues/:id/commit", validate(reportIssueCommitSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const issue = await svc.getById(id);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.orgId);
+    if (req.actor.type !== "agent") {
+      res.status(403).json({ error: "Agent authentication required" });
+      return;
+    }
+    if (!(await assertAgentRunCheckoutOwnership(req, res, issue))) return;
+
+    const actor = getActorInfo(req);
+    const sha = req.body.sha.trim().toLowerCase();
+    const subject = commitSubject(req.body.message);
+    const shortSha = sha.slice(0, 7);
+
+    if (actor.runId) {
+      await heartbeat.reportRunActivity(actor.runId).catch((err) =>
+        logger.warn({ err, runId: actor.runId }, "failed to clear detached run warning after issue commit activity"));
+    }
+
+    await logActivity(db, {
+      orgId: issue.orgId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "issue.code_committed",
+      entityType: "issue",
+      entityId: issue.id,
+      details: {
+        sha,
+        shortSha,
+        message: req.body.message,
+        subject,
+        identifier: issue.identifier,
+        issueTitle: issue.title,
+        branch: req.body.branch ?? null,
+        repoPath: req.body.repoPath ?? null,
+        workspacePath: req.body.workspacePath ?? null,
+        commitCount: req.body.commitCount ?? 1,
+      },
+    });
+
+    res.status(201).json({
+      ok: true,
+      issueId: issue.id,
+      sha,
+      shortSha,
+      message: req.body.message,
+      subject,
+      runId: actor.runId,
+    });
   });
 
   router.get("/issues/:id/comments", async (req, res) => {

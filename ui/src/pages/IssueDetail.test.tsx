@@ -610,6 +610,19 @@ describe("IssueDetail", () => {
         createdAt: new Date("2026-04-20T01:20:00.000Z"),
       },
       {
+        id: "activity-code-committed",
+        orgId: "org-2",
+        actorType: "agent",
+        actorId: "agent-1",
+        action: "issue.code_committed",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: "agent-1",
+        runId: "run-1",
+        details: { shortSha: "abc1234", subject: "fix: report code commit" },
+        createdAt: new Date("2026-04-20T01:22:00.000Z"),
+      },
+      {
         id: "activity-human-intervention",
         orgId: "org-2",
         actorType: "agent",
@@ -629,6 +642,7 @@ describe("IssueDetail", () => {
     expect(html).toContain("assigned the issue to Builder");
     expect(html).toContain("changed the reviewer from Builder to Me");
     expect(html).toContain("confirmed blocker; operator handoff needed");
+    expect(html).toContain("committed abc1234: fix: report code commit");
     expect(html).toContain("requested human intervention");
     expect(html).not.toContain("updated the description");
     expect(html).not.toContain("Hidden document update unique");

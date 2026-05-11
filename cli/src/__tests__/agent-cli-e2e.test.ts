@@ -11,6 +11,7 @@ import {
   agentApiKeys,
   agents,
   applyPendingMigrations,
+  activityLog,
   createDb,
   ensurePostgresDatabase,
   issueAttachments,
@@ -25,6 +26,7 @@ import type {
   ApprovalComment,
   Issue,
   IssueComment,
+  IssueCommitReport,
   OrganizationSkillDetail,
   OrganizationSkillFileDetail,
   OrganizationSkillListItem,
@@ -612,6 +614,61 @@ describe("agent CLI e2e", () => {
       env,
     });
     expect(commentSearch.map((issue) => issue.id)).toContain(issueId);
+
+    const commit = await runCliJson<IssueCommitReport>(
+      [
+        "issue",
+        "commit",
+        issueId,
+        "--sha",
+        "ABC1234def5678",
+        "--message",
+        "fix: report code commit",
+        "--branch",
+        "feature/commit-activity",
+        "--repo-path",
+        tempRoot,
+        "--count",
+        "2",
+      ],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+    expect(commit).toMatchObject({
+      ok: true,
+      issueId,
+      sha: "abc1234def5678",
+      shortSha: "abc1234",
+      subject: "fix: report code commit",
+      runId,
+    });
+
+    const db = createDb(connectionString);
+    const commitActivities = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.action, "issue.code_committed"));
+    const commitActivity = commitActivities.find((row) => row.entityId === issueId);
+    expect(commitActivity).toBeTruthy();
+    expect(commitActivity).toMatchObject({
+      actorType: "agent",
+      actorId: agentId,
+      agentId,
+      runId,
+      entityType: "issue",
+      entityId: issueId,
+    });
+    expect(commitActivity?.details).toMatchObject({
+      sha: "abc1234def5678",
+      shortSha: "abc1234",
+      subject: "fix: report code commit",
+      branch: "feature/commit-activity",
+      repoPath: tempRoot,
+      commitCount: 2,
+    });
 
     const done = await runCliJson<Issue>(["issue", "done", issueId, "--comment", "Completed via CLI."], {
       apiBase,
