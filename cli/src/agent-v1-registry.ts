@@ -371,7 +371,7 @@ const AGENT_CLI_CAPABILITIES: AgentCliCapability[] = [
     id: "issue.create",
     command: "rudder issue create --org-id <id> ...",
     category: "issue",
-    description: "Create a new issue or subtask with the generic issue surface.",
+    description: "Create a new issue or subtask with the generic issue surface; agent-created issues default to the creating agent when no assignee is supplied.",
     mutating: true,
     contract: "compat",
     requiresOrgId: true,

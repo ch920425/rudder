@@ -971,10 +971,20 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
 
     const actor = getActorInfo(req);
-    const issue = await svc.create(orgId, {
+    const createInput = {
       ...req.body,
       createdByAgentId: actor.agentId,
       createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+    };
+    const hasExplicitAssignee =
+      Object.prototype.hasOwnProperty.call(req.body, "assigneeAgentId") ||
+      Object.prototype.hasOwnProperty.call(req.body, "assigneeUserId");
+    if (actor.actorType === "agent" && actor.agentId && !hasExplicitAssignee) {
+      createInput.assigneeAgentId = actor.agentId;
+    }
+
+    const issue = await svc.create(orgId, {
+      ...createInput,
     });
 
     await logActivity(db, {

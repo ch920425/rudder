@@ -209,6 +209,8 @@ rudder issue update "<issue-id-or-identifier>" ... --json
 rudder issue create --org-id "$RUDDER_ORG_ID" ... --json
 ```
 
+When you create an issue as an authenticated agent without an assignee, Rudder assigns it to you by default. Pass an explicit assignee only when the new issue should belong to someone else.
+
 Always set `parentId`. Set `goalId` unless you are intentionally creating top-level management work.
 
 ## Organization Skills Workflow

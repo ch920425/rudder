@@ -364,6 +364,7 @@ describe("agent CLI e2e", () => {
 
   let orgId = "";
   let agentId = "";
+  let peerAgentId = "";
   let agentKey = "";
   let issueId = "";
   let firstCommentId = "";
@@ -444,6 +445,18 @@ describe("agent CLI e2e", () => {
       agentRuntimeConfig: { cwd: tempRoot },
       runtimeConfig: {},
       permissions: { canCreateAgents: true },
+    });
+    peerAgentId = randomUUID();
+    await db.insert(agents).values({
+      id: peerAgentId,
+      orgId,
+      name: "CLI Peer",
+      role: "engineer",
+      title: "CLI Peer",
+      status: "idle",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: { cwd: tempRoot },
+      runtimeConfig: {},
     });
 
     agentKey = createApiKeyToken();
@@ -600,6 +613,82 @@ describe("agent CLI e2e", () => {
       env,
     });
     expect(done.status).toBe("done");
+  });
+
+  it("defaults agent-created issues to the creating agent", { timeout: 60_000 }, async () => {
+    const env = {
+      RUDDER_API_KEY: agentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: agentId,
+      RUDDER_RUN_ID: runId,
+    };
+
+    const createdByCli = await runCliJson<Issue>(
+      ["issue", "create", "--title", "Agent default assignee", "--status", "todo"],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+    expect(createdByCli.createdByAgentId).toBe(agentId);
+    expect(createdByCli.assigneeAgentId).toBe(agentId);
+    expect(createdByCli.assigneeUserId).toBeNull();
+
+    const explicitAssignee = await runCliJson<Issue>(
+      [
+        "issue",
+        "create",
+        "--title",
+        "Agent explicit assignee",
+        "--status",
+        "todo",
+        "--assignee-agent-id",
+        peerAgentId,
+      ],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+    expect(explicitAssignee.createdByAgentId).toBe(agentId);
+    expect(explicitAssignee.assigneeAgentId).toBe(peerAgentId);
+
+    const explicitNullRes = await fetch(`${apiBase}/api/orgs/${orgId}/issues`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${agentKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "Agent explicit null assignee",
+        status: "backlog",
+        assigneeAgentId: null,
+        assigneeUserId: null,
+      }),
+    });
+    expect(explicitNullRes.ok).toBe(true);
+    const explicitNull = (await explicitNullRes.json()) as Issue;
+    expect(explicitNull.createdByAgentId).toBe(agentId);
+    expect(explicitNull.assigneeAgentId).toBeNull();
+    expect(explicitNull.assigneeUserId).toBeNull();
+
+    const boardRes = await fetch(`${apiBase}/api/orgs/${orgId}/issues`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "Board unassigned issue",
+        status: "backlog",
+      }),
+    });
+    expect(boardRes.ok).toBe(true);
+    const boardIssue = (await boardRes.json()) as Issue;
+    expect(boardIssue.createdByAgentId).toBeNull();
+    expect(boardIssue.assigneeAgentId).toBeNull();
+    expect(boardIssue.assigneeUserId).toBeNull();
   });
 
   it("uploads images into issue comments from the CLI", { timeout: 60_000 }, async () => {

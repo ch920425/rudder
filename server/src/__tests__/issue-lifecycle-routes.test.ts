@@ -109,6 +109,7 @@ function makeIssue(overrides?: Partial<{
   assigneeUserId: string | null;
   reviewerAgentId: string | null;
   reviewerUserId: string | null;
+  createdByAgentId: string | null;
   createdByUserId: string | null;
   executionRunId: string | null;
   identifier: string;
@@ -126,6 +127,7 @@ function makeIssue(overrides?: Partial<{
     assigneeUserId: null,
     reviewerAgentId: null,
     reviewerUserId: null,
+    createdByAgentId: null,
     createdByUserId: "local-board",
     executionRunId: null,
     identifier: "RUD-5",
@@ -444,6 +446,125 @@ describe("issue lifecycle routes", () => {
         }),
       }),
     );
+  });
+
+  it("defaults agent-created issues without an assignee to the creating agent", async () => {
+    mockIssueService.create.mockImplementation(async (_orgId: string, data: Record<string, unknown>) =>
+      makeIssue({
+        assigneeAgentId: data.assigneeAgentId as string | null,
+        assigneeUserId: (data.assigneeUserId as string | null | undefined) ?? null,
+        createdByAgentId: data.createdByAgentId as string | null,
+        createdByUserId: data.createdByUserId as string | null,
+        status: data.status as "todo",
+        title: data.title as string,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID)))
+      .post("/api/orgs/organization-1/issues")
+      .send({
+        title: "Agent-created issue",
+        status: "todo",
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockIssueService.create).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        title: "Agent-created issue",
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        createdByAgentId: ASSIGNEE_AGENT_ID,
+        createdByUserId: null,
+      }),
+    );
+    expect(res.body.assigneeAgentId).toBe(ASSIGNEE_AGENT_ID);
+    expect(res.body.createdByAgentId).toBe(ASSIGNEE_AGENT_ID);
+  });
+
+  it("preserves explicit assignee and explicit null on agent-created issues", async () => {
+    mockAccessService.hasPermission.mockResolvedValue(true);
+    mockIssueService.create.mockImplementation(async (_orgId: string, data: Record<string, unknown>) =>
+      makeIssue({
+        assigneeAgentId: (data.assigneeAgentId as string | null | undefined) ?? null,
+        assigneeUserId: (data.assigneeUserId as string | null | undefined) ?? null,
+        createdByAgentId: data.createdByAgentId as string | null,
+        createdByUserId: data.createdByUserId as string | null,
+        status: data.status as "backlog" | "todo",
+        title: data.title as string,
+      }),
+    );
+
+    const explicitAssignee = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID)))
+      .post("/api/orgs/organization-1/issues")
+      .send({
+        title: "Explicit assignee",
+        status: "todo",
+        assigneeAgentId: REVIEWER_AGENT_ID,
+      });
+
+    expect(explicitAssignee.status).toBe(201);
+    expect(mockIssueService.create).toHaveBeenLastCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        assigneeAgentId: REVIEWER_AGENT_ID,
+        createdByAgentId: ASSIGNEE_AGENT_ID,
+      }),
+    );
+    expect(explicitAssignee.body.assigneeAgentId).toBe(REVIEWER_AGENT_ID);
+
+    const explicitNull = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID)))
+      .post("/api/orgs/organization-1/issues")
+      .send({
+        title: "Explicit null assignee",
+        status: "backlog",
+        assigneeAgentId: null,
+        assigneeUserId: null,
+      });
+
+    expect(explicitNull.status).toBe(201);
+    expect(mockIssueService.create).toHaveBeenLastCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        assigneeAgentId: null,
+        assigneeUserId: null,
+        createdByAgentId: ASSIGNEE_AGENT_ID,
+      }),
+    );
+    expect(explicitNull.body.assigneeAgentId).toBeNull();
+    expect(explicitNull.body.assigneeUserId).toBeNull();
+  });
+
+  it("leaves board-created issues unassigned when no assignee is supplied", async () => {
+    mockIssueService.create.mockImplementation(async (_orgId: string, data: Record<string, unknown>) =>
+      makeIssue({
+        assigneeAgentId: (data.assigneeAgentId as string | null | undefined) ?? null,
+        assigneeUserId: (data.assigneeUserId as string | null | undefined) ?? null,
+        createdByAgentId: data.createdByAgentId as string | null,
+        createdByUserId: data.createdByUserId as string | null,
+        status: data.status as "backlog",
+        title: data.title as string,
+      }),
+    );
+
+    const res = await request(createApp())
+      .post("/api/orgs/organization-1/issues")
+      .send({
+        title: "Board-created issue",
+        status: "backlog",
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockIssueService.create).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        title: "Board-created issue",
+        createdByAgentId: null,
+        createdByUserId: "local-board",
+      }),
+    );
+    expect(mockIssueService.create.mock.calls[0]?.[1]).not.toHaveProperty("assigneeAgentId");
+    expect(mockIssueService.create.mock.calls[0]?.[1]).not.toHaveProperty("assigneeUserId");
+    expect(res.body.assigneeAgentId).toBeNull();
   });
 
   it("queues a review wakeup when a reviewer issue is created directly in review", async () => {
