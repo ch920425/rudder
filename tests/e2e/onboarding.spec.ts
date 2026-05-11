@@ -33,6 +33,17 @@ async function expectSelectedCodexModel(page: Page) {
   return model!;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractMarkdownHref(markdown: string, label: string) {
+  const escapedLabel = escapeRegExp(label);
+  const match = markdown.match(new RegExp(`\\[${escapedLabel}\\]\\(([^)]+)\\)`));
+  expect(match?.[1]).toBeTruthy();
+  return match![1]!;
+}
+
 test.describe("Onboarding wizard", () => {
   test("fresh onboarding creates a Getting Started project and opens dashboard", async ({
     page,
@@ -132,6 +143,8 @@ test.describe("Onboarding wizard", () => {
       assigneeAgentId: string | null;
       assigneeUserId: string | null;
       projectId: string | null;
+      id: string;
+      identifier?: string | null;
       description: string | null;
     }>;
     expect(issues.map((issue) => issue.title).sort()).toEqual(
@@ -147,10 +160,18 @@ test.describe("Onboarding wizard", () => {
       expect(issueByTitle.get(title)?.status).toBe("backlog");
     }
     expect(issueByTitle.get("1. Understand how Rudder work happens")?.description).toContain("/issues/");
-    const chatIssueDescription = issueByTitle.get("2. Ask your agent one quick question")?.description ?? "";
-    expect(chatIssueDescription).toContain("/chat?");
+    const chatIssue = issueByTitle.get("2. Ask your agent one quick question");
+    expect(chatIssue).toBeTruthy();
+    const chatIssueDescription = chatIssue?.description ?? "";
+    const chatCtaHref = extractMarkdownHref(chatIssueDescription, "Start from this prompt");
+    const chatCtaUrl = new URL(chatCtaHref, baseUrl);
+    expect(chatCtaUrl.pathname).toBe(`/${organization.issuePrefix}/messenger/chat`);
     expect(chatIssueDescription).toContain(`projectId=${gettingStartedProject.id}`);
     expect(chatIssueDescription).toContain(`agentId=${ceoAgent.id}`);
+    expect(chatCtaUrl.searchParams.get("projectId")).toBe(gettingStartedProject.id);
+    expect(chatCtaUrl.searchParams.get("agentId")).toBe(ceoAgent.id);
+    const expectedPrefill = chatCtaUrl.searchParams.get("prefill");
+    expect(expectedPrefill).toBeTruthy();
     for (const issue of issues) {
       expect(issue.projectId).toBe(gettingStartedProject.id);
       expect(issue.assigneeAgentId).toBeNull();
@@ -163,12 +184,19 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByText("Recommended next", { exact: true })).toBeVisible();
     await expect(page.getByText("Advanced", { exact: true })).toBeVisible();
 
-    await page.goto(`/${organization.issuePrefix}/messenger/chat?agentId=${ceoAgent.id}&projectId=${gettingStartedProject.id}&prefill=${encodeURIComponent("What should I do next?")}`, {
-      waitUntil: "commit",
-    });
+    await page.goto(`/${organization.issuePrefix}/issues/${encodeURIComponent(chatIssue!.identifier ?? chatIssue!.id)}`);
+    await expect(page.getByRole("heading", { name: chatIssue!.title })).toBeVisible({ timeout: 15_000 });
+    const chatCta = page.getByRole("link", { name: "Start from this prompt" });
+    await expect(chatCta).toHaveAttribute("href", chatCtaHref);
+    await chatCta.click();
+    await expect(page).toHaveURL(
+      new RegExp(`/${escapeRegExp(organization.issuePrefix)}/messenger/chat(?:\\?|$)`),
+      { timeout: 15_000 },
+    );
     await expect(page.locator(".chat-composer")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("chat-agent-selector")).toContainText(ceoAgent.name, { timeout: 15_000 });
     await expect(page.getByTestId("chat-project-selector")).toContainText("Getting Started", { timeout: 15_000 });
+    await expect(page.locator(".chat-composer [contenteditable='true']").first()).toContainText(expectedPrefill!, { timeout: 15_000 });
     await expect(page.locator(".chat-warning")).toHaveCount(0);
   });
 

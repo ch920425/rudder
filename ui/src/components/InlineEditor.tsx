@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "../lib/utils";
+import { MarkdownBody } from "./MarkdownBody";
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
 import { useAutosaveIndicator } from "../hooks/useAutosaveIndicator";
 
@@ -18,6 +19,12 @@ interface InlineEditorProps {
 const pad = "px-1 -mx-1";
 const markdownPad = "px-1";
 const AUTOSAVE_DEBOUNCE_MS = 900;
+
+function eventTargetElement(target: EventTarget | null): HTMLElement | null {
+  if (target instanceof HTMLElement) return target;
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
 
 export function InlineEditor({
   value,
@@ -104,6 +111,7 @@ export function InlineEditor({
       setDraft(value);
       if (multiline) {
         setMultilineFocused(false);
+        setEditing(false);
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
@@ -138,7 +146,7 @@ export function InlineEditor({
     };
   }, [autosaveState, commit, draft, markDirty, multiline, multilineFocused, reset, runSave, value]);
 
-  if (multiline) {
+  if (multiline && editing) {
     return (
       <div
         className={cn(
@@ -153,6 +161,7 @@ export function InlineEditor({
             clearTimeout(autosaveDebounceRef.current);
           }
           setMultilineFocused(false);
+          setEditing(false);
           const trimmed = draft.trim();
           if (!trimmed || trimmed === value) {
             reset();
@@ -240,9 +249,22 @@ export function InlineEditor({
         !value && "text-muted-foreground italic",
         className,
       )}
-      onClick={() => setEditing(true)}
+      onClick={(event) => {
+        if (eventTargetElement(event.target)?.closest("a")) return;
+        setEditing(true);
+      }}
     >
-      {value || placeholder}
+      {value && multiline ? (
+        <MarkdownBody
+          onLinkClick={({ event }) => {
+            event.stopPropagation();
+          }}
+        >
+          {value}
+        </MarkdownBody>
+      ) : (
+        value || placeholder
+      )}
     </DisplayTag>
   );
 }

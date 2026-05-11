@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Db } from "@rudderhq/db";
-import { agentService, issueService, logActivity, projectService } from "../services/index.js";
+import { agentService, issueService, logActivity, organizationService, projectService } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 const ONBOARDING_PROJECT_NAME = "Getting Started";
@@ -413,6 +413,7 @@ function buildChatHref(input: {
   prompt: string;
   projectId: string;
   agentId?: string | null;
+  organizationPrefix?: string | null;
 }) {
   const params = new URLSearchParams();
   params.set("prefill", input.prompt);
@@ -420,7 +421,10 @@ function buildChatHref(input: {
   if (input.agentId) {
     params.set("agentId", input.agentId);
   }
-  return `/chat?${params.toString()}`;
+  const routePrefix = input.organizationPrefix
+    ? `/${encodeURIComponent(input.organizationPrefix)}`
+    : "";
+  return `${routePrefix}/messenger/chat?${params.toString()}`;
 }
 
 function appendActionLinks(
@@ -429,6 +433,7 @@ function appendActionLinks(
   input: {
     projectId: string;
     agentId?: string | null;
+    organizationPrefix?: string | null;
     issueByTitle: ReadonlyMap<string, { identifier?: string | null; id: string }>;
   },
 ) {
@@ -444,6 +449,7 @@ function appendActionLinks(
       prompt: template.chatPrompt,
       projectId: input.projectId,
       agentId: input.agentId,
+      organizationPrefix: input.organizationPrefix,
     })}).`);
   }
   if (lines.length === 0) return description;
@@ -455,6 +461,7 @@ export function onboardingRoutes(db: Db) {
   const projects = projectService(db);
   const issues = issueService(db);
   const agents = agentService(db);
+  const organizations = organizationService(db);
 
   router.post("/orgs/:orgId/onboarding/getting-started", async (req, res) => {
     const orgId = req.params.orgId as string;
@@ -464,6 +471,11 @@ export function onboardingRoutes(db: Db) {
     const actor = getActorInfo(req);
     const operatorUserId = req.actor.userId ?? "local-board";
     const includeTutorial = req.body?.includeTutorial !== false;
+    const organization = await organizations.getById(orgId);
+    if (!organization) {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
 
     const existingProjects = await projects.list(orgId);
     let project = existingProjects.find(
@@ -554,6 +566,7 @@ export function onboardingRoutes(db: Db) {
       const linkedDescription = appendActionLinks(template, template.description, {
         projectId: project.id,
         agentId: firstAgentId,
+        organizationPrefix: organization.issuePrefix,
         issueByTitle,
       });
       if (issue.description !== linkedDescription) {
