@@ -223,6 +223,10 @@ describe("messengerService and issue follows", () => {
     expect(itemIds.has(unrelatedIssueId)).toBe(false);
     expect(followedItem?.sourceCommentId).toBe(followedComment.id);
     expect(followedItem?.sourceCommentBody).toBe(followedCommentBody);
+    expect(followedItem?.metadata).toMatchObject({
+      sourceCommentAuthorKind: "system",
+      sourceCommentByMe: false,
+    });
     expect(followedItem?.preview).toBe("Review Summary: render enough comment body to judge the issue update");
     expect(assignedItem?.metadata).toMatchObject({ assignedToMe: true, createdByMe: false });
     expect(assignedItem?.body).toContain("assigned to me");
@@ -332,6 +336,8 @@ describe("messengerService and issue follows", () => {
     expect(item?.metadata).toMatchObject({
       status: "blocked",
       statusChange: { from: "in_review", to: "blocked" },
+      sourceCommentAuthorKind: "system",
+      sourceCommentByMe: false,
     });
   });
 

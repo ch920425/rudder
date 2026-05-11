@@ -527,13 +527,17 @@ function issueCard(
   followed: boolean,
   latestPreview: string | null,
   latestActivityAt: Date,
-  sourceComment: Pick<IssueCommentRow, "id" | "body"> | null,
+  sourceComment: Pick<IssueCommentRow, "id" | "body" | "authorAgentId" | "authorUserId"> | null,
   latestActivity: IssueActivityRow | null,
 ): MessengerIssueThreadItem {
   const createdByMe = issue.createdByUserId === currentUserId;
   const assignedToMe = issue.assigneeUserId === currentUserId;
   const reviewerForMe = issue.reviewerUserId === currentUserId && issue.status === "in_review";
   const statusChange = issueStatusChangeFromActivity(latestActivity);
+  const sourceCommentAuthorKind = sourceComment?.authorAgentId
+    ? "agent"
+    : sourceComment?.authorUserId ? "user" : "system";
+  const sourceCommentByMe = Boolean(sourceComment?.authorUserId && sourceComment.authorUserId === currentUserId);
   return {
     id: issue.id,
     threadKey: "issues",
@@ -555,6 +559,12 @@ function issueCard(
       createdByMe,
       assignedToMe,
       reviewerForMe,
+      ...(sourceComment
+        ? {
+          sourceCommentAuthorKind,
+          sourceCommentByMe,
+        }
+        : {}),
     },
     issueId: issue.id,
     issueIdentifier: issue.identifier,

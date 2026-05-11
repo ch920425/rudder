@@ -4,8 +4,8 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  CircleCheckBig,
   CircleAlert,
-  MessageSquare,
   RefreshCcw,
   Send,
   ShieldCheck,
@@ -134,6 +134,20 @@ function issueContextLabel(item: MessengerIssueThreadItem) {
   return labels.join(" · ");
 }
 
+function sourceCommentLabel(item: MessengerIssueThreadItem) {
+  const metadata = item.metadata as {
+    sourceCommentAuthorKind?: unknown;
+    sourceCommentByMe?: unknown;
+  };
+
+  if (metadata.sourceCommentByMe === true) return "Your comment";
+  if (metadata.sourceCommentAuthorKind === "agent") return "Agent comment";
+  if (metadata.sourceCommentAuthorKind === "user" && metadata.sourceCommentByMe === false) {
+    return "Comment from someone else";
+  }
+  return "Issue comment";
+}
+
 function issueStatusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
@@ -192,7 +206,7 @@ function ThreadMessage({
   testId,
 }: {
   icon: ReactNode;
-  label: string;
+  label?: string | null;
   timestamp?: Date | string | null;
   children: ReactNode;
   testId?: string;
@@ -203,17 +217,19 @@ function ThreadMessage({
         {icon}
       </div>
       <div className="min-w-0 max-w-4xl flex-1">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{label}</span>
-          {timestamp ? (
-            <HoverTimestampLabel
-              date={timestamp}
-              label={relativeTime(new Date(timestamp))}
-              className="text-[11px] leading-none text-muted-foreground"
-              testId={testId ? `${testId}-timestamp` : undefined}
-            />
-          ) : null}
-        </div>
+        {label || timestamp ? (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {label ? <span className="text-sm font-medium text-foreground">{label}</span> : null}
+            {timestamp ? (
+              <HoverTimestampLabel
+                date={timestamp}
+                label={relativeTime(new Date(timestamp))}
+                className="text-[11px] leading-none text-muted-foreground"
+                testId={testId ? `${testId}-timestamp` : undefined}
+              />
+            ) : null}
+          </div>
+        ) : null}
         {children}
       </div>
     </div>
@@ -291,7 +307,13 @@ function MessengerIssueCommentPreview({
   const collapsed = !expanded;
 
   return (
-    <div data-testid={testId} className="space-y-2">
+    <div data-testid={testId} className="space-y-2 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_78%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_70%,white)] px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--accent-strong)]">
+          <CircleCheckBig className="h-3 w-3" />
+          Source comment on this issue
+        </span>
+      </div>
       <div className="relative">
         <div
           ref={contentRef}
@@ -407,6 +429,7 @@ function MessengerIssueCard({
   const statusChange = readIssueStatusChange(metadata);
   const contextLabel = issueContextLabel(item);
   const sourceCommentBody = item.sourceCommentBody?.trim() ? item.sourceCommentBody : null;
+  const sourceCommentBadge = sourceCommentBody ? sourceCommentLabel(item) : null;
 
   const invalidateIssueViews = async () => {
     await Promise.all([
@@ -435,13 +458,13 @@ function MessengerIssueCard({
 
   return (
     <ThreadMessage
-      icon={<MessageSquare className="h-5 w-5" />}
-      label="Issues assistant"
+      icon={<CircleCheckBig className="h-5 w-5" />}
+      label={null}
       timestamp={new Date(item.latestActivityAt)}
       testId={`messenger-issue-message-${item.issueId}`}
     >
       <ObjectMessageCard
-        eyebrow="Issue update"
+        eyebrow={sourceCommentBadge ?? "Issue update"}
         title={issueDisplayTitle(item)}
         description={
           sourceCommentBody ? (
@@ -536,8 +559,8 @@ export function MessengerIssuesView() {
       />
       {!issueThreadDetail?.items.length ? (
         <ThreadEmptyStateMessage
-          icon={<MessageSquare className="h-5 w-5" />}
-          assistantLabel="Issues assistant"
+          icon={<CircleCheckBig className="h-5 w-5" />}
+          assistantLabel="Issues"
           eyebrow="Issues"
           title="No tracked issues"
           description="Once you create an issue, follow it, or it gets assigned to you, it will show up here as an object thread."

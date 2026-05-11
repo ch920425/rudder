@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Archive,
-  CircleDot,
+  CircleCheckBig,
   Copy,
   DollarSign,
   ListFilter,
@@ -90,7 +90,7 @@ function threadIcon(kind: string) {
     case "chat":
       return MessageSquare;
     case "issues":
-      return CircleDot;
+      return CircleCheckBig;
     case "approvals":
       return ShieldCheck;
     case "failed-runs":

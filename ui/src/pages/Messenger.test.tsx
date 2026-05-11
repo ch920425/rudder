@@ -159,6 +159,8 @@ describe("Messenger page headers", () => {
             followed: true,
             createdByMe: false,
             assignedToMe: false,
+            sourceCommentAuthorKind: "user",
+            sourceCommentByMe: false,
           },
         },
       ],
@@ -168,7 +170,10 @@ describe("Messenger page headers", () => {
 
     expect(html).toContain("<h2>Review Summary</h2>");
     expect(html).toContain("<strong>Rendered</strong>");
+    expect(html).toContain("Comment from someone else");
+    expect(html).toContain("Source comment on this issue");
     expect(html).toContain('href="/issues/RUD-4#comment-comment-4"');
+    expect(html).not.toContain("Issues assistant");
   });
 
   it("renders issue update cards with from and to status badges", () => {
