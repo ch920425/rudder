@@ -405,8 +405,14 @@ function issueRef(issue: { identifier?: string | null; id: string }) {
   return issue.identifier ?? issue.id;
 }
 
-function issueHref(issue: { identifier?: string | null; id: string }) {
-  return `/issues/${encodeURIComponent(issueRef(issue))}`;
+function issueHref(
+  issue: { identifier?: string | null; id: string },
+  organizationPrefix?: string | null,
+) {
+  const routePrefix = organizationPrefix
+    ? `/${encodeURIComponent(organizationPrefix)}`
+    : "";
+  return `${routePrefix}/issues/${encodeURIComponent(issueRef(issue))}`;
 }
 
 function buildChatHref(input: {
@@ -441,7 +447,9 @@ function appendActionLinks(
   if (template.nextTitle) {
     const nextIssue = input.issueByTitle.get(template.nextTitle);
     if (nextIssue) {
-      lines.push(`Next issue: [${template.nextTitle}](${issueHref(nextIssue)}).`);
+      lines.push(
+        `Next issue: [${template.nextTitle}](${issueHref(nextIssue, input.organizationPrefix)}).`,
+      );
     }
   }
   if (template.chatPrompt) {

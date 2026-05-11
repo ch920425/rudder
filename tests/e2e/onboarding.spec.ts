@@ -159,7 +159,18 @@ test.describe("Onboarding wizard", () => {
     for (const title of GETTING_STARTED_TITLES.slice(6)) {
       expect(issueByTitle.get(title)?.status).toBe("backlog");
     }
-    expect(issueByTitle.get("1. Understand how Rudder work happens")?.description).toContain("/issues/");
+    const nextIssueSource = issueByTitle.get("1. Understand how Rudder work happens");
+    const nextIssueTarget = issueByTitle.get("2. Ask your agent one quick question");
+    expect(nextIssueSource).toBeTruthy();
+    expect(nextIssueTarget).toBeTruthy();
+    const nextIssueHref = extractMarkdownHref(
+      nextIssueSource?.description ?? "",
+      "2. Ask your agent one quick question",
+    );
+    const nextIssueUrl = new URL(nextIssueHref, baseUrl);
+    expect(nextIssueUrl.pathname).toBe(
+      `/${organization.issuePrefix}/issues/${encodeURIComponent(nextIssueTarget!.identifier ?? nextIssueTarget!.id)}`,
+    );
     const chatIssue = issueByTitle.get("2. Ask your agent one quick question");
     expect(chatIssue).toBeTruthy();
     const chatIssueDescription = chatIssue?.description ?? "";
@@ -183,6 +194,25 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByText("Core loop", { exact: true })).toBeVisible();
     await expect(page.getByText("Recommended next", { exact: true })).toBeVisible();
     await expect(page.getByText("Advanced", { exact: true })).toBeVisible();
+
+    await page.goto(
+      `/${organization.issuePrefix}/issues/${encodeURIComponent(nextIssueSource!.identifier ?? nextIssueSource!.id)}`,
+    );
+    await expect(page.getByRole("heading", { name: nextIssueSource!.title })).toBeVisible({
+      timeout: 15_000,
+    });
+    const nextIssueLink = page.getByRole("link", { name: "2. Ask your agent one quick question" });
+    await expect(nextIssueLink).toHaveAttribute("href", nextIssueHref);
+    await nextIssueLink.click();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/${escapeRegExp(organization.issuePrefix)}/issues/${escapeRegExp(nextIssueTarget!.identifier ?? nextIssueTarget!.id)}$`,
+      ),
+      { timeout: 15_000 },
+    );
+    await expect(page.getByRole("heading", { name: nextIssueTarget!.title })).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.goto(`/${organization.issuePrefix}/issues/${encodeURIComponent(chatIssue!.identifier ?? chatIssue!.id)}`);
     await expect(page.getByRole("heading", { name: chatIssue!.title })).toBeVisible({ timeout: 15_000 });
