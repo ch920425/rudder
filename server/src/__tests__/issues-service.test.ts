@@ -426,6 +426,9 @@ describe("issueService.list participantAgentId", () => {
     const pendingIssueId = randomUUID();
     const confirmedIssueId = randomUUID();
     const reblockedIssueId = randomUUID();
+    const resumedByCommentIssueId = randomUUID();
+    const resumedByPriorityIssueId = randomUUID();
+    const reviewerCommentIssueId = randomUUID();
     await db.insert(issues).values([
       {
         id: pendingIssueId,
@@ -447,6 +450,30 @@ describe("issueService.list participantAgentId", () => {
         id: reblockedIssueId,
         orgId,
         title: "Reblocked after an older decision",
+        status: "blocked",
+        priority: "medium",
+        reviewerAgentId,
+      },
+      {
+        id: resumedByCommentIssueId,
+        orgId,
+        title: "Confirmed review resumed by operator comment",
+        status: "blocked",
+        priority: "medium",
+        reviewerAgentId,
+      },
+      {
+        id: resumedByPriorityIssueId,
+        orgId,
+        title: "Confirmed review resumed by priority change",
+        status: "blocked",
+        priority: "high",
+        reviewerAgentId,
+      },
+      {
+        id: reviewerCommentIssueId,
+        orgId,
+        title: "Confirmed review with reviewer-only follow-up",
         status: "blocked",
         priority: "medium",
         reviewerAgentId,
@@ -498,6 +525,70 @@ describe("issueService.list participantAgentId", () => {
         details: { status: "blocked" },
         createdAt: new Date("2026-05-01T00:03:00.000Z"),
       },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: resumedByCommentIssueId,
+        agentId: reviewerAgentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:04:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "user",
+        actorId: "board",
+        action: "issue.comment_added",
+        entityType: "issue",
+        entityId: resumedByCommentIssueId,
+        details: { bodySnippet: "Access granted; please review again." },
+        createdAt: new Date("2026-05-01T00:05:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: resumedByPriorityIssueId,
+        agentId: reviewerAgentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:06:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "user",
+        actorId: "board",
+        action: "issue.updated",
+        entityType: "issue",
+        entityId: resumedByPriorityIssueId,
+        details: { priority: "high", _previous: { priority: "medium" } },
+        createdAt: new Date("2026-05-01T00:07:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: reviewerCommentIssueId,
+        agentId: reviewerAgentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:08:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "agent",
+        actorId: reviewerAgentId,
+        action: "issue.comment_added",
+        entityType: "issue",
+        entityId: reviewerCommentIssueId,
+        agentId: reviewerAgentId,
+        details: { bodySnippet: "Still waiting on the same external access." },
+        createdAt: new Date("2026-05-01T00:09:00.000Z"),
+      },
     ]);
 
     const rows = await svc.list(orgId, {
@@ -510,6 +601,9 @@ describe("issueService.list participantAgentId", () => {
     expect(rowIds.has(pendingIssueId)).toBe(true);
     expect(rowIds.has(confirmedIssueId)).toBe(false);
     expect(rowIds.has(reblockedIssueId)).toBe(true);
+    expect(rowIds.has(resumedByCommentIssueId)).toBe(true);
+    expect(rowIds.has(resumedByPriorityIssueId)).toBe(true);
+    expect(rowIds.has(reviewerCommentIssueId)).toBe(false);
   });
 
   it("clears reviewer and preserves reviewer when update omits reviewer fields", async () => {

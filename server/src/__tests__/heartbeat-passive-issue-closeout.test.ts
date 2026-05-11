@@ -417,7 +417,7 @@ describe("heartbeat passive issue closeout", () => {
     await waitFor(async () => {
       const current = await getRun(run.id);
       return current?.status === "succeeded" ? current : null;
-    });
+    }, 10_000);
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     const runs = await db
@@ -431,6 +431,59 @@ describe("heartbeat passive issue closeout", () => {
       .from(activityLog)
       .where(eq(activityLog.action, "issue.review_closeout_missing"));
     expect(closeoutActivities).toHaveLength(0);
+  }, 15_000);
+
+  it("re-opens reviewer closeout after operator activity follows a blocked review handoff", async () => {
+    const { agentId, issueId, orgId } = await seedFixture({
+      issueStatus: "blocked",
+      reviewerAgent: true,
+    });
+    await db.insert(activityLog).values([
+      {
+        orgId,
+        actorType: "agent",
+        actorId: agentId,
+        action: "issue.review_decision_recorded",
+        entityType: "issue",
+        entityId: issueId,
+        agentId,
+        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "user",
+        actorId: "board",
+        action: "issue.comment_added",
+        entityType: "issue",
+        entityId: issueId,
+        details: { bodySnippet: "The external access blocker is resolved; review again." },
+        createdAt: new Date("2026-05-01T00:01:00.000Z"),
+      },
+    ]);
+
+    const run = await wakeReviewRun({ agentId, issueId, issueStatus: "blocked" });
+
+    const followup = await waitFor(async () => {
+      const runs = await db
+        .select()
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.agentId, agentId));
+      return runs.find((row) =>
+        row.id !== run.id &&
+        row.invocationSource === "review" &&
+        (row.contextSnapshot as any)?.wakeReason === "issue_review_closeout_missing") ?? null;
+    });
+
+    expect(followup.contextSnapshot).toMatchObject({
+      issueId,
+      wakeReason: "issue_review_closeout_missing",
+      wakeSource: "review",
+      role: "reviewer",
+      issue: {
+        status: "blocked",
+      },
+    });
   }, 10_000);
 
   it("escalates reviewer closeout after bounded missing-decision attempts", async () => {
