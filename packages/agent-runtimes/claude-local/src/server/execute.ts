@@ -470,6 +470,16 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   );
   const billingType = resolveClaudeBillingType(effectiveEnv);
   const skillsDir = await buildSkillsDir(config);
+  const claudeSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
+  const desiredClaudeSkillNames = resolveClaudeDesiredSkillNames(config, claudeSkillEntries);
+  const loadedSkills = claudeSkillEntries
+    .filter((entry) => desiredClaudeSkillNames.includes(entry.key))
+    .map((entry) => ({
+      key: entry.key,
+      runtimeName: entry.runtimeName,
+      name: entry.name ?? null,
+      description: entry.description ?? null,
+    }));
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
   const loadedInstructions = await loadAgentInstructionsPrefix({
     instructionsFilePath,
@@ -617,6 +627,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt,
         promptMetrics,
+        loadedSkills,
         context,
       });
     }

@@ -583,6 +583,74 @@ function asNonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function readInvocationSkillList(payload: Record<string, unknown> | null | undefined, key: string) {
+  const raw = payload?.[key];
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const skills: Array<{ key: string; label: string }> = [];
+  for (const value of raw) {
+    const record = asRecord(value);
+    const skillKey = asNonEmptyString(record?.key) ?? asNonEmptyString(record?.runtimeName) ?? asNonEmptyString(record?.name);
+    if (!skillKey || seen.has(skillKey)) continue;
+    seen.add(skillKey);
+    skills.push({
+      key: skillKey,
+      label: asNonEmptyString(record?.runtimeName) ?? asNonEmptyString(record?.name) ?? skillKey.split(/[/:]/).filter(Boolean).at(-1) ?? skillKey,
+    });
+  }
+  return skills;
+}
+
+function InvocationSkillEvidence({
+  payload,
+}: {
+  payload: Record<string, unknown> | null | undefined;
+}) {
+  const groups = [
+    {
+      key: "usedSkills",
+      label: "Runtime reported used",
+      skills: readInvocationSkillList(payload, "usedSkills"),
+    },
+    {
+      key: "promptRequestedSkills",
+      label: "Prompt requested",
+      skills: readInvocationSkillList(payload, "promptRequestedSkills"),
+    },
+    {
+      key: "loadedSkills",
+      label: "Loaded for run",
+      skills: readInvocationSkillList(payload, "loadedSkills"),
+    },
+  ].filter((group) => group.skills.length > 0);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-muted-foreground">Skill evidence</div>
+      <div className="space-y-2">
+        {groups.map((group) => (
+          <div key={group.key} className="rounded-md border border-border/70 bg-background/60 px-2 py-1.5">
+            <div className="mb-1 text-[11px] font-medium text-muted-foreground">{group.label}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {group.skills.map((skill) => (
+                <span
+                  key={skill.key}
+                  className="rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-foreground"
+                  title={skill.key}
+                >
+                  {skill.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function parseStoredLogContent(content: string): RunLogChunk[] {
   const parsed: RunLogChunk[] = [];
   for (const line of content.split("\n")) {
@@ -1743,12 +1811,12 @@ function AgentOverview({
             <div>
               <h3 className="text-sm font-medium">Skills</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Explicitly used skills per run for {rangeLabel}. Hover a day to inspect the breakdown.
+                Skill evidence per run for {rangeLabel}. Hover a day to inspect the breakdown.
               </p>
             </div>
             <div className="text-right text-[11px] text-muted-foreground tabular-nums">
-              <div>{visibleSkillAnalytics.totalCount} skill uses</div>
-              <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill use</div>
+              <div>{visibleSkillAnalytics.totalCount} skill signals</div>
+              <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill evidence</div>
             </div>
           </div>
           <SkillsUsageChart analytics={visibleSkillAnalytics} />
@@ -5053,10 +5121,11 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
                         <li key={`${idx}-${note}`} className="text-xs break-all font-mono">
                           {note}
                         </li>
-                      ))}
+                    ))}
                   </ul>
                 </div>
               )}
+              <InvocationSkillEvidence payload={adapterInvokePayload} />
               {invocationPromptText !== null && (
                 <div>
                   <div className="mb-1 text-xs text-muted-foreground">Prompt</div>

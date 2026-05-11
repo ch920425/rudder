@@ -5,6 +5,8 @@ import type { TranscriptEntry } from "@rudderhq/agent-runtime-utils";
 import type { Db } from "@rudderhq/db";
 import type {
   AgentSkillAnalytics,
+  AgentSkillTelemetryEvidence,
+  AgentSkillTelemetryEvidenceCounts,
   BillingType,
   ExecutionObservabilityContext,
   ExecutionObservabilitySurface,
@@ -332,16 +334,43 @@ export function buildHeartbeatAdapterInvokePayload(input: {
       .map((entry) => normalizeLoadedSkill(entry))
       .filter((entry): entry is { key: string; label: string } => Boolean(entry))
     : [];
-  const usedSkills = explicitUsedSkills.length > 0
-    ? explicitUsedSkills
-    : inferUsedSkillsFromPrompt(input.meta.prompt, input.runtimeSkills);
+  const promptRequestedSkills = inferUsedSkillsFromPrompt(input.meta.prompt, input.runtimeSkills);
+  const loadedSkills = Array.isArray(input.meta.loadedSkills) && input.meta.loadedSkills.length > 0
+    ? input.meta.loadedSkills
+      .map((entry) => normalizeLoadedSkillForPayload(entry))
+      .filter((entry): entry is { key: string; runtimeName: string | null; name: string | null; description: string | null } => Boolean(entry))
+    : input.runtimeSkills
+      .map((entry) => ({
+        key: entry.key,
+        runtimeName: entry.runtimeName ?? null,
+        name: entry.name ?? null,
+        description: entry.description ?? null,
+      }));
+  const loadedSkillEvidence = loadedSkills
+    .map((entry) => normalizeLoadedSkill(entry))
+    .filter((entry): entry is { key: string; label: string } => Boolean(entry));
+  const skillEvidence = resolveSkillEvidence({
+    usedSkills: explicitUsedSkills,
+    requestedSkills: promptRequestedSkills,
+    loadedSkills: loadedSkillEvidence,
+  });
 
   return {
     ...input.meta,
     ...summarizeRuntimeSkillsForTrace(input.runtimeSkills),
-    usedSkillCount: usedSkills.length,
-    usedSkillKeys: usedSkills.map((entry) => entry.key),
-    usedSkills,
+    loadedSkillCount: loadedSkills.length,
+    loadedSkillKeys: loadedSkills.map((entry) => entry.key),
+    loadedSkills,
+    usedSkillCount: explicitUsedSkills.length,
+    usedSkillKeys: explicitUsedSkills.map((entry) => entry.key),
+    usedSkills: explicitUsedSkills,
+    promptRequestedSkillCount: promptRequestedSkills.length,
+    promptRequestedSkillKeys: promptRequestedSkills.map((entry) => entry.key),
+    promptRequestedSkills,
+    skillEvidenceType: skillEvidence.evidence,
+    skillEvidenceCount: skillEvidence.skills.length,
+    skillEvidenceKeys: skillEvidence.skills.map((entry) => entry.key),
+    skillEvidenceSkills: skillEvidence.skills,
   } as Record<string, unknown>;
 }
 
@@ -388,6 +417,82 @@ function normalizeLoadedSkill(value: unknown): { key: string; label: string } | 
   if (!key) return null;
   const label = rawRuntimeName ?? rawName ?? fallbackSkillLabel(key);
   return { key, label };
+}
+
+function normalizeLoadedSkillForPayload(value: unknown): {
+  key: string;
+  runtimeName: string | null;
+  name: string | null;
+  description: string | null;
+} | null {
+  const skill = parseObject(value);
+  const rawKey = readNonEmptyString(skill.key);
+  const rawRuntimeName = readNonEmptyString(skill.runtimeName);
+  const rawName = readNonEmptyString(skill.name);
+  const key = rawKey ?? rawRuntimeName ?? rawName;
+  if (!key) return null;
+  return {
+    key,
+    runtimeName: rawRuntimeName ?? null,
+    name: rawName ?? null,
+    description: readNonEmptyString(skill.description) ?? null,
+  };
+}
+
+function emptySkillEvidenceCounts(): AgentSkillTelemetryEvidenceCounts {
+  return { used: 0, requested: 0, loaded: 0 };
+}
+
+function incrementSkillEvidenceCount(
+  counts: AgentSkillTelemetryEvidenceCounts,
+  evidence: AgentSkillTelemetryEvidence,
+) {
+  counts[evidence] += 1;
+}
+
+function strongestSkillEvidence(
+  left: AgentSkillTelemetryEvidence,
+  right: AgentSkillTelemetryEvidence,
+): AgentSkillTelemetryEvidence {
+  const rank: Record<AgentSkillTelemetryEvidence, number> = {
+    used: 3,
+    requested: 2,
+    loaded: 1,
+  };
+  return rank[right] > rank[left] ? right : left;
+}
+
+function resolveSkillEvidence(input: {
+  usedSkills: Array<{ key: string; label: string }>;
+  requestedSkills: Array<{ key: string; label: string }>;
+  loadedSkills: Array<{ key: string; label: string }>;
+}): { evidence: AgentSkillTelemetryEvidence; skills: Array<{ key: string; label: string }> } {
+  if (input.usedSkills.length > 0) return { evidence: "used", skills: input.usedSkills };
+  if (input.requestedSkills.length > 0) return { evidence: "requested", skills: input.requestedSkills };
+  return { evidence: "loaded", skills: input.loadedSkills };
+}
+
+function readSkillEvidenceFromPayload(payload: Record<string, unknown>): {
+  evidence: AgentSkillTelemetryEvidence;
+  skills: Array<{ key: string; label: string }>;
+} {
+  const loadedSkills = Array.isArray(payload.loadedSkills)
+    ? payload.loadedSkills
+      .map((entry) => normalizeLoadedSkill(entry))
+      .filter((entry): entry is { key: string; label: string } => Boolean(entry))
+    : [];
+  const usedSkills = Array.isArray(payload.usedSkills)
+    ? payload.usedSkills
+      .map((entry) => normalizeLoadedSkill(entry))
+      .filter((entry): entry is { key: string; label: string } => Boolean(entry))
+    : [];
+  const requestedSkills = Array.isArray(payload.promptRequestedSkills)
+    ? payload.promptRequestedSkills
+      .map((entry) => normalizeLoadedSkill(entry))
+      .filter((entry): entry is { key: string; label: string } => Boolean(entry))
+    : inferUsedSkillsFromPrompt(payload.prompt, loadedSkills);
+
+  return resolveSkillEvidence({ usedSkills, requestedSkills, loadedSkills });
 }
 
 function normalizeSkillCandidate(value: string | null | undefined) {
@@ -5640,6 +5745,7 @@ export function heartbeatService(db: Db) {
 
     const rows = await db
       .select({
+        runId: heartbeatRunEvents.runId,
         createdAt: heartbeatRunEvents.createdAt,
         payload: heartbeatRunEvents.payload,
       })
@@ -5658,56 +5764,95 @@ export function heartbeatService(db: Db) {
     const days = new Map<string, {
       totalCount: number;
       runCount: number;
-      skills: Map<string, { key: string; label: string; count: number }>;
+      evidenceCounts: AgentSkillTelemetryEvidenceCounts;
+      skills: Map<string, {
+        key: string;
+        label: string;
+        count: number;
+        evidence: AgentSkillTelemetryEvidence;
+        evidenceCounts: AgentSkillTelemetryEvidenceCounts;
+      }>;
     }>();
     for (const date of dateKeys) {
-      days.set(date, { totalCount: 0, runCount: 0, skills: new Map() });
+      days.set(date, { totalCount: 0, runCount: 0, evidenceCounts: emptySkillEvidenceCounts(), skills: new Map() });
     }
 
-    const overallSkills = new Map<string, { key: string; label: string; count: number }>();
+    const overallSkills = new Map<string, {
+      key: string;
+      label: string;
+      count: number;
+      evidence: AgentSkillTelemetryEvidence;
+      evidenceCounts: AgentSkillTelemetryEvidenceCounts;
+    }>();
+    const runEvidence = new Map<string, {
+      date: string;
+      skills: Map<string, { key: string; label: string; evidence: AgentSkillTelemetryEvidence }>;
+    }>();
     let totalCount = 0;
     let totalRunsWithSkills = 0;
+    const evidenceCounts = emptySkillEvidenceCounts();
 
     for (const row of rows) {
       const date = new Date(row.createdAt).toISOString().slice(0, 10);
-      const bucket = days.get(date);
-      if (!bucket) continue;
+      if (!days.has(date)) continue;
 
       const payload = parseObject(row.payload);
-      const loadedSkills = Array.isArray(payload.loadedSkills) ? payload.loadedSkills : [];
-      const usedSkills = Array.isArray(payload.usedSkills)
-        ? payload.usedSkills
-        : inferUsedSkillsFromPrompt(payload.prompt, loadedSkills);
-      if (usedSkills.length === 0) continue;
+      const evidence = readSkillEvidenceFromPayload(payload);
+      if (evidence.skills.length === 0) continue;
 
-      const eventSkills = new Map<string, string>();
-      for (const entry of usedSkills) {
+      const runBucket = runEvidence.get(row.runId) ?? { date, skills: new Map() };
+      for (const entry of evidence.skills) {
         const normalized = normalizeLoadedSkill(entry);
         if (!normalized) continue;
-        if (!eventSkills.has(normalized.key)) {
-          eventSkills.set(normalized.key, normalized.label);
+        const existing = runBucket.skills.get(normalized.key);
+        if (existing) {
+          existing.evidence = strongestSkillEvidence(existing.evidence, evidence.evidence);
+          if (existing.label === fallbackSkillLabel(existing.key) && normalized.label !== fallbackSkillLabel(normalized.key)) {
+            existing.label = normalized.label;
+          }
+        } else {
+          runBucket.skills.set(normalized.key, {
+            key: normalized.key,
+            label: normalized.label,
+            evidence: evidence.evidence,
+          });
         }
       }
-      if (eventSkills.size === 0) continue;
+      if (runBucket.skills.size > 0) runEvidence.set(row.runId, runBucket);
+    }
+
+    for (const runBucket of runEvidence.values()) {
+      const bucket = days.get(runBucket.date);
+      if (!bucket || runBucket.skills.size === 0) continue;
 
       bucket.runCount += 1;
       totalRunsWithSkills += 1;
-      for (const [key, label] of eventSkills) {
+      for (const { key, label, evidence } of runBucket.skills.values()) {
         bucket.totalCount += 1;
         totalCount += 1;
+        incrementSkillEvidenceCount(bucket.evidenceCounts, evidence);
+        incrementSkillEvidenceCount(evidenceCounts, evidence);
 
         const existingDaySkill = bucket.skills.get(key);
         if (existingDaySkill) {
           existingDaySkill.count += 1;
+          existingDaySkill.evidence = strongestSkillEvidence(existingDaySkill.evidence, evidence);
+          incrementSkillEvidenceCount(existingDaySkill.evidenceCounts, evidence);
         } else {
-          bucket.skills.set(key, { key, label, count: 1 });
+          const skillEvidenceCounts = emptySkillEvidenceCounts();
+          incrementSkillEvidenceCount(skillEvidenceCounts, evidence);
+          bucket.skills.set(key, { key, label, count: 1, evidence, evidenceCounts: skillEvidenceCounts });
         }
 
         const existingOverallSkill = overallSkills.get(key);
         if (existingOverallSkill) {
           existingOverallSkill.count += 1;
+          existingOverallSkill.evidence = strongestSkillEvidence(existingOverallSkill.evidence, evidence);
+          incrementSkillEvidenceCount(existingOverallSkill.evidenceCounts, evidence);
         } else {
-          overallSkills.set(key, { key, label, count: 1 });
+          const skillEvidenceCounts = emptySkillEvidenceCounts();
+          incrementSkillEvidenceCount(skillEvidenceCounts, evidence);
+          overallSkills.set(key, { key, label, count: 1, evidence, evidenceCounts: skillEvidenceCounts });
         }
       }
     }
@@ -5720,6 +5865,7 @@ export function heartbeatService(db: Db) {
       endDate,
       totalCount,
       totalRunsWithSkills,
+      evidenceCounts,
       skills: Array.from(overallSkills.values()).sort((left, right) => (
         right.count - left.count
         || left.label.localeCompare(right.label)
@@ -5731,6 +5877,7 @@ export function heartbeatService(db: Db) {
           date,
           totalCount: bucket.totalCount,
           runCount: bucket.runCount,
+          evidenceCounts: bucket.evidenceCounts,
           skills: Array.from(bucket.skills.values()).sort((left, right) => (
             right.count - left.count
             || left.label.localeCompare(right.label)

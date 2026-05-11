@@ -268,6 +268,14 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
   const openCodeSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredOpenCodeSkillNames = resolveRudderDesiredSkillNames(config, openCodeSkillEntries);
+  const loadedSkills = openCodeSkillEntries
+    .filter((entry) => desiredOpenCodeSkillNames.includes(entry.key))
+    .map((entry) => ({
+      key: entry.key,
+      runtimeName: entry.runtimeName,
+      name: entry.name ?? null,
+      description: entry.description ?? null,
+    }));
   await ensureOpenCodeSkillsInjected(
     onLog,
     resolveManagedOpenCodeSkillsDir(managedHome),
@@ -419,6 +427,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt,
         promptMetrics,
+        loadedSkills,
         context,
       });
     }

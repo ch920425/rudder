@@ -237,15 +237,21 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   });
   const codexSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCodexSkillNames = resolveRudderDesiredSkillNames(config, codexSkillEntries);
+  const selectedCodexSkillEntries = codexSkillEntries
+    .filter((entry) => desiredCodexSkillNames.includes(entry.key));
+  const loadedSkills = selectedCodexSkillEntries.map((entry) => ({
+    key: entry.key,
+    runtimeName: entry.runtimeName,
+    name: entry.name ?? null,
+    description: entry.description ?? null,
+  }));
   await realizeManagedCodexSkillEntries(
     {
       ...sourceEnv,
       CODEX_HOME: effectiveCodexHome,
     },
     effectiveCodexHome,
-    codexSkillEntries
-      .filter((entry) => desiredCodexSkillNames.includes(entry.key))
-      .map((entry) => entry.source),
+    selectedCodexSkillEntries.map((entry) => entry.source),
     onLog,
   );
   const hasExplicitApiKey =
@@ -513,6 +519,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt,
         promptMetrics,
+        loadedSkills,
         context,
       });
     }

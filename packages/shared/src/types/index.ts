@@ -79,6 +79,8 @@ export type {
   AgentSkillEntry,
   AgentSkillSnapshot,
   AgentSkillSyncRequest,
+  AgentSkillTelemetryEvidence,
+  AgentSkillTelemetryEvidenceCounts,
   AgentSkillAnalyticsSkillTotal,
   AgentSkillAnalyticsDay,
   AgentSkillAnalytics,

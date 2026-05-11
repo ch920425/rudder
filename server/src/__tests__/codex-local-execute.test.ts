@@ -1045,6 +1045,7 @@ describe("codex execute", () => {
 
     let commandNotes: string[] = [];
     let promptMetrics: Record<string, number> = {};
+    let loadedSkills: unknown[] = [];
     try {
       const result = await execute({
         runId: "run-notes",
@@ -1079,6 +1080,7 @@ describe("codex execute", () => {
         onMeta: async (meta) => {
           commandNotes = Array.isArray(meta.commandNotes) ? meta.commandNotes : [];
           promptMetrics = meta.promptMetrics ?? {};
+          loadedSkills = meta.loadedSkills ?? [];
         },
       });
 
@@ -1093,6 +1095,12 @@ describe("codex execute", () => {
       );
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
+      expect(loadedSkills).toEqual([
+        expect.objectContaining({
+          key: "rudder/rudder",
+          runtimeName: "rudder",
+        }),
+      ]);
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
