@@ -507,7 +507,7 @@ function extractSkillSlugFromPath(value: string): string | null {
 
 function collectSkillPathsFromText(value: string): string[] {
   const paths: string[] = [];
-  const pattern = /(?:^|[\s"'`(=])([^\s"'`()<>|;&]+\/[^/\s"'`()<>|;&]+\/SKILL\.md)(?=$|[\s"'`()<>|;&])/giu;
+  const pattern = /(?:^|[\s"'`(=])((?:\.{1,2}\/|~\/|\/)?(?:[^\s"'`()<>|;&/]+\/)+SKILL\.md(?:[?#][^\s"'`()<>|;&]*)?)(?=$|[\s"'`()<>|;&])/giu;
   for (const match of value.matchAll(pattern)) {
     const pathValue = match[1]?.trim();
     if (pathValue) paths.push(pathValue);

@@ -87,8 +87,12 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
   let svc!: ReturnType<typeof heartbeatService>;
   let instance: EmbeddedPostgresInstance | null = null;
   let dataDir = "";
+  let runLogDir = "";
+  const previousRunLogBasePath = process.env.RUN_LOG_BASE_PATH;
 
   beforeAll(async () => {
+    runLogDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudder-heartbeat-skill-logs-"));
+    process.env.RUN_LOG_BASE_PATH = runLogDir;
     const started = await startTempDatabase();
     db = createDb(started.connectionString);
     svc = heartbeatService(db);
@@ -107,6 +111,11 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     await instance?.stop();
     if (dataDir) {
       fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+    if (previousRunLogBasePath === undefined) delete process.env.RUN_LOG_BASE_PATH;
+    else process.env.RUN_LOG_BASE_PATH = previousRunLogBasePath;
+    if (runLogDir) {
+      fs.rmSync(runLogDir, { recursive: true, force: true });
     }
   });
 
@@ -468,5 +477,98 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
         { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
       ],
     });
+  });
+
+  it("infers used skills from short SKILL.md paths in stored local runtime logs", async () => {
+    const orgId = randomUUID();
+    const agentId = randomUUID();
+    const runId = randomUUID();
+    const logRef = path.join(orgId, agentId, `${runId}.ndjson`);
+    const command = [
+      "cat build-advisor/SKILL.md",
+      "cat ./screenshot/SKILL.md",
+      "cat skills/deep-research/SKILL.md",
+      "cat /tmp/skills/pua/SKILL.md",
+      "cat SKILL.md",
+    ].join(" && ");
+    const chunk = `${JSON.stringify({
+      type: "item.started",
+      item: {
+        id: "item_1",
+        type: "command_execution",
+        command,
+        status: "in_progress",
+      },
+    })}\n`;
+    const logContent = `${JSON.stringify({
+      ts: "2026-04-21T10:00:05.000Z",
+      stream: "stdout",
+      chunk,
+    })}\n`;
+
+    fs.mkdirSync(path.dirname(path.join(runLogDir, logRef)), { recursive: true });
+    fs.writeFileSync(path.join(runLogDir, logRef), logContent, "utf8");
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Rudder",
+      urlKey: deriveOrganizationUrlKey("Rudder"),
+      issuePrefix: "RUD",
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Wesley",
+      role: "engineer",
+      status: "idle",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      orgId,
+      agentId,
+      invocationSource: "on_demand",
+      status: "succeeded",
+      createdAt: new Date("2026-04-21T10:00:00.000Z"),
+      updatedAt: new Date("2026-04-21T10:05:00.000Z"),
+      logStore: "local_file",
+      logRef,
+      logBytes: Buffer.byteLength(logContent, "utf8"),
+    });
+
+    const analytics = await svc.getAgentSkillAnalytics(agentId, {
+      startDate: "2026-04-21",
+      endDate: "2026-04-21",
+    });
+
+    expect(analytics.totalCount).toBe(4);
+    expect(analytics.totalRunsWithSkills).toBe(1);
+    expect(analytics.evidenceCounts).toEqual({ used: 4, requested: 0, loaded: 0 });
+    expect(analytics.skills).toEqual([
+      { key: "build-advisor", label: "build-advisor", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+      { key: "deep-research", label: "deep-research", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+      { key: "pua", label: "pua", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+      { key: "screenshot", label: "screenshot", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+    ]);
+    expect(analytics.days).toEqual([
+      {
+        date: "2026-04-21",
+        totalCount: 4,
+        runCount: 1,
+        evidenceCounts: { used: 4, requested: 0, loaded: 0 },
+        skills: [
+          { key: "build-advisor", label: "build-advisor", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+          { key: "deep-research", label: "deep-research", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+          { key: "pua", label: "pua", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+          { key: "screenshot", label: "screenshot", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+        ],
+      },
+    ]);
   });
 });
