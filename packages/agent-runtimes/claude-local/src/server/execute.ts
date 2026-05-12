@@ -18,6 +18,7 @@ import {
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
+  ensureLocalCliCredentialShimsInPath,
   ensureRudderCliInPath,
   ensurePathInEnv,
   resolveLocalOperatorHome,
@@ -379,7 +380,15 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   env.RUDDER_OPERATOR_HOME = operatorHome;
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
 
-  const runtimeEnv = ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env }));
+  const runtimeEnv = await ensureLocalCliCredentialShimsInPath({
+    operatorHome,
+    targetHome: env.HOME,
+    cwd,
+    env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env })),
+    onLog: input.onLog,
+  });
+  if (typeof runtimeEnv.PATH === "string") env.PATH = runtimeEnv.PATH;
+  if (typeof runtimeEnv.Path === "string") env.Path = runtimeEnv.Path;
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0);

@@ -78,6 +78,7 @@ const DEFAULT_LOCAL_CLI_CREDENTIAL_HOME_ENTRIES = [
   "Library/Application Support/gh",
   "Library/Application Support/com.heroku.cli",
 ] as const;
+const DEFAULT_LOCAL_CLI_OPERATOR_HOME_SHIM_COMMANDS = ["gh"] as const;
 
 export interface RudderSkillEntry {
   key: string;
@@ -1496,6 +1497,81 @@ export async function syncLocalCliCredentialHomeEntries(input: {
   }
 
   return { linked, skipped };
+}
+
+async function writeOperatorHomeShim(input: {
+  shimDir: string;
+  command: string;
+  targetCommand: string;
+  operatorHome: string;
+}): Promise<string> {
+  await fs.mkdir(input.shimDir, { recursive: true });
+
+  if (process.platform === "win32") {
+    const shimPath = path.join(input.shimDir, `${input.command}.cmd`);
+    const lines = [
+      "@echo off",
+      `set "HOME=${input.operatorHome}"`,
+      `set "USERPROFILE=${input.operatorHome}"`,
+      `${quoteForCmd(input.targetCommand)} %*`,
+      "",
+    ];
+    await fs.writeFile(shimPath, lines.join("\r\n"), "utf8");
+    return shimPath;
+  }
+
+  const shimPath = path.join(input.shimDir, input.command);
+  await fs.writeFile(
+    shimPath,
+    [
+      "#!/bin/sh",
+      `export HOME=${shellQuote(input.operatorHome)}`,
+      `export USERPROFILE=${shellQuote(input.operatorHome)}`,
+      `exec ${shellQuote(input.targetCommand)} "$@"`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.chmod(shimPath, 0o755);
+  return shimPath;
+}
+
+export async function ensureLocalCliCredentialShimsInPath(input: {
+  operatorHome?: string | null;
+  targetHome: string;
+  env: NodeJS.ProcessEnv;
+  cwd?: string;
+  commands?: readonly string[];
+  onLog?: ((stream: "stdout" | "stderr", chunk: string) => Promise<void>) | null;
+}): Promise<NodeJS.ProcessEnv> {
+  const operatorHome = nonEmptyEnvPath(input.operatorHome ?? undefined);
+  const targetHome = nonEmptyEnvPath(input.targetHome);
+  if (!operatorHome || !targetHome || operatorHome === targetHome) {
+    return ensurePathInEnv(input.env);
+  }
+
+  const normalized = ensurePathInEnv(input.env);
+  const cwd = input.cwd ?? process.cwd();
+  const commands = input.commands ?? DEFAULT_LOCAL_CLI_OPERATOR_HOME_SHIM_COMMANDS;
+  const shimDir = path.join(targetHome, ".rudder", "local-cli-shims");
+  const prepared: string[] = [];
+
+  for (const command of commands) {
+    const targetCommand = await resolveCommandPath(command, cwd, normalized);
+    if (!targetCommand) continue;
+    if (path.dirname(targetCommand) === shimDir) continue;
+    await writeOperatorHomeShim({ shimDir, command, targetCommand, operatorHome });
+    prepared.push(command);
+  }
+
+  if (prepared.length === 0) return normalized;
+  if (input.onLog) {
+    await input.onLog(
+      "stdout",
+      `[rudder] Prepared local CLI credential shim${prepared.length === 1 ? "" : "s"} for: ${prepared.join(", ")}\n`,
+    );
+  }
+  return prependPathEntry(normalized, shimDir);
 }
 
 export async function ensureRudderSkillSymlink(

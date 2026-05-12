@@ -15,6 +15,7 @@ import {
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
+  ensureLocalCliCredentialShimsInPath,
   ensureRudderSkillSymlink,
   ensureRudderCliInPath,
   ensurePathInEnv,
@@ -348,9 +349,13 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
   
   const runtimeEnv = Object.fromEntries(
-    Object.entries(ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env }))).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
+    Object.entries(await ensureLocalCliCredentialShimsInPath({
+      operatorHome,
+      targetHome: managedHome,
+      cwd,
+      env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, { ...process.env, ...env })),
+      onLog,
+    })).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 

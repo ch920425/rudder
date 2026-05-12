@@ -48,6 +48,7 @@ const payload = {
   userProfile: process.env.USERPROFILE || null,
   agentHome: process.env.AGENT_HOME || null,
   rudderOperatorHome: process.env.RUDDER_OPERATOR_HOME || null,
+  pathEnv: process.env.PATH || null,
   workspaceSkillEntries: fs.existsSync(workspaceSkillsPath)
     ? fs.readdirSync(workspaceSkillsPath).sort()
     : [],
@@ -262,6 +263,7 @@ type CapturePayload = {
   userProfile: string | null;
   agentHome: string | null;
   rudderOperatorHome: string | null;
+  pathEnv: string | null;
   workspaceSkillEntries: string[];
   codexSkillEntries: string[];
   rudderEnvKeys: string[];
@@ -477,11 +479,13 @@ describe("codex execute", () => {
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
     const capturePath = path.join(root, "capture.json");
+    const hostBin = path.join(root, "host-bin");
     const operatorHome = path.join(root, "operator-home");
     const configIsolatedHome = path.join(root, "config-isolated-home");
     const sharedCodexHome = path.join(root, "shared-codex-home");
     const paperclipHome = path.join(root, "rudder-home");
     const managedCodexHome = managedCodexHomePath({ rudderHome: paperclipHome });
+    await fs.mkdir(hostBin, { recursive: true });
     await fs.mkdir(workspace, { recursive: true });
     await fs.mkdir(path.join(operatorHome, ".config", "gh"), { recursive: true });
     await fs.writeFile(
@@ -492,6 +496,8 @@ describe("codex execute", () => {
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
     await fs.writeFile(path.join(sharedCodexHome, "config.toml"), 'model = "codex-mini-latest"\n', "utf8");
+    await fs.writeFile(path.join(hostBin, "gh"), "#!/bin/sh\nexit 0\n", "utf8");
+    await fs.chmod(path.join(hostBin, "gh"), 0o755);
     await writeFakeCodexCommand(commandPath);
 
     const previousHome = process.env.HOME;
@@ -527,6 +533,7 @@ describe("codex execute", () => {
           cwd: workspace,
           env: {
             HOME: configIsolatedHome,
+            PATH: `${hostBin}:${process.env.PATH ?? ""}`,
             RUDDER_OPERATOR_HOME: operatorHome,
             RUDDER_TEST_CAPTURE_PATH: capturePath,
           },
@@ -557,6 +564,7 @@ describe("codex execute", () => {
       expect(capture.userProfile).toBe(path.join(managedCodexHome, "home"));
       expect(capture.agentHome).toBe(path.join(managedCodexHome, "home"));
       expect(capture.rudderOperatorHome).toBe(operatorHome);
+      expect(capture.pathEnv?.split(":")[0]).toBe(path.join(managedCodexHome, "home", ".rudder", "local-cli-shims"));
       expect(capture.codexSkillEntries).toEqual(["rudder"]);
       expect(capture.argv).toEqual(expect.arrayContaining([
         "exec",
@@ -571,6 +579,7 @@ describe("codex execute", () => {
       const managedAuth = path.join(managedCodexHome, "auth.json");
       const managedConfig = path.join(managedCodexHome, "config.toml");
       const managedGh = path.join(managedCodexHome, "home", ".config", "gh");
+      const managedGhShim = path.join(managedCodexHome, "home", ".rudder", "local-cli-shims", "gh");
       const managedSkillLink = path.join(managedCodexHome, "skills", "rudder");
       expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedAuth)).toBe(await fs.realpath(path.join(sharedCodexHome, "auth.json")));
@@ -584,6 +593,10 @@ describe("codex execute", () => {
       expect(managedConfigContents).not.toContain("[[skills.config]]");
       expect((await fs.lstat(managedGh)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedGh)).toBe(await fs.realpath(path.join(operatorHome, ".config", "gh")));
+      expect((await fs.lstat(managedGhShim)).isFile()).toBe(true);
+      const managedGhShimContents = await fs.readFile(managedGhShim, "utf8");
+      expect(managedGhShimContents).toContain(`export HOME='${operatorHome}'`);
+      expect(managedGhShimContents).not.toContain("oauth_token");
       expect((await fs.lstat(managedSkillLink)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedSkillLink)).toBe(
         await fs.realpath(path.join(process.cwd(), "server", "resources", "bundled-skills", "rudder")),

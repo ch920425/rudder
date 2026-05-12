@@ -13,6 +13,7 @@ import {
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
+  ensureLocalCliCredentialShimsInPath,
   ensureRudderSkillSymlink,
   ensureRudderCliInPath,
   ensurePathInEnv,
@@ -393,7 +394,15 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     ),
   );
   const billingType = resolveCursorBillingType(effectiveEnv);
-  const runtimeEnv = ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, effectiveEnv));
+  const runtimeEnv = await ensureLocalCliCredentialShimsInPath({
+    operatorHome,
+    targetHome: managedHome,
+    cwd,
+    env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, effectiveEnv)),
+    onLog,
+  });
+  if (typeof runtimeEnv.PATH === "string") env.PATH = runtimeEnv.PATH;
+  if (typeof runtimeEnv.Path === "string") env.Path = runtimeEnv.Path;
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0);

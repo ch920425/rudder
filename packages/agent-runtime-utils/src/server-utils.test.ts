@@ -1,9 +1,11 @@
 import fs from "node:fs/promises";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildIssueDocumentsPrompt,
+  ensureLocalCliCredentialShimsInPath,
   resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   loadAgentInstructionsPrefix,
@@ -627,6 +629,63 @@ describe("syncLocalCliCredentialHomeEntries", () => {
 
       expect(result).toEqual({ linked: [], skipped: [".config/gh"] });
       await expect(fs.readFile(path.join(targetGh, "hosts.yml"), "utf8")).resolves.toBe("stale-but-user-owned\n");
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("ensureLocalCliCredentialShimsInPath", () => {
+  it("runs selected host CLI commands with operator HOME without changing runtime HOME", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-shims-"));
+    const operatorHome = path.join(root, "operator-home");
+    const targetHome = path.join(root, "agent-home");
+    const binDir = path.join(root, "bin");
+    const capturePath = path.join(root, "capture.json");
+    const fakeGh = path.join(binDir, "gh");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(operatorHome, { recursive: true });
+    await fs.mkdir(targetHome, { recursive: true });
+    await fs.writeFile(
+      fakeGh,
+      [
+        "#!/bin/sh",
+        `printf '{"home":"%s","userProfile":"%s"}\\n' "$HOME" "$USERPROFILE" > ${JSON.stringify(capturePath)}`,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(fakeGh, 0o755);
+
+    try {
+      const env = await ensureLocalCliCredentialShimsInPath({
+        operatorHome,
+        targetHome,
+        env: {
+          HOME: targetHome,
+          PATH: binDir,
+        },
+        commands: ["gh"],
+      });
+
+      expect(env.HOME).toBe(targetHome);
+      expect(env.PATH?.split(":")[0]).toBe(path.join(targetHome, ".rudder", "local-cli-shims"));
+
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn("gh", [], { env });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`gh shim exited ${code}`));
+        });
+      });
+
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        home: string;
+        userProfile: string;
+      };
+      expect(capture.home).toBe(operatorHome);
+      expect(capture.userProfile).toBe(operatorHome);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
