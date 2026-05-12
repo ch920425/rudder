@@ -610,25 +610,32 @@ function readInvocationSkillList(payload: Record<string, unknown> | null | undef
 }
 
 function InvocationSkillEvidence({
-  payload,
+  invocationPayload,
+  usagePayload,
 }: {
-  payload: Record<string, unknown> | null | undefined;
+  invocationPayload: Record<string, unknown> | null | undefined;
+  usagePayload?: Record<string, unknown> | null | undefined;
 }) {
   const groups = [
     {
       key: "usedSkills",
+      label: "Read SKILL.md",
+      skills: readInvocationSkillList(usagePayload, "usedSkills"),
+    },
+    {
+      key: "runtimeUsedSkills",
       label: "Runtime reported used",
-      skills: readInvocationSkillList(payload, "usedSkills"),
+      skills: readInvocationSkillList(invocationPayload, "usedSkills"),
     },
     {
       key: "promptRequestedSkills",
       label: "Prompt requested",
-      skills: readInvocationSkillList(payload, "promptRequestedSkills"),
+      skills: readInvocationSkillList(invocationPayload, "promptRequestedSkills"),
     },
     {
       key: "loadedSkills",
       label: "Loaded for run",
-      skills: readInvocationSkillList(payload, "loadedSkills"),
+      skills: readInvocationSkillList(invocationPayload, "loadedSkills"),
     },
   ].filter((group) => group.skills.length > 0);
 
@@ -1825,12 +1832,12 @@ function AgentOverview({
             <div>
               <h3 className="text-sm font-medium">Skills</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Skill evidence per run for {rangeLabel}. Hover a day to inspect the breakdown.
+                Skill usage per run for {rangeLabel}. Hover a day to inspect the breakdown.
               </p>
             </div>
             <div className="text-right text-[11px] text-muted-foreground tabular-nums">
               <div>{visibleSkillAnalytics.totalCount} skill signals</div>
-              <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill evidence</div>
+              <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage signals</div>
             </div>
           </div>
           <SkillsUsageChart analytics={visibleSkillAnalytics} />
@@ -4916,6 +4923,10 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
     const evt = events.find((e) => e.eventType === "adapter.invoke");
     return redactPathValue(asRecord(evt?.payload ?? null), censorUsernameInLogs);
   }, [censorUsernameInLogs, events]);
+  const adapterSkillUsagePayload = useMemo(() => {
+    const evt = events.find((e) => e.eventType === "adapter.skill_usage");
+    return redactPathValue(asRecord(evt?.payload ?? null), censorUsernameInLogs);
+  }, [censorUsernameInLogs, events]);
 
   const adapter = useMemo(() => getUIAdapter(agentRuntimeType), [agentRuntimeType]);
   const transcript = useMemo(() => {
@@ -5141,7 +5152,7 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
                   </ul>
                 </div>
               )}
-              <InvocationSkillEvidence payload={adapterInvokePayload} />
+              <InvocationSkillEvidence invocationPayload={adapterInvokePayload} usagePayload={adapterSkillUsagePayload} />
               {invocationPromptText !== null && (
                 <div>
                   <div className="mb-1 text-xs text-muted-foreground">Prompt</div>

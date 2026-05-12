@@ -172,16 +172,16 @@ test.describe("Agent dashboard skills analytics", () => {
     await expect(page.getByRole("button", { name: "15D" })).toBeVisible();
     await expect(page.getByRole("button", { name: "1M" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Custom/ })).toBeVisible();
-    await expect(mainContent.getByText("Skill evidence per run for Last 7 days. Hover a day to inspect the breakdown.")).toBeVisible();
-    await expect(mainContent.getByText("5 skill signals")).toBeVisible();
-    await expect(mainContent.getByText("3 runs with skill evidence")).toBeVisible();
-    await expect(mainContent.getByText("Skill Evidence Distribution")).toBeVisible();
-    await expect(mainContent.getByText("Skill Evidence Timeline")).toBeVisible();
-    const distributionPie = mainContent.getByRole("button", { name: /Skill evidence distribution: 5 skill signals across 3 skills/ });
+    await expect(mainContent.getByText("Skill usage per run for Last 7 days. Hover a day to inspect the breakdown.")).toBeVisible();
+    await expect(mainContent.getByText("4 skill signals")).toBeVisible();
+    await expect(mainContent.getByText("2 runs with skill usage signals")).toBeVisible();
+    await expect(mainContent.getByText("Skill Usage Distribution")).toBeVisible();
+    await expect(mainContent.getByText("Skill Usage Timeline")).toBeVisible();
+    const distributionPie = mainContent.getByRole("button", { name: /Skill usage distribution: 4 skill signals across 3 skills/ });
     await expect(distributionPie).toBeVisible();
     await distributionPie.hover();
-    await expect(page.getByText("Skill evidence distribution")).toBeVisible();
-    await expect(page.getByText("5 skill signals across 3 runs").first()).toBeVisible();
+    await expect(page.getByText("Skill usage distribution")).toBeVisible();
+    await expect(page.getByText("4 skill signals across 2 runs").first()).toBeVisible();
     await expect(page.getByText("build-advisor").first()).toBeVisible();
     await expect(page.getByText("screenshot").first()).toBeVisible();
     await expect(page.getByText("pua").first()).toBeVisible();
@@ -310,14 +310,14 @@ test.describe("Agent dashboard skills analytics", () => {
 
     const mainContent = page.locator("#main-content");
     await expect(mainContent.getByRole("heading", { name: "Skills" })).toBeVisible();
-    await expect(mainContent.getByText("Skill evidence per run for Last 7 days across all agents. Hover a day to inspect the breakdown.")).toBeVisible();
+    await expect(mainContent.getByText("Skill usage per run for Last 7 days across all agents. Hover a day to inspect the breakdown.")).toBeVisible();
     await expect(mainContent.getByText("4 skill signals")).toBeVisible();
-    await expect(mainContent.getByText("2 runs with skill evidence")).toBeVisible();
+    await expect(mainContent.getByText("2 runs with skill usage signals")).toBeVisible();
 
-    const distributionPie = mainContent.getByRole("button", { name: /Skill evidence distribution: 4 skill signals across 3 skills/ });
+    const distributionPie = mainContent.getByRole("button", { name: /Skill usage distribution: 4 skill signals across 3 skills/ });
     await expect(distributionPie).toBeVisible();
     await distributionPie.hover();
-    await expect(page.getByText("Skill evidence distribution")).toBeVisible();
+    await expect(page.getByText("Skill usage distribution")).toBeVisible();
     await expect(page.getByText("4 skill signals across 2 runs").first()).toBeVisible();
     await expect(page.getByText("build-advisor").first()).toBeVisible();
     await expect(page.getByText("screenshot").first()).toBeVisible();
@@ -369,6 +369,6 @@ test.describe("Agent dashboard skills analytics", () => {
     const mainContent = page.locator("#main-content");
     await expect(mainContent.getByRole("heading", { name: "New Agent", exact: true })).toBeVisible();
     await expect(mainContent.locator("h3").filter({ hasText: "Skills" })).toHaveCount(0);
-    await expect(mainContent.getByText(/skill evidence/i)).toHaveCount(0);
+    await expect(mainContent.getByText(/skill usage/i)).toHaveCount(0);
   });
 });

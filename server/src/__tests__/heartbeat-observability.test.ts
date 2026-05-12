@@ -151,18 +151,9 @@ describe("heartbeat observability surface", () => {
       promptRequestedSkillKeys: [],
       promptRequestedSkills: [],
       skillEvidenceType: "loaded",
-      skillEvidenceCount: 2,
-      skillEvidenceKeys: ["rudder/build-advisor", "rudder/screenshot"],
-      skillEvidenceSkills: [
-        {
-          key: "rudder/build-advisor",
-          label: "build-advisor",
-        },
-        {
-          key: "rudder/screenshot",
-          label: "screenshot",
-        },
-      ],
+      skillEvidenceCount: 0,
+      skillEvidenceKeys: [],
+      skillEvidenceSkills: [],
     });
   });
 
@@ -193,7 +184,7 @@ describe("heartbeat observability surface", () => {
         },
       ],
       skillEvidenceType: "loaded",
-      skillEvidenceKeys: ["rudder/build-advisor"],
+      skillEvidenceKeys: [],
     });
   });
 

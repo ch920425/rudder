@@ -469,7 +469,7 @@ function resolveSkillEvidence(input: {
 }): { evidence: AgentSkillTelemetryEvidence; skills: Array<{ key: string; label: string }> } {
   if (input.usedSkills.length > 0) return { evidence: "used", skills: input.usedSkills };
   if (input.requestedSkills.length > 0) return { evidence: "requested", skills: input.requestedSkills };
-  return { evidence: "loaded", skills: input.loadedSkills };
+  return { evidence: "loaded", skills: [] };
 }
 
 function readSkillEvidenceFromPayload(payload: Record<string, unknown>): {
