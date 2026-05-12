@@ -401,6 +401,66 @@ function TranscriptActionIcon({
   );
 }
 
+function TranscriptActionIconSlot({
+  category,
+  status,
+  className,
+}: {
+  category: TranscriptActionIconCategory;
+  status: TranscriptActionIconStatus;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn("relative mt-0.5 h-5 w-8 shrink-0", className)}
+      data-transcript-action-icon-slot="true"
+    >
+      <TranscriptActionIcon category={category} status={status} className="absolute left-0 top-0.5" />
+    </span>
+  );
+}
+
+function TranscriptActionIconStack({
+  icons,
+  highlightError = false,
+}: {
+  icons: Array<{
+    category: TranscriptActionIconCategory;
+    status: TranscriptActionIconStatus;
+  }>;
+  highlightError?: boolean;
+}) {
+  const visibleIcons = icons.slice(0, 3);
+  const offsetClass = (index: number) => (index === 0 ? "left-0" : index === 1 ? "left-1.5" : "left-3");
+
+  return (
+    <span
+      className="relative mt-0.5 h-5 w-8 shrink-0"
+      data-transcript-action-icon-slot="true"
+      data-transcript-action-group-icon-slot="true"
+    >
+      {visibleIcons.map((icon, index) => (
+        <span
+          key={index}
+          className={cn(
+            "absolute top-0 inline-flex h-5 w-5 items-center justify-center rounded-full border",
+            offsetClass(index),
+            highlightError
+              ? "border-red-500/20 bg-red-500/[0.08] text-red-700 dark:text-red-300"
+              : icon.status === "error"
+                ? "border-border/60 bg-background/80"
+                : icon.status === "running"
+                  ? "border-cyan-500/20 bg-cyan-500/[0.08] text-cyan-700 dark:text-cyan-300"
+                  : "border-border/60 bg-background/80 text-muted-foreground",
+          )}
+        >
+          <TranscriptActionIcon category={icon.category} status={highlightError ? "error" : icon.status} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function getTranscriptTimestampTitle(ts: string): string | undefined {
   return formatTranscriptTimestamp(ts) || undefined;
 }
@@ -2476,7 +2536,7 @@ function TranscriptToolCard({
   return (
     <div className={outerClass} title={getTranscriptTimestampTitle(block.ts)}>
       <div className="flex items-start gap-2">
-        <TranscriptActionIcon category={semantic.category} status={block.status} className="mt-0.5" />
+        <TranscriptActionIconSlot category={semantic.category} status={block.status} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground">
@@ -2584,7 +2644,13 @@ function TranscriptCommandGroup({
   const showExpandedErrorState = open && allToolsErrored;
   const semanticItems = block.items.map((item) => describeToolSemanticInfo(item.name, item.input));
   const summary = formatSemanticDigest(semanticItems, 0, { preferDirectSummary: true });
-  const visibleIconItems = block.items.slice(0, Math.min(block.items.length, 3));
+  const visibleIcons = block.items.slice(0, 3).map((item, index) => {
+    const semantic = semanticItems[index] ?? describeToolSemanticInfo(item.name, item.input);
+    return {
+      category: semantic.category,
+      status: item.status === "error" ? "error" : item.status === "running" ? "running" : "completed",
+    } satisfies { category: TranscriptActionIconCategory; status: TranscriptActionIconStatus };
+  });
 
   return (
     <div className={cn(showExpandedErrorState && "rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3")} title={getTranscriptTimestampTitle(block.ts)}>
@@ -2603,28 +2669,7 @@ function TranscriptCommandGroup({
           }
         }}
       >
-        <div className="mt-0.5 flex shrink-0 items-center">
-          {visibleIconItems.map((item, index) => {
-            const semantic = semanticItems[index] ?? describeToolSemanticInfo(item.name, item.input);
-            const iconStatus = item.status === "error" ? "error" : item.status === "running" ? "running" : "completed";
-            return (
-              <span
-                key={index}
-                className={cn(
-                  "inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm",
-                  index > 0 && "-ml-1.5",
-                  item.status === "error"
-                    ? "border-red-500/25 bg-red-500/[0.08]"
-                    : item.status === "running"
-                      ? "border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-600 dark:text-cyan-300"
-                      : "border-border/70 bg-background text-foreground/55",
-                )}
-              >
-                <TranscriptActionIcon category={semantic.category} status={iconStatus} />
-              </span>
-            );
-          })}
-        </div>
+        <TranscriptActionIconStack icons={visibleIcons} highlightError={showExpandedErrorState} />
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold leading-none tracking-[0.05em] text-muted-foreground/70">
             Command activity
@@ -2969,7 +3014,7 @@ function TranscriptChatStdoutActionRow({
     return (
       <div className="py-1.5" title={getTranscriptTimestampTitle(block.ts)}>
         <div className="flex w-full items-start gap-2 text-left">
-          <TranscriptActionIcon category="stdout" status="completed" className="mt-0.5" />
+          <TranscriptActionIconSlot category="stdout" status="completed" />
           <pre className={cn(
             "min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-foreground/80",
             density === "compact" ? "text-[11px] leading-5" : "text-xs leading-6",
@@ -2990,7 +3035,7 @@ function TranscriptChatStdoutActionRow({
         aria-expanded={open}
         aria-label={open ? "Collapse output details" : "Expand output details"}
       >
-        <TranscriptActionIcon category="stdout" status="completed" className="mt-0.5" />
+        <TranscriptActionIconSlot category="stdout" status="completed" />
         <span className={cn("min-w-0 flex-1 break-words text-foreground/82", density === "compact" ? "text-xs leading-5" : "text-sm leading-6")}>
           {preview}
         </span>
@@ -3075,7 +3120,7 @@ function TranscriptChatToolActionRow({
             : undefined
         }
       >
-        <TranscriptActionIcon category={semantic.category} status={iconStatus} className="mt-0.5" />
+        <TranscriptActionIconSlot category={semantic.category} status={iconStatus} />
         <span className={cn("min-w-0 flex-1 break-words text-foreground/84", density === "compact" ? "text-xs leading-5" : "text-sm leading-6")}>
           {semantic.summary}
         </span>
@@ -3259,12 +3304,7 @@ function TranscriptChatActionGroup({
   const summary = formatChatActionSummary(actions);
   const highlightGroupError = allToolsErrored && !detailVariant;
   const [detailsOpen, setDetailsOpen] = useState(() => (detailVariant ? false : allToolsErrored));
-  const visibleGroupActions = actions.slice(0, Math.min(actions.length, 3));
-  const groupIconOffsetClass = (index: number) => {
-    if (visibleGroupActions.length === 1) return "left-0";
-    if (visibleGroupActions.length === 2) return index === 0 ? "-left-2" : "left-0";
-    return index === 0 ? "-left-4" : index === 1 ? "-left-2" : "left-0";
-  };
+  const visibleGroupIcons = actions.slice(0, 3).map(getChatActionIconInfo);
 
   useEffect(() => {
     if (!detailVariant && allToolsErrored) {
@@ -3314,32 +3354,7 @@ function TranscriptChatActionGroup({
         aria-expanded={detailsOpen}
         aria-label={expandedLabel}
       >
-        <span
-          className="relative mt-0.5 h-4 w-4 shrink-0"
-          data-transcript-action-group-icon-slot="true"
-        >
-          {visibleGroupActions.map((action, index) => {
-            const icon = getChatActionIconInfo(action);
-            return (
-              <span
-                key={index}
-                className={cn(
-                  "absolute top-0 inline-flex h-5 w-5 items-center justify-center rounded-full border",
-                  groupIconOffsetClass(index),
-                  highlightGroupError
-                    ? "border-red-500/20 bg-red-500/[0.08] text-red-700 dark:text-red-300"
-                    : icon.status === "error"
-                      ? "border-border/60 bg-background/80"
-                      : icon.status === "running"
-                        ? "border-cyan-500/20 bg-cyan-500/[0.08] text-cyan-700 dark:text-cyan-300"
-                        : "border-border/60 bg-background/80 text-muted-foreground",
-                )}
-              >
-                <TranscriptActionIcon category={icon.category} status={highlightGroupError ? "error" : icon.status} />
-              </span>
-            );
-          })}
-        </span>
+        <TranscriptActionIconStack icons={visibleGroupIcons} highlightError={highlightGroupError} />
         <span className="min-w-0 flex-1">
           <span className={cn(
             "block break-words text-foreground/82",
