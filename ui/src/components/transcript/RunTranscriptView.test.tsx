@@ -1119,6 +1119,7 @@ describe("RunTranscriptView", () => {
     );
 
     expect(html).toContain("Use flomo-local-api skill");
+    expect(html).toContain('data-transcript-action-icon="skill"');
     expect(html).not.toContain("Read /Users/zeeland/.codex/skills/flomo-local-api/SKILL.md");
   });
 

@@ -5,6 +5,7 @@ import { cn, formatTokens } from "../../lib/utils";
 import { readDesktopShell } from "../../lib/desktop-shell";
 import { useOptionalToast } from "../../context/ToastContext";
 import {
+  Boxes,
   Check,
   ChevronRight,
   CircleAlert,
@@ -39,6 +40,7 @@ type TranscriptToolCategory =
   | "grep"
   | "search"
   | "web_search"
+  | "skill"
   | "mcp"
   | "list"
   | "inspect";
@@ -339,6 +341,8 @@ function getTranscriptActionIconTreatment(category: TranscriptActionIconCategory
       return { key: "search", label: "Search", Icon: Search };
     case "web_search":
       return { key: "web_search", label: "Web search", Icon: Globe };
+    case "skill":
+      return { key: "skill", label: "Skill", Icon: Boxes };
     case "edit":
       return { key: "edit", label: "Edit", Icon: FileDiff };
     case "inspect":
@@ -361,9 +365,10 @@ function getTranscriptActionIconTreatment(category: TranscriptActionIconCategory
   }
 }
 
-function getTranscriptActionIconTone(status: TranscriptActionIconStatus): string {
+function getTranscriptActionIconTone(status: TranscriptActionIconStatus, category: TranscriptActionIconCategory): string {
   if (status === "error") return "text-red-600 dark:text-red-300";
   if (status === "running") return "text-cyan-600 dark:text-cyan-300";
+  if (category === "skill") return "text-[#2f80ed]";
   return "text-muted-foreground";
 }
 
@@ -384,7 +389,7 @@ function TranscriptActionIcon({
       data-transcript-action-icon={treatment.key}
       className={cn(
         "inline-flex h-4 w-4 shrink-0 items-center justify-center",
-        getTranscriptActionIconTone(status),
+        getTranscriptActionIconTone(status, category),
         status === "running" && "animate-pulse",
         className,
       )}
@@ -1268,7 +1273,7 @@ function describeCommandSemanticInfo(command: string): TranscriptToolSemanticInf
     if (skillAction) {
       return {
         ...skillAction,
-        category: invocation.category,
+        category: "skill",
         label: "Use skill",
         bucket: "explore",
       };
@@ -1593,7 +1598,7 @@ function describeToolSemanticInfo(name: string, input: unknown): TranscriptToolS
     if (skillAction) {
       return {
         ...skillAction,
-        category: invocation.category,
+        category: "skill",
         label: "Use skill",
         bucket: "explore",
       };
@@ -2945,7 +2950,7 @@ function getToolCommand(block: TranscriptToolCardEntry): string | null {
 }
 
 function shouldHideChatToolResult(semantic: TranscriptToolSemanticInfo): boolean {
-  return semantic.category === "read";
+  return semantic.category === "read" || semantic.category === "skill";
 }
 
 function TranscriptChatStdoutActionRow({
