@@ -12,8 +12,10 @@ import {
   assistantStateLabel,
   canContinueInterruptedChatMessage,
   computeDisplayedChatMessages,
+  createChatImageDesktopPayload,
   isChatAgentSelectionLocked,
   isUserVisibleIncomingChatMessage,
+  resolveChatImageFilename,
   scrollChatMessagesToBottom,
   statusChipClassName,
   withOptimisticPlanMode,
@@ -394,6 +396,23 @@ describe("chat scoped pending files", () => {
     expect(readChatScopedPendingFiles(scopes, "org-1:chat-1")).toEqual([]);
     expect(readChatScopedPendingFiles(scopes, "org-1:chat-2")).toBe(chatTwoFiles);
     expect(scopes).not.toHaveProperty("org-1:chat-1");
+  });
+});
+
+describe("chat image attachment actions", () => {
+  it("adds an image extension when sending image data to desktop actions", async () => {
+    const blob = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+
+    await expect(createChatImageDesktopPayload(blob, "screenshot")).resolves.toEqual({
+      filename: "screenshot.png",
+      contentType: "image/png",
+      base64: "iVBORw==",
+    });
+  });
+
+  it("keeps existing image filenames intact", () => {
+    expect(resolveChatImageFilename("diagram.webp", "image/png")).toBe("diagram.webp");
+    expect(resolveChatImageFilename("avatar", "image/jpeg")).toBe("avatar.jpg");
   });
 });
 

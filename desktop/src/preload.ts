@@ -73,6 +73,12 @@ type DesktopPathPickResult = {
   path: string | null;
 };
 
+type DesktopImageDataPayload = {
+  filename?: string | null;
+  contentType: string;
+  base64: string;
+};
+
 type DesktopIdeTarget = {
   id: "cursor" | "vscode" | "windsurf" | "zed" | "webstorm" | "intellij";
   label: string;
@@ -129,6 +135,8 @@ contextBridge.exposeInMainWorld("desktopShell", {
   openWorkspaceFileInIde: (rootPath: string, filePath: string, ideId?: DesktopIdeTarget["id"]) =>
     ipcRenderer.invoke("desktop:open-workspace-file-in-ide", { rootPath, filePath, ideId }) as Promise<void>,
   copyText: (value: string) => ipcRenderer.invoke("desktop:copy-text", value),
+  copyImage: (payload: DesktopImageDataPayload) => ipcRenderer.invoke("desktop:copy-image", payload),
+  showImageInFolder: (payload: DesktopImageDataPayload) => ipcRenderer.invoke("desktop:show-image-in-folder", payload),
   setAppearance: (theme: "light" | "dark" | "system") => ipcRenderer.invoke("desktop:set-appearance", theme),
   getUpdateChannel: () => ipcRenderer.invoke("desktop:get-update-channel") as Promise<DesktopUpdateChannel>,
   setUpdateChannel: (channel: DesktopUpdateChannel) =>
@@ -163,6 +171,8 @@ declare global {
       openWorkspace(rootPath: string, targetId?: DesktopWorkspaceLaunchTarget["id"]): Promise<void>;
       openWorkspaceFileInIde(rootPath: string, filePath: string, ideId?: DesktopIdeTarget["id"]): Promise<void>;
       copyText(value: string): Promise<void>;
+      copyImage(payload: DesktopImageDataPayload): Promise<void>;
+      showImageInFolder(payload: DesktopImageDataPayload): Promise<void>;
       setAppearance(theme: "light" | "dark" | "system"): Promise<void>;
       getUpdateChannel(): Promise<DesktopUpdateChannel>;
       setUpdateChannel(channel: DesktopUpdateChannel): Promise<DesktopUpdateChannel>;

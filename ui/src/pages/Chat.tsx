@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -107,7 +107,7 @@ import {
   appendSkillReferencesToDraft,
 } from "@/lib/organization-skill-picker";
 import { formatAssigneeUserLabel } from "@/lib/assignees";
-import { readDesktopShell } from "@/lib/desktop-shell";
+import { readDesktopShell, type DesktopImageDataPayload } from "@/lib/desktop-shell";
 import { resolveLocalFileTarget } from "@/lib/local-file-targets";
 import { cn, relativeTime } from "@/lib/utils";
 import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
@@ -117,6 +117,11 @@ type ApprovalAction = "approve" | "reject" | "requestRevision";
 type AttachmentPreviewState = {
   src: string;
   name: string;
+};
+
+type ChatImageContextMenuPosition = {
+  left: number;
+  top: number;
 };
 
 export const OPEN_TASK_PRIORITY_PROMPT = "List my open tasks by priority";
@@ -349,6 +354,81 @@ function attachmentDisplayName(input: { originalFilename?: string | null; assetI
   return input.originalFilename ?? input.name ?? input.assetId ?? "attachment";
 }
 
+function extensionForImageContentType(contentType: string) {
+  switch (contentType.toLowerCase().split(";")[0]) {
+    case "image/jpeg":
+    case "image/jpg":
+      return ".jpg";
+    case "image/gif":
+      return ".gif";
+    case "image/webp":
+      return ".webp";
+    case "image/svg+xml":
+      return ".svg";
+    case "image/png":
+    default:
+      return ".png";
+  }
+}
+
+export function resolveChatImageFilename(name: string, contentType: string) {
+  const trimmed = name.trim() || "chat-image";
+  return /\.[a-z0-9]{2,8}$/i.test(trimmed) ? trimmed : `${trimmed}${extensionForImageContentType(contentType)}`;
+}
+
+async function blobToBase64(blob: Blob) {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+export async function createChatImageDesktopPayload(blob: Blob, name: string): Promise<DesktopImageDataPayload> {
+  const contentType = blob.type || "image/png";
+  return {
+    filename: resolveChatImageFilename(name, contentType),
+    contentType,
+    base64: await blobToBase64(blob),
+  };
+}
+
+async function fetchChatImageBlob(src: string) {
+  const response = await fetch(src, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Unable to load image (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  if (!isImageAttachmentContentType(blob.type)) {
+    throw new Error("The selected attachment is not an image.");
+  }
+  return blob;
+}
+
+async function copyImageBlobWithBrowserClipboard(blob: Blob) {
+  const ClipboardItemCtor = typeof ClipboardItem === "undefined" ? null : ClipboardItem;
+  if (!navigator.clipboard?.write || !ClipboardItemCtor) {
+    throw new Error("Copy Image is only available in the desktop app or a clipboard-enabled browser.");
+  }
+  await navigator.clipboard.write([
+    new ClipboardItemCtor({
+      [blob.type || "image/png"]: blob,
+    }),
+  ]);
+}
+
+function clampChatImageContextMenuPosition(left: number, top: number): ChatImageContextMenuPosition {
+  if (typeof window === "undefined") return { left, top };
+  return {
+    left: Math.min(left, Math.max(8, window.innerWidth - 190)),
+    top: Math.min(top, Math.max(8, window.innerHeight - 96)),
+  };
+}
+
 function shouldHandlePlainChatLinkClick(event: Parameters<MarkdownLinkClickHandler>[0]["event"]) {
   return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
@@ -366,6 +446,81 @@ function ChatImageAttachmentTile({
   onRemove?: () => void;
   testId?: string;
 }) {
+  const { pushToast } = useToast();
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<ChatImageContextMenuPosition | null>(null);
+  const desktopShell = readDesktopShell();
+  const canShowInFinder = Boolean(desktopShell?.showImageInFolder);
+
+  useEffect(() => {
+    if (!contextMenuPosition) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (contextMenuRef.current?.contains(event.target as Node)) return;
+      setContextMenuPosition(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenuPosition(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenuPosition]);
+
+  const openImageContextMenu = (event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenuPosition(clampChatImageContextMenuPosition(event.clientX, event.clientY));
+  };
+
+  const copyImage = async () => {
+    setContextMenuPosition(null);
+    try {
+      const blob = await fetchChatImageBlob(src);
+      if (desktopShell?.copyImage) {
+        await desktopShell.copyImage(await createChatImageDesktopPayload(blob, name));
+      } else {
+        await copyImageBlobWithBrowserClipboard(blob);
+      }
+      pushToast({ title: "Image copied", tone: "success" });
+    } catch (error) {
+      pushToast({
+        title: "Copy Image failed",
+        body: error instanceof Error ? error.message : String(error),
+        tone: "error",
+      });
+    }
+  };
+
+  const showImageInFolder = async () => {
+    setContextMenuPosition(null);
+    if (!desktopShell?.showImageInFolder) {
+      pushToast({
+        title: "Open in Finder unavailable",
+        body: "Open in Finder is available in the desktop app.",
+        tone: "error",
+      });
+      return;
+    }
+
+    try {
+      const blob = await fetchChatImageBlob(src);
+      await desktopShell.showImageInFolder(await createChatImageDesktopPayload(blob, name));
+    } catch (error) {
+      pushToast({
+        title: "Open in Finder failed",
+        body: error instanceof Error ? error.message : String(error),
+        tone: "error",
+      });
+    }
+  };
+
   return (
     <div
       data-testid={testId}
@@ -376,11 +531,13 @@ function ChatImageAttachmentTile({
         aria-label={`Open image preview: ${name}`}
         className="flex h-12 w-12 min-w-0 items-center justify-center overflow-hidden rounded-[calc(var(--radius-sm)+4px)] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-active)_42%,transparent)] text-left transition-[border-color,box-shadow] hover:border-[color:var(--border-strong)] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onClick={onOpen}
+        onContextMenu={openImageContextMenu}
       >
         <img
           src={src}
           alt={name}
           className="h-full w-full shrink-0 object-cover"
+          onContextMenu={openImageContextMenu}
         />
       </button>
       {onRemove ? (
@@ -392,6 +549,36 @@ function ChatImageAttachmentTile({
         >
           <X className="h-3.5 w-3.5" />
         </button>
+      ) : null}
+      {contextMenuPosition && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={contextMenuRef}
+          data-testid="chat-image-context-menu"
+          role="menu"
+          className="motion-chat-composer-menu-pop surface-overlay fixed z-50 min-w-[172px] rounded-[var(--radius-lg)] border p-1.5 text-foreground shadow-[var(--shadow-lg)]"
+          style={contextMenuPosition}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="chat-composer-menu-row w-full disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canShowInFinder}
+            onClick={showImageInFolder}
+          >
+            <Folder className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Open in Finder</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="chat-composer-menu-row w-full"
+            onClick={copyImage}
+          >
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Copy Image</span>
+          </button>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

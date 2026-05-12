@@ -77,6 +77,12 @@ export type DesktopPathPickResult = {
   path: string | null;
 };
 
+export type DesktopImageDataPayload = {
+  filename?: string | null;
+  contentType: string;
+  base64: string;
+};
+
 export type DesktopIdeTarget = {
   id: "cursor" | "vscode" | "windsurf" | "zed" | "webstorm" | "intellij";
   label: string;
@@ -98,6 +104,8 @@ export type DesktopShellApi = {
   openWorkspace?(rootPath: string, targetId?: DesktopWorkspaceLaunchTarget["id"]): Promise<void>;
   openWorkspaceFileInIde(rootPath: string, filePath: string, ideId?: DesktopIdeTarget["id"]): Promise<void>;
   copyText(value: string): Promise<void>;
+  copyImage?(payload: DesktopImageDataPayload): Promise<void>;
+  showImageInFolder?(payload: DesktopImageDataPayload): Promise<void>;
   setAppearance(theme: "light" | "dark" | "system"): Promise<void>;
   getUpdateChannel?(): Promise<DesktopUpdateChannel>;
   setUpdateChannel?(channel: DesktopUpdateChannel): Promise<DesktopUpdateChannel>;
