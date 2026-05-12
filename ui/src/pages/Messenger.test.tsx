@@ -173,7 +173,7 @@ describe("Messenger page headers", () => {
     expect(html).toContain("<h2>Review Summary</h2>");
     expect(html).toContain("<strong>Rendered</strong>");
     expect(html).toContain("Alex comment");
-    expect(html).toContain("Source comment by Alex");
+    expect(html).not.toContain("Source comment by Alex");
     expect(html).toContain('href="/issues/RUD-4#comment-comment-4"');
     expect(html).not.toContain("Issues assistant");
   });

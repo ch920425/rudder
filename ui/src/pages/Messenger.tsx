@@ -313,8 +313,8 @@ function MessengerIssueCommentPreview({
 
   const collapsed = !expanded;
   const sourceLabel = authorLabel?.trim()
-    ? `Source comment by ${authorLabel.trim()}`
-    : "Source comment on this issue";
+    ? `${authorLabel.trim()} comment`
+    : "Issue comment";
   const previewSurface = "color-mix(in oklab, var(--surface-inset) 88%, transparent)";
 
   return (
