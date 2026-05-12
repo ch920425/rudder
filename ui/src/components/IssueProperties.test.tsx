@@ -161,4 +161,38 @@ describe("IssueProperties", () => {
     expect(container.textContent).not.toContain("Workspace");
     expect(container.textContent).not.toContain("Execution workspace");
   });
+
+  it("renders assignee picker agents as two-line menu rows", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(<IssueProperties issue={baseIssue} onUpdate={vi.fn()} inline />);
+    });
+
+    const label = container.querySelector('[data-slot="assignee-label"][data-kind="agent"]');
+    const trigger = label?.closest("button");
+
+    act(() => {
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const menuLabel = container.querySelector('[data-slot="agent-menu-label"]');
+    const supportingLabel = container.querySelector('[data-slot="agent-menu-supporting-label"]');
+    const scrollRegion = container.querySelector('[data-testid="issue-properties-assignee-scroll"]');
+
+    expect(menuLabel?.textContent).toContain("Ella");
+    expect(supportingLabel?.textContent).toBe("Chief Technology Officer");
+    expect(menuLabel?.querySelector('[data-slot="agent-title-badge"]')).toBeNull();
+    expect(supportingLabel?.classList.contains("truncate")).toBe(true);
+    expect(scrollRegion?.classList.contains("scrollbar-auto-hide")).toBe(true);
+  });
 });

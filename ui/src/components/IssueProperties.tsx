@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { findIssueLabelExactMatch, normalizeIssueLabelName, pickIssueLabelColor } from "@/lib/issue-labels";
 import { Link } from "@/lib/router";
-import type { Issue } from "@rudderhq/shared";
+import type { Agent, Issue } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
@@ -12,6 +12,7 @@ import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels"
 import { projectColorBackgroundStyle } from "../lib/project-colors";
 import { queryKeys } from "../lib/queryKeys";
 import { useProjectOrder } from "../hooks/useProjectOrder";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { getRecentAssigneeIds, sortAgentsByRecency, trackRecentAssignee } from "../lib/recent-assignees";
 import { formatAssigneeUserLabel } from "../lib/assignees";
 import { StatusIcon } from "./StatusIcon";
@@ -54,6 +55,26 @@ function PropertyRow({ label, children }: { label: string; children: React.React
       <span className="text-xs text-muted-foreground shrink-0 w-20">{label}</span>
       <div className="flex items-center gap-1.5 min-w-0 flex-1">{children}</div>
     </div>
+  );
+}
+
+function AgentMenuLabel({ agent }: { agent: Pick<Agent, "name" | "role" | "title" | "icon"> }) {
+  const supportingLabel = agentTitleBadgeLabel(agent);
+
+  return (
+    <span data-slot="agent-menu-label" className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/40 text-muted-foreground">
+        <AgentIcon icon={agent.icon} role={agent.role} className="h-3.5 w-3.5" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col text-left">
+        <span className="truncate text-xs font-medium leading-4 text-foreground">{agent.name}</span>
+        {supportingLabel ? (
+          <span data-slot="agent-menu-supporting-label" className="truncate text-[11px] leading-3 text-muted-foreground">
+            {supportingLabel}
+          </span>
+        ) : null}
+      </span>
+    </span>
   );
 }
 
@@ -131,6 +152,8 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
   const [projectSearch, setProjectSearch] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
+  const assigneeScrollRef = useScrollbarActivityRef();
+  const reviewerScrollRef = useScrollbarActivityRef();
 
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
@@ -347,10 +370,14 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
         onChange={(e) => setAssigneeSearch(e.target.value)}
         autoFocus={!inline}
       />
-      <div className="max-h-48 overflow-y-auto overscroll-contain">
+      <div
+        ref={assigneeScrollRef}
+        data-testid="issue-properties-assignee-scroll"
+        className="scrollbar-auto-hide max-h-60 overflow-y-auto overscroll-contain"
+      >
         <button
           className={cn(
-            "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+            "flex min-w-0 items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded hover:bg-accent/50",
             !issue.assigneeAgentId && !issue.assigneeUserId && "bg-accent"
           )}
           onClick={() => { onUpdate({ assigneeAgentId: null, assigneeUserId: null }); setAssigneeOpen(false); }}
@@ -360,7 +387,7 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
         {currentUserId && (
           <button
             className={cn(
-              "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+              "flex min-w-0 items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded hover:bg-accent/50",
               issue.assigneeUserId === currentUserId && "bg-accent",
             )}
             onClick={() => {
@@ -374,7 +401,7 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
         {issue.createdByUserId && issue.createdByUserId !== currentUserId && (
           <button
             className={cn(
-              "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+              "flex min-w-0 items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded hover:bg-accent/50",
               issue.assigneeUserId === issue.createdByUserId && "bg-accent",
             )}
             onClick={() => {
@@ -398,18 +425,12 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
           <button
             key={a.id}
             className={cn(
-              "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+              "flex min-w-0 items-center gap-2 w-full px-2 py-2 text-left text-xs rounded hover:bg-accent/50",
               a.id === issue.assigneeAgentId && "bg-accent"
             )}
             onClick={() => { trackRecentAssignee(a.id); onUpdate({ assigneeAgentId: a.id, assigneeUserId: null }); setAssigneeOpen(false); }}
           >
-            <AssigneeLabel
-              kind="agent"
-              label={a.name}
-              badgeLabel={agentTitleBadgeLabel(a)}
-              agentIcon={a.icon}
-              agentRole={a.role}
-            />
+            <AgentMenuLabel agent={a} />
           </button>
         ))}
       </div>
@@ -439,10 +460,14 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
         onChange={(e) => setReviewerSearch(e.target.value)}
         autoFocus={!inline}
       />
-      <div className="max-h-48 overflow-y-auto overscroll-contain">
+      <div
+        ref={reviewerScrollRef}
+        data-testid="issue-properties-reviewer-scroll"
+        className="scrollbar-auto-hide max-h-60 overflow-y-auto overscroll-contain"
+      >
         <button
           className={cn(
-            "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+            "flex min-w-0 items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded hover:bg-accent/50",
             !issue.reviewerAgentId && !issue.reviewerUserId && "bg-accent"
           )}
           onClick={() => { onUpdate({ reviewerAgentId: null, reviewerUserId: null }); setReviewerOpen(false); }}
@@ -452,7 +477,7 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
         {currentUserId && (
           <button
             className={cn(
-              "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+              "flex min-w-0 items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded hover:bg-accent/50",
               issue.reviewerUserId === currentUserId && "bg-accent",
             )}
             onClick={() => {
@@ -473,18 +498,12 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
           <button
             key={a.id}
             className={cn(
-              "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+              "flex min-w-0 items-center gap-2 w-full px-2 py-2 text-left text-xs rounded hover:bg-accent/50",
               a.id === issue.reviewerAgentId && "bg-accent"
             )}
             onClick={() => { trackRecentAssignee(a.id); onUpdate({ reviewerAgentId: a.id, reviewerUserId: null }); setReviewerOpen(false); }}
           >
-            <AssigneeLabel
-              kind="agent"
-              label={a.name}
-              badgeLabel={agentTitleBadgeLabel(a)}
-              agentIcon={a.icon}
-              agentRole={a.role}
-            />
+            <AgentMenuLabel agent={a} />
           </button>
         ))}
       </div>
@@ -601,7 +620,8 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
           onOpenChange={(open) => { setAssigneeOpen(open); if (!open) setAssigneeSearch(""); }}
           triggerContent={assigneeTrigger}
           triggerClassName="min-w-0 max-w-full"
-          popoverClassName="w-52"
+          popoverClassName="w-[19rem]"
+          popoverAlign="start"
         >
           {assigneeContent}
         </PropertyPicker>
@@ -613,7 +633,8 @@ export function IssueProperties({ issue, onUpdate, inline }: IssuePropertiesProp
           onOpenChange={(open) => { setReviewerOpen(open); if (!open) setReviewerSearch(""); }}
           triggerContent={reviewerTrigger}
           triggerClassName="min-w-0 max-w-full"
-          popoverClassName="w-52"
+          popoverClassName="w-[19rem]"
+          popoverAlign="start"
           extra={reviewerMatchesAssignee ? (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <AlertTriangle className="h-3 w-3" />
