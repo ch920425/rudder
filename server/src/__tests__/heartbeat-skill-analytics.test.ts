@@ -149,6 +149,7 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     const runOneId = randomUUID();
     const runTwoId = randomUUID();
     const runThreeId = randomUUID();
+    const usedRunId = randomUUID();
     const oldRunId = randomUUID();
     const secondAgentRunId = randomUUID();
 
@@ -179,6 +180,15 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
         status: "succeeded",
         createdAt: new Date("2026-04-18T09:00:00.000Z"),
         updatedAt: new Date("2026-04-18T09:05:00.000Z"),
+      },
+      {
+        id: usedRunId,
+        orgId,
+        agentId,
+        invocationSource: "on_demand",
+        status: "succeeded",
+        createdAt: new Date("2026-04-19T10:00:00.000Z"),
+        updatedAt: new Date("2026-04-19T10:05:00.000Z"),
       },
       {
         id: oldRunId,
@@ -273,6 +283,44 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
       },
       {
         orgId,
+        runId: usedRunId,
+        agentId,
+        seq: 1,
+        eventType: "adapter.invoke",
+        stream: "system",
+        level: "info",
+        message: "adapter invocation",
+        payload: {
+          prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md)",
+          usedSkills: [
+            { key: "runtime-used", runtimeName: "runtime-used", name: "Runtime Used" },
+          ],
+          loadedSkills: [
+            { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
+            { key: "runtime-used", runtimeName: "runtime-used", name: "Runtime Used" },
+          ],
+        },
+        createdAt: new Date("2026-04-19T10:00:05.000Z"),
+      },
+      {
+        orgId,
+        runId: usedRunId,
+        agentId,
+        seq: 2,
+        eventType: "adapter.skill_usage",
+        stream: "system",
+        level: "info",
+        message: "skill usage inferred from transcript",
+        payload: {
+          source: "transcript.skill_file_read",
+          usedSkills: [
+            { key: "skill-read", label: "skill-read" },
+          ],
+        },
+        createdAt: new Date("2026-04-19T10:04:05.000Z"),
+      },
+      {
+        orgId,
         runId: oldRunId,
         agentId,
         seq: 1,
@@ -315,13 +363,15 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     expect(analytics.windowDays).toBe(30);
     expect(analytics.startDate).toBe("2026-03-24");
     expect(analytics.endDate).toBe("2026-04-22");
-    expect(analytics.totalCount).toBe(6);
-    expect(analytics.totalRunsWithSkills).toBe(3);
-    expect(analytics.evidenceCounts).toEqual({ used: 0, requested: 5, loaded: 1 });
+    expect(analytics.totalCount).toBe(8);
+    expect(analytics.totalRunsWithSkills).toBe(4);
+    expect(analytics.evidenceCounts).toEqual({ used: 2, requested: 5, loaded: 1 });
     expect(analytics.skills).toEqual([
       { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
       { key: "pua", label: "pua", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
+      { key: "runtime-used", label: "runtime-used", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
       { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
+      { key: "skill-read", label: "skill-read", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
       { key: "unused-skill", label: "unused-skill", count: 1, evidence: "loaded", evidenceCounts: { used: 0, requested: 0, loaded: 1 } },
     ]);
 
@@ -335,6 +385,18 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
         { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
         { key: "pua", label: "pua", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
         { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
+      ],
+    });
+
+    const april19 = analytics.days.find((day) => day.date === "2026-04-19");
+    expect(april19).toEqual({
+      date: "2026-04-19",
+      totalCount: 2,
+      runCount: 1,
+      evidenceCounts: { used: 2, requested: 0, loaded: 0 },
+      skills: [
+        { key: "runtime-used", label: "runtime-used", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
+        { key: "skill-read", label: "skill-read", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
       ],
     });
 
@@ -383,14 +445,16 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
 
     expect(organizationAnalytics.agentId).toBe("__all__");
     expect(organizationAnalytics.orgId).toBe(orgId);
-    expect(organizationAnalytics.totalCount).toBe(8);
-    expect(organizationAnalytics.totalRunsWithSkills).toBe(4);
-    expect(organizationAnalytics.evidenceCounts).toEqual({ used: 0, requested: 7, loaded: 1 });
+    expect(organizationAnalytics.totalCount).toBe(10);
+    expect(organizationAnalytics.totalRunsWithSkills).toBe(5);
+    expect(organizationAnalytics.evidenceCounts).toEqual({ used: 2, requested: 7, loaded: 1 });
     expect(organizationAnalytics.skills).toEqual([
       { key: "pua", label: "pua", count: 3, evidence: "requested", evidenceCounts: { used: 0, requested: 3, loaded: 0 } },
       { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
       { key: "deep-research", label: "deep-research", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
+      { key: "runtime-used", label: "runtime-used", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
       { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
+      { key: "skill-read", label: "skill-read", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
       { key: "unused-skill", label: "unused-skill", count: 1, evidence: "loaded", evidenceCounts: { used: 0, requested: 0, loaded: 1 } },
     ]);
 

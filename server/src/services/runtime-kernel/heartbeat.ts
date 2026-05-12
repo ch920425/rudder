@@ -495,6 +495,95 @@ function readSkillEvidenceFromPayload(payload: Record<string, unknown>): {
   return resolveSkillEvidence({ usedSkills, requestedSkills, loadedSkills });
 }
 
+function extractSkillSlugFromPath(value: string): string | null {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/[?#].*$/u, "").replace(/\/+$/u, "");
+  if (!normalized.endsWith("/SKILL.md")) return null;
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  const slug = parts.at(-2);
+  if (!slug || slug === "." || slug === "..") return null;
+  return slug;
+}
+
+function collectSkillPathsFromText(value: string): string[] {
+  const paths: string[] = [];
+  const pattern = /(?:^|[\s"'`(=])([^\s"'`()<>|;&]+\/[^/\s"'`()<>|;&]+\/SKILL\.md)(?=$|[\s"'`()<>|;&])/giu;
+  for (const match of value.matchAll(pattern)) {
+    const pathValue = match[1]?.trim();
+    if (pathValue) paths.push(pathValue);
+  }
+  return paths;
+}
+
+function collectStringValues(value: unknown, depth = 0): string[] {
+  if (depth > 4) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap((entry) => collectStringValues(entry, depth + 1));
+  const record = parseObject(value);
+  return Object.values(record).flatMap((entry) => collectStringValues(entry, depth + 1));
+}
+
+function normalizeSkillUseFromPath(value: string): { key: string; label: string } | null {
+  const slug = extractSkillSlugFromPath(value);
+  if (!slug) return null;
+  return { key: slug, label: slug };
+}
+
+function dedupeSkillUses(skills: Array<{ key: string; label: string }>) {
+  const seen = new Set<string>();
+  const result: Array<{ key: string; label: string }> = [];
+  for (const skill of skills) {
+    const normalized = normalizeLoadedSkill(skill);
+    if (!normalized || seen.has(normalized.key)) continue;
+    seen.add(normalized.key);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function collectSkillUsesFromText(value: string) {
+  return collectSkillPathsFromText(value)
+    .map((entry) => normalizeSkillUseFromPath(entry))
+    .filter((entry): entry is { key: string; label: string } => Boolean(entry));
+}
+
+function readToolCommandInput(input: unknown): string | null {
+  if (typeof input === "string") return input;
+  const record = parseObject(input);
+  return readNonEmptyString(record.command) ?? readNonEmptyString(record.cmd);
+}
+
+function isCommandTranscriptTool(name: string) {
+  const normalized = name.trim().toLowerCase();
+  return ["command_execution", "shell", "shelltoolcall", "bash"].includes(normalized);
+}
+
+function isReadTranscriptTool(name: string) {
+  const normalized = name.trim().toLowerCase();
+  if (isCommandTranscriptTool(normalized)) return true;
+  if (/(?:^|[_-])(read|fetch|open|cat)(?:$|[_-])/.test(normalized)) return true;
+  return false;
+}
+
+function inferUsedSkillsFromTranscript(transcript: TranscriptEntry[]) {
+  const skills: Array<{ key: string; label: string }> = [];
+  for (const entry of transcript) {
+    if (entry.kind !== "tool_call") continue;
+    if (!isReadTranscriptTool(entry.name)) continue;
+
+    const command = readToolCommandInput(entry.input);
+    if (command) {
+      skills.push(...collectSkillUsesFromText(command));
+      continue;
+    }
+
+    for (const value of collectStringValues(entry.input)) {
+      skills.push(...collectSkillUsesFromText(value));
+    }
+  }
+  return dedupeSkillUses(skills);
+}
+
 function normalizeSkillCandidate(value: string | null | undefined) {
   return value
     ?.trim()
@@ -4121,6 +4210,25 @@ export function heartbeatService(db: Db) {
 
       const finalizedRun = await getRun(run.id);
       if (finalizedRun) {
+        const transcriptUsedSkills = inferUsedSkillsFromTranscript(executionTranscript);
+        if (transcriptUsedSkills.length > 0) {
+          await appendRunEvent(finalizedRun, seq++, {
+            eventType: "adapter.skill_usage",
+            stream: "system",
+            level: "info",
+            message: "skill usage inferred from transcript",
+            payload: {
+              source: "transcript.skill_file_read",
+              usedSkillCount: transcriptUsedSkills.length,
+              usedSkillKeys: transcriptUsedSkills.map((entry) => entry.key),
+              usedSkills: transcriptUsedSkills,
+              skillEvidenceType: "used",
+              skillEvidenceCount: transcriptUsedSkills.length,
+              skillEvidenceKeys: transcriptUsedSkills.map((entry) => entry.key),
+              skillEvidenceSkills: transcriptUsedSkills,
+            },
+          });
+        }
         await appendRunEvent(finalizedRun, seq++, {
           eventType: "lifecycle",
           stream: "system",
@@ -5728,6 +5836,7 @@ export function heartbeatService(db: Db) {
       .select({
         runId: heartbeatRunEvents.runId,
         createdAt: heartbeatRunEvents.createdAt,
+        eventType: heartbeatRunEvents.eventType,
         payload: heartbeatRunEvents.payload,
       })
       .from(heartbeatRunEvents)
@@ -5735,7 +5844,7 @@ export function heartbeatService(db: Db) {
         and(
           eq(heartbeatRunEvents.orgId, scope.orgId),
           ...(scope.agentId ? [eq(heartbeatRunEvents.agentId, scope.agentId)] : []),
-          eq(heartbeatRunEvents.eventType, "adapter.invoke"),
+          inArray(heartbeatRunEvents.eventType, ["adapter.invoke", "adapter.skill_usage"]),
           gte(heartbeatRunEvents.createdAt, windowStart),
           lte(heartbeatRunEvents.createdAt, windowEnd),
         ),
@@ -5773,15 +5882,15 @@ export function heartbeatService(db: Db) {
     let totalRunsWithSkills = 0;
     const evidenceCounts = emptySkillEvidenceCounts();
 
-    for (const row of rows) {
-      const date = new Date(row.createdAt).toISOString().slice(0, 10);
-      if (!days.has(date)) continue;
+    function addRunSkillEvidence(
+      runId: string,
+      date: string,
+      evidence: { evidence: AgentSkillTelemetryEvidence; skills: Array<{ key: string; label: string }> },
+    ) {
+      if (!days.has(date)) return;
+      if (evidence.skills.length === 0) return;
 
-      const payload = parseObject(row.payload);
-      const evidence = readSkillEvidenceFromPayload(payload);
-      if (evidence.skills.length === 0) continue;
-
-      const runBucket = runEvidence.get(row.runId) ?? { date, skills: new Map() };
+      const runBucket = runEvidence.get(runId) ?? { date, skills: new Map() };
       for (const entry of evidence.skills) {
         const normalized = normalizeLoadedSkill(entry);
         if (!normalized) continue;
@@ -5799,7 +5908,117 @@ export function heartbeatService(db: Db) {
           });
         }
       }
-      if (runBucket.skills.size > 0) runEvidence.set(row.runId, runBucket);
+      if (runBucket.skills.size > 0) runEvidence.set(runId, runBucket);
+    }
+
+    async function inferUsedSkillsFromStoredRunLog(row: {
+      id: string;
+      agentRuntimeType: string;
+      logStore: string | null;
+      logRef: string | null;
+      logBytes: number | null;
+    }) {
+      if (row.logStore !== "local_file" || !row.logRef) return [];
+      const adapter = (() => {
+        try {
+          return getServerAdapter(row.agentRuntimeType);
+        } catch {
+          return null;
+        }
+      })();
+      if (!adapter) return [];
+      const parser = adapter.parseStdoutLine ?? null;
+      if (!parser) return [];
+
+      const limitBytes = Math.min(Math.max(row.logBytes ?? 0, 256_000), 2_000_000);
+      const read = await runLogStore
+        .read({ store: "local_file", logRef: row.logRef }, { limitBytes })
+        .catch(() => null);
+      if (!read?.content) return [];
+
+      const transcript: TranscriptEntry[] = [];
+      let stdoutBuffer = "";
+      let stderrBuffer = "";
+      for (const line of read.content.split("\n")) {
+        if (!line.trim()) continue;
+        let raw: unknown;
+        try {
+          raw = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        const parsed = parseObject(raw);
+        const stream = parsed.stream === "stderr" ? "stderr" : parsed.stream === "stdout" ? "stdout" : null;
+        const chunk = typeof parsed.chunk === "string" ? parsed.chunk : "";
+        if (!stream || !chunk) continue;
+        if (stream === "stdout") {
+          stdoutBuffer = appendTranscriptEntriesFromChunk({
+            buffer: stdoutBuffer,
+            chunk,
+            transcript,
+            parser,
+            kind: "stdout",
+          });
+        } else {
+          stderrBuffer = appendTranscriptEntriesFromChunk({
+            buffer: stderrBuffer,
+            chunk,
+            transcript,
+            kind: "stderr",
+          });
+        }
+      }
+      appendTranscriptEntriesFromChunk({
+        buffer: stdoutBuffer,
+        chunk: "",
+        transcript,
+        parser,
+        kind: "stdout",
+        finalize: true,
+      });
+      appendTranscriptEntriesFromChunk({
+        buffer: stderrBuffer,
+        chunk: "",
+        transcript,
+        kind: "stderr",
+        finalize: true,
+      });
+      return inferUsedSkillsFromTranscript(transcript);
+    }
+
+    for (const row of rows) {
+      const date = new Date(row.createdAt).toISOString().slice(0, 10);
+      const payload = parseObject(row.payload);
+      addRunSkillEvidence(row.runId, date, readSkillEvidenceFromPayload(payload));
+    }
+
+    const runRows = await db
+      .select({
+        id: heartbeatRuns.id,
+        agentRuntimeType: agents.agentRuntimeType,
+        createdAt: heartbeatRuns.createdAt,
+        logStore: heartbeatRuns.logStore,
+        logRef: heartbeatRuns.logRef,
+        logBytes: heartbeatRuns.logBytes,
+      })
+      .from(heartbeatRuns)
+      .innerJoin(agents, eq(agents.id, heartbeatRuns.agentId))
+      .where(
+        and(
+          eq(heartbeatRuns.orgId, scope.orgId),
+          ...(scope.agentId ? [eq(heartbeatRuns.agentId, scope.agentId)] : []),
+          gte(heartbeatRuns.createdAt, windowStart),
+          lte(heartbeatRuns.createdAt, windowEnd),
+        ),
+      );
+
+    for (const row of runRows) {
+      const usedSkills = await inferUsedSkillsFromStoredRunLog(row);
+      if (usedSkills.length === 0) continue;
+      addRunSkillEvidence(row.id, new Date(row.createdAt).toISOString().slice(0, 10), {
+        evidence: "used",
+        skills: usedSkills,
+      });
     }
 
     for (const runBucket of runEvidence.values()) {

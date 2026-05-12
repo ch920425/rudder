@@ -178,6 +178,7 @@ const skillsPalette = [
 ];
 
 const otherSkillsColor = "#737373";
+const minimumRunsForSkillEvidenceChart = 2;
 
 export function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -265,7 +266,7 @@ function SkillDistributionPie({
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={`Skill evidence distribution: ${analytics.totalCount} skill signals across ${analytics.skills.length} skills`}
+          aria-label={`Skill usage distribution: ${analytics.totalCount} skill signals across ${analytics.skills.length} skills`}
           className="mx-auto flex w-full max-w-[12rem] appearance-none items-center justify-center rounded-full bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <span
@@ -284,7 +285,7 @@ function SkillDistributionPie({
       <TooltipContent side="top" className="min-w-[220px] px-3 py-2">
         <div className="space-y-2">
           <div className="border-b border-background/15 pb-2">
-            <div className="font-medium text-background">Skill evidence distribution</div>
+            <div className="font-medium text-background">Skill usage distribution</div>
             <div className="text-[11px] text-background/70">
               {analytics.totalCount} skill signals across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}
             </div>
@@ -652,7 +653,21 @@ export function SkillsUsageChart({
   const hasData = days.some((day) => day.totalCount > 0);
 
   if (!analytics || !hasData) {
-    return <p className="text-xs text-muted-foreground">No recent skill evidence.</p>;
+    return <p className="text-xs text-muted-foreground">No recent skill usage.</p>;
+  }
+
+  if (analytics.totalRunsWithSkills < minimumRunsForSkillEvidenceChart) {
+    return (
+      <div
+        data-testid="skill-evidence-low-sample"
+        className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-muted-foreground"
+      >
+        <p className="font-medium text-foreground">Not enough skill usage to chart yet.</p>
+        <p className="mt-1 text-xs leading-relaxed">
+          {analytics.totalCount} skill signal{analytics.totalCount === 1 ? "" : "s"} across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}. Charts appear after at least {minimumRunsForSkillEvidenceChart} runs with evidence.
+        </p>
+      </div>
+    );
   }
 
   const colorBySkillKey = new Map(
@@ -662,11 +677,11 @@ export function SkillsUsageChart({
   return (
     <TooltipProvider delayDuration={120}>
       <div className="grid gap-3 lg:grid-cols-[minmax(12rem,0.7fr)_minmax(0,3fr)]">
-        <SkillChartPanel title="Skill Evidence Distribution" subtitle="Share of runtime-reported use, prompt requests, and loaded skills in this window.">
+        <SkillChartPanel title="Skill Usage Distribution" subtitle="Share of SKILL.md reads, runtime-reported use, and prompt-requested fallback signals in this window.">
           <SkillDistributionPanel analytics={analytics} colorBySkillKey={colorBySkillKey} />
         </SkillChartPanel>
 
-        <SkillChartPanel title="Skill Evidence Timeline" subtitle={`Daily skill-evidence volume over the last ${analytics.windowDays} day${analytics.windowDays === 1 ? "" : "s"}.`}>
+        <SkillChartPanel title="Skill Usage Timeline" subtitle={`Daily skill usage signals over the last ${analytics.windowDays} day${analytics.windowDays === 1 ? "" : "s"}.`}>
           <div>
             <div className="flex items-end gap-[3px] h-36">
               {days.map((day) => {
@@ -676,7 +691,7 @@ export function SkillsUsageChart({
                 const title =
                   day.totalCount > 0
                     ? `${day.totalCount} skill signals across ${day.runCount} run${day.runCount === 1 ? "" : "s"}`
-                    : "No skill evidence";
+                    : "No skill usage";
 
                 return (
                   <ChartColumnTooltip

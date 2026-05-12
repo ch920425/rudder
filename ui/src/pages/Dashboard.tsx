@@ -587,12 +587,12 @@ export function Dashboard() {
                 <div>
                   <h3 className="text-sm font-medium">Skills</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Skill evidence per run for {rangeLabel} across all agents. Hover a day to inspect the breakdown.
+                    Skill usage per run for {rangeLabel} across all agents. Hover a day to inspect the breakdown.
                   </p>
                 </div>
                 <div className="text-right text-[11px] text-muted-foreground tabular-nums">
                   <div>{visibleSkillAnalytics.totalCount} skill signals</div>
-                  <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill evidence</div>
+                  <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage signals</div>
                 </div>
               </div>
               <SkillsUsageChart analytics={visibleSkillAnalytics} />
