@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { ChatConversation, ChatMessage } from "@rudderhq/shared";
+import type { ChatConversation, ChatMessage, Project } from "@rudderhq/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Chat } from "./Chat";
@@ -19,8 +19,10 @@ const mockState = vi.hoisted(() => ({
   conversationId: "chat-1",
   conversations: [] as ChatConversation[],
   messagesByChatId: {} as Record<string, ChatMessage[]>,
+  projects: [] as Project[],
   invalidateQueries: vi.fn(),
   markRead: vi.fn(),
+  mutations: [] as unknown[],
   navigate: vi.fn(),
   pushToast: vi.fn(),
   setBreadcrumbs: vi.fn(),
@@ -56,6 +58,9 @@ vi.mock("@tanstack/react-query", () => ({
         error: null,
       };
     }
+    if (queryKey[0] === "projects") {
+      return { data: mockState.projects, isPending: false, isLoading: false, error: null };
+    }
     if (queryKey[0] === "instance") {
       return { data: { nickname: "" }, isPending: false, isLoading: false, error: null };
     }
@@ -64,6 +69,7 @@ vi.mock("@tanstack/react-query", () => ({
   useMutation: () => ({
     isPending: false,
     mutate: (variables: unknown) => {
+      mockState.mutations.push(variables);
       mockState.markRead(variables);
     },
   }),
@@ -162,6 +168,46 @@ function chat(overrides: Partial<ChatConversation> = {}): ChatConversation {
       available: true,
       error: null,
     },
+    createdAt: new Date("2026-05-12T09:00:00.000Z"),
+    updatedAt: new Date("2026-05-12T09:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function project(overrides: Partial<Project> = {}): Project {
+  return {
+    id: "10000000-0000-4000-8000-000000000010",
+    orgId: "org-1",
+    urlKey: "rudder-mkt",
+    goalId: null,
+    goalIds: [],
+    goals: [],
+    name: "Rudder mkt",
+    description: null,
+    status: "planned",
+    leadAgentId: null,
+    targetDate: null,
+    color: "#82b366",
+    pauseReason: null,
+    pausedAt: null,
+    executionWorkspacePolicy: null,
+    codebase: {
+      configured: false,
+      scope: "none",
+      workspaceId: null,
+      repoUrl: null,
+      repoRef: null,
+      defaultRef: null,
+      repoName: null,
+      localFolder: null,
+      managedFolder: "",
+      effectiveLocalFolder: "",
+      origin: "local_folder",
+    },
+    resources: [],
+    workspaces: [],
+    primaryWorkspace: null,
+    archivedAt: null,
     createdAt: new Date("2026-05-12T09:00:00.000Z"),
     updatedAt: new Date("2026-05-12T09:00:00.000Z"),
     ...overrides,
@@ -305,12 +351,22 @@ beforeEach(() => {
     chat({ id: "chat-1", title: "Pending proposal chat" }),
     chat({ id: "chat-2", title: "Other chat", lastMessageAt: new Date("2026-05-12T09:10:00.000Z") }),
   ];
+  mockState.projects = [
+    project(),
+    project({
+      id: "10000000-0000-4000-8000-000000000011",
+      urlKey: "launch",
+      name: "Launch Ops",
+      color: "#2f80ed",
+    }),
+  ];
   mockState.messagesByChatId = {
     "chat-1": [imageMessage(), pendingIssueProposal()],
     "chat-2": [message({ id: "other-message-1", conversationId: "chat-2", body: "Other chat" })],
   };
   mockState.invalidateQueries.mockReset();
   mockState.markRead.mockReset();
+  mockState.mutations = [];
   mockState.navigate.mockReset();
   mockState.pushToast.mockReset();
   mockState.setBreadcrumbs.mockReset();
@@ -366,5 +422,62 @@ describe("Chat attachment previews", () => {
     rerender();
 
     expect(document.body.querySelector("[data-testid='chat-image-preview-dialog']")).toBeNull();
+  });
+});
+
+describe("Chat project context selector", () => {
+  it("keeps the project selector editable after a conversation already has project context", () => {
+    mockState.conversations = [
+      chat({
+        id: "chat-1",
+        contextLinks: [
+          {
+            id: "context-project-1",
+            orgId: "org-1",
+            conversationId: "chat-1",
+            entityType: "project",
+            entityId: "10000000-0000-4000-8000-000000000010",
+            metadata: null,
+            entity: {
+              type: "project",
+              id: "10000000-0000-4000-8000-000000000010",
+              label: "Rudder mkt",
+              subtitle: null,
+              identifier: null,
+              status: "active",
+              href: "/projects/10000000-0000-4000-8000-000000000010",
+            },
+            createdAt: new Date("2026-05-12T09:00:00.000Z"),
+            updatedAt: new Date("2026-05-12T09:00:00.000Z"),
+          },
+        ],
+      }),
+    ];
+    mockState.messagesByChatId = { "chat-1": [] };
+
+    const { container } = renderChat();
+
+    const projectSelector = container.querySelector<HTMLButtonElement>("[data-testid='chat-project-selector']");
+    expect(projectSelector).not.toBeNull();
+    expect(projectSelector?.textContent).toContain("Rudder mkt");
+
+    act(() => {
+      projectSelector?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const launchProjectOption = [...document.body.querySelectorAll<HTMLButtonElement>("[data-chat-composer-menu-item]")]
+      .find((button) => button.textContent?.includes("Launch Ops"));
+    expect(launchProjectOption).not.toBeNull();
+
+    act(() => {
+      launchProjectOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(projectSelector?.textContent).toContain("Launch Ops");
+    expect(mockState.mutations).toContainEqual({
+      chatId: "chat-1",
+      projectId: "10000000-0000-4000-8000-000000000011",
+      previousProjectId: "10000000-0000-4000-8000-000000000010",
+    });
   });
 });

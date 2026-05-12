@@ -1944,6 +1944,10 @@ function ChatWorkspace() {
   const [openProcessMessageIds, setOpenProcessMessageIds] = useState<Record<string, true>>({});
   const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>(NO_CHAT_AGENT_ID);
   const [draftProjectId, setDraftProjectId] = useState<string>(NO_PROJECT_ID);
+  const [pendingProjectContextOverride, setPendingProjectContextOverride] = useState<{
+    chatId: string;
+    projectId: string | null;
+  } | null>(null);
   const [draftPlanMode, setDraftPlanMode] = useState(false);
   const [pendingPlanModeOverride, setPendingPlanModeOverride] = useState<boolean | null>(null);
   const [decisionNotesByMessageId, setDecisionNotesByMessageId] = useState<Record<string, string>>({});
@@ -2234,7 +2238,13 @@ function ChatWorkspace() {
     ?? null;
   const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId;
   const selectedConversationProjectId = projectContextId(selectedConversation);
-  const activeProjectId = selectedConversation ? (selectedConversationProjectId ?? NO_PROJECT_ID) : draftProjectId;
+  const pendingSelectedConversationProjectId =
+    selectedConversation && pendingProjectContextOverride?.chatId === selectedConversation.id
+      ? pendingProjectContextOverride.projectId
+      : undefined;
+  const activeProjectId = selectedConversation
+    ? (pendingSelectedConversationProjectId ?? selectedConversationProjectId ?? NO_PROJECT_ID)
+    : draftProjectId;
   const activePlanMode = pendingPlanModeOverride ?? selectedConversation?.planMode ?? draftPlanMode;
   const activeSkillAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
   const activeSkillAgent = activeSkillAgentId
@@ -2579,17 +2589,32 @@ function ChatWorkspace() {
   });
 
   const updateProjectContextMutation = useMutation({
-    mutationFn: ({ chatId, projectId }: { chatId: string; projectId: string | null }) =>
+    mutationFn: ({ chatId, projectId }: {
+      chatId: string;
+      projectId: string | null;
+      previousProjectId?: string | null;
+    }) =>
       chatsApi.setProjectContext(chatId, projectId),
-    onSuccess: async (conversation) => {
+    onSuccess: async (conversation, variables) => {
+      const nextProjectId = projectContextId(conversation);
+      setPendingProjectContextOverride((current) => (
+        current?.chatId === variables.chatId ? null : current
+      ));
+      setDraftProjectId(nextProjectId ?? NO_PROJECT_ID);
       if (selectedOrganizationId) {
-        rememberChatProjectId(selectedOrganizationId, projectContextId(conversation));
+        rememberChatProjectId(selectedOrganizationId, nextProjectId);
       }
       upsertConversation(conversation);
       upsertMessengerThreadSummary(conversation);
       await refreshChat(conversation.id);
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      setPendingProjectContextOverride((current) => (
+        current?.chatId === variables.chatId ? null : current
+      ));
+      if (selectedConversation?.id === variables.chatId) {
+        setDraftProjectId(variables.previousProjectId ?? NO_PROJECT_ID);
+      }
       pushToast({
         title: "Failed to update project context",
         body: error instanceof Error ? error.message : "Try again.",
@@ -3243,15 +3268,25 @@ function ChatWorkspace() {
 
   const applyProjectContext = (value: string) => {
     const projectId = value === NO_PROJECT_ID ? null : value;
+    const previousProjectId = selectedConversation
+      ? selectedConversationProjectId
+      : draftProjectId === NO_PROJECT_ID
+        ? null
+        : draftProjectId;
     setDraftProjectId(value);
     setProjectMenuOpen(false);
     if (selectedOrganizationId) {
       rememberChatProjectId(selectedOrganizationId, projectId);
     }
     if (selectedConversation) {
+      setPendingProjectContextOverride({
+        chatId: selectedConversation.id,
+        projectId,
+      });
       updateProjectContextMutation.mutate({
         chatId: selectedConversation.id,
         projectId,
+        previousProjectId,
       });
     }
   };
