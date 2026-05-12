@@ -769,6 +769,7 @@ describe("RunTranscriptView", () => {
     );
 
     expect(html).toContain("Explored 2 files, 1 search, ran 1 command");
+    expect(html).toContain('data-transcript-action-group-icon-slot="true"');
     expect(html).not.toContain("Executed 4 commands");
   });
 

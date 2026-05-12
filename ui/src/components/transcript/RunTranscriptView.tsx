@@ -3259,6 +3259,12 @@ function TranscriptChatActionGroup({
   const summary = formatChatActionSummary(actions);
   const highlightGroupError = allToolsErrored && !detailVariant;
   const [detailsOpen, setDetailsOpen] = useState(() => (detailVariant ? false : allToolsErrored));
+  const visibleGroupActions = actions.slice(0, Math.min(actions.length, 3));
+  const groupIconOffsetClass = (index: number) => {
+    if (visibleGroupActions.length === 1) return "left-0";
+    if (visibleGroupActions.length === 2) return index === 0 ? "-left-2" : "left-0";
+    return index === 0 ? "-left-4" : index === 1 ? "-left-2" : "left-0";
+  };
 
   useEffect(() => {
     if (!detailVariant && allToolsErrored) {
@@ -3301,22 +3307,25 @@ function TranscriptChatActionGroup({
       <button
         type="button"
         className={cn(
-          "flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
+          "-mx-2 flex w-[calc(100%+1rem)] items-start gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
           highlightGroupError ? "hover:bg-red-500/[0.05]" : "hover:bg-muted/10",
         )}
         onClick={() => setDetailsOpen((value) => !value)}
         aria-expanded={detailsOpen}
         aria-label={expandedLabel}
       >
-        <span className="flex shrink-0 items-center">
-          {actions.slice(0, Math.min(actions.length, 3)).map((action, index) => {
+        <span
+          className="relative mt-0.5 h-4 w-4 shrink-0"
+          data-transcript-action-group-icon-slot="true"
+        >
+          {visibleGroupActions.map((action, index) => {
             const icon = getChatActionIconInfo(action);
             return (
               <span
                 key={index}
                 className={cn(
-                  "inline-flex h-6 w-6 items-center justify-center rounded-full border",
-                  index > 0 && "-ml-1.5",
+                  "absolute top-0 inline-flex h-5 w-5 items-center justify-center rounded-full border",
+                  groupIconOffsetClass(index),
                   highlightGroupError
                     ? "border-red-500/20 bg-red-500/[0.08] text-red-700 dark:text-red-300"
                     : icon.status === "error"
