@@ -554,6 +554,14 @@ function formatExactTokens(value: number) {
   return Math.max(0, Math.floor(value)).toLocaleString();
 }
 
+function formatExactTokenLabel(value: number) {
+  return `${formatExactTokens(value)} tokens`;
+}
+
+function formatCompactTokenLabel(value: number) {
+  return `${formatTokens(value)} tokens`;
+}
+
 function formatRunCostUsd(cost: number) {
   return cost > 0 ? `$${cost.toFixed(4)}` : "—";
 }
@@ -1939,7 +1947,7 @@ function CostsSection({
               const showOutputLabel = shouldShowInlineTokenLabel(metrics.output, maxTokens);
               const runLabel = run.id.slice(0, 8);
               const costLabel = formatRunCostUsd(metrics.cost);
-              const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokens(totalTokens)} total tokens, ${formatExactTokens(metrics.input)} input, ${formatExactTokens(metrics.cached)} cached, ${formatExactTokens(metrics.output)} output, ${costLabel} cost`;
+              const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokenLabel(totalTokens)} total, ${formatExactTokenLabel(metrics.input)} input, ${formatExactTokenLabel(metrics.cached)} cached, ${formatExactTokenLabel(metrics.output)} output, ${costLabel} cost`;
 
               return (
                 <TooltipProvider key={run.id} delayDuration={120}>
@@ -1980,7 +1988,7 @@ function CostsSection({
                                 className="flex h-full min-w-0 items-center justify-center bg-sky-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
                                 style={{ width: `${inputWidth}%` }}
                               >
-                                {showInputLabel ? formatExactTokens(metrics.input) : null}
+                                {showInputLabel ? formatTokens(metrics.input) : null}
                               </span>
                             ) : null}
                             {metrics.cached > 0 ? (
@@ -1988,7 +1996,7 @@ function CostsSection({
                                 className="flex h-full min-w-0 items-center justify-center bg-violet-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
                                 style={{ width: `${cachedWidth}%` }}
                               >
-                                {showCachedLabel ? formatExactTokens(metrics.cached) : null}
+                                {showCachedLabel ? formatTokens(metrics.cached) : null}
                               </span>
                             ) : null}
                             {metrics.output > 0 ? (
@@ -1996,15 +2004,15 @@ function CostsSection({
                                 className="flex h-full min-w-0 items-center justify-center bg-emerald-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
                                 style={{ width: `${outputWidth}%` }}
                               >
-                                {showOutputLabel ? formatExactTokens(metrics.output) : null}
+                                {showOutputLabel ? formatTokens(metrics.output) : null}
                               </span>
                             ) : null}
                           </span>
                         </span>
-                        <span className="min-w-[7rem] text-right tabular-nums">
-                          <span className="block font-medium text-foreground">{formatTokens(totalTokens)} tok</span>
+                        <span className="min-w-[8.75rem] text-right tabular-nums">
+                          <span className="block font-medium text-foreground">{formatCompactTokenLabel(totalTokens)}</span>
                           <span className="block font-mono text-[10px] text-muted-foreground">
-                            {formatTokens(metrics.input)} / {formatTokens(metrics.cached)} / {formatTokens(metrics.output)}
+                            in {formatTokens(metrics.input)} · cache {formatTokens(metrics.cached)} · out {formatTokens(metrics.output)}
                           </span>
                           {metrics.cost > 0 ? (
                             <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
@@ -2021,13 +2029,13 @@ function CostsSection({
                         </div>
                         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
                           <dt className="text-background/70">Total tokens</dt>
-                          <dd className="font-mono tabular-nums">{formatExactTokens(totalTokens)}</dd>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(totalTokens)}</dd>
                           <dt className="text-background/70">Input</dt>
-                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.input)}</dd>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.input)}</dd>
                           <dt className="text-background/70">Cached</dt>
-                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.cached)}</dd>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.cached)}</dd>
                           <dt className="text-background/70">Output</dt>
-                          <dd className="font-mono tabular-nums">{formatExactTokens(metrics.output)}</dd>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.output)}</dd>
                           <dt className="text-background/70">Cost</dt>
                           <dd className="font-mono tabular-nums">{costLabel}</dd>
                         </dl>
@@ -2045,7 +2053,7 @@ function CostsSection({
               <span>{formatTokens(axisMidpoint)}</span>
               <span>{formatTokens(maxTokens)}</span>
             </div>
-            <span className="text-right">tokens</span>
+            <span className="text-right">Token scale</span>
           </div>
         </div>
       ) : (
@@ -3944,7 +3952,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
       )}
       {(metrics.totalTokens > 0 || metrics.cost > 0) && (
         <div className="flex items-center gap-2 pl-5.5 text-[11px] text-muted-foreground tabular-nums">
-          {metrics.totalTokens > 0 && <span>{formatTokens(metrics.totalTokens)} tok</span>}
+          {metrics.totalTokens > 0 && <span>{formatCompactTokenLabel(metrics.totalTokens)}</span>}
           {metrics.cost > 0 && <span>${metrics.cost.toFixed(3)}</span>}
         </div>
       )}
