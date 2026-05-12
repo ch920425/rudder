@@ -5,8 +5,8 @@ description: >
   wrong but the user cannot yet express the right product, design, engineering,
   or evaluation critique. Use before more implementation to turn vague
   dissatisfaction, weak AI-built results, traces, benchmarks, or eval evidence
-  into a grounded diagnosis, explicit criteria, realistic options, and a
-  recommended next move.
+  into a grounded first-principles scenario analysis, explicit criteria,
+  realistic options, corner-case coverage, and a recommended next move.
 ---
 
 # Build Advisor
@@ -20,6 +20,7 @@ Use it when the user needs an expert advisor to turn fuzzy discomfort into:
 
 - a clearer problem statement
 - a professional diagnosis
+- a first-principles map of user scenarios, needs, non-needs, and corner cases
 - explicit evaluation criteria
 - 2-3 realistic options
 - one decision-ready proposal for the recommended option
@@ -59,6 +60,8 @@ It should not:
 - pretend every problem is a UI styling issue
 - replace specialized execution skills when the right next step is obvious
 - produce vague "looks better / feels cleaner" advice without criteria
+- start from the visible implementation detail when the user is asking about
+  the underlying scenario, job-to-be-done, or workflow pressure
 
 If the correct outcome is to invoke or recommend a more specialized skill, say so clearly.
 
@@ -186,7 +189,49 @@ When the user mentions Langfuse, or when the available evidence lives in Langfus
 
 Do not guess if you can verify quickly.
 
-### 5. Build An Evaluation Frame
+### 5. Scenario And First-Principles Pass
+
+When the user asks to reason from scenarios, requirements, first principles,
+possible cases, or corner cases, make this pass explicit before judging
+solutions. Treat this as mandatory when the user uses phrases like:
+
+- "从场景和需求出发"
+- "第一性原理"
+- "深度分析各种可能的情况"
+- "corner cases"
+- "直到你确认都考虑到了"
+- "不要先从实现/组件出发"
+
+Start from the durable job and actors, not from the current UI widget, code
+path, metric, or proposed patch. The implementation evidence is downstream
+evidence, not the root framing.
+
+Cover the relevant subset:
+
+- actors and roles: who initiates, receives, observes, approves, reviews, or is
+  interrupted
+- lifecycle states: before work starts, while work is active, waiting,
+  completed, reopened, failed, blocked, reviewed, or archived
+- intent levels: passive note, clarification, question, instruction, approval,
+  rejection, escalation, override, and irreversible action
+- success definition: what should happen, what must not happen, and what signal
+  proves the loop is complete
+- failure modes: ambiguity, accidental action, stale context, duplicate work,
+  missing authority, silent non-action, runaway automation, and unclear recovery
+- corner cases: concurrency, permissions, reassignment, cancellation, retries,
+  external system failure, stale plans, empty states, partial completion,
+  backward compatibility, and auditability
+- non-goals: cases the product or workflow should intentionally not solve in
+  this layer
+
+Then collapse the list into a small number of requirement classes. Use language
+like "This yields four requirements..." rather than leaving a raw brainstorm.
+If a scenario is unlikely or out of scope, say so and explain why.
+
+Do not claim "100% coverage" literally. Instead, say what has been covered,
+what assumptions bound the analysis, and what evidence would change the answer.
+
+### 6. Build An Evaluation Frame
 
 Create a short decision rubric tailored to the problem.
 
@@ -204,7 +249,10 @@ Good rubrics usually have 4-8 dimensions, for example:
 Do not stay abstract.
 Say what good and bad look like in this context.
 
-### 6. Produce Options
+If the scenario pass was used, every evaluation criterion should trace back to
+at least one user scenario, requirement class, or failure mode.
+
+### 7. Produce Options
 
 Always provide at least 2 options:
 
@@ -221,7 +269,7 @@ For each option include:
 
 If traces, scores, or evals are in play, say whether the option fixes the product, the instrumentation, the benchmark design, or only the interpretation layer.
 
-### 7. Expand The Recommended Proposal
+### 8. Expand The Recommended Proposal
 
 After listing options, expand the recommended option into a decision-ready
 proposal.
@@ -252,6 +300,10 @@ For user-facing product or workflow requests, the user interaction flow is
 mandatory. For engineering or platform requests, the technical architecture is
 mandatory. When both are relevant, include both.
 
+If a scenario pass was requested or clearly needed, the recommended proposal
+must explicitly say how it handles the major scenario classes and corner cases.
+Do not bury that coverage inside generic "edge cases" language.
+
 Keep this as a proposal, not a full implementation plan, unless the user
 explicitly asks to proceed. If repo rules require a plan document before
 implementation, the proposal should make that plan easy to write after
@@ -277,7 +329,7 @@ mostly implemented." Produce one of: accept as-is, accept with gaps, or
 redesign. Include a gap assessment covering evidence, missing behavior, risk,
 and acceptance signal.
 
-### 8. Recommend The Next Move
+### 9. Recommend The Next Move
 
 Choose one option.
 Say why.
@@ -292,7 +344,7 @@ Possible next moves:
 
 The recommendation should be explicit, not "it depends" by default.
 
-### 9. Write Plan doc before run
+### 10. Write Plan doc before run
 
 Before you run, write your detail plan in `doc/plans`, then start your work.
 - DO NOT write your plan before user confirm.
@@ -346,6 +398,17 @@ When relevant, also include:
 
 3-6 bullets defining how to judge the next iteration.
 
+### Scenario And Requirements Map
+
+Include this section when the user asks for first-principles, scenario-driven,
+or corner-case-heavy analysis.
+
+- actors and lifecycle states considered
+- requirement classes derived from the scenarios
+- non-goals and boundaries
+- important corner cases and failure modes
+- assumptions or evidence that would change the conclusion
+
 ### Options
 
 - Option A
@@ -365,6 +428,7 @@ subsections instead of a compact paragraph:
 - Technical Architecture
 - Execution And State Transitions
 - Edge Cases And Recovery
+- Scenario Coverage, when the user requested scenario/corner-case analysis
 - Implementation Surface
 - Validation Bar
 - Open Decisions
@@ -493,6 +557,23 @@ The response stays concise, calls out the main risk, and names the next move.
 Must not:
 Force the full proposal template when the user explicitly asked for a quick
 take.
+
+### Case: Scenario-First Workflow Semantics
+
+Input:
+"现在 issue follow-up, reviewer 等机制，会强制加速 issue 偏向收敛，但还有一个 case：TODO 状态时，在 issue 里讨论的情况。我们从场景和需求出发，这件事会有哪些需求和场景，第一性原理，深度分析各种可能的情况，corner cases，直到你 100% 确认自己的分析都考虑到了。"
+
+Expected behavior:
+The response starts from the user/operator/agent/reviewer scenarios and
+distinguishes discussion, clarification, question, work request, review
+feedback, reopen, and escalation intents before proposing mechanics. It maps
+requirements and corner cases across issue lifecycle states, then recommends
+an explicit intent model or equivalent structural fix.
+
+Must not:
+Jump directly to one UI checkbox, one route handler, or one follow-up rule as
+the whole answer. Must not claim literal perfect coverage; it should state the
+coverage boundary and remaining assumptions.
 
 ## Completion Standard
 
