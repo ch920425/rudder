@@ -562,6 +562,12 @@ function formatCompactTokenLabel(value: number) {
   return `${formatTokens(value)} tokens`;
 }
 
+function formatCacheRatio(cachedTokens: number, inputTokens: number) {
+  const promptTokens = cachedTokens + inputTokens;
+  if (promptTokens <= 0) return "—";
+  return `${Math.round((cachedTokens / promptTokens) * 100)}%`;
+}
+
 function formatRunCostUsd(cost: number) {
   return cost > 0 ? `$${cost.toFixed(4)}` : "—";
 }
@@ -1907,12 +1913,15 @@ function CostsSection({
   const maxTokens = Math.max(1, ...visibleRuns.map(({ metrics }) => metrics.totalTokens));
   const [openRunId, setOpenRunId] = useState<string | null>(null);
   const axisMidpoint = Math.round(maxTokens / 2);
+  const cacheRatio = runtimeState
+    ? formatCacheRatio(runtimeState.totalCachedInputTokens, runtimeState.totalInputTokens)
+    : "—";
 
   return (
     <div className="space-y-4">
       {runtimeState && (
         <div className="border border-border rounded-lg p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 tabular-nums">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 tabular-nums">
             <div>
               <span className="text-xs text-muted-foreground block">Input tokens</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalInputTokens)}</span>
@@ -1924,6 +1933,10 @@ function CostsSection({
             <div>
               <span className="text-xs text-muted-foreground block">Cached tokens</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
+            </div>
+            <div title="Cached tokens divided by input plus cached tokens.">
+              <span className="text-xs text-muted-foreground block">Cache ratio</span>
+              <span className="text-lg font-semibold">{cacheRatio}</span>
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Total cost</span>
