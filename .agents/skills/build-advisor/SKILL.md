@@ -191,16 +191,13 @@ Do not guess if you can verify quickly.
 
 ### 5. Scenario And First-Principles Pass
 
-When the user asks to reason from scenarios, requirements, first principles,
-possible cases, or corner cases, make this pass explicit before judging
-solutions. Treat this as mandatory when the user uses phrases like:
+Make this pass explicit before judging solutions. This is the default posture
+for `build-advisor`, not a special mode triggered only by keywords.
 
-- "从场景和需求出发"
-- "第一性原理"
-- "深度分析各种可能的情况"
-- "corner cases"
-- "直到你确认都考虑到了"
-- "不要先从实现/组件出发"
+Skip or compress this pass only when the user explicitly asks for a quick take,
+a narrow bug check, or a tightly scoped local answer. Even then, preserve the
+underlying discipline: identify the actor, intent, lifecycle state, and failure
+mode before recommending a fix.
 
 Start from the durable job and actors, not from the current UI widget, code
 path, metric, or proposed patch. The implementation evidence is downstream
@@ -400,8 +397,8 @@ When relevant, also include:
 
 ### Scenario And Requirements Map
 
-Include this section when the user asks for first-principles, scenario-driven,
-or corner-case-heavy analysis.
+Default to including this section. Omit it only for explicit quick takes or
+tightly scoped local checks where the scenario map would add noise.
 
 - actors and lifecycle states considered
 - requirement classes derived from the scenarios
