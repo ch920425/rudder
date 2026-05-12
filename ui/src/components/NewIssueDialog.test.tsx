@@ -282,6 +282,8 @@ describe("NewIssueDialog", () => {
     const html = renderToStaticMarkup(<NewIssueDialog />);
 
     expect(html).toContain('data-slot="agent-title-badge"');
+    expect(html).toContain("max-w-none");
+    expect(html).toContain("shrink-0");
     expect(html).toContain("Chief Technology Officer");
     expect(html).not.toContain("Ella (Chief Technology Officer)");
   });

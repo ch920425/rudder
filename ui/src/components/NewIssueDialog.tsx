@@ -110,7 +110,7 @@ function AgentSelectorLabel({
   return (
     <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
       <span className="truncate">{label ?? agent.name}</span>
-      {badgeLabel ? <AgentTitleBadge label={badgeLabel} className="max-w-[8rem]" /> : null}
+      {badgeLabel ? <AgentTitleBadge label={badgeLabel} className="max-w-none shrink-0" /> : null}
     </span>
   );
 }
