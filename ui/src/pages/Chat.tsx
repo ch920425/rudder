@@ -2077,6 +2077,7 @@ function ChatWorkspace() {
   useEffect(() => {
     setEditForkUserMessageId(null);
     setBranchPreview(null);
+    setAttachmentPreview(null);
   }, [conversationId]);
 
   useEffect(() => {
@@ -3658,19 +3659,18 @@ function ChatWorkspace() {
         </div>
       ) : null}
 
-      <ChatAttachmentPreviewDialog
-        preview={attachmentPreview}
-        onOpenChange={(open) => {
-          if (!open) setAttachmentPreview(null);
-        }}
-      />
-
       {renderComposerContextMenu()}
     </div>
   );
 
   return (
     <div className="chat-shell flex min-h-[calc(100dvh-8rem)] flex-col overflow-hidden text-foreground md:-mx-6 md:h-full md:min-h-0 md:px-0 lg:-mx-7">
+      <ChatAttachmentPreviewDialog
+        preview={attachmentPreview}
+        onOpenChange={(open) => {
+          if (!open) setAttachmentPreview(null);
+        }}
+      />
       {loadErrorMessage ? (
         <div className="mx-6 mt-6 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {loadErrorMessage}
