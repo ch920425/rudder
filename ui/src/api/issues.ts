@@ -1,6 +1,6 @@
 import type {
-  Approval,
   DocumentRevision,
+  IssueLinkedApproval,
   IssueFollowEntry,
   Issue,
   IssueAttachment,
@@ -116,9 +116,9 @@ export const issuesApi = {
   attachWorkspaceFile: (orgId: string, issueId: string, path: string) =>
     api.post<IssueAttachment>(`/orgs/${orgId}/issues/${issueId}/attachments/workspace-file`, { path }),
   deleteAttachment: (id: string) => api.delete<{ ok: true }>(`/attachments/${id}`),
-  listApprovals: (id: string) => api.get<Approval[]>(`/issues/${id}/approvals`),
+  listApprovals: (id: string) => api.get<IssueLinkedApproval[]>(`/issues/${id}/approvals`),
   linkApproval: (id: string, approvalId: string) =>
-    api.post<Approval[]>(`/issues/${id}/approvals`, { approvalId }),
+    api.post<IssueLinkedApproval[]>(`/issues/${id}/approvals`, { approvalId }),
   unlinkApproval: (id: string, approvalId: string) =>
     api.delete<{ ok: true }>(`/issues/${id}/approvals/${approvalId}`),
   listWorkProducts: (id: string) => api.get<IssueWorkProduct[]>(`/issues/${id}/work-products`),

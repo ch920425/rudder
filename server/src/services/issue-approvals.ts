@@ -59,14 +59,36 @@ export function issueApprovalService(db: Db) {
           decidedAt: approvals.decidedAt,
           createdAt: approvals.createdAt,
           updatedAt: approvals.updatedAt,
+          linkIssueId: issueApprovals.issueId,
+          linkApprovalId: issueApprovals.approvalId,
+          linkLinkedByAgentId: issueApprovals.linkedByAgentId,
+          linkLinkedByUserId: issueApprovals.linkedByUserId,
+          linkCreatedAt: issueApprovals.createdAt,
         })
         .from(issueApprovals)
         .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
         .where(eq(issueApprovals.issueId, issueId))
         .orderBy(desc(issueApprovals.createdAt));
       return result.map((approval) => ({
-        ...approval,
+        id: approval.id,
+        orgId: approval.orgId,
+        type: approval.type,
+        requestedByAgentId: approval.requestedByAgentId,
+        requestedByUserId: approval.requestedByUserId,
+        status: approval.status,
         payload: redactEventPayload(approval.payload) ?? {},
+        decisionNote: approval.decisionNote,
+        decidedByUserId: approval.decidedByUserId,
+        decidedAt: approval.decidedAt,
+        createdAt: approval.createdAt,
+        updatedAt: approval.updatedAt,
+        link: {
+          issueId: approval.linkIssueId,
+          approvalId: approval.linkApprovalId,
+          linkedByAgentId: approval.linkLinkedByAgentId,
+          linkedByUserId: approval.linkLinkedByUserId,
+          createdAt: approval.linkCreatedAt,
+        },
       }));
     },
 

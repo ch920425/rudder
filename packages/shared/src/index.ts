@@ -329,6 +329,7 @@ export type {
   GoalDependencyPreview,
   Approval,
   ApprovalComment,
+  IssueLinkedApproval,
   MessengerThreadUserState,
   IssueFollow,
   IssueFollowEntry,

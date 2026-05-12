@@ -970,7 +970,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
     if (!(await assertCanManageIssueApprovalLinks(req, res, issue.orgId))) return;
 
     const actor = getActorInfo(req);
-    await issueApprovalsSvc.link(id, req.body.approvalId, {
+    const link = await issueApprovalsSvc.link(id, req.body.approvalId, {
       agentId: actor.agentId,
       userId: actor.actorType === "user" ? actor.actorId : null,
     });
@@ -984,7 +984,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
       action: "issue.approval_linked",
       entityType: "issue",
       entityId: issue.id,
-      details: { approvalId: req.body.approvalId },
+      details: {
+        approvalId: req.body.approvalId,
+        ...(link?.createdAt ? { linkCreatedAt: link.createdAt.toISOString() } : {}),
+      },
     });
 
     const approvals = await issueApprovalsSvc.listApprovalsForIssue(id);

@@ -172,4 +172,56 @@ test.describe("Issue activity", () => {
     await expect(activity.getByText("Issue proposed from chat")).toBeVisible();
     await expect(page.getByText("Linked Approvals")).toHaveCount(0);
   });
+
+  test("orders an existing approval by the later issue link event", async ({ page }) => {
+    await page.goto("/");
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `${ORG_NAME}-ExistingApprovalLink` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
+      data: {
+        type: "chat_issue_creation",
+        payload: {
+          proposedIssue: {
+            title: "Existing approval linked later",
+            description: "This approval exists before its issue link.",
+            priority: "medium",
+          },
+        },
+      },
+    });
+    expect(approvalRes.ok()).toBe(true);
+    const approval = await approvalRes.json();
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Issue linked after approval",
+        description: "Track link timestamp ordering.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+
+    const linkRes = await page.request.post(`/api/issues/${issue.id}/approvals`, {
+      data: { approvalId: approval.id },
+    });
+    expect(linkRes.ok()).toBe(true);
+
+    await page.goto(`/issues/${issue.identifier ?? issue.id}`);
+    const activity = page.getByRole("region", { name: "Activity" });
+    await expect(activity).toBeVisible();
+    await expect(activity.getByText("created the issue", { exact: false })).toBeVisible();
+    await expect(activity.getByTestId("issue-activity-linked-approval")).toBeVisible();
+    await expect(activity.getByText("linked an approval", { exact: false })).toHaveCount(0);
+
+    const createdBox = await activity.getByText("created the issue", { exact: false }).boundingBox();
+    const approvalBox = await activity.getByTestId("issue-activity-linked-approval").boundingBox();
+    expect(createdBox?.y).toBeLessThan(approvalBox?.y ?? 0);
+  });
 });
