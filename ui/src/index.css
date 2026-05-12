@@ -1012,6 +1012,16 @@
     box-shadow: var(--shadow-md);
   }
 
+  .chat-composer-editor-scroll {
+    max-height: min(34dvh, 20rem);
+  }
+
+  @media (min-width: 640px) {
+    .chat-composer-editor-scroll {
+      max-height: min(38dvh, 22rem);
+    }
+  }
+
   .chat-warning {
     background: color-mix(in oklab, var(--surface-proposal) 76%, transparent);
     border: 1px solid color-mix(in oklab, var(--destructive) 24%, var(--border-base));

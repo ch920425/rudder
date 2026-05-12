@@ -1775,6 +1775,7 @@ function ChatWorkspace() {
   const composerSurfaceRef = useRef<HTMLDivElement>(null);
   const composerEditorRef = useRef<MarkdownEditorRef>(null);
   const composerContextMenuRef = useRef<HTMLDivElement>(null);
+  const composerEditorScrollRef = useScrollbarActivityRef();
   const skillSearchInputRef = useRef<HTMLInputElement>(null);
   const stopRequestedChatIdsRef = useRef<Set<string>>(new Set());
   const newConversationSendLockRef = useRef(false);
@@ -3371,7 +3372,12 @@ function ChatWorkspace() {
         centered ? "mx-auto w-full max-w-3xl" : "w-full",
       )}
     >
-      <div onPasteCapture={handleComposerPasteCapture}>
+      <div
+        ref={composerEditorScrollRef}
+        data-testid="chat-composer-editor-scroll"
+        className="chat-composer-editor-scroll scrollbar-auto-hide overflow-y-auto overscroll-contain pr-1"
+        onPasteCapture={handleComposerPasteCapture}
+      >
         <MarkdownEditor
           ref={composerEditorRef}
           value={draft}
