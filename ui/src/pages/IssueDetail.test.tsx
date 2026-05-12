@@ -460,7 +460,10 @@ vi.mock("lucide-react", () => {
     Repeat: Icon,
     Rocket: Icon,
     Search: Icon,
+    Settings2: Icon,
     Shield: Icon,
+    ShieldAlert: Icon,
+    ShieldCheck: Icon,
     SlidersHorizontal: Icon,
     Sparkles: Icon,
     Star: Icon,
@@ -470,6 +473,7 @@ vi.mock("lucide-react", () => {
     Terminal: Icon,
     Trash2: Icon,
     Upload: Icon,
+    UserPlus: Icon,
     Wand2: Icon,
     Wrench: Icon,
     XIcon: Icon,
@@ -490,6 +494,7 @@ describe("IssueDetail", () => {
     mockSourceBreadcrumb = null;
     mockIssuePluginSlots = [];
     queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), []);
+    queryData.set(JSON.stringify(["issues", "approvals", "ORG2-1"]), []);
     queryData.delete(JSON.stringify([
       "plugins",
       "rudder.linear",
@@ -646,6 +651,49 @@ describe("IssueDetail", () => {
     expect(html).toContain("requested human intervention");
     expect(html).not.toContain("updated the description");
     expect(html).not.toContain("Hidden document update unique");
+  });
+
+  it("renders linked approvals inside the activity timeline", () => {
+    queryData.set(JSON.stringify(["issues", "approvals", "ORG2-1"]), [
+      {
+        id: "approval-chat-123",
+        orgId: "org-2",
+        type: "chat_issue_creation",
+        requestedByAgentId: "agent-1",
+        requestedByUserId: null,
+        status: "pending",
+        payload: { proposedIssue: { title: "Drafted follow-up issue" } },
+        decisionNote: null,
+        decidedByUserId: null,
+        decidedAt: null,
+        createdAt: new Date("2026-04-20T01:30:00.000Z"),
+        updatedAt: new Date("2026-04-20T01:30:00.000Z"),
+      },
+    ]);
+    queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), [
+      {
+        id: "activity-approval-linked",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.approval_linked",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: { approvalId: "approval-chat-123" },
+        createdAt: new Date("2026-04-20T01:31:00.000Z"),
+      },
+    ]);
+
+    const html = renderToStaticMarkup(<IssueDetail />);
+
+    expect(html).toContain('href="/messenger/approvals/approval-chat-123"');
+    expect(html).toContain("Linked approval");
+    expect(html).toContain("Issue proposed from chat");
+    expect(html).toContain("pending");
+    expect(html).not.toContain("Linked Approvals");
+    expect(html).not.toContain("linked an approval");
   });
 
   it("moves the linked Linear issue summary into activity instead of a separate tab", () => {

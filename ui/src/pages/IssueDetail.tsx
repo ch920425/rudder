@@ -41,6 +41,7 @@ import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { formatPriorityLabel } from "../lib/priorities";
 import { StatusBadge } from "../components/StatusBadge";
+import { approvalLabel, defaultTypeIcon, typeIcon } from "../components/ApprovalPayload";
 import { Identity } from "../components/Identity";
 import { AgentIdentity } from "../components/AgentAvatar";
 import { PluginSlotMount, PluginSlotOutlet, usePluginSlots } from "@/plugins/slots";
@@ -57,7 +58,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -78,7 +78,6 @@ import {
 import {
   Activity as ActivityIcon,
   Check,
-  ChevronDown,
   ChevronRight,
   Copy,
   EyeOff,
@@ -98,7 +97,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { ActivityEvent } from "@rudderhq/shared";
-import type { Agent, Issue, IssueAttachment, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
+import type { Agent, Approval, Issue, IssueAttachment, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
 
 type CommentReassignment = {
   assigneeAgentId: string | null;
@@ -143,6 +142,8 @@ const ACTION_LABELS: Record<string, string> = {
   "issue.human_intervention_required": "requested human intervention",
   "issue.attachment_added": "added an attachment",
   "issue.attachment_removed": "removed an attachment",
+  "issue.approval_linked": "linked an approval",
+  "issue.approval_unlinked": "unlinked an approval",
   "issue.document_created": "created a document",
   "issue.document_updated": "updated a document",
   "issue.document_deleted": "deleted a document",
@@ -724,6 +725,34 @@ function IssueActivityRow({
   );
 }
 
+function LinkedApprovalActivityCard({ approval }: { approval: Approval }) {
+  const Icon = typeIcon[approval.type] ?? defaultTypeIcon;
+  const label = approvalLabel(approval.type, approval.payload);
+
+  return (
+    <Link
+      to={`/messenger/approvals/${approval.id}`}
+      className="group flex items-start gap-2 rounded-sm border border-border bg-accent/20 px-3 py-2 text-sm transition-colors hover:bg-accent/30"
+      data-testid="issue-activity-linked-approval"
+    >
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-foreground">Linked approval</span>
+          <StatusBadge status={approval.status} />
+        </span>
+        <span className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">{label}</span>
+          <span className="font-mono">{approval.id.slice(0, 8)}</span>
+        </span>
+      </span>
+      <span className="ml-auto shrink-0 text-xs text-muted-foreground">{relativeTime(approval.createdAt)}</span>
+    </Link>
+  );
+}
+
 function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, { linked: true }> }) {
   const latest = data.latestIssue;
   const link = data.link;
@@ -853,9 +882,6 @@ export function IssueDetail() {
   const [subIssueTitle, setSubIssueTitle] = useState("");
   const [subIssueStatusPickerIssueId, setSubIssueStatusPickerIssueId] = useState<string | null>(null);
   const [updatingSubIssueId, setUpdatingSubIssueId] = useState<string | null>(null);
-  const [secondaryOpen, setSecondaryOpen] = useState({
-    approvals: false,
-  });
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [workspaceAttachOpen, setWorkspaceAttachOpen] = useState(false);
@@ -1274,8 +1300,20 @@ export function IssueDetail() {
       });
     }
 
+    const linkedApprovalIds = new Set((linkedApprovals ?? []).map((approval) => approval.id));
+    for (const approval of linkedApprovals ?? []) {
+      items.push({
+        id: `linked-approval:${approval.id}`,
+        createdAt: approval.createdAt,
+        node: <LinkedApprovalActivityCard approval={approval} />,
+      });
+    }
+
     for (const evt of activity ?? []) {
       if (!shouldShowIssueActivityEvent(evt)) continue;
+      const details = asRecord(evt.details);
+      const approvalId = typeof details?.approvalId === "string" ? details.approvalId : null;
+      if (evt.action === "issue.approval_linked" && approvalId && linkedApprovalIds.has(approvalId)) continue;
       items.push({
         id: evt.id,
         createdAt: evt.createdAt,
@@ -1291,7 +1329,7 @@ export function IssueDetail() {
     }
 
     return items;
-  }, [activity, agentMap, currentBoardUserId, linearIssueLink, operatorDisplayName]);
+  }, [activity, agentMap, currentBoardUserId, linearIssueLink, linkedApprovals, operatorDisplayName]);
 
   const invalidateIssue = () => {
     const issueOrgId = issue?.orgId ?? resolvedCompanyId ?? selectedOrganizationId;
@@ -2244,43 +2282,6 @@ export function IssueDetail() {
           ))}
         </div>
       ) : null}
-
-      {linkedApprovals && linkedApprovals.length > 0 && (
-        <Collapsible
-          open={secondaryOpen.approvals}
-          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, approvals: open }))}
-          className="rounded-lg border border-border"
-        >
-          <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
-            <span className="text-sm font-medium text-muted-foreground">
-              Linked Approvals ({linkedApprovals.length})
-            </span>
-            <ChevronDown
-              className={cn("h-4 w-4 text-muted-foreground transition-transform", secondaryOpen.approvals && "rotate-180")}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="border-t border-border divide-y divide-border">
-              {linkedApprovals.map((approval) => (
-                <Link
-                  key={approval.id}
-                  to={`/messenger/approvals/${approval.id}`}
-                  className="flex items-center justify-between px-3 py-2 text-xs hover:bg-accent/20 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={approval.status} />
-                    <span className="font-medium">
-                      {approval.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </span>
-                    <span className="font-mono text-muted-foreground">{approval.id.slice(0, 8)}</span>
-                  </div>
-                  <span className="text-muted-foreground">{relativeTime(approval.createdAt)}</span>
-                </Link>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
 
       <Sheet open={mobilePropsOpen} onOpenChange={setMobilePropsOpen}>
         <SheetContent side="bottom" className="max-h-[85dvh] pb-[env(safe-area-inset-bottom)]">

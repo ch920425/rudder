@@ -124,4 +124,52 @@ test.describe("Issue activity", () => {
     await expect(page.getByRole("link", { name: "Customer escalation" })).toBeVisible();
     await expect(page.getByText("created this issue from", { exact: false })).toBeVisible();
   });
+
+  test("shows linked approvals in the issue activity stream", async ({ page }) => {
+    await page.goto("/");
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `${ORG_NAME}-Approvals` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Issue with linked approval",
+        description: "Track linked approval placement.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+
+    const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
+      data: {
+        type: "chat_issue_creation",
+        payload: {
+          proposedIssue: {
+            title: "Follow-up from approval",
+            description: "Created from a linked approval.",
+            priority: "medium",
+          },
+        },
+        issueIds: [issue.id],
+      },
+    });
+    expect(approvalRes.ok()).toBe(true);
+    const approval = await approvalRes.json();
+
+    await page.goto(`/issues/${issue.identifier ?? issue.id}`);
+    const activity = page.getByRole("region", { name: "Activity" });
+    await expect(activity).toBeVisible();
+    await expect(activity.getByTestId("issue-activity-linked-approval")).toBeVisible();
+    await expect(activity.getByRole("link", { name: /Linked approval/ })).toHaveAttribute(
+      "href",
+      new RegExp(`/messenger/approvals/${approval.id}$`),
+    );
+    await expect(activity.getByText("Issue proposed from chat")).toBeVisible();
+    await expect(page.getByText("Linked Approvals")).toHaveCount(0);
+  });
 });
