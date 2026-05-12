@@ -295,6 +295,30 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
     expect(document.querySelector("[data-testid='workspace-projects-scroll']")?.classList.contains("scrollbar-auto-hide")).toBe(true);
   });
 
+  it("shows calendar timeline filters with user-facing status labels", () => {
+    mockState.pathname = "/RUD/calendar";
+    mockState.relativePath = "/calendar";
+
+    renderSidebar();
+
+    const statusFilters = document.querySelector("[data-testid='calendar-status-filters']");
+    expect(document.body.textContent).toContain("Timeline");
+    expect(document.body.textContent).not.toContain("Status");
+    expect(statusFilters?.textContent).toContain("Planned");
+    expect(statusFilters?.textContent).toContain("Running runs");
+    expect(statusFilters?.textContent).toContain("Run history");
+    expect(statusFilters?.textContent).toContain("External calendar");
+    expect(statusFilters?.textContent).toContain("Projected heartbeats");
+    expect(statusFilters?.textContent).toContain("Cancelled");
+    expect(statusFilters?.textContent).not.toContain("in_progress");
+    expect(statusFilters?.textContent).not.toContain("projected");
+
+    const projectedCheckbox = document.querySelector("[aria-label='Show Projected heartbeats events']");
+    expect(projectedCheckbox?.getAttribute("data-state")).toBe("unchecked");
+    expect(document.querySelector("[aria-label='Show Running runs events']")).not.toBeNull();
+    expect(document.querySelector("[aria-label='Show Run history events']")).not.toBeNull();
+  });
+
   it("uses auto-hidden scrollbars for chat and agent context sidebars", () => {
     mockState.pathname = "/RUD/chat/chat-1";
     mockState.relativePath = "/chat/chat-1";

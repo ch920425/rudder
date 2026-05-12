@@ -212,7 +212,12 @@ function resolveContextColumnHeader(relativePath: string): { title: string; desc
 }
 
 function calendarStatusLabel(status: CalendarEventStatus) {
-  if (status === "in_progress") return "in progress";
+  if (status === "planned") return "Planned";
+  if (status === "in_progress") return "Running runs";
+  if (status === "actual") return "Run history";
+  if (status === "external") return "External calendar";
+  if (status === "projected") return "Projected heartbeats";
+  if (status === "cancelled") return "Cancelled";
   return status;
 }
 
@@ -1205,7 +1210,7 @@ export function ThreeColumnContextSidebar() {
             ))}
           </div>
 
-          <SectionLabel>Status</SectionLabel>
+          <SectionLabel>Timeline</SectionLabel>
           <div className="mt-2 space-y-0.5" data-testid="calendar-status-filters">
             {CALENDAR_EVENT_STATUS_OPTIONS.map((status) => (
               <label
