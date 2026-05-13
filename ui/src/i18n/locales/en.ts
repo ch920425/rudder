@@ -288,6 +288,9 @@ export const en = {
     "Install test versions before the regular desktop release.",
   "general.updates.canary.enabledDescription":
     "This machine checks for test versions before the regular desktop release.",
+  "general.diagnostics.developer.title": "Show developer diagnostics",
+  "general.diagnostics.developer.description":
+    "Show internal Rudder runtime, workspace, session, and adapter diagnostics in transcripts.",
   "general.appearance.title": "Appearance",
   "general.appearance.description":
     "Choose how Rudder should look on this machine. The visual treatment follows Claude-style low-glare surfaces and restrained chrome.",

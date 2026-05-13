@@ -266,6 +266,8 @@ export const zhCN: Messages = {
   "general.updates.canary.title": "接收桌面测试版更新",
   "general.updates.canary.disabledDescription": "检查更新时，安装正式发布前的测试版本。",
   "general.updates.canary.enabledDescription": "这台机器会检查并安装正式发布前的测试版本。",
+  "general.diagnostics.developer.title": "显示开发诊断信息",
+  "general.diagnostics.developer.description": "在 transcript 中显示 Rudder 内部运行时、workspace、session 和 adapter 诊断信息。",
   "general.appearance.title": "外观",
   "general.appearance.description": "选择这个设备上的 Rudder 外观。视觉风格遵循低眩光、克制的 Claude 风格界面。",
   "general.appearance.colorMode": "颜色模式",

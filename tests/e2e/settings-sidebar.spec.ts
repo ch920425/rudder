@@ -160,6 +160,43 @@ test.describe("Settings sidebar", () => {
     await expect(modal).toHaveCount(0);
   });
 
+  test("persists developer diagnostics from general settings", async ({ page }) => {
+    await page.request.patch("/api/instance/settings/general", {
+      data: { showDeveloperDiagnostics: false },
+    });
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Developer Diagnostics ${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { issuePrefix: string };
+
+    await page.goto(`/${organization.issuePrefix}/dashboard`);
+    await page.getByRole("button", { name: "System settings" }).click();
+    await page.locator('aside a[href$="/instance/settings/general"]').click();
+
+    const modal = page.getByTestId("settings-modal-shell");
+    const diagnosticsSwitch = modal.getByRole("switch", { name: "Toggle developer diagnostics" });
+    await expect(modal.getByText("Show developer diagnostics")).toBeVisible();
+    await expect(diagnosticsSwitch).toHaveAttribute("aria-checked", "false");
+
+    const updateResponse = page.waitForResponse((response) =>
+      response.request().method() === "PATCH"
+      && response.url().includes("/api/instance/settings/general")
+      && response.ok(),
+    );
+    await diagnosticsSwitch.click();
+    await updateResponse;
+
+    await expect(diagnosticsSwitch).toHaveAttribute("aria-checked", "true");
+    const settingsResponse = await page.request.get("/api/instance/settings/general");
+    expect(settingsResponse.ok()).toBe(true);
+    expect(await settingsResponse.json()).toMatchObject({
+      showDeveloperDiagnostics: true,
+    });
+  });
+
   test("closes the settings modal on Escape", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {

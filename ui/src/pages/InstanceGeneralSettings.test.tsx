@@ -13,6 +13,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
     data: {
       censorUsernameInLogs: false,
+      showDeveloperDiagnostics: false,
       locale: "en",
     },
     isLoading: false,
@@ -65,6 +66,8 @@ vi.mock("../context/I18nContext", () => ({
         "general.updates.canary.title": "Receive early desktop updates",
         "general.updates.canary.disabledDescription": "Stable update channel selected",
         "general.updates.canary.enabledDescription": "Early update channel selected",
+        "general.diagnostics.developer.title": "Show developer diagnostics",
+        "general.diagnostics.developer.description": "Developer diagnostics description",
         "general.appearance.title": "Appearance",
         "general.appearance.description": "Appearance section",
         "general.appearance.colorMode": "Color mode",
@@ -179,5 +182,16 @@ describe("InstanceGeneralSettings", () => {
     expect(container.textContent).not.toContain("Receive early desktop updates");
     expect(container.textContent).not.toContain("No handler registered");
     expect(container.textContent).not.toContain("Failed to load desktop update settings.");
+  });
+
+  it("renders developer diagnostics as a compact general setting", async () => {
+    const container = renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("Show developer diagnostics");
+    expect(container.textContent).toContain("Developer diagnostics description");
   });
 });

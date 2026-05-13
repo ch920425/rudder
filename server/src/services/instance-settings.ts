@@ -25,11 +25,13 @@ function normalizeGeneralSettings(raw: unknown): InstanceGeneralSettings {
   if (parsed.success) {
     return {
       censorUsernameInLogs: parsed.data.censorUsernameInLogs ?? false,
+      showDeveloperDiagnostics: parsed.data.showDeveloperDiagnostics ?? false,
       locale: parsed.data.locale ?? "en",
     };
   }
   return {
     censorUsernameInLogs: false,
+    showDeveloperDiagnostics: false,
     locale: "en",
   };
 }

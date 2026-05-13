@@ -649,7 +649,7 @@ describe("RunTranscriptView", () => {
       </ThemeProvider>,
     );
 
-    expect(html).toContain("model codex");
+    expect(html).not.toContain("model codex");
     expect(html).not.toContain("Using Rudder-managed Codex home");
     expect(html).not.toContain("Prepared isolated Git config");
     expect(html).not.toContain("Prepared repository Git config");
@@ -659,6 +659,58 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Loaded agent tool notes file");
     expect(html).not.toContain("Loaded agent memory instructions file");
     expect(html).not.toContain("1 log");
+  });
+
+  it("hides developer diagnostics by default and restores them when enabled", () => {
+    const entries = [
+      {
+        kind: "init" as const,
+        ts: "2026-03-12T00:00:00.000Z",
+        model: "codex",
+        sessionId: "session-1",
+      },
+      {
+        kind: "system" as const,
+        ts: "2026-03-12T00:00:01.000Z",
+        text: "turn started",
+      },
+      {
+        kind: "stdout" as const,
+        ts: "2026-03-12T00:00:02.000Z",
+        text:
+          "[rudder] Prepared local CLI credential shim for: gh\n"
+          + "[rudder] Agent workspace \"/Users/zeeland/.rudder/instances/default/organizations/org/workspaces/agents/vera\" is now the canonical run workspace. Attempting to resume session \"019dfc\" that was previously saved in \"/Users/zeeland/.rudder/instances/default/organizations/org/workspaces\".\n"
+          + "[rudder] Codex session \"019dfc\" was saved for cwd \"/Users/zeeland/.rudder/instances/default/organizations/org/workspaces/agents/vera\" and will not be resumed in \"/Users/zeeland/.rudder/instances/default/organizations/org/workspaces\".\n"
+          + "Checked the repository status",
+      },
+    ];
+    const hiddenHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView density="compact" presentation="detail" entries={entries} />
+      </ThemeProvider>,
+    );
+    const visibleHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="detail"
+          entries={entries}
+          showDeveloperDiagnostics
+        />
+      </ThemeProvider>,
+    );
+
+    expect(hiddenHtml).not.toContain("model codex");
+    expect(hiddenHtml).not.toContain("Prepared local CLI credential shim");
+    expect(hiddenHtml).not.toContain("canonical run workspace");
+    expect(hiddenHtml).not.toContain("will not be resumed");
+    expect(hiddenHtml).toContain("Checked the repository status");
+
+    expect(visibleHtml).toContain("model codex");
+    expect(visibleHtml).toContain("Prepared local CLI credential shim");
+    expect(visibleHtml).toContain("canonical run workspace");
+    expect(visibleHtml).toContain("will not be resumed");
+    expect(visibleHtml).toContain("Checked the repository status");
   });
 
   it("renders a single detail-turn log inline instead of behind a log-count disclosure", () => {

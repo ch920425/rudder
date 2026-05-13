@@ -139,7 +139,7 @@ export function InstanceGeneralSettings() {
   }, []);
 
   const toggleMutation = useMutation({
-    mutationFn: async (patch: { censorUsernameInLogs?: boolean; locale?: "en" | "zh-CN" }) =>
+    mutationFn: async (patch: { censorUsernameInLogs?: boolean; showDeveloperDiagnostics?: boolean; locale?: "en" | "zh-CN" }) =>
       instanceSettingsApi.updateGeneral(patch),
     onSuccess: async (nextSettings) => {
       setActionError(null);
@@ -172,6 +172,7 @@ export function InstanceGeneralSettings() {
   }
 
   const censorUsernameInLogs = generalQuery.data?.censorUsernameInLogs === true;
+  const showDeveloperDiagnostics = generalQuery.data?.showDeveloperDiagnostics === true;
   const locale = generalQuery.data?.locale ?? "en";
 
   async function handleUpdateChannelToggle() {
@@ -279,6 +280,22 @@ export function InstanceGeneralSettings() {
           <SettingsDivider />
         </>
       ) : null}
+
+      <SettingsRow
+        title={t("general.diagnostics.developer.title")}
+        description={t("general.diagnostics.developer.description")}
+        className="border-t-0 pt-0"
+        action={
+          <SettingsToggle
+            checked={showDeveloperDiagnostics}
+            aria-label="Toggle developer diagnostics"
+            disabled={toggleMutation.isPending}
+            onClick={() => toggleMutation.mutate({ showDeveloperDiagnostics: !showDeveloperDiagnostics })}
+          />
+        }
+      />
+
+      <SettingsDivider />
 
       <div className="space-y-3">
         <div className="text-sm font-medium text-foreground">{t("general.appearance.colorMode")}</div>

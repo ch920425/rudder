@@ -94,6 +94,8 @@ interface RunTranscriptViewProps {
   thinkingClassName?: string;
   /** Chat stream: denser rows, collapsible thinking summaries, tool cards stay expandable. */
   presentation?: TranscriptPresentation;
+  /** Show Rudder-internal runtime/session/workspace diagnostics that are hidden from the default operator view. */
+  showDeveloperDiagnostics?: boolean;
   /** For embedded chat process logs, the final assistant answer is rendered as the message body. */
   hideAssistantMessages?: boolean;
   /** For embedded chat process logs, remove only the final answer suffix while keeping progress notes visible. */
@@ -257,11 +259,20 @@ function isTurnStartedText(value: string): boolean {
   return compactWhitespace(value).toLowerCase() === "turn started";
 }
 
-function filterRoutineStdout(value: string): string {
+function isDeveloperDiagnosticStdoutLine(trimmed: string): boolean {
+  if (/^\[rudder\] Prepared local CLI credential shim(?:s)? for: .+$/.test(trimmed)) return true;
+  if (/^\[rudder\] Agent workspace ".+" is now the canonical run workspace\. Attempting to resume session ".+" .+$/.test(trimmed)) return true;
+  if (/^\[rudder\] .+ session ".+" was saved for cwd ".+" and will not be resumed in ".+"\.$/.test(trimmed)) return true;
+  return false;
+}
+
+function filterRoutineStdout(value: string, showDeveloperDiagnostics: boolean): string {
+  if (showDeveloperDiagnostics) return value.trim();
   return value
     .split(/\r?\n/)
     .filter((line) => {
       const trimmed = line.trim();
+      if (isDeveloperDiagnosticStdoutLine(trimmed)) return false;
       if (/^\[rudder\] Using Rudder-managed .+ home ".+"(?: \(seeded from ".+"\))?\.$/.test(trimmed)) return false;
       if (/^\[rudder\] Prepared isolated Git config at .+ with user\.useConfigOnly=true \(.+\)\.$/.test(trimmed)) return false;
       if (/^\[rudder\] Prepared repository Git config in .+ with user\.useConfigOnly=true \(.+\)\.$/.test(trimmed)) return false;
@@ -282,11 +293,17 @@ function isAnalyticsForbiddenHtmlStart(line: string): boolean {
   return /WARN\s+codex_analytics::analytics_client:\s+events failed with status 403 Forbidden:\s+<html>/i.test(line.trim());
 }
 
-function filterRenderableTranscriptEntries(entries: TranscriptEntry[]): TranscriptEntry[] {
+function filterRenderableTranscriptEntries(
+  entries: TranscriptEntry[],
+  options?: { showDeveloperDiagnostics?: boolean },
+): TranscriptEntry[] {
+  if (options?.showDeveloperDiagnostics) return entries;
   let suppressingWarningHtml = false;
   const result: TranscriptEntry[] = [];
 
   for (const entry of entries) {
+    if (entry.kind === "init") continue;
+
     if (entry.kind !== "stderr") {
       result.push(entry);
       continue;
@@ -1931,7 +1948,11 @@ function segmentTranscriptEntriesByTurn(entries: TranscriptEntry[]): {
   return { preludeEntries, turnEntries };
 }
 
-export function normalizeTranscript(entries: TranscriptEntry[], streaming: boolean): TranscriptBlock[] {
+export function normalizeTranscript(
+  entries: TranscriptEntry[],
+  streaming: boolean,
+  options?: { showDeveloperDiagnostics?: boolean },
+): TranscriptBlock[] {
   const blocks: TranscriptBlock[] = [];
   const pendingToolBlocks = new Map<string, Extract<TranscriptBlock, { type: "tool" }>>();
   const pendingActivityBlocks = new Map<string, Extract<TranscriptBlock, { type: "activity" }>>();
@@ -2113,7 +2134,7 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
       continue;
     }
 
-    const filteredStdout = filterRoutineStdout(entry.text);
+    const filteredStdout = filterRoutineStdout(entry.text, options?.showDeveloperDiagnostics === true);
     if (!filteredStdout) {
       continue;
     }
@@ -2194,15 +2215,19 @@ function summarizeChatTurn(blocks: TranscriptBlock[]): string | null {
   return null;
 }
 
-function normalizeChatTranscriptTurns(entries: TranscriptEntry[], streaming: boolean): {
+function normalizeChatTranscriptTurns(
+  entries: TranscriptEntry[],
+  streaming: boolean,
+  options?: { showDeveloperDiagnostics?: boolean },
+): {
   preludeBlocks: TranscriptBlock[];
   turns: ChatTranscriptTurn[];
 } {
   const { preludeEntries, turnEntries } = segmentTranscriptEntriesByTurn(entries);
-  const preludeBlocks = normalizeTranscript(preludeEntries, streaming);
+  const preludeBlocks = normalizeTranscript(preludeEntries, streaming, options);
   const turns = turnEntries
     .map((turn, index) => {
-      const blocks = normalizeTranscript(turn, streaming);
+      const blocks = normalizeTranscript(turn, streaming, options);
       if (blocks.length === 0) return null;
 
       const commandCount = blocks.reduce((total, block) => (
@@ -3496,6 +3521,7 @@ function TranscriptChatTimeline({
   thinkingClassName,
   hideAssistantMessages,
   hiddenAssistantMessageText,
+  showDeveloperDiagnostics,
   onMarkdownLinkClick,
 }: {
   entries: TranscriptEntry[];
@@ -3505,6 +3531,7 @@ function TranscriptChatTimeline({
   thinkingClassName?: string;
   hideAssistantMessages: boolean;
   hiddenAssistantMessageText?: string | null;
+  showDeveloperDiagnostics: boolean;
   onMarkdownLinkClick?: TranscriptMarkdownLinkClickHandler;
 }) {
   const timelineEntries = useMemo(
@@ -3515,8 +3542,8 @@ function TranscriptChatTimeline({
     [entries, hideAssistantMessages, hiddenAssistantMessageText],
   );
   const { preludeBlocks, turns } = useMemo(
-    () => normalizeChatTranscriptTurns(timelineEntries, streaming),
-    [timelineEntries, streaming],
+    () => normalizeChatTranscriptTurns(timelineEntries, streaming, { showDeveloperDiagnostics }),
+    [timelineEntries, streaming, showDeveloperDiagnostics],
   );
 
   return (
@@ -3640,17 +3667,19 @@ function TranscriptDetailTimeline({
   density,
   streaming,
   thinkingClassName,
+  showDeveloperDiagnostics,
   onMarkdownLinkClick,
 }: {
   entries: TranscriptEntry[];
   density: TranscriptDensity;
   streaming: boolean;
   thinkingClassName?: string;
+  showDeveloperDiagnostics: boolean;
   onMarkdownLinkClick?: TranscriptMarkdownLinkClickHandler;
 }) {
   const { preludeBlocks, turns } = useMemo(
-    () => normalizeChatTranscriptTurns(entries, streaming),
-    [entries, streaming],
+    () => normalizeChatTranscriptTurns(entries, streaming, { showDeveloperDiagnostics }),
+    [entries, streaming, showDeveloperDiagnostics],
   );
   const rows = expandDetailTimelineBlocks(preludeBlocks);
 
@@ -3770,6 +3799,7 @@ export function RunTranscriptView({
   className,
   thinkingClassName,
   presentation = "default",
+  showDeveloperDiagnostics = false,
   hideAssistantMessages = false,
   hiddenAssistantMessageText = null,
 }: RunTranscriptViewProps) {
@@ -3802,8 +3832,14 @@ export function RunTranscriptView({
     });
     return true;
   }, [toastContext]);
-  const renderableEntries = useMemo(() => filterRenderableTranscriptEntries(entries), [entries]);
-  const blocks = useMemo(() => normalizeTranscript(renderableEntries, streaming), [renderableEntries, streaming]);
+  const renderableEntries = useMemo(
+    () => filterRenderableTranscriptEntries(entries, { showDeveloperDiagnostics }),
+    [entries, showDeveloperDiagnostics],
+  );
+  const blocks = useMemo(
+    () => normalizeTranscript(renderableEntries, streaming, { showDeveloperDiagnostics }),
+    [renderableEntries, streaming, showDeveloperDiagnostics],
+  );
   const visibleBlocks = limit ? blocks.slice(-limit) : blocks;
   const visibleEntries = limit ? renderableEntries.slice(-limit) : renderableEntries;
 
@@ -3831,6 +3867,7 @@ export function RunTranscriptView({
           density={density}
           streaming={streaming}
           thinkingClassName={thinkingClassName}
+          showDeveloperDiagnostics={showDeveloperDiagnostics}
           onMarkdownLinkClick={handleMarkdownLinkClick}
         />
       </div>
@@ -3848,6 +3885,7 @@ export function RunTranscriptView({
           thinkingClassName={thinkingClassName}
           hideAssistantMessages={hideAssistantMessages}
           hiddenAssistantMessageText={hiddenAssistantMessageText}
+          showDeveloperDiagnostics={showDeveloperDiagnostics}
           onMarkdownLinkClick={handleMarkdownLinkClick}
         />
       </div>
