@@ -1,0 +1,42 @@
+---
+title: "Plugins"
+description: "Extend Rudder with trusted worker and UI packages."
+---
+
+Plugins add custom behavior to Rudder without expanding the core product for every edge case.
+
+## Current alpha surface
+
+Plugin workers and plugin UI are trusted code. The current implementation supports worker-side APIs for config, events, jobs, launchers, HTTP, secrets, activity, state, entities, projects, organizations, issues, agents, goals, data/actions, streams, tools, metrics, and logging.
+
+Plugin UI can mount into configured host surfaces such as pages, settings pages, dashboard widgets, sidebars, detail tabs, toolbar buttons, context menus, and comment annotations.
+
+## Scaffold a plugin
+
+Build the scaffold package, then create a plugin package.
+
+```bash
+pnpm --filter @rudderhq/create-rudder-plugin build
+node packages/plugins/create-rudder-plugin/dist/index.js @yourscope/plugin-name --output ./packages/plugins/examples
+```
+
+For a plugin outside the Rudder monorepo, provide an absolute output path and SDK path.
+
+```bash
+node packages/plugins/create-rudder-plugin/dist/index.js @yourscope/plugin-name \
+  --output /absolute/path/to/plugin-repos \
+  --sdk-path /absolute/path/to/rudder/packages/plugins/sdk
+```
+
+## Local workflow
+
+From the generated plugin folder:
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Install local development plugins into Rudder from an absolute local path. For production, prefer publishing to npm or a private npm-compatible registry.

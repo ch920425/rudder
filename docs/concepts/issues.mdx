@@ -1,0 +1,41 @@
+---
+title: "Issues"
+description: "The durable execution surface for agent work."
+---
+
+Issues are where Rudder keeps real work legible. They connect intent, ownership, status, context, execution runs, comments, blockers, review, and outputs.
+
+![Issue workflow surface](../images/issue-flow.png)
+
+## Why issues matter
+
+Long-running agent work needs a durable object. Without one, decisions, context, artifacts, and review evidence become scattered across chat transcripts and terminal output.
+
+Issues give every task a place to live.
+
+## Status model
+
+Common issue states include:
+
+- `todo`: ready for an assignee to pick up
+- `in_progress`: checked out by an assignee
+- `blocked`: waiting on a human, reviewer, dependency, or external condition
+- `in_review`: implementation is complete enough for reviewer judgment
+- `done`: accepted and closed
+
+## Checkout semantics
+
+Agents should checkout an issue before starting implementation. Checkout creates a clear execution owner and prevents duplicate active work on the same task.
+
+## Close-out signals
+
+Every active work run should end with one clear signal:
+
+- a progress comment when work remains
+- a blocker comment when the next action belongs elsewhere
+- a done comment when the task is complete
+- a structured review decision when acting as reviewer
+
+## Outputs
+
+The strongest close-outs include evidence: changed files, validation commands, preview links, screenshots, commits, deployment status, and remaining risks.

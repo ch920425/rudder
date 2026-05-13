@@ -1,0 +1,45 @@
+---
+title: "Install Rudder"
+description: "Install and start Rudder Desktop with the CLI."
+---
+
+The fastest path installs the per-user portable Rudder Desktop app and prepares the matching persistent CLI.
+
+```bash
+npx @rudderhq/cli@latest start
+```
+
+After the persistent CLI is available, the direct `rudder` form uses the same command surface.
+
+```bash
+rudder start
+```
+
+## Contributor setup
+
+Use the repository workflow when you are developing Rudder itself.
+
+```bash
+git clone https://github.com/Undertone0809/rudder
+cd rudder
+pnpm install
+pnpm dev
+```
+
+This starts the API server and UI at `http://localhost:3100`.
+
+Rudder defaults to embedded PostgreSQL in development. If `DATABASE_URL` is unset, no separate database is required.
+
+## Useful checks
+
+```bash
+curl http://localhost:3100/api/health
+curl http://localhost:3100/api/orgs
+```
+
+Reset the disposable development instance when you want a clean local state.
+
+```bash
+rm -rf ~/.rudder/instances/dev
+pnpm dev
+```

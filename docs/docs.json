@@ -1,0 +1,68 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Rudder",
+  "colors": {
+    "primary": "#0F766E",
+    "light": "#14B8A6",
+    "dark": "#0F172A"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Get Started",
+        "groups": [
+          {
+            "group": "Start Here",
+            "pages": [
+              "index",
+              "get-started/installation",
+              "get-started/first-organization"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Concepts",
+        "groups": [
+          {
+            "group": "Rudder Model",
+            "pages": [
+              "concepts/overview",
+              "concepts/agents",
+              "concepts/issues",
+              "concepts/workspaces",
+              "concepts/skills"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Build",
+        "groups": [
+          {
+            "group": "Extending Rudder",
+            "pages": [
+              "plugins/overview",
+              "cli/reference"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "deployment/overview"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footerSocials": {
+    "github": "https://github.com/Undertone0809/rudder"
+  },
+  "seo": {
+    "metatags": {
+      "canonical": "https://doc.rudder.zeeland.studio"
+    }
+  }
+}

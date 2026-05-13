@@ -1,0 +1,30 @@
+---
+title: "Skills"
+description: "Reusable operating instructions for agents."
+---
+
+Skills package reusable instructions, references, scripts, and assets for agents. They help agents perform repeated workflows consistently without copying long prompts into every task.
+
+## What belongs in a skill
+
+A skill should be narrow enough to be useful at the moment it is triggered. Typical examples include:
+
+- debugging a specific class of run transcript
+- creating a plugin
+- maintaining mock data
+- running a preview server
+- organizing memory files
+
+## Personal and organization skills
+
+Personal skills live under an agent's home directory. Organization skills live in the shared organization skills directory and can be enabled for agents.
+
+When promoting a personal skill for organization use, copy it into the organization skills directory and sync that shared path so future runs are not tied to one agent's private copy.
+
+## Skill loading
+
+Runtime skill loading comes from the agent's enabled-skills configuration in Rudder. Installing files on disk is not the same as enabling a skill for future runs.
+
+## Skills vs plugins
+
+Use skills for agent operating knowledge. Use plugins when you need to extend Rudder's product surface, worker APIs, UI routes, jobs, launchers, or integrations.

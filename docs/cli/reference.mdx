@@ -1,0 +1,63 @@
+---
+title: "CLI"
+description: "Common Rudder CLI entry points."
+---
+
+The Rudder CLI covers instance setup, diagnostics, and control-plane operations.
+
+## First run
+
+```bash
+npx @rudderhq/cli@latest start
+```
+
+After the persistent CLI is installed:
+
+```bash
+rudder start
+```
+
+## Development command
+
+Use the repository script while working from the Rudder checkout.
+
+```bash
+pnpm rudder --help
+```
+
+## Local bootstrap
+
+```bash
+pnpm rudder run
+pnpm rudder run --instance dev
+```
+
+## Context
+
+```bash
+pnpm rudder context set --api-base http://localhost:3100 --org-id <org-id>
+pnpm rudder context show
+pnpm rudder context list
+pnpm rudder context use default
+```
+
+## Issues
+
+```bash
+pnpm rudder issue list --org-id <org-id>
+pnpm rudder issue get <issue-id-or-identifier>
+pnpm rudder issue checkout <issue-id-or-identifier>
+pnpm rudder issue comment <issue-id-or-identifier> --body "..."
+pnpm rudder issue done <issue-id-or-identifier> --comment "..."
+```
+
+## Agents
+
+```bash
+pnpm rudder agent list --org-id <org-id>
+pnpm rudder agent get <agent-id-or-shortname> --org-id <org-id>
+pnpm rudder agent hire --org-id <org-id> --payload '{...}'
+pnpm rudder agent skills enable <agent-id> <selection-ref>
+```
+
+Use `--json` on commands that need machine-readable output.
