@@ -2370,6 +2370,7 @@ function PromptsTab({
   onSavingChange: (saving: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const { selectedOrganizationId } = useOrganization();
   const { isMobile } = useSidebar();
   const [selectedFile, setSelectedFile] = useState<string>(DEFAULT_INSTRUCTIONS_ENTRY_FILE);
@@ -2489,6 +2490,18 @@ function PromptsTab({
     onError: () => setAwaitingRefresh(false),
   });
 
+  const deleteFile = useMutation({
+    mutationFn: (relativePath: string) => agentsApi.deleteInstructionsFile(agent.id, relativePath, orgId),
+    onMutate: () => setAwaitingRefresh(true),
+    onSuccess: (_, relativePath) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionsBundle(agent.id) });
+      queryClient.removeQueries({ queryKey: queryKeys.agents.instructionsFile(agent.id, relativePath) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
+    },
+    onError: () => setAwaitingRefresh(false),
+  });
+
   const uploadMarkdownImage = useMutation({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
       if (!selectedOrganizationId) throw new Error("Select a organization to upload images");
@@ -2575,7 +2588,7 @@ function PromptsTab({
   );
   const fileDirty = draft !== null && draft !== currentContent;
   const isDirty = bundleDirty || fileDirty;
-  const isSaving = updateBundle.isPending || saveFile.isPending || awaitingRefresh;
+  const isSaving = updateBundle.isPending || saveFile.isPending || deleteFile.isPending || awaitingRefresh;
 
   useEffect(() => { onSavingChange(isSaving); }, [onSavingChange, isSaving]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
@@ -2995,6 +3008,30 @@ function PromptsTab({
                 </p>
               </div>
             </div>
+            {selectedFileExists && !selectedFileSummary?.deprecated && selectedOrEntryFile !== currentEntryFile && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  const confirmed = await confirm({
+                    title: `Delete ${selectedOrEntryFile}?`,
+                    confirmLabel: "Delete",
+                    tone: "destructive",
+                  });
+                  if (!confirmed) return;
+                  deleteFile.mutate(selectedOrEntryFile, {
+                    onSuccess: () => {
+                      setSelectedFile(currentEntryFile);
+                      setDraft(null);
+                    },
+                  });
+                }}
+                disabled={deleteFile.isPending}
+              >
+                Delete
+              </Button>
+            )}
           </div>
 
           {selectedFileExists && fileLoading && !selectedFileDetail ? (
@@ -4908,12 +4945,10 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
     };
   }, [isLive, run.orgId, run.id, run.agentId]);
 
-  const generalSettings = useQuery({
+  const censorUsernameInLogs = useQuery({
     queryKey: queryKeys.instance.generalSettings,
     queryFn: () => instanceSettingsApi.getGeneral(),
-  }).data;
-  const censorUsernameInLogs = generalSettings?.censorUsernameInLogs === true;
-  const showDeveloperDiagnostics = generalSettings?.showDeveloperDiagnostics === true;
+  }).data?.censorUsernameInLogs === true;
 
   const adapterInvokePayload = useMemo(() => {
     const evt = events.find((e) => e.eventType === "adapter.invoke");
@@ -5098,7 +5133,6 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
               collapseStdout
               emptyMessage={run.logRef ? "Waiting for transcript..." : "No persisted transcript for this run."}
               presentation="detail"
-              showDeveloperDiagnostics={showDeveloperDiagnostics}
             />
             {logError && (
               <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-xs text-red-700 dark:text-red-300">
@@ -5234,7 +5268,6 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
               collapseStdout
               emptyMessage={run.logRef ? "Waiting for transcript..." : "No persisted transcript for this run."}
               presentation="detail"
-              showDeveloperDiagnostics={showDeveloperDiagnostics}
             />
             {logError && (
               <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-xs text-red-700 dark:text-red-300">

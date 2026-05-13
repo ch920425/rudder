@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext";
 import { mentionChipInlineStyle, parseMentionChipHref, stripMentionChipLabelPrefix } from "../lib/mention-chips";
 import { parseSkillReference } from "../lib/skill-reference";
 import { ImagePreviewDialog, type ImagePreviewState } from "./ImagePreviewDialog";
+import { InspectableImage } from "./InspectableImage";
 import { SkillReferenceToken, type MarkdownSkillReferencePreview } from "./SkillReferenceToken";
 
 interface MarkdownBodyProps {
@@ -180,13 +181,10 @@ export function MarkdownBody({
       .filter(([key]) => key.length > 0),
   );
   const normalizedChildren = normalizeEscapedMarkdownNewlines(children);
-  const handleImageDoubleClick = (event: MouseEvent<HTMLImageElement>) => {
+  const handleImageInspect = (image: HTMLImageElement) => {
     if (!enableImagePreview) return;
-    const image = event.currentTarget;
     const src = image.currentSrc || image.src;
     if (!src) return;
-    event.preventDefault();
-    event.stopPropagation();
     setImagePreview({
       alt: image.alt,
       name: getMarkdownImagePreviewName(image),
@@ -260,12 +258,23 @@ export function MarkdownBody({
   };
   components.img = ({ node: _node, src, alt, ...imgProps }) => {
     const resolved = src && resolveImageSrc ? resolveImageSrc(src) : null;
+    const imageSrc = resolved ?? src ?? "";
+    if (enableImagePreview && imageSrc) {
+      return (
+        <InspectableImage
+          {...imgProps}
+          src={imageSrc}
+          alt={alt ?? ""}
+          name={alt?.trim() || "Markdown image"}
+          onInspect={handleImageInspect}
+        />
+      );
+    }
     return (
       <img
         {...imgProps}
-        src={resolved ?? src}
+        src={imageSrc}
         alt={alt ?? ""}
-        onDoubleClick={enableImagePreview ? handleImageDoubleClick : undefined}
       />
     );
   };

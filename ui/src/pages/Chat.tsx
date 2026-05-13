@@ -108,7 +108,13 @@ import {
   appendSkillReferencesToDraft,
 } from "@/lib/organization-skill-picker";
 import { formatAssigneeUserLabel } from "@/lib/assignees";
-import { readDesktopShell, type DesktopImageDataPayload } from "@/lib/desktop-shell";
+import { readDesktopShell } from "@/lib/desktop-shell";
+import {
+  canShowImageInFolder,
+  copyImage as copyImageAction,
+  isImageContentType,
+  showImageInFolder as showImageInFolderAction,
+} from "@/lib/image-actions";
 import { resolveLocalFileTarget } from "@/lib/local-file-targets";
 import { cn, relativeTime } from "@/lib/utils";
 import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
@@ -369,79 +375,8 @@ function pendingAttachmentKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
-function isImageAttachmentContentType(contentType: string | null | undefined) {
-  return Boolean(contentType?.toLowerCase().startsWith("image/"));
-}
-
 function attachmentDisplayName(input: { originalFilename?: string | null; assetId?: string; name?: string }) {
   return input.originalFilename ?? input.name ?? input.assetId ?? "attachment";
-}
-
-function extensionForImageContentType(contentType: string) {
-  switch (contentType.toLowerCase().split(";")[0]) {
-    case "image/jpeg":
-    case "image/jpg":
-      return ".jpg";
-    case "image/gif":
-      return ".gif";
-    case "image/webp":
-      return ".webp";
-    case "image/svg+xml":
-      return ".svg";
-    case "image/png":
-    default:
-      return ".png";
-  }
-}
-
-export function resolveChatImageFilename(name: string, contentType: string) {
-  const trimmed = name.trim() || "chat-image";
-  return /\.[a-z0-9]{2,8}$/i.test(trimmed) ? trimmed : `${trimmed}${extensionForImageContentType(contentType)}`;
-}
-
-async function blobToBase64(blob: Blob) {
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
-}
-
-export async function createChatImageDesktopPayload(blob: Blob, name: string): Promise<DesktopImageDataPayload> {
-  const contentType = blob.type || "image/png";
-  return {
-    filename: resolveChatImageFilename(name, contentType),
-    contentType,
-    base64: await blobToBase64(blob),
-  };
-}
-
-async function fetchChatImageBlob(src: string) {
-  const response = await fetch(src, { credentials: "include" });
-  if (!response.ok) {
-    throw new Error(`Unable to load image (${response.status}).`);
-  }
-
-  const blob = await response.blob();
-  if (!isImageAttachmentContentType(blob.type)) {
-    throw new Error("The selected attachment is not an image.");
-  }
-  return blob;
-}
-
-async function copyImageBlobWithBrowserClipboard(blob: Blob) {
-  const ClipboardItemCtor = typeof ClipboardItem === "undefined" ? null : ClipboardItem;
-  if (!navigator.clipboard?.write || !ClipboardItemCtor) {
-    throw new Error("Copy Image is only available in the desktop app or a clipboard-enabled browser.");
-  }
-  await navigator.clipboard.write([
-    new ClipboardItemCtor({
-      [blob.type || "image/png"]: blob,
-    }),
-  ]);
 }
 
 function clampChatImageContextMenuPosition(left: number, top: number): ChatImageContextMenuPosition {
@@ -472,8 +407,7 @@ function ChatImageAttachmentTile({
   const { pushToast } = useToast();
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<ChatImageContextMenuPosition | null>(null);
-  const desktopShell = readDesktopShell();
-  const canShowInFinder = Boolean(desktopShell?.showImageInFolder);
+  const canShowInFinder = canShowImageInFolder();
 
   useEffect(() => {
     if (!contextMenuPosition) return;
@@ -505,12 +439,7 @@ function ChatImageAttachmentTile({
   const copyImage = async () => {
     setContextMenuPosition(null);
     try {
-      const blob = await fetchChatImageBlob(src);
-      if (desktopShell?.copyImage) {
-        await desktopShell.copyImage(await createChatImageDesktopPayload(blob, name));
-      } else {
-        await copyImageBlobWithBrowserClipboard(blob);
-      }
+      await copyImageAction(src, name);
       pushToast({ title: "Image copied", tone: "success" });
     } catch (error) {
       pushToast({
@@ -523,7 +452,7 @@ function ChatImageAttachmentTile({
 
   const showImageInFolder = async () => {
     setContextMenuPosition(null);
-    if (!desktopShell?.showImageInFolder) {
+    if (!canShowInFinder) {
       pushToast({
         title: "Open in Finder unavailable",
         body: "Open in Finder is available in the desktop app.",
@@ -533,8 +462,7 @@ function ChatImageAttachmentTile({
     }
 
     try {
-      const blob = await fetchChatImageBlob(src);
-      await desktopShell.showImageInFolder(await createChatImageDesktopPayload(blob, name));
+      await showImageInFolderAction(src, name);
     } catch (error) {
       pushToast({
         title: "Open in Finder failed",
@@ -678,7 +606,7 @@ function PendingAttachmentPreview({
   onRemove: () => void;
 }) {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
-  const isImage = isImageAttachmentContentType(file.type);
+  const isImage = isImageContentType(file.type);
   const name = attachmentDisplayName(file);
 
   useEffect(() => {
@@ -721,7 +649,7 @@ function ChatAttachmentList({
     <div className="mt-4 flex flex-wrap gap-2">
       {attachments.map((attachment) => {
         const name = attachmentDisplayName(attachment);
-        if (isImageAttachmentContentType(attachment.contentType)) {
+        if (isImageContentType(attachment.contentType)) {
           return (
             <ChatImageAttachmentTile
               key={attachment.id}

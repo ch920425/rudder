@@ -122,6 +122,75 @@ describe("MarkdownBody", () => {
     expect(document.body.textContent).toContain("Architecture diagram");
   });
 
+  it("opens a markdown image preview dialog when an inline image is clicked", () => {
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>{"![Build screenshot](/api/assets/test/content)"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const imageButton = container.querySelector(".rudder-inspectable-image-trigger");
+    expect(imageButton).toBeTruthy();
+
+    act(() => {
+      imageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const previewRoot = document.body.querySelector('[data-testid="markdown-body-image-preview-dialog"]');
+    expect(previewRoot?.querySelector("img")?.getAttribute("alt")).toBe("Build screenshot");
+    expect(previewRoot?.textContent).toContain("Open Image");
+    expect(previewRoot?.textContent).toContain("Copy Image");
+  });
+
+  it("shows image actions from the custom markdown image context menu", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>{"![Evidence](/api/attachments/test/content)"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const image = container.querySelector("img");
+    expect(image).toBeTruthy();
+
+    act(() => {
+      image?.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 32,
+        clientY: 48,
+      }));
+    });
+
+    const contextMenu = document.body.querySelector('[data-testid="markdown-image-context-menu"]');
+    expect(contextMenu).toBeTruthy();
+    expect(contextMenu?.textContent).toContain("Open Image");
+    expect(contextMenu?.textContent).toContain("Copy Image");
+    expect(contextMenu?.textContent).toContain("Download Image");
+
+    const openItem = Array.from(contextMenu?.querySelectorAll("button") ?? [])
+      .find((button) => button.textContent?.includes("Open Image"));
+    act(() => {
+      openItem?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    expect(openSpy).toHaveBeenCalledWith("/api/attachments/test/content", "_blank", "noopener,noreferrer");
+
+    openSpy.mockRestore();
+  });
+
+  it("leaves images non-interactive when preview is disabled", () => {
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody enableImagePreview={false}>
+          {"![Static diagram](/api/assets/static/content)"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(container.querySelector("img")).toBeTruthy();
+    expect(container.querySelector(".rudder-inspectable-image-trigger")).toBeNull();
+  });
+
   it("renders agent and project mentions as chips", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
