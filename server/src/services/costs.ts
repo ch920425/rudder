@@ -18,6 +18,34 @@ export interface CostTrendFilter {
 const METERED_BILLING_TYPE = "metered_api";
 const SUBSCRIPTION_BILLING_TYPES = ["subscription_included", "subscription_overage"] as const;
 
+function totalTokenCountSql() {
+  return sql<number>`
+    coalesce(sum(
+      case
+        when ${costEvents.cachedInputTokens} > ${costEvents.inputTokens}
+          then ${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}
+        else ${costEvents.inputTokens} + ${costEvents.outputTokens}
+      end
+    ), 0)::int
+  `;
+}
+
+function tokenEventCountSql() {
+  return sql<number>`
+    coalesce(sum(
+      case
+        when (
+          case
+            when ${costEvents.cachedInputTokens} > ${costEvents.inputTokens}
+              then ${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}
+            else ${costEvents.inputTokens} + ${costEvents.outputTokens}
+          end
+        ) > 0 then 1 else 0
+      end
+    ), 0)::int
+  `;
+}
+
 function currentUtcMonthWindow(now = new Date()) {
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
@@ -156,11 +184,9 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
-          totalTokens:
-            sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}), 0)::int`,
+          totalTokens: totalTokenCountSql(),
           eventCount: sql<number>`count(*)::int`,
-          tokenEventCount:
-            sql<number>`coalesce(sum(case when ${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens} > 0 then 1 else 0 end), 0)::int`,
+          tokenEventCount: tokenEventCountSql(),
         })
         .from(costEvents)
         .where(and(...conditions));
@@ -206,7 +232,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
       const inputTokensExpr = sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`;
       const cachedInputTokensExpr = sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`;
       const outputTokensExpr = sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`;
-      const totalTokensExpr = sql<number>`coalesce(sum(${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}), 0)::int`;
+      const totalTokensExpr = totalTokenCountSql();
 
       if (filter.projectId) {
         const issueIdAsText = sql<string>`${issues.id}::text`;

@@ -32,7 +32,7 @@ import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart, SkillsUsageChart } from "../components/ActivityCharts";
 import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { PageSkeleton } from "../components/PageSkeleton";
-import type { Agent, AgentSkillAnalytics, Issue } from "@rudderhq/shared";
+import { summarizeTokenUsage, type Agent, type AgentSkillAnalytics, type Issue } from "@rudderhq/shared";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
 function getRecentIssues(issues: Issue[]): Issue[] {
@@ -256,8 +256,11 @@ export function Dashboard() {
   });
   const hasTokenUsage = (rangeCostSummary?.tokenEventCount ?? 0) > 0;
   const tokenMetricValue = hasTokenUsage && rangeCostSummary ? formatTokens(rangeCostSummary.totalTokens) : "—";
+  const rangeTokenSummary = rangeCostSummary ? summarizeTokenUsage(rangeCostSummary) : null;
   const tokenMetricDescription = hasTokenUsage && rangeCostSummary
-    ? `Input ${formatTokens(rangeCostSummary.inputTokens + rangeCostSummary.cachedInputTokens)} · Output ${formatTokens(
+    ? `Input ${formatTokens(rangeTokenSummary?.promptTokens ?? rangeCostSummary.inputTokens)} · Cached ${formatTokens(
+        rangeCostSummary.cachedInputTokens,
+      )} · Output ${formatTokens(
         rangeCostSummary.outputTokens,
       )}`
     : showFilteredSections

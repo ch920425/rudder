@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  CostByAgent,
-  BudgetPolicySummary,
-  CostByAgentModel,
-  CostByBiller,
-  CostByProject,
-  CostByProviderModel,
-  CostTrendPoint,
-  CostWindowSpendRow,
-  FinanceEvent,
-  QuotaWindow,
+import {
+  hasTokenUsage,
+  summarizeTokenUsage,
+  type CostByAgent,
+  type BudgetPolicySummary,
+  type CostByAgentModel,
+  type CostByBiller,
+  type CostByProject,
+  type CostByProviderModel,
+  type CostTrendPoint,
+  type CostWindowSpendRow,
+  type FinanceEvent,
+  type QuotaWindow,
 } from "@rudderhq/shared";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Coins, DollarSign, ReceiptText } from "lucide-react";
 import { budgetsApi } from "../api/budgets";
@@ -51,7 +53,7 @@ function currentWeekRange(): { from: string; to: string } {
 }
 
 function ProviderTabLabel({ provider, rows }: { provider: string; rows: CostByProviderModel[] }) {
-  const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
+  const totalTokens = rows.reduce((sum, row) => sum + summarizeTokenUsage(row).totalTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
@@ -63,7 +65,7 @@ function ProviderTabLabel({ provider, rows }: { provider: string; rows: CostByPr
 }
 
 function BillerTabLabel({ biller, rows }: { biller: string; rows: CostByBiller[] }) {
-  const totalTokens = rows.reduce((sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0);
+  const totalTokens = rows.reduce((sum, row) => sum + summarizeTokenUsage(row).totalTokens, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.costCents, 0);
   return (
     <span className="flex items-center gap-1.5">
@@ -559,11 +561,11 @@ export function Costs() {
   }, [spendData?.byAgentModel]);
 
   const trendAgentOptions = useMemo(
-    () => (spendData?.byAgent ?? []).filter((row) => row.inputTokens + row.cachedInputTokens + row.outputTokens > 0 || row.costCents > 0),
+    () => (spendData?.byAgent ?? []).filter((row) => hasTokenUsage(row) || row.costCents > 0),
     [spendData?.byAgent],
   );
   const trendProjectOptions = useMemo(
-    () => (spendData?.byProject ?? []).filter((row) => row.projectId && (row.inputTokens + row.cachedInputTokens + row.outputTokens > 0 || row.costCents > 0)),
+    () => (spendData?.byProject ?? []).filter((row) => row.projectId && (hasTokenUsage(row) || row.costCents > 0)),
     [spendData?.byProject],
   );
   const effectiveTrendAgentId = trendAgentOptions.some((row) => row.agentId === trendAgentId)
@@ -770,7 +772,7 @@ export function Costs() {
   const providerTabItems = useMemo(() => {
     const providerKeys = Array.from(byProvider.keys());
     const allTokens = providerKeys.reduce(
-      (sum, provider) => sum + (byProvider.get(provider)?.reduce((acc, row) => acc + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0) ?? 0),
+      (sum, provider) => sum + (byProvider.get(provider)?.reduce((acc, row) => acc + summarizeTokenUsage(row).totalTokens, 0) ?? 0),
       0,
     );
     const allCents = providerKeys.reduce(
@@ -802,7 +804,7 @@ export function Costs() {
   const billerTabItems = useMemo(() => {
     const billerKeys = Array.from(byBiller.keys());
     const allTokens = billerKeys.reduce(
-      (sum, biller) => sum + (byBiller.get(biller)?.reduce((acc, row) => acc + row.inputTokens + row.cachedInputTokens + row.outputTokens, 0) ?? 0),
+      (sum, biller) => sum + (byBiller.get(biller)?.reduce((acc, row) => acc + summarizeTokenUsage(row).totalTokens, 0) ?? 0),
       0,
     );
     const allCents = billerKeys.reduce(
@@ -833,7 +835,7 @@ export function Costs() {
 
   const inferenceTokenTotal =
     (spendData?.byAgent ?? []).reduce(
-      (sum, row) => sum + row.inputTokens + row.cachedInputTokens + row.outputTokens,
+      (sum, row) => sum + summarizeTokenUsage(row).totalTokens,
       0,
     );
 
@@ -1100,7 +1102,7 @@ export function Costs() {
                               <div className="text-right text-sm tabular-nums">
                                 <div className="font-medium">{formatCents(row.costCents)}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  in {formatTokens(row.inputTokens + row.cachedInputTokens)} · out {formatTokens(row.outputTokens)}
+                                  in {formatTokens(summarizeTokenUsage(row).promptTokens)} · out {formatTokens(row.outputTokens)}
                                 </div>
                                 {(row.apiRunCount > 0 || row.subscriptionRunCount > 0) ? (
                                   <div className="text-xs text-muted-foreground">
@@ -1118,6 +1120,7 @@ export function Costs() {
                               <div className="mt-3 space-y-2 border-l border-border pl-4">
                                 {modelRows.map((modelRow) => {
                                   const sharePct = row.costCents > 0 ? Math.round((modelRow.costCents / row.costCents) * 100) : 0;
+                                  const modelTokenSummary = summarizeTokenUsage(modelRow);
                                   return (
                                     <div
                                       key={`${modelRow.provider}:${modelRow.model}:${modelRow.billingType}`}
@@ -1139,7 +1142,7 @@ export function Costs() {
                                           <span className="ml-1 font-normal text-muted-foreground">({sharePct}%)</span>
                                         </div>
                                         <div className="text-muted-foreground">
-                                          {formatTokens(modelRow.inputTokens + modelRow.cachedInputTokens + modelRow.outputTokens)} tok
+                                          {formatTokens(modelTokenSummary.totalTokens)} tok
                                         </div>
                                       </div>
                                     </div>

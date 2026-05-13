@@ -28,7 +28,7 @@ describe("costService Langfuse export", () => {
     vi.clearAllMocks();
   });
 
-  it("includes actual token totals in cost summaries", async () => {
+  it("includes normalized token totals in cost summaries", async () => {
     const db = {
       select: vi
         .fn()
@@ -39,7 +39,7 @@ describe("costService Langfuse export", () => {
             inputTokens: 1_000,
             cachedInputTokens: 250,
             outputTokens: 500,
-            totalTokens: 1_750,
+            totalTokens: 1_500,
             eventCount: 3,
             tokenEventCount: 2,
           },
@@ -52,7 +52,7 @@ describe("costService Langfuse export", () => {
       inputTokens: 1_000,
       cachedInputTokens: 250,
       outputTokens: 500,
-      totalTokens: 1_750,
+      totalTokens: 1_500,
       eventCount: 3,
       tokenEventCount: 2,
     });

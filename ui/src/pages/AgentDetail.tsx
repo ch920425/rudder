@@ -123,6 +123,8 @@ import { useLiveRunTranscripts } from "../components/transcript/useLiveRunTransc
 import {
   getBundledRudderSkillSlug,
   isUuidLike,
+  summarizeTokenUsage,
+  tokenUsageCacheRatio,
   type Agent,
   type AgentSkillAnalytics,
   type AgentSkillEntry,
@@ -541,12 +543,19 @@ function runMetrics(run: HeartbeatRun) {
   );
   const cost =
     visibleRunCostUsd(usage, result);
+  const summary = summarizeTokenUsage({
+    inputTokens: input,
+    cachedInputTokens: cached,
+    outputTokens: output,
+  });
   return {
     input,
     output,
     cached,
+    uncachedInput: summary.uncachedInputTokens,
+    promptTokens: summary.promptTokens,
     cost,
-    totalTokens: input + cached + output,
+    totalTokens: summary.totalTokens,
   };
 }
 
@@ -563,9 +572,9 @@ function formatCompactTokenLabel(value: number) {
 }
 
 function formatCacheRatio(cachedTokens: number, inputTokens: number) {
-  const promptTokens = cachedTokens + inputTokens;
-  if (promptTokens <= 0) return "—";
-  return `${Math.round((cachedTokens / promptTokens) * 100)}%`;
+  const ratio = tokenUsageCacheRatio({ inputTokens, cachedInputTokens: cachedTokens });
+  if (ratio == null) return "—";
+  return `${Math.round(ratio * 100)}%`;
 }
 
 function formatRunCostUsd(cost: number) {
@@ -1913,6 +1922,13 @@ function CostsSection({
   const maxTokens = Math.max(1, ...visibleRuns.map(({ metrics }) => metrics.totalTokens));
   const [openRunId, setOpenRunId] = useState<string | null>(null);
   const axisMidpoint = Math.round(maxTokens / 2);
+  const runtimeTokenSummary = runtimeState
+    ? summarizeTokenUsage({
+        inputTokens: runtimeState.totalInputTokens,
+        cachedInputTokens: runtimeState.totalCachedInputTokens,
+        outputTokens: runtimeState.totalOutputTokens,
+      })
+    : null;
   const cacheRatio = runtimeState
     ? formatCacheRatio(runtimeState.totalCachedInputTokens, runtimeState.totalInputTokens)
     : "—";
@@ -1923,18 +1939,18 @@ function CostsSection({
         <div className="border border-border rounded-lg p-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 tabular-nums">
             <div>
-              <span className="text-xs text-muted-foreground block">Input tokens</span>
-              <span className="text-lg font-semibold">{formatTokens(runtimeState.totalInputTokens)}</span>
+              <span className="text-xs text-muted-foreground block">Prompt input</span>
+              <span className="text-lg font-semibold">{formatTokens(runtimeTokenSummary?.promptTokens ?? runtimeState.totalInputTokens)}</span>
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Output tokens</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalOutputTokens)}</span>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground block">Cached tokens</span>
+              <span className="text-xs text-muted-foreground block">Cached input</span>
               <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
             </div>
-            <div title="Cached tokens divided by input plus cached tokens.">
+            <div title="Cached input tokens divided by total prompt input tokens.">
               <span className="text-xs text-muted-foreground block">Cache ratio</span>
               <span className="text-lg font-semibold">{cacheRatio}</span>
             </div>
@@ -1950,8 +1966,8 @@ function CostsSection({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent/20 px-3 py-2 text-xs text-muted-foreground">
             <span>Recent run token mix</span>
             <div className="flex items-center gap-3" data-testid="agent-run-cost-legend">
-              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-sky-500" />Input</span>
-              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-violet-500" />Cached</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-sky-500" />Uncached input</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-violet-500" />Cached input</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Output</span>
             </div>
           </div>
@@ -1959,15 +1975,15 @@ function CostsSection({
             {visibleRuns.map(({ run, metrics }) => {
               const totalTokens = metrics.totalTokens;
               const barWidth = totalTokens > 0 ? Math.max(7, (totalTokens / maxTokens) * 100) : 0;
-              const inputWidth = totalTokens > 0 ? (metrics.input / totalTokens) * 100 : 0;
+              const inputWidth = totalTokens > 0 ? (metrics.uncachedInput / totalTokens) * 100 : 0;
               const cachedWidth = totalTokens > 0 ? (metrics.cached / totalTokens) * 100 : 0;
               const outputWidth = totalTokens > 0 ? (metrics.output / totalTokens) * 100 : 0;
-              const showInputLabel = shouldShowInlineTokenLabel(metrics.input, maxTokens);
+              const showInputLabel = shouldShowInlineTokenLabel(metrics.uncachedInput, maxTokens);
               const showCachedLabel = shouldShowInlineTokenLabel(metrics.cached, maxTokens);
               const showOutputLabel = shouldShowInlineTokenLabel(metrics.output, maxTokens);
               const runLabel = run.id.slice(0, 8);
               const costLabel = formatRunCostUsd(metrics.cost);
-              const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokenLabel(totalTokens)} total, ${formatExactTokenLabel(metrics.input)} input, ${formatExactTokenLabel(metrics.cached)} cached, ${formatExactTokenLabel(metrics.output)} output, ${costLabel} cost`;
+              const accessibleLabel = `Run ${runLabel} cost and token usage: ${formatExactTokenLabel(totalTokens)} total, ${formatExactTokenLabel(metrics.promptTokens)} prompt input, ${formatExactTokenLabel(metrics.uncachedInput)} uncached input, ${formatExactTokenLabel(metrics.cached)} cached input, ${formatExactTokenLabel(metrics.output)} output, ${costLabel} cost`;
 
               return (
                 <TooltipProvider key={run.id} delayDuration={120}>
@@ -2003,12 +2019,12 @@ function CostsSection({
                             className="relative z-10 flex h-full overflow-hidden rounded-sm border border-background/50 shadow-sm transition-opacity group-hover:opacity-95 group-focus-visible:opacity-95"
                             style={{ width: `${barWidth}%` }}
                           >
-                            {metrics.input > 0 ? (
+                            {metrics.uncachedInput > 0 ? (
                               <span
                                 className="flex h-full min-w-0 items-center justify-center bg-sky-500/80 px-1 font-mono text-[11px] font-semibold tabular-nums text-white"
                                 style={{ width: `${inputWidth}%` }}
                               >
-                                {showInputLabel ? formatTokens(metrics.input) : null}
+                                {showInputLabel ? formatTokens(metrics.uncachedInput) : null}
                               </span>
                             ) : null}
                             {metrics.cached > 0 ? (
@@ -2032,7 +2048,7 @@ function CostsSection({
                         <span className="min-w-[8.75rem] text-right tabular-nums">
                           <span className="block font-medium text-foreground">{formatCompactTokenLabel(totalTokens)}</span>
                           <span className="block font-mono text-[10px] text-muted-foreground">
-                            in {formatTokens(metrics.input)} · cache {formatTokens(metrics.cached)} · out {formatTokens(metrics.output)}
+                            in {formatTokens(metrics.promptTokens)} · cache {formatTokens(metrics.cached)} · out {formatTokens(metrics.output)}
                           </span>
                           {metrics.cost > 0 ? (
                             <span className="block font-mono text-[11px] text-muted-foreground">{costLabel}</span>
@@ -2050,9 +2066,11 @@ function CostsSection({
                         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
                           <dt className="text-background/70">Total tokens</dt>
                           <dd className="font-mono tabular-nums">{formatExactTokenLabel(totalTokens)}</dd>
-                          <dt className="text-background/70">Input</dt>
-                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.input)}</dd>
-                          <dt className="text-background/70">Cached</dt>
+                          <dt className="text-background/70">Prompt input</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.promptTokens)}</dd>
+                          <dt className="text-background/70">Uncached input</dt>
+                          <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.uncachedInput)}</dd>
+                          <dt className="text-background/70">Cached input</dt>
                           <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.cached)}</dd>
                           <dt className="text-background/70">Output</dt>
                           <dd className="font-mono tabular-nums">{formatExactTokenLabel(metrics.output)}</dd>
@@ -4337,15 +4355,15 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
           {hasMetrics && (
             <div className="border-t sm:border-t-0 sm:border-l border-border p-4 grid grid-cols-2 gap-x-4 sm:gap-x-8 gap-y-3 content-center tabular-nums">
               <div>
-                <div className="text-xs text-muted-foreground">Input</div>
-                <div className="text-sm font-medium font-mono">{formatTokens(metrics.input)}</div>
+                <div className="text-xs text-muted-foreground">Prompt input</div>
+                <div className="text-sm font-medium font-mono">{formatTokens(metrics.promptTokens)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Output</div>
                 <div className="text-sm font-medium font-mono">{formatTokens(metrics.output)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Cached</div>
+                <div className="text-xs text-muted-foreground">Cached input</div>
                 <div className="text-sm font-medium font-mono">{formatTokens(metrics.cached)}</div>
               </div>
               <div>

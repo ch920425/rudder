@@ -14,7 +14,7 @@ describe("CostTrendChart", () => {
         inputTokens: 1_000,
         cachedInputTokens: 250,
         outputTokens: 75,
-        totalTokens: 1_325,
+        totalTokens: 1_075,
         eventCount: 3,
       },
     ];
@@ -24,7 +24,7 @@ describe("CostTrendChart", () => {
     );
 
     expect(html).toContain(
-      'aria-label="May 7, 2026: 1,325 tokens (1,000 input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
+      'aria-label="May 7, 2026: 1,075 tokens (1,000 input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
     );
     expect(html).toContain("data-slot=\"tooltip-trigger\"");
     expect(html).toContain("Tokens");
