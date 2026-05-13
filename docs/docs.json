@@ -15,19 +15,6 @@
     }
   },
   "navigation": {
-    "global": {
-      "languages": [
-        {
-          "language": "en",
-          "default": true,
-          "href": "/"
-        },
-        {
-          "language": "cn",
-          "href": "/zh"
-        }
-      ]
-    },
     "languages": [
       {
         "language": "en",
