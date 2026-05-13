@@ -6,6 +6,7 @@ import {
   ChevronUp,
   CircleCheckBig,
   CircleAlert,
+  MessageSquare,
   RefreshCcw,
   Send,
   ShieldCheck,
@@ -321,7 +322,7 @@ function MessengerIssueCommentPreview({
     <div data-testid={testId} className="space-y-2 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_78%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-inset)_88%,transparent)] px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-          <CircleCheckBig className="h-3 w-3" />
+          <MessageSquare className="h-3 w-3" />
           {sourceLabel}
         </span>
       </div>
@@ -445,6 +446,7 @@ function MessengerIssueCard({
   const sourceCommentBody = item.sourceCommentBody?.trim() ? item.sourceCommentBody : null;
   const sourceCommentBadge = sourceCommentBody ? sourceCommentLabel(item) : null;
   const sourceCommentAuthorLabel = item.sourceCommentAuthorLabel?.trim() || null;
+  const IssueActivityIcon = sourceCommentBody ? MessageSquare : CircleCheckBig;
 
   const invalidateIssueViews = async () => {
     await Promise.all([
@@ -473,7 +475,7 @@ function MessengerIssueCard({
 
   return (
     <ThreadMessage
-      icon={<CircleCheckBig className="h-5 w-5" />}
+      icon={<IssueActivityIcon className="h-5 w-5" />}
       label={null}
       timestamp={new Date(item.latestActivityAt)}
       testId={`messenger-issue-message-${item.issueId}`}
