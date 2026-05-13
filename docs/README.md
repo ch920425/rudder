@@ -28,4 +28,4 @@ There is no existing Vercel or Mintlify project metadata in this repository. Dom
 
 ## Current Content Status
 
-ZST-149 and ZST-150 were still in progress when this skeleton was created. The current pages are seeded from repository docs and README assets so the site can run locally before the final information architecture, copy, and screenshot set lands.
+The first implementation pass uses the ZST-149 IA/content draft and the ZST-150 screenshot set. The current pages are intentionally concise so the site can run and validate while deeper guides continue to expand.

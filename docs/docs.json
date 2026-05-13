@@ -7,6 +7,11 @@
     "light": "#14B8A6",
     "dark": "#0F172A"
   },
+  "seo": {
+    "metatags": {
+      "canonical": "https://doc.rudder.zeeland.studio"
+    }
+  },
   "navigation": {
     "tabs": [
       {
@@ -29,8 +34,10 @@
             "group": "Rudder Model",
             "pages": [
               "concepts/overview",
+              "concepts/goals-projects-issues",
               "concepts/agents",
               "concepts/issues",
+              "concepts/messenger-approvals",
               "concepts/workspaces",
               "concepts/skills"
             ]
@@ -59,10 +66,5 @@
   },
   "footerSocials": {
     "github": "https://github.com/Undertone0809/rudder"
-  },
-  "seo": {
-    "metatags": {
-      "canonical": "https://doc.rudder.zeeland.studio"
-    }
   }
 }
