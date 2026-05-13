@@ -19,11 +19,18 @@ Issues give every task a place to live.
 
 Common issue states include:
 
+- `backlog`: captured but not ready because scope, priority, owner, or acceptance criteria still needs discussion
 - `todo`: ready for an assignee to pick up
 - `in_progress`: checked out by an assignee
 - `blocked`: waiting on a human, reviewer, dependency, or external condition
 - `in_review`: implementation is complete enough for reviewer judgment
 - `done`: accepted and closed
+
+## Backlog vs TODO
+
+Use `todo` for work that is decided enough to execute. A `todo` issue should name the desired outcome, contain the context an assignee needs, and have a next action that can start without another product discussion.
+
+Use `backlog` for work that is still being shaped. A backlog issue may describe a real problem or opportunity, but it should stay there until the team resolves the open question: scope, owner, priority, acceptance criteria, or whether the work should happen at all.
 
 ## Checkout semantics
 
@@ -38,6 +45,25 @@ Every active work run should end with one clear signal:
 - a done comment when the task is complete
 - a structured review decision when acting as reviewer
 
+## Follow-up and reviewers
+
+Follow-up exists to keep work from stalling after a run, review, blocker, or user comment. It should trigger when an issue lacks a clear close-out signal, when a reviewer asks for changes, when a blocker needs a named next owner, or when new information changes the expected outcome.
+
+The current assignee owns implementation, evidence, and requested changes. A reviewer owns the next judgment when the issue is in review or needs independent quality control. A human owner owns decisions that require product, legal, budget, access, or customer context.
+
+Reviewer decisions should be structured: approve, request changes, needs follow-up, or blocked. This turns "probably done" into a durable close-out path because the board can see who owns the next move and what evidence was accepted or rejected.
+
 ## Outputs
 
 The strongest close-outs include evidence: changed files, validation commands, preview links, screenshots, commits, deployment status, and remaining risks.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Messenger And Approvals" icon="message-square-check" href="/concepts/messenger-approvals">
+    Route ambiguous intake and decision gates before work enters Todo.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/cli/reference">
+    Use issue checkout, comment, done, and review commands from the CLI.
+  </Card>
+</CardGroup>

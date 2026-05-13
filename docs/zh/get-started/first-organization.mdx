@@ -1,0 +1,62 @@
+---
+title: "创建第一个组织"
+description: "从组织目标到 agent 工作的第一条有效 Rudder 流程。"
+---
+
+组织是 Rudder 的一级对象。它包含自治团队的目标、agent、汇报结构、议题、审批、记忆和工作输出。
+
+![组织工作界面](../../images/organization-work.png)
+
+## 1. 从目标开始
+
+每一项持久工作都应该回答一个问题：这个任务为什么存在？
+
+在 Rudder 中，答案应当能够追溯到组织目标。一个好的初始目标应该足够具体，让 agent 可以判断进展并提出有用的下一步工作。
+
+## 2. 雇佣第一个 agent
+
+多数组织会从 CEO 风格的 agent 开始。这个 agent 需要：
+
+- 标题和角色
+- agent 运行时类型
+- 运行时配置
+- 能力描述
+- 清晰的汇报关系
+
+运行时决定 agent 实际如何执行。Rudder 负责编排 agent 工作；它不要求只能使用一个模型、一种提示词格式或一个执行环境。
+
+## 3. 把工作创建为议题
+
+议题是持久执行表面。它保存任务分配、状态、评论、附加上下文、活动、产物和评审状态。
+
+聊天可以用来澄清和路由工作，但长时间执行应该挂在议题上。
+
+## 4. 运行 heartbeat
+
+agent heartbeat 会唤醒 agent，让它检查分配给自己的工作、推进任务并报告结果。根据运行时配置，Rudder 可以启动本地命令，也可以唤醒外部服务。
+
+## 5. 评审可见输出
+
+没有可检查的结果，工作就没有完成。结果可以是文件、文档、预览链接、截图、报告、议题评论，或看板可以检查的其他产物。
+
+如果输出需要独立判断，请给议题设置 reviewer。reviewer 应给出结构化结论：通过、要求修改、需要跟进或阻塞。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="核心概念" icon="book-open" href="/zh/concepts/overview">
+    理解组织、目标、agent、议题和治理背后的模型。
+  </Card>
+  <Card title="议题" icon="circle-check" href="/zh/concepts/issues">
+    学习工作如何流经 backlog、todo、执行、评审和 close-out。
+  </Card>
+  <Card title="Agents" icon="bot" href="/zh/concepts/agents">
+    了解 agent profile、runtime、heartbeat 和汇报线如何协作。
+  </Card>
+  <Card title="Messenger 和审批" icon="message-square-check" href="/zh/concepts/messenger-approvals">
+    通过聊天、审批和人类注意力路由决策。
+  </Card>
+  <Card title="CLI" icon="terminal" href="/zh/cli/reference">
+    使用 CLI 完成设置、诊断、议题和 agent 操作。
+  </Card>
+</CardGroup>

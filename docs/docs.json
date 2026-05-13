@@ -13,51 +13,110 @@
     }
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Get Started",
-        "groups": [
+        "language": "en",
+        "default": true,
+        "tabs": [
           {
-            "group": "Start Here",
-            "pages": [
-              "index",
-              "get-started/installation",
-              "get-started/first-organization"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Concepts",
-        "groups": [
-          {
-            "group": "Rudder Model",
-            "pages": [
-              "concepts/overview",
-              "concepts/goals-projects-issues",
-              "concepts/agents",
-              "concepts/issues",
-              "concepts/messenger-approvals",
-              "concepts/workspaces",
-              "concepts/skills"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Build",
-        "groups": [
-          {
-            "group": "Extending Rudder",
-            "pages": [
-              "plugins/overview",
-              "cli/reference"
+            "tab": "Get Started",
+            "groups": [
+              {
+                "group": "Start Here",
+                "pages": [
+                  "index",
+                  "get-started/installation",
+                  "get-started/first-organization"
+                ]
+              }
             ]
           },
           {
-            "group": "Operations",
-            "pages": [
-              "deployment/overview"
+            "tab": "Concepts",
+            "groups": [
+              {
+                "group": "Rudder Model",
+                "pages": [
+                  "concepts/overview",
+                  "concepts/goals-projects-issues",
+                  "concepts/agents",
+                  "concepts/issues",
+                  "concepts/messenger-approvals",
+                  "concepts/workspaces",
+                  "concepts/skills"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Build",
+            "groups": [
+              {
+                "group": "Extending Rudder",
+                "pages": [
+                  "plugins/overview",
+                  "cli/reference"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "deployment/overview"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "cn",
+        "tabs": [
+          {
+            "tab": "开始使用",
+            "groups": [
+              {
+                "group": "入口",
+                "pages": [
+                  "zh/index",
+                  "zh/get-started/installation",
+                  "zh/get-started/first-organization"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "核心概念",
+            "groups": [
+              {
+                "group": "Rudder 模型",
+                "pages": [
+                  "zh/concepts/overview",
+                  "zh/concepts/goals-projects-issues",
+                  "zh/concepts/agents",
+                  "zh/concepts/issues",
+                  "zh/concepts/messenger-approvals",
+                  "zh/concepts/workspaces",
+                  "zh/concepts/skills"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "构建",
+            "groups": [
+              {
+                "group": "扩展 Rudder",
+                "pages": [
+                  "zh/plugins/overview",
+                  "zh/cli/reference"
+                ]
+              },
+              {
+                "group": "运维",
+                "pages": [
+                  "zh/deployment/overview"
+                ]
+              }
             ]
           }
         ]

@@ -1,0 +1,58 @@
+---
+title: "安装 Rudder"
+description: "通过 CLI 安装并启动 Rudder Desktop。"
+---
+
+最快的方式是安装当前用户可用的便携版 Rudder Desktop，并准备配套的持久 CLI。
+
+![Rudder CLI 终端工作流](../../images/installation-cli.png)
+
+```bash
+npx @rudderhq/cli@latest start
+```
+
+持久 CLI 可用后，可以直接使用同一套 `rudder` 命令入口。
+
+```bash
+rudder start
+```
+
+## 贡献者设置
+
+如果你正在开发 Rudder 本身，请使用仓库工作流。
+
+```bash
+git clone https://github.com/Undertone0809/rudder
+cd rudder
+pnpm install
+pnpm dev
+```
+
+这会在 `http://localhost:3100` 启动 API server 和 UI。
+
+开发环境默认使用嵌入式 PostgreSQL。如果没有设置 `DATABASE_URL`，不需要单独准备数据库。
+
+## 常用检查
+
+```bash
+curl http://localhost:3100/api/health
+curl http://localhost:3100/api/orgs
+```
+
+如果需要干净的本地状态，可以重置一次性开发实例。
+
+```bash
+rm -rf ~/.rudder/instances/dev
+pnpm dev
+```
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="创建第一个组织" icon="building-2" href="/zh/get-started/first-organization">
+    设置目标、agent、议题和评审证据。
+  </Card>
+  <Card title="CLI 参考" icon="terminal" href="/zh/cli/reference">
+    查看实例和控制平面工作的常用命令。
+  </Card>
+</CardGroup>

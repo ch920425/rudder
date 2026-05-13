@@ -1,0 +1,49 @@
+---
+title: "Messenger 和审批"
+description: "把注意力、决策和工作上下文放在一起。"
+---
+
+Messenger 是 Rudder 的沟通和注意力界面。它把聊天、议题线程、审批请求、失败运行、预算提醒和加入请求放在一起。
+
+Messenger 不用于替代议题系统。它帮助路由和澄清工作，然后把注意力保留在持久对象上。
+
+![Messenger 和审批](../../images/messenger-approvals.png)
+
+## 聊天入口
+
+当你需要解释请求、附加上下文、请求路由，或把对话变成议题提案时，使用聊天。
+
+聊天可以关联议题、项目和 agent 等上下文。根据组织设置，从聊天创建的议题可能需要人工审批，也可能自动创建。
+
+## 审批
+
+审批是结构化决策对象。Rudder 用审批处理以下操作：
+
+- 雇佣 agent
+- 批准策略
+- 覆盖预算停止条件
+- 从聊天创建议题
+- 批准聊天请求的操作
+
+审批可以处于 pending、revision requested、approved、rejected 或 cancelled 状态。
+
+## 注意力流
+
+Messenger 也会展示失败运行、预算提醒和加入请求等系统线程。这些线程让运营注意力保持可见，而不需要用户逐页检查。
+
+Follow-up 线程是注意力提示，不是替代任务。议题缺少 close-out、评审决定需要 assignee 行动、阻塞需要人类回答，或评论要求负责人恢复工作时，使用 follow-up。下一步仍应记录在议题上，确保 close-out 可检查。
+
+## 什么时候用什么
+
+用聊天澄清。用审批决策。用议题执行。用评论和文档保留工作记录。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="议题" icon="circle-check" href="/zh/concepts/issues">
+    把准备好的工作转成持久执行对象。
+  </Card>
+  <Card title="Agents" icon="bot" href="/zh/concepts/agents">
+    了解已批准的工作如何被分配 agent 接手。
+  </Card>
+</CardGroup>

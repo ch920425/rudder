@@ -26,6 +26,6 @@ doc.rudder.zeeland.studio
 
 There is no existing Vercel or Mintlify project metadata in this repository. Domain setup requires access to the Mintlify workspace and DNS provider.
 
-## Current Content Status
+## Content Scope
 
-The first implementation pass uses the ZST-149 IA/content draft and the ZST-150 screenshot set. The current pages are intentionally concise so the site can run and validate while deeper guides continue to expand.
+The docs tree provides English and Simplified Chinese navigation through Mintlify language entries in `docs.json`. Product screenshots and screenshot-style assets used by the pages must keep visible product content in English so both language versions share the same reviewable visual evidence.
