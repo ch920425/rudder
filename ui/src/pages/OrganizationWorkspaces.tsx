@@ -67,26 +67,50 @@ function writeStoredWorkspaceLaunchTargetId(targetId: DesktopWorkspaceLaunchTarg
   window.localStorage.setItem(WORKSPACE_LAUNCH_TARGET_STORAGE_KEY, targetId);
 }
 
-function WorkspaceLaunchTargetIcon({
+export function WorkspaceLaunchTargetIcon({
   target,
   className,
 }: {
   target: DesktopWorkspaceLaunchTarget;
   className?: string;
 }) {
-  if (target.iconDataUrl) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const slotClassName = cn(
+    "inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[4px] border border-[color:var(--border-soft)] bg-white shadow-[0_0_0_1px_color-mix(in_oklab,var(--surface-page)_70%,transparent)] dark:bg-white",
+    className,
+  );
+
+  if (target.iconDataUrl && !imageFailed) {
     return (
-      <img
-        src={target.iconDataUrl}
-        alt=""
+      <span
         aria-hidden="true"
-        className={cn("h-4 w-4 shrink-0 rounded-[4px] object-contain", className)}
-      />
+        className={slotClassName}
+        data-workspace-launch-target-icon={target.id}
+      >
+        <img
+          src={target.iconDataUrl}
+          alt=""
+          className="h-full w-full object-contain drop-shadow-[0_0_1px_rgba(0,0,0,0.35)]"
+          onError={() => setImageFailed(true)}
+        />
+      </span>
     );
   }
 
   const Icon = target.kind === "terminal" ? Terminal : target.kind === "folder" ? FolderOpen : Code2;
-  return <Icon className={className} />;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[color:var(--border-base)] bg-[color:var(--surface-page)] text-foreground",
+        className,
+      )}
+      data-workspace-launch-target-icon={target.id}
+      data-fallback-icon="true"
+    >
+      <Icon className="h-[72%] w-[72%]" />
+    </span>
+  );
 }
 
 function parentDirectories(filePath: string) {
