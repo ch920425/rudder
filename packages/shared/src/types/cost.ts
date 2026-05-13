@@ -1,4 +1,5 @@
 import type { AgentRole, BillingType } from "../constants.js";
+import type { CachedInputTokenSemantics } from "../token-usage.js";
 
 export interface CostEvent {
   id: string;
@@ -16,6 +17,7 @@ export interface CostEvent {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   costCents: number;
   occurredAt: Date;
   createdAt: Date;
@@ -29,6 +31,7 @@ export interface CostSummary {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   totalTokens: number;
   eventCount: number;
   tokenEventCount: number;
@@ -41,6 +44,7 @@ export interface CostTrendPoint {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   totalTokens: number;
   eventCount: number;
 }
@@ -55,6 +59,7 @@ export interface CostByAgent {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   apiRunCount: number;
   subscriptionRunCount: number;
   subscriptionCachedInputTokens: number;
@@ -71,6 +76,7 @@ export interface CostByProviderModel {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   apiRunCount: number;
   subscriptionRunCount: number;
   subscriptionCachedInputTokens: number;
@@ -84,6 +90,7 @@ export interface CostByBiller {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
   apiRunCount: number;
   subscriptionRunCount: number;
   subscriptionCachedInputTokens: number;
@@ -105,6 +112,7 @@ export interface CostByAgentModel {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
 }
 
 /** spend per provider for a fixed rolling time window */
@@ -119,6 +127,7 @@ export interface CostWindowSpendRow {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  cachedInputTokenSemantics?: CachedInputTokenSemantics;
 }
 
 /** cost attributed to a project via heartbeat run → activity log → issue → project chain */

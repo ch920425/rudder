@@ -522,6 +522,15 @@ function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
   return 0;
 }
 
+function usageString(usage: Record<string, unknown> | null, ...keys: string[]) {
+  if (!usage) return null;
+  for (const key of keys) {
+    const value = usage[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 function setsEqual<T>(left: Set<T>, right: Set<T>) {
   if (left.size !== right.size) return false;
   for (const value of left) {
@@ -535,15 +544,15 @@ function runMetrics(run: HeartbeatRun) {
   const result = (run.resultJson ?? null) as Record<string, unknown> | null;
   const input = usageNumber(usage, "inputTokens", "input_tokens");
   const output = usageNumber(usage, "outputTokens", "output_tokens");
-  const cached = usageNumber(
-    usage,
-    "cachedInputTokens",
-    "cached_input_tokens",
-    "cache_read_input_tokens",
-  );
+  const cached =
+    usageNumber(usage, "cachedInputTokens", "cached_input_tokens") +
+    usageNumber(usage, "cache_read_input_tokens") +
+    usageNumber(usage, "cache_creation_input_tokens");
+  const provider = usageString(usage, "provider") ?? usageString(result, "provider");
   const cost =
     visibleRunCostUsd(usage, result);
   const summary = summarizeTokenUsage({
+    provider,
     inputTokens: input,
     cachedInputTokens: cached,
     outputTokens: output,

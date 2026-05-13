@@ -773,6 +773,9 @@ export {
   summarizeTokenUsage,
   tokenUsageCacheRatio,
   hasTokenUsage,
+  cachedInputTokenSemanticsForProvider,
+  ADDITIONAL_CACHED_INPUT_TOKEN_PROVIDERS,
+  type CachedInputTokenSemantics,
   type TokenUsageParts,
   type TokenUsageSummary,
 } from "./token-usage.js";

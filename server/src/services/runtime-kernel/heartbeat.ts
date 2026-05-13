@@ -17,6 +17,7 @@ import {
   AGENT_RUN_CONCURRENCY_DEFAULT,
   AGENT_RUN_CONCURRENCY_MAX,
   AGENT_RUN_CONCURRENCY_MIN,
+  summarizeTokenUsage,
 } from "@rudderhq/shared";
 import {
   agents,
@@ -3233,13 +3234,19 @@ export function heartbeatService(db: Db) {
   ) {
     await ensureRuntimeState(agent);
     const usage = normalizedUsage ?? normalizeUsageTotals(result.usage);
-    const inputTokens = usage?.inputTokens ?? 0;
+    const rawInputTokens = usage?.inputTokens ?? 0;
     const outputTokens = usage?.outputTokens ?? 0;
     const cachedInputTokens = usage?.cachedInputTokens ?? 0;
     const billingType = normalizeLedgerBillingType(result.billingType);
     const additionalCostCents = normalizeBilledCostCents(result.costUsd, billingType);
-    const hasTokenUsage = inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0;
+    const hasTokenUsage = rawInputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0;
     const provider = result.provider ?? "unknown";
+    const tokenSummary = summarizeTokenUsage({
+      provider,
+      inputTokens: rawInputTokens,
+      cachedInputTokens,
+      outputTokens,
+    });
     const biller = resolveLedgerBiller(result);
     const ledgerScope = await resolveLedgerScopeForRun(db, agent.orgId, run);
 
@@ -3251,7 +3258,7 @@ export function heartbeatService(db: Db) {
         lastRunId: run.id,
         lastRunStatus: run.status,
         lastError: result.errorMessage ?? null,
-        totalInputTokens: sql`${agentRuntimeState.totalInputTokens} + ${inputTokens}`,
+        totalInputTokens: sql`${agentRuntimeState.totalInputTokens} + ${tokenSummary.promptTokens}`,
         totalOutputTokens: sql`${agentRuntimeState.totalOutputTokens} + ${outputTokens}`,
         totalCachedInputTokens: sql`${agentRuntimeState.totalCachedInputTokens} + ${cachedInputTokens}`,
         totalCostCents: sql`${agentRuntimeState.totalCostCents} + ${additionalCostCents}`,
@@ -3270,7 +3277,7 @@ export function heartbeatService(db: Db) {
         biller,
         billingType,
         model: result.model ?? "unknown",
-        inputTokens,
+        inputTokens: rawInputTokens,
         cachedInputTokens,
         outputTokens,
         costCents: additionalCostCents,

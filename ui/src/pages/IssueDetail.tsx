@@ -93,7 +93,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import type { ActivityEvent } from "@rudderhq/shared";
+import { summarizeTokenUsage, type ActivityEvent } from "@rudderhq/shared";
 import type { Agent, Issue, IssueAttachment, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
 
 type CommentReassignment = {
@@ -240,6 +240,15 @@ function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
     if (typeof value === "number" && Number.isFinite(value)) return value;
   }
   return 0;
+}
+
+function usageString(usage: Record<string, unknown> | null, ...keys: string[]) {
+  if (!usage) return null;
+  for (const key of keys) {
+    const value = usage[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 function truncate(text: string, max: number): string {
@@ -1252,16 +1261,20 @@ export function IssueDetail() {
       const result = asRecord(run.resultJson);
       const runInput = usageNumber(usage, "inputTokens", "input_tokens");
       const runOutput = usageNumber(usage, "outputTokens", "output_tokens");
-      const runCached = usageNumber(
-        usage,
-        "cachedInputTokens",
-        "cached_input_tokens",
-        "cache_read_input_tokens",
-      );
+      const runCached =
+        usageNumber(usage, "cachedInputTokens", "cached_input_tokens") +
+        usageNumber(usage, "cache_read_input_tokens") +
+        usageNumber(usage, "cache_creation_input_tokens");
+      const tokenSummary = summarizeTokenUsage({
+        provider: usageString(usage, "provider") ?? usageString(result, "provider"),
+        inputTokens: runInput,
+        cachedInputTokens: runCached,
+        outputTokens: runOutput,
+      });
       const runCost = visibleRunCostUsd(usage, result);
       if (runCost > 0) hasCost = true;
       if (runInput + runOutput + runCached > 0) hasTokens = true;
-      input += runInput;
+      input += tokenSummary.promptTokens;
       output += runOutput;
       cached += runCached;
       cost += runCost;
