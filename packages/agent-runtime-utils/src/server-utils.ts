@@ -906,6 +906,15 @@ async function pathExists(candidate: string) {
   }
 }
 
+async function fileExists(candidate: string) {
+  try {
+    await fs.access(candidate, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveCommandPath(command: string, cwd: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   const hasPathSeparator = command.includes("/") || command.includes("\\");
   if (hasPathSeparator) {
@@ -992,7 +1001,7 @@ async function findAncestorWithFile(
   let current = path.resolve(startDir);
   for (let depth = 0; depth <= maxDepth; depth += 1) {
     const candidate = path.join(current, relativePath);
-    if (await pathExists(candidate)) return candidate;
+    if (await fileExists(candidate)) return candidate;
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
@@ -1018,7 +1027,7 @@ async function resolveRudderCliShimTarget(moduleDir: string): Promise<SpawnTarge
   const rootDir = path.dirname(path.dirname(path.dirname(repoRoot)));
   const tsxEntry = path.join(rootDir, "cli", "node_modules", "tsx", "dist", "cli.mjs");
   const cliSource = path.join(rootDir, "cli", "src", "index.ts");
-  if (await pathExists(tsxEntry)) {
+  if (await fileExists(tsxEntry)) {
     return {
       command: process.execPath,
       args: [tsxEntry, cliSource],
@@ -1026,7 +1035,7 @@ async function resolveRudderCliShimTarget(moduleDir: string): Promise<SpawnTarge
   }
 
   const builtCliEntry = path.join(rootDir, "cli", "dist", "index.js");
-  if (await pathExists(builtCliEntry)) {
+  if (await fileExists(builtCliEntry)) {
     return {
       command: process.execPath,
       args: [builtCliEntry],
@@ -1063,11 +1072,6 @@ export async function ensureRudderCliInPath(
   env: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv> {
   const normalized = ensurePathInEnv(env);
-  const cwd = process.cwd();
-  if (await resolveCommandPath("rudder", cwd, normalized)) {
-    return normalized;
-  }
-
   const target = await resolveRudderCliShimTarget(moduleDir);
   if (!target) {
     return normalized;

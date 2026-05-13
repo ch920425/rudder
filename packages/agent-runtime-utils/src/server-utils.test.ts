@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildIssueDocumentsPrompt,
   ensureLocalCliCredentialShimsInPath,
+  ensureRudderCliInPath,
   resolveLocalOperatorHome,
   syncLocalCliCredentialHomeEntries,
   loadAgentInstructionsPrefix,
@@ -32,6 +33,76 @@ afterEach(() => {
   else process.env.GIT_AUTHOR_EMAIL = ORIGINAL_GIT_AUTHOR_EMAIL;
   if (ORIGINAL_GIT_COMMITTER_EMAIL === undefined) delete process.env.GIT_COMMITTER_EMAIL;
   else process.env.GIT_COMMITTER_EMAIL = ORIGINAL_GIT_COMMITTER_EMAIL;
+});
+
+function readPathValue(env: NodeJS.ProcessEnv): string {
+  return env.PATH ?? env.Path ?? "";
+}
+
+function shimName(): string {
+  return process.platform === "win32" ? "rudder.cmd" : "rudder";
+}
+
+describe("ensureRudderCliInPath", () => {
+  it("prefers the current source CLI shim over an existing rudder binary on PATH", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cli-source-shim-"));
+    const moduleDir = path.join(root, "packages", "agent-runtime-utils", "src");
+    const staleBinDir = path.join(root, "stale-bin");
+    const staleRudder = path.join(staleBinDir, shimName());
+    const tsxEntry = path.join(root, "cli", "node_modules", "tsx", "dist", "cli.mjs");
+    const cliSource = path.join(root, "cli", "src", "index.ts");
+
+    try {
+      await fs.mkdir(path.dirname(tsxEntry), { recursive: true });
+      await fs.mkdir(path.dirname(cliSource), { recursive: true });
+      await fs.mkdir(moduleDir, { recursive: true });
+      await fs.mkdir(staleBinDir, { recursive: true });
+      await fs.writeFile(tsxEntry, "console.log('fake tsx');\n", "utf8");
+      await fs.writeFile(cliSource, "console.log('fake rudder source');\n", "utf8");
+      await fs.writeFile(
+        staleRudder,
+        process.platform === "win32" ? "@echo off\r\necho stale\r\n" : "#!/bin/sh\necho stale\n",
+        "utf8",
+      );
+      await fs.chmod(staleRudder, 0o755);
+
+      const env = await ensureRudderCliInPath(moduleDir, {
+        PATH: staleBinDir,
+      });
+      const firstPathEntry = readPathValue(env).split(path.delimiter)[0];
+      const shimPath = path.join(firstPathEntry!, shimName());
+      const shim = await fs.readFile(shimPath, "utf8");
+
+      expect(firstPathEntry).not.toBe(staleBinDir);
+      expect(shim).toContain(tsxEntry);
+      expect(shim).toContain(cliSource);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("materializes a shim for non-executable packaged desktop CLI files", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cli-packaged-shim-"));
+    const packageRoot = path.join(root, "server-package");
+    const moduleDir = path.join(packageRoot, "node_modules", "@rudderhq", "agent-runtime-utils", "dist");
+    const desktopCli = path.join(packageRoot, "desktop-cli.js");
+
+    try {
+      await fs.mkdir(moduleDir, { recursive: true });
+      await fs.writeFile(desktopCli, "console.log('fake desktop cli');\n", "utf8");
+
+      const env = await ensureRudderCliInPath(moduleDir, {
+        PATH: "",
+      });
+      const firstPathEntry = readPathValue(env).split(path.delimiter)[0];
+      const shimPath = path.join(firstPathEntry!, shimName());
+      const shim = await fs.readFile(shimPath, "utf8");
+
+      expect(shim).toContain(desktopCli);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("selectPromptTemplate", () => {
