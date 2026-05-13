@@ -43,6 +43,7 @@ import { agentsApi } from "@/api/agents";
 import { calendarApi } from "@/api/calendar";
 import { chatsApi } from "@/api/chats";
 import { heartbeatsApi } from "@/api/heartbeats";
+import { displayChatTitle } from "@/lib/chat-title";
 import { pluginsApi, type PluginUiContribution } from "@/api/plugins";
 import { formatSidebarAgentLabel } from "@/lib/agent-labels";
 import { projectColorAccent, projectColorBackgroundStyle } from "@/lib/project-colors";
@@ -1484,7 +1485,7 @@ export function ThreeColumnContextSidebar() {
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 text-[13px] font-medium leading-tight text-foreground">
-                          <span className="truncate">{conversation.title}</span>
+                          <span className="truncate">{displayChatTitle(conversation)}</span>
                           {conversation.isUnread ? (
                             <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500" aria-label="Unread chat" />
                           ) : null}
@@ -1593,7 +1594,7 @@ export function ThreeColumnContextSidebar() {
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 text-[13px] font-medium leading-tight text-foreground">
-                          <span className="truncate">{conversation.title}</span>
+                          <span className="truncate">{displayChatTitle(conversation)}</span>
                           {conversation.isUnread ? (
                             <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500" aria-label="Unread chat" />
                           ) : null}

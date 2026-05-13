@@ -32,7 +32,6 @@ import {
   type ChatPrimaryIssueSummary,
   type Issue,
   formatMessengerPreview,
-  formatMessengerTitle,
   type MessengerThreadSummary,
   type Project,
 } from "@rudderhq/shared";
@@ -88,6 +87,7 @@ import {
 } from "@/lib/chat-agent-selection";
 import { resolveRequestedPreferredAgentId } from "@/lib/chat-route-state";
 import { buildChatSkillOptions, filterChatSkillOptions } from "@/lib/chat-skill-options";
+import { displayChatTitle, promoteDefaultChatTitle } from "@/lib/chat-title";
 import { formatChatAgentLabel } from "@/lib/agent-labels";
 import { rememberMessengerPath } from "@/lib/messenger-memory";
 import { projectColorCssVars } from "@/lib/project-colors";
@@ -842,8 +842,8 @@ function conversationPreview(conversation: ChatConversation, fallbackPreview?: s
     || "Start the conversation";
 }
 
-function conversationDisplayTitle(conversation: Pick<ChatConversation, "title">) {
-  return formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title;
+function conversationDisplayTitle(conversation: Pick<ChatConversation, "title" | "summary" | "latestReplyPreview">) {
+  return displayChatTitle(conversation);
 }
 
 function buildMessengerChatThreadSummary(
@@ -879,7 +879,7 @@ function mergeMessengerThreadSummaries(current: MessengerThreadSummary[], incomi
   });
 }
 
-function withOptimisticOutgoingMessage(
+export function withOptimisticOutgoingMessage(
   conversation: ChatConversation,
   body: string,
   sentAt: Date,
@@ -888,6 +888,7 @@ function withOptimisticOutgoingMessage(
   if (!preview) return conversation;
   return {
     ...conversation,
+    title: promoteDefaultChatTitle(conversation.title, preview),
     summary: conversation.summary ?? preview,
     lastMessageAt: sentAt,
     updatedAt: sentAt,

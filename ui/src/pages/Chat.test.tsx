@@ -24,6 +24,7 @@ import {
   resolveChatImageFilename,
   scrollChatMessagesToBottom,
   statusChipClassName,
+  withOptimisticOutgoingMessage,
   withOptimisticPlanMode,
 } from "./Chat";
 import {
@@ -513,6 +514,31 @@ describe("withOptimisticPlanMode", () => {
     const original = conversation({ planMode: true });
 
     expect(withOptimisticPlanMode(original, true)).toBe(original);
+  });
+});
+
+describe("withOptimisticOutgoingMessage", () => {
+  it("promotes a default new chat title from the outgoing message", () => {
+    const original = conversation({ title: "New chat" });
+    const sentAt = new Date("2026-05-13T09:00:00.000Z");
+
+    const optimistic = withOptimisticOutgoingMessage(
+      original,
+      "chat 场景还需要加上 ask user for question 的 kind，我们来讨论下",
+      sentAt,
+    );
+
+    expect(optimistic.title).toBe("chat 场景还需要加上 ask user for question 的 kind，我们来讨论下");
+    expect(optimistic.summary).toBe("chat 场景还需要加上 ask user for question 的 kind，我们来讨论下");
+    expect(optimistic.lastMessageAt).toBe(sentAt);
+  });
+
+  it("preserves explicit chat titles during optimistic sends", () => {
+    const original = conversation({ title: "Already named" });
+
+    const optimistic = withOptimisticOutgoingMessage(original, "new message", new Date());
+
+    expect(optimistic.title).toBe("Already named");
   });
 });
 

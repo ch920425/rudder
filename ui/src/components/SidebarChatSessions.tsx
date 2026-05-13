@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, MoreHorizontal, PencilLine, Pin, PinOff, Plus } from "lucide-react";
-import { formatMessengerPreview, formatMessengerTitle, type ChatConversation } from "@rudderhq/shared";
+import { formatMessengerPreview, type ChatConversation } from "@rudderhq/shared";
 import { useLocation, useNavigate } from "@/lib/router";
 import {
   DropdownMenu,
@@ -18,13 +18,14 @@ import { useOrganization } from "@/context/OrganizationContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { chatsApi } from "@/api/chats";
 import { prefetchChatConversation } from "@/lib/chat-prefetch";
+import { displayChatTitle } from "@/lib/chat-title";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn, relativeTime } from "@/lib/utils";
 import { SidebarSectionActionButton, SidebarSectionHeader } from "@/components/SidebarSectionHeader";
 import { sidebarItemVariants } from "@/components/sidebarItemStyles";
 
-function conversationDisplayTitle(conversation: Pick<ChatConversation, "title">): string {
-  return formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title;
+function conversationDisplayTitle(conversation: Pick<ChatConversation, "title" | "summary" | "latestReplyPreview">): string {
+  return displayChatTitle(conversation);
 }
 
 function conversationSubtitle(conversation: ChatConversation): string {

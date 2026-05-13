@@ -23,6 +23,7 @@ import { formatMessengerPreview, formatMessengerTitle, type ChatConversation } f
 import { chatsApi } from "@/api/chats";
 import { messengerApi } from "@/api/messenger";
 import { Link, useLocation, useNavigate } from "@/lib/router";
+import { displayChatTitle } from "@/lib/chat-title";
 import { cn, relativeTime } from "@/lib/utils";
 import { useSidebar } from "@/context/SidebarContext";
 import { useChatGenerations } from "@/context/ChatGenerationContext";
@@ -152,8 +153,8 @@ function conversationSubtitle(conversation: ChatConversation) {
   );
 }
 
-function conversationDisplayTitle(conversation: Pick<ChatConversation, "title">) {
-  return formatMessengerTitle(conversation.title, { max: 80 }) ?? conversation.title;
+function conversationDisplayTitle(conversation: Pick<ChatConversation, "title" | "summary" | "latestReplyPreview">) {
+  return displayChatTitle(conversation);
 }
 
 function threadDisplayTitle(title: string) {
