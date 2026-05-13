@@ -2370,7 +2370,6 @@ function PromptsTab({
   onSavingChange: (saving: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const { confirm } = useDialog();
   const { selectedOrganizationId } = useOrganization();
   const { isMobile } = useSidebar();
   const [selectedFile, setSelectedFile] = useState<string>(DEFAULT_INSTRUCTIONS_ENTRY_FILE);
@@ -2490,18 +2489,6 @@ function PromptsTab({
     onError: () => setAwaitingRefresh(false),
   });
 
-  const deleteFile = useMutation({
-    mutationFn: (relativePath: string) => agentsApi.deleteInstructionsFile(agent.id, relativePath, orgId),
-    onMutate: () => setAwaitingRefresh(true),
-    onSuccess: (_, relativePath) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionsBundle(agent.id) });
-      queryClient.removeQueries({ queryKey: queryKeys.agents.instructionsFile(agent.id, relativePath) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
-    },
-    onError: () => setAwaitingRefresh(false),
-  });
-
   const uploadMarkdownImage = useMutation({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
       if (!selectedOrganizationId) throw new Error("Select a organization to upload images");
@@ -2588,7 +2575,7 @@ function PromptsTab({
   );
   const fileDirty = draft !== null && draft !== currentContent;
   const isDirty = bundleDirty || fileDirty;
-  const isSaving = updateBundle.isPending || saveFile.isPending || deleteFile.isPending || awaitingRefresh;
+  const isSaving = updateBundle.isPending || saveFile.isPending || awaitingRefresh;
 
   useEffect(() => { onSavingChange(isSaving); }, [onSavingChange, isSaving]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
@@ -3008,30 +2995,6 @@ function PromptsTab({
                 </p>
               </div>
             </div>
-            {selectedFileExists && !selectedFileSummary?.deprecated && selectedOrEntryFile !== currentEntryFile && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  const confirmed = await confirm({
-                    title: `Delete ${selectedOrEntryFile}?`,
-                    confirmLabel: "Delete",
-                    tone: "destructive",
-                  });
-                  if (!confirmed) return;
-                  deleteFile.mutate(selectedOrEntryFile, {
-                    onSuccess: () => {
-                      setSelectedFile(currentEntryFile);
-                      setDraft(null);
-                    },
-                  });
-                }}
-                disabled={deleteFile.isPending}
-              >
-                Delete
-              </Button>
-            )}
           </div>
 
           {selectedFileExists && fileLoading && !selectedFileDetail ? (
