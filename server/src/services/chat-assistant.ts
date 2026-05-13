@@ -30,7 +30,7 @@ interface ResolvedChatRuntimeSource {
 }
 
 export interface ChatAssistantResult {
-  kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion";
+  kind: "message" | "issue_proposal" | "operation_proposal";
   body: string;
   structuredPayload: Record<string, unknown> | null;
   replyingAgentId?: string | null;
@@ -262,7 +262,6 @@ function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource,
     "Attachment URLs in the conversation input are relative to $RUDDER_API_URL and require Authorization: Bearer $RUDDER_API_KEY when fetched from tools.",
     "Use result kind 'message' for clarification, summaries, and small requests that can stay in chat.",
     "Use result kind 'issue_proposal' for larger work that should become an issue.",
-    "Use result kind 'routing_suggestion' only when recommending an agent or role to handle work.",
     "Reply in two phases.",
     "Phase 1: while you work, write concise progress updates in Markdown with no JSON fences. These are process transcript entries, not the final answer.",
     `Phase 2: on a new line, emit exactly ${resultSentinel} followed immediately by one JSON object. The JSON body is the final user-visible answer.`,
@@ -451,12 +450,7 @@ function validateAssistantResult(
     throw new Error("Assistant response body was empty");
   }
 
-  if (
-    kind !== "message" &&
-    kind !== "issue_proposal" &&
-    kind !== "operation_proposal" &&
-    kind !== "routing_suggestion"
-  ) {
+  if (kind !== "message" && kind !== "issue_proposal" && kind !== "operation_proposal") {
     throw new Error(`Unsupported assistant result kind: ${kind}`);
   }
 

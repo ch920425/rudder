@@ -96,7 +96,6 @@ export interface ChatMessage {
     | "message"
     | "issue_proposal"
     | "operation_proposal"
-    | "routing_suggestion"
     | "system_event";
   status: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
   body: string;

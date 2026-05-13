@@ -1055,7 +1055,7 @@ export function chatService(db: Db) {
       input: {
         orgId: string;
         role: "user" | "assistant" | "system";
-        kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion" | "system_event";
+        kind: "message" | "issue_proposal" | "operation_proposal" | "system_event";
         status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
         body: string;
         structuredPayload?: Record<string, unknown> | null;
@@ -1097,7 +1097,7 @@ export function chatService(db: Db) {
       conversationId: string,
       messageId: string,
       input: {
-        kind?: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion" | "system_event";
+        kind?: "message" | "issue_proposal" | "operation_proposal" | "system_event";
         status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
         body?: string;
         structuredPayload?: Record<string, unknown> | null;

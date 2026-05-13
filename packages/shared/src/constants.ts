@@ -164,7 +164,6 @@ export const CHAT_MESSAGE_KINDS = [
   "message",
   "issue_proposal",
   "operation_proposal",
-  "routing_suggestion",
   "system_event",
 ] as const;
 export type ChatMessageKind = (typeof CHAT_MESSAGE_KINDS)[number];

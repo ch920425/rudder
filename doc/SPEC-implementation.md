@@ -414,7 +414,7 @@ list.
   - `org_id` uuid fk not null
   - `conversation_id` uuid fk not null
   - `role` enum: `user | assistant | system`
-  - `kind` enum: `message | issue_proposal | operation_proposal | routing_suggestion | system_event`
+  - `kind` enum: `message | issue_proposal | operation_proposal | system_event`
   - `body` text not null
   - `structured_payload` jsonb null
   - `approval_id` uuid fk `approvals.id` null
