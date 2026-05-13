@@ -653,7 +653,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       } as ChatMessage;
     };
     const saveAssistantMessage = async (input: {
-      kind: "message" | "issue_proposal" | "operation_proposal" | "routing_suggestion";
+      kind: "message" | "issue_proposal" | "operation_proposal";
       body: string;
       structuredPayload?: Record<string, unknown> | null;
       approvalId?: string | null;
@@ -789,7 +789,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     }
 
     const assistantMessage = await saveAssistantMessage({
-      kind: assistantReply.kind === "routing_suggestion" ? "routing_suggestion" : "message",
+      kind: "message",
       body: assistantReply.body,
       structuredPayload: assistantReply.structuredPayload,
     });
@@ -1716,6 +1716,11 @@ export function chatRoutes(db: Db, storage: StorageService) {
         entityType: "project",
         entityId: projectId,
       }]);
+    }
+    const messages = await svc.listMessages(conversation.id);
+    if (messages.length > 0) {
+      res.status(409).json({ error: "Project context is locked after conversation starts" });
+      return;
     }
 
     const updated = await svc.setProjectContextLink(conversation.id, conversation.orgId, projectId);

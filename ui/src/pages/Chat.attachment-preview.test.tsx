@@ -426,7 +426,7 @@ describe("Chat attachment previews", () => {
 });
 
 describe("Chat project context selector", () => {
-  it("keeps the project selector editable after a conversation already has project context", () => {
+  it("locks the project selector after a conversation already has project context", () => {
     mockState.conversations = [
       chat({
         id: "chat-1",
@@ -460,24 +460,15 @@ describe("Chat project context selector", () => {
     const projectSelector = container.querySelector<HTMLButtonElement>("[data-testid='chat-project-selector']");
     expect(projectSelector).not.toBeNull();
     expect(projectSelector?.textContent).toContain("Rudder mkt");
+    expect(projectSelector?.disabled).toBe(true);
+    expect(container.querySelector("[data-testid='chat-project-selector-chevron']")).toBeNull();
 
     act(() => {
       projectSelector?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const launchProjectOption = [...document.body.querySelectorAll<HTMLButtonElement>("[data-chat-composer-menu-item]")]
-      .find((button) => button.textContent?.includes("Launch Ops"));
-    expect(launchProjectOption).not.toBeNull();
-
-    act(() => {
-      launchProjectOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(projectSelector?.textContent).toContain("Launch Ops");
-    expect(mockState.mutations).toContainEqual({
-      chatId: "chat-1",
-      projectId: "10000000-0000-4000-8000-000000000011",
-      previousProjectId: "10000000-0000-4000-8000-000000000010",
-    });
+    expect(document.body.querySelector("[data-testid='chat-project-menu']")).toBeNull();
+    expect(projectSelector?.textContent).toContain("Rudder mkt");
+    expect(mockState.mutations).toEqual([]);
   });
 });

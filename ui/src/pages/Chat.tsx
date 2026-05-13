@@ -928,6 +928,30 @@ export function isChatAgentSelectionLocked({
   );
 }
 
+export function isChatProjectSelectionLocked({
+  hasConversation,
+  hasLastMessageAt,
+  hasMessages,
+  hasActiveStream,
+  hasActiveSendInFlight,
+}: {
+  hasConversation: boolean;
+  hasLastMessageAt: boolean;
+  hasMessages: boolean;
+  hasActiveStream: boolean;
+  hasActiveSendInFlight: boolean;
+}) {
+  return Boolean(
+    hasConversation
+    && (
+      hasActiveStream
+      || hasActiveSendInFlight
+      || hasLastMessageAt
+      || hasMessages
+    ),
+  );
+}
+
 function approvalNeedsAction(approval: Approval | null | undefined) {
   return approval?.status === "pending" || approval?.status === "revision_requested";
 }
@@ -3079,6 +3103,13 @@ function ChatWorkspace() {
     hasActiveStream: Boolean(activeStream),
     hasActiveSendInFlight: activeSendInFlight,
   });
+  const projectSelectionLocked = isChatProjectSelectionLocked({
+    hasConversation: Boolean(selectedConversation),
+    hasLastMessageAt: Boolean(selectedConversation?.lastMessageAt),
+    hasMessages: rawMessages.length > 0,
+    hasActiveStream: Boolean(activeStream),
+    hasActiveSendInFlight: activeSendInFlight,
+  });
   const activeEditCutoffMs = activeStream?.editedFromCreatedAt
     ? activeStream.editedFromCreatedAt.getTime()
     : null;
@@ -3340,6 +3371,10 @@ function ChatWorkspace() {
   };
 
   const applyProjectContext = (value: string) => {
+    if (projectSelectionLocked) {
+      setProjectMenuOpen(false);
+      return;
+    }
     const projectId = value === NO_PROJECT_ID ? null : value;
     const previousProjectId = selectedConversation
       ? selectedConversationProjectId
@@ -3548,7 +3583,7 @@ function ChatWorkspace() {
         className="chat-composer-context-menu motion-chat-composer-menu-pop surface-overlay fixed z-50 overflow-y-auto rounded-[var(--radius-lg)] border p-1.5 text-foreground"
         style={composerMenuPosition}
       >
-        {projectMenuOpen ? (
+        {projectMenuOpen && !projectSelectionLocked ? (
           <>
             <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">Project context</div>
             <button
@@ -3841,12 +3876,18 @@ function ChatWorkspace() {
             type="button"
             data-testid="chat-project-selector"
             aria-label={`Project context: ${projectPillLabel}`}
-            aria-expanded={projectMenuOpen}
+            aria-expanded={projectSelectionLocked ? false : projectMenuOpen}
+            disabled={projectSelectionLocked}
+            title={projectSelectionLocked ? "Project context is locked after conversation starts." : undefined}
             className={cn(
-              "chat-chip inline-flex max-w-[min(100%,15rem)] min-w-0 items-center gap-1.5 rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[color:var(--surface-active)]",
+              "chat-chip inline-flex max-w-[min(100%,15rem)] min-w-0 items-center gap-1.5 rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium",
+              projectSelectionLocked
+                ? "cursor-default"
+                : "transition-colors hover:bg-[color:var(--surface-active)]",
               projectMenuOpen && "bg-[color:var(--surface-active)]",
             )}
             onClick={() => {
+              if (projectSelectionLocked) return;
               if (projectMenuOpen) {
                 closeComposerContextMenus();
                 return;
@@ -3856,7 +3897,9 @@ function ChatWorkspace() {
           >
             <Folder className="h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 truncate">{projectPillLabel}</span>
-            <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
+            {projectSelectionLocked ? null : (
+              <ChevronDown data-testid="chat-project-selector-chevron" className="h-3 w-3 shrink-0 opacity-70" />
+            )}
           </button>
 
           <button

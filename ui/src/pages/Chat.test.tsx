@@ -18,6 +18,7 @@ import {
   draftIssueContextLabel,
   findRetrySourceUserMessage,
   isChatAgentSelectionLocked,
+  isChatProjectSelectionLocked,
   isUserVisibleIncomingChatMessage,
   resolveDraftIssueContext,
   resolveChatImageFilename,
@@ -550,6 +551,42 @@ describe("isChatAgentSelectionLocked", () => {
     expect(isChatAgentSelectionLocked({
       hasConversation: true,
       preferredAgentId: null,
+      hasLastMessageAt: false,
+      hasMessages: false,
+      hasActiveStream: false,
+      hasActiveSendInFlight: true,
+    })).toBe(true);
+  });
+});
+
+describe("isChatProjectSelectionLocked", () => {
+  it("keeps draft conversations editable before work starts", () => {
+    expect(isChatProjectSelectionLocked({
+      hasConversation: true,
+      hasLastMessageAt: false,
+      hasMessages: false,
+      hasActiveStream: false,
+      hasActiveSendInFlight: false,
+    })).toBe(false);
+  });
+
+  it("locks conversations after messages or active sends exist", () => {
+    expect(isChatProjectSelectionLocked({
+      hasConversation: true,
+      hasLastMessageAt: true,
+      hasMessages: false,
+      hasActiveStream: false,
+      hasActiveSendInFlight: false,
+    })).toBe(true);
+    expect(isChatProjectSelectionLocked({
+      hasConversation: true,
+      hasLastMessageAt: false,
+      hasMessages: true,
+      hasActiveStream: false,
+      hasActiveSendInFlight: false,
+    })).toBe(true);
+    expect(isChatProjectSelectionLocked({
+      hasConversation: true,
       hasLastMessageAt: false,
       hasMessages: false,
       hasActiveStream: false,

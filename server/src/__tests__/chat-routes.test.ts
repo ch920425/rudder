@@ -397,6 +397,7 @@ describe("chat routes", () => {
       }],
     });
     mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([]);
     mockProjectService.getById.mockResolvedValue({
       id: "10000000-0000-4000-8000-000000000010",
       orgId: "organization-1",
@@ -427,6 +428,7 @@ describe("chat routes", () => {
     const conversation = createConversation();
     const updatedConversation = createConversation({ contextLinks: [] });
     mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([]);
     mockChatService.setProjectContextLink.mockResolvedValue(updatedConversation);
 
     const res = await request(createApp())
@@ -446,6 +448,42 @@ describe("chat routes", () => {
         action: "chat.project_context_updated",
         details: { projectId: null },
       }),
+    );
+  });
+
+  it("rejects project context changes after conversation messages exist", async () => {
+    const conversation = createConversation({
+      contextLinks: [{
+        id: "context-project-1",
+        orgId: "organization-1",
+        conversationId: "chat-1",
+        entityType: "project",
+        entityId: "10000000-0000-4000-8000-000000000010",
+        metadata: null,
+        entity: null,
+        createdAt: new Date("2026-03-26T08:00:00.000Z"),
+        updatedAt: new Date("2026-03-26T08:00:00.000Z"),
+      }],
+    });
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockProjectService.getById.mockResolvedValue({
+      id: "10000000-0000-4000-8000-000000000011",
+      orgId: "organization-1",
+    });
+    mockChatService.listMessages.mockResolvedValue([
+      createMessage("message-user", "user", "message", "Keep this project scoped"),
+    ]);
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/project-context")
+      .send({ projectId: "10000000-0000-4000-8000-000000000011" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: "Project context is locked after conversation starts" });
+    expect(mockChatService.setProjectContextLink).not.toHaveBeenCalled();
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "chat.project_context_updated" }),
     );
   });
 
