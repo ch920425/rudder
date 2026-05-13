@@ -293,7 +293,9 @@ export function chatService(db: Db) {
             id: issues.id,
             identifier: issues.identifier,
             title: issues.title,
+            description: issues.description,
             status: issues.status,
+            priority: issues.priority,
           })
           .from(issues)
           .where(inArray(issues.id, issueIds))
@@ -329,6 +331,8 @@ export function chatService(db: Db) {
       subtitle: string | null;
       identifier: string | null;
       status: string | null;
+      description?: string | null;
+      priority?: string | null;
       href: string;
     }>();
 
@@ -340,6 +344,8 @@ export function chatService(db: Db) {
         subtitle: row.status,
         identifier: row.identifier,
         status: row.status,
+        description: row.description,
+        priority: row.priority,
         href: `/issues/${row.identifier ?? row.id}`,
       });
     }

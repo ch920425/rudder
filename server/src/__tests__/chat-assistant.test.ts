@@ -161,6 +161,31 @@ function makeProjectContextLink(): ChatContextLink {
   };
 }
 
+function makeIssueContextLink(): ChatContextLink {
+  const now = new Date("2026-03-29T08:00:00.000Z");
+  return {
+    id: "context-issue-1",
+    orgId: "organization-1",
+    conversationId: "chat-1",
+    entityType: "issue",
+    entityId: "issue-1",
+    metadata: null,
+    entity: {
+      type: "issue",
+      id: "issue-1",
+      label: "Fix issue chat handoff",
+      subtitle: "in_progress",
+      identifier: "ISS-42",
+      status: "in_progress",
+      description: "Clicking Chat from an issue should open a contextual new chat composer.",
+      priority: "medium",
+      href: "/issues/ISS-42",
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function sentinelFromContext(ctx: { context?: Record<string, unknown> }) {
   const prompt = String(ctx.context?.chatPrompt ?? "");
   return prompt.match(/(__RUDDER_RESULT_[a-f0-9-]+__)/i)?.[1] ?? "__RUDDER_RESULT_TEST__";
@@ -462,6 +487,37 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(prompt).toContain("- Description: Coordinate the launch workflow.");
     expect(prompt).toContain("## Project Resources");
     expect(prompt).toContain("[primary] Launch playbook");
+  });
+
+  it("injects selected issue context into chat prompts and runtime context", async () => {
+    const issueContextLink = makeIssueContextLink();
+    const svc = chatAssistantService({} as any);
+
+    await svc.generateChatAssistantReply({
+      conversation: makeConversation({ contextLinks: [issueContextLink] }),
+      messages: makeMessages(),
+      contextLinks: [issueContextLink],
+      operatorProfile: null,
+    });
+
+    expect(mockRunContextService.resolveWorkspaceForRun).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ issueId: "issue-1" }),
+      null,
+    );
+    const executeInput = mockAdapter.execute.mock.calls.at(-1)?.[0];
+    const prompt = executeInput?.context?.chatPrompt as string;
+    expect(prompt).toContain("Selected issue context:");
+    expect(prompt).toContain("- Issue ID: issue-1");
+    expect(prompt).toContain("- Identifier: ISS-42");
+    expect(prompt).toContain("- Title: Fix issue chat handoff");
+    expect(prompt).toContain("- Status: in_progress");
+    expect(prompt).toContain("- Priority: medium");
+    expect(prompt).toContain("- Description: Clicking Chat from an issue should open a contextual new chat composer.");
+    expect(executeInput?.context).toMatchObject({
+      issueId: "issue-1",
+      issueIds: ["issue-1"],
+    });
   });
 
   it("forwards adapter invocation metadata to the caller during streaming", async () => {

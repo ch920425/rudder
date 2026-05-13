@@ -139,6 +139,8 @@ function buildPrompt(input: GenerateChatAssistantReplyInput) {
     label: link.entity?.label ?? null,
     identifier: link.entity?.identifier ?? null,
     status: link.entity?.status ?? null,
+    description: link.entity?.description ?? null,
+    priority: link.entity?.priority ?? null,
   }));
 
   const history = input.messages.slice(-12).map((message) => ({
@@ -234,6 +236,47 @@ function buildSelectedProjectPromptSection(contextLinks: ChatContextLink[]) {
   }
   lines.push(
     "Use this as the default project for issue proposals and project-scoped reasoning unless the user explicitly chooses another project.",
+  );
+  return lines.join("\n");
+}
+
+function buildSelectedIssuePromptSection(
+  conversation: Pick<ChatConversation, "primaryIssue">,
+  contextLinks: ChatContextLink[],
+) {
+  const issueLink = contextLinks.find((link) => link.entityType === "issue");
+  const primaryIssue = conversation.primaryIssue;
+  if (!issueLink && !primaryIssue) return null;
+
+  const lines = ["Selected issue context:"];
+  if (issueLink) {
+    lines.push(`- Issue ID: ${issueLink.entityId}`);
+    if (issueLink.entity?.identifier) {
+      lines.push(`- Identifier: ${issueLink.entity.identifier}`);
+    }
+    if (issueLink.entity?.label) {
+      lines.push(`- Title: ${issueLink.entity.label}`);
+    }
+    if (issueLink.entity?.status) {
+      lines.push(`- Status: ${issueLink.entity.status}`);
+    }
+    if (issueLink.entity?.priority) {
+      lines.push(`- Priority: ${issueLink.entity.priority}`);
+    }
+    if (issueLink.entity?.description?.trim()) {
+      lines.push(`- Description: ${issueLink.entity.description.trim()}`);
+    }
+  } else if (primaryIssue) {
+    lines.push(`- Issue ID: ${primaryIssue.id}`);
+    if (primaryIssue.identifier) {
+      lines.push(`- Identifier: ${primaryIssue.identifier}`);
+    }
+    lines.push(`- Title: ${primaryIssue.title}`);
+    lines.push(`- Status: ${primaryIssue.status}`);
+    lines.push(`- Priority: ${primaryIssue.priority}`);
+  }
+  lines.push(
+    "Use this as the default issue context for this chat unless the user explicitly switches topics.",
   );
   return lines.join("\n");
 }
@@ -469,6 +512,7 @@ function buildConversationPrompt(
 ) {
   const operatorProfileSection = buildOperatorProfilePromptSection(input.operatorProfile);
   const selectedProjectSection = buildSelectedProjectPromptSection(input.contextLinks);
+  const selectedIssueSection = buildSelectedIssuePromptSection(input.conversation, input.contextLinks);
   const currentUserAttachmentSection = buildCurrentUserAttachmentPromptSection(input.messages.slice(-12));
   /**
    * Chat prompt assembly stays compositional on purpose.
@@ -484,6 +528,7 @@ function buildConversationPrompt(
    */
   return [
     systemPrompt(runtimeSource, input.conversation, resultSentinel),
+    ...(selectedIssueSection ? [selectedIssueSection] : []),
     ...(selectedProjectSection ? [selectedProjectSection] : []),
     ...(orgResourcesPrompt ? [orgResourcesPrompt] : []),
     ...(operatorProfileSection ? [operatorProfileSection] : []),

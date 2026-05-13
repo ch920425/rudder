@@ -7,6 +7,8 @@ export interface ChatLinkedEntity {
   subtitle: string | null;
   identifier: string | null;
   status: string | null;
+  description?: string | null;
+  priority?: string | null;
   href: string;
 }
 
