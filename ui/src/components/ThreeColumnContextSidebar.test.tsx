@@ -448,25 +448,25 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
     renderSidebar();
 
     expect(document.querySelector('a[href="/issues?scope=recent"]')).toBeNull();
-    expect(document.querySelector("[data-testid='issue-recent-section']")?.textContent).toContain("Recently Viewed");
+    expect(document.querySelector("[data-testid='issue-recent-section']")?.textContent).toContain("Recently Viewed (13)");
     expect(document.querySelector("[data-testid='issue-recent-row-issue-1']")?.textContent).toContain("Recent issue 1");
     expect(document.querySelector("[data-testid='issue-recent-row-issue-5']")?.textContent).toContain("Recent issue 5");
     expect(document.querySelector("[data-testid='issue-recent-row-issue-6']")).toBeNull();
 
     const toggle = document.querySelector("[data-testid='issue-recent-toggle']") as HTMLButtonElement | null;
-    expect(toggle?.textContent).toContain("Show 7 more");
+    expect(toggle?.textContent).toContain("Show all");
 
     act(() => {
       toggle?.click();
     });
 
     expect(document.querySelector("[data-testid='issue-recent-row-issue-12']")?.textContent).toContain("Recent issue 12");
-    expect(document.querySelector("[data-testid='issue-recent-row-issue-13']")).toBeNull();
-    expect(document.body.textContent).toContain("Showing latest 12 of 13");
+    expect(document.querySelector("[data-testid='issue-recent-row-issue-13']")?.textContent).toContain("Recent issue 13");
+    expect(document.body.textContent).not.toContain("Showing latest");
     expect(toggle?.textContent).toContain("Show less");
   });
 
-  it("keeps the expanded recent list scroll-bounded at the expanded limit", () => {
+  it("keeps the expanded recent list scroll-bounded while showing every resolved recent issue", () => {
     mockState.issues = Array.from({ length: 12 }, (_, index) => ({
       id: `issue-${index + 1}`,
       identifier: `RUD-${index + 1}`,
@@ -487,7 +487,7 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
     expect(recentList?.className).toContain("scrollbar-auto-hide");
     expect(recentList?.className).toContain("overflow-y-auto");
     expect(document.querySelector("[data-testid='issue-recent-row-issue-12']")?.textContent).toContain("Recent issue 12");
-    expect(document.body.textContent).not.toContain("Showing latest 12 of 12");
+    expect(document.body.textContent).not.toContain("Showing latest");
   });
 
   it("moves a clicked recent sidebar issue to the front of recent history", () => {

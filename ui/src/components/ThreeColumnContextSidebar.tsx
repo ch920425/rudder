@@ -75,7 +75,6 @@ import { CALENDAR_EVENT_STATUS_OPTIONS, useCalendarWorkspace } from "@/context/C
 import type { CalendarEventStatus, CalendarSource, Issue } from "@rudderhq/shared";
 
 const RECENT_ISSUES_COLLAPSED_LIMIT = 5;
-const RECENT_ISSUES_EXPANDED_LIMIT = 12;
 const LINEAR_PLUGIN_KEY = "rudder.linear";
 const LINEAR_CATALOG_DATA_KEY = "linear-catalog";
 const LINEAR_PLUGIN_ROUTE_PATH = "linear";
@@ -597,10 +596,9 @@ function RecentIssueListSection({
 
   if (issues.length === 0) return null;
 
-  const visibleLimit = expanded ? RECENT_ISSUES_EXPANDED_LIMIT : RECENT_ISSUES_COLLAPSED_LIMIT;
+  const visibleLimit = expanded ? issues.length : RECENT_ISSUES_COLLAPSED_LIMIT;
   const visibleIssues = issues.slice(0, visibleLimit);
-  const expandCount = Math.min(issues.length, RECENT_ISSUES_EXPANDED_LIMIT) - RECENT_ISSUES_COLLAPSED_LIMIT;
-  const hasMoreThanExpandedLimit = issues.length > RECENT_ISSUES_EXPANDED_LIMIT;
+  const sectionLabel = `Recently Viewed (${issues.length})`;
 
   return (
     <section aria-label="Recently viewed issues" className="mt-1">
@@ -609,7 +607,7 @@ function RecentIssueListSection({
         collapsed={collapsed}
         onToggle={onToggleCollapsed}
       >
-        Recently Viewed
+        {sectionLabel}
       </SectionLabel>
       {collapsed ? null : (
         <>
@@ -653,11 +651,6 @@ function RecentIssueListSection({
           );
         })}
       </div>
-      {expanded && hasMoreThanExpandedLimit ? (
-        <div className="mx-4 mt-1 truncate text-[11px] text-muted-foreground/70">
-          Showing latest {RECENT_ISSUES_EXPANDED_LIMIT} of {issues.length}
-        </div>
-      ) : null}
       {issues.length > RECENT_ISSUES_COLLAPSED_LIMIT ? (
         <button
           type="button"
@@ -666,7 +659,7 @@ function RecentIssueListSection({
           className="mx-1.5 mt-1 flex min-h-8 w-[calc(100%-0.75rem)] items-center gap-2 rounded-[calc(var(--radius-sm)-1px)] px-3 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:color-mix(in_oklab,var(--surface-elevated)_58%,transparent)] hover:text-foreground"
         >
           {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          <span>{expanded ? "Show less" : `Show ${expandCount} more`}</span>
+          <span>{expanded ? "Show less" : "Show all"}</span>
         </button>
       ) : null}
         </>
