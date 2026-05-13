@@ -855,23 +855,24 @@ export function messengerService(db: Db) {
 
     const unsortedEntries = issuesUniverse.map((issue) => {
       const latestComment = latestCommentByIssue.get(issue.id) ?? null;
+      const latestExternalComment = latestExternalCommentByIssue.get(issue.id) ?? null;
       const latestActivity = latestActivityByIssue.get(issue.id) ?? null;
-      const latestCommentAt = normalizeDate(latestComment?.createdAt ?? null);
-      const latestEventAt = maxDate(latestCommentAt, latestActivity?.createdAt);
+      const latestVisibleComment = latestExternalComment;
+      const latestVisibleCommentAt = normalizeDate(latestVisibleComment?.createdAt ?? null);
+      const latestEventAt = maxDate(latestVisibleCommentAt, latestActivity?.createdAt);
       const latestActivityAt = maxDate(issue.updatedAt, latestEventAt);
       const latestSourceIsComment =
-        latestCommentAt &&
-        (!latestActivity?.createdAt || latestCommentAt.getTime() >= new Date(latestActivity.createdAt).getTime());
+        latestVisibleCommentAt &&
+        (!latestActivity?.createdAt || latestVisibleCommentAt.getTime() >= new Date(latestActivity.createdAt).getTime());
       const latestPreview = latestSourceIsComment
-        ? truncate(latestComment?.body)
+        ? truncate(latestVisibleComment?.body)
         : latestActivity
           ? summarizeIssueActivity(latestActivity, issue)
           : null;
       const statusChangeActivity = latestSourceIsComment
-        ? (issueStatusActivityMatchesSourceComment(latestActivity, latestComment) ? latestActivity : null)
+        ? (issueStatusActivityMatchesSourceComment(latestActivity, latestVisibleComment) ? latestActivity : null)
         : latestActivity;
 
-      const latestExternalComment = latestExternalCommentByIssue.get(issue.id) ?? null;
       const latestExternalActivity = latestExternalActivityByIssue.get(issue.id) ?? null;
       const latestExternalCommentAt = normalizeDate(latestExternalComment?.createdAt ?? null);
       const latestSuppressedActivityAt = normalizeDate(latestSuppressedActivityByIssue.get(issue.id)?.createdAt ?? null);
@@ -920,7 +921,7 @@ export function messengerService(db: Db) {
           issue.followed,
           latestPreview,
           latestActivityAt ?? issue.updatedAt,
-          latestSourceIsComment ? latestComment : null,
+          latestSourceIsComment ? latestVisibleComment : null,
           statusChangeActivity,
         ),
         attentionActivityAt,

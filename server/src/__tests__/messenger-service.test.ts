@@ -825,7 +825,11 @@ describe("messengerService and issue follows", () => {
     const issuesSummary = summaries.find((item) => item.threadKey === "issues");
 
     expect(thread.detail.items.map((item) => item.issueId)).toEqual([createdIssueId]);
-    expect(thread.detail.items[0]?.preview).toBe("I already handled this");
+    expect(thread.detail.items[0]?.preview).toBeNull();
+    expect(thread.detail.items[0]?.body).not.toContain("I already handled this");
+    expect(thread.detail.items[0]?.sourceCommentId).toBeNull();
+    expect(thread.detail.items[0]?.sourceCommentAuthorLabel).toBeNull();
+    expect(thread.detail.items[0]?.sourceCommentBody).toBeNull();
     expect(thread.detail.unreadCount).toBe(0);
     expect(thread.detail.needsAttention).toBe(false);
     expect(thread.summary.latestActivityAt).toBeNull();
