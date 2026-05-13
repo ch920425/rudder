@@ -713,6 +713,91 @@ describe("RunTranscriptView", () => {
     expect(visibleHtml).toContain("Checked the repository status");
   });
 
+  it("normalizes agent memory file changes into dedicated memory update blocks", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "system",
+        ts: "2026-03-12T00:00:00.000Z",
+        text:
+          "file changes: update /Users/zeeland/.rudder/instances/default/organizations/org/workspaces/agents/gabriel--abc/instructions/MEMORY.md",
+      },
+      {
+        kind: "system",
+        ts: "2026-03-12T00:00:01.000Z",
+        text: "file changes: update /Users/zeeland/project/ui/src/pages/AgentDetail.tsx",
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, false);
+
+    expect(blocks[0]).toMatchObject({
+      type: "memory_update",
+      status: "completed",
+      agentName: "Gabriel",
+      scope: "stable_instructions",
+      summary: "Gabriel updated stable memory instructions.",
+      effect: "Effective next run",
+    });
+    expect(blocks[1]).toMatchObject({
+      type: "event",
+      label: "system",
+      text: "file changes: update /Users/zeeland/project/ui/src/pages/AgentDetail.tsx",
+    });
+  });
+
+  it("renders memory updates without exposing raw paths until details are expanded", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="detail"
+          entries={[
+            {
+              kind: "system",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "file changes: update $AGENT_HOME/instructions/MEMORY.md",
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Agent memory updated");
+    expect(html).toContain("Agent updated stable memory instructions.");
+    expect(html).toContain("Stable instructions");
+    expect(html).toContain("Effective next run");
+    expect(html).toContain('data-transcript-action-icon="memory"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("$AGENT_HOME/instructions/MEMORY.md");
+    expect(html).not.toContain("file changes: update");
+  });
+
+  it("renders failed memory updates as failure rows with expanded technical details", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="detail"
+          entries={[
+            {
+              kind: "system",
+              ts: "2026-03-12T00:00:00.000Z",
+              text: "memory update failed: update $AGENT_HOME/memory/2026-03-12.md permission denied",
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Memory update failed");
+    expect(html).toContain("Daily note");
+    expect(html).toContain("Failed");
+    expect(html).toContain("permission denied");
+    expect(html).toContain("$AGENT_HOME/memory/2026-03-12.md");
+    expect(html).toContain("Raw event");
+    expect(html).toContain('aria-expanded="true"');
+  });
+
   it("renders a single detail-turn log inline instead of behind a log-count disclosure", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>

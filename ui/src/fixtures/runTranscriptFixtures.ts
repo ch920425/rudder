@@ -231,6 +231,16 @@ export const runTranscriptFixtureEntries: TranscriptEntry[] = [
     isError: false,
   },
   {
+    kind: "system",
+    ts: "2026-03-11T15:22:28.612Z",
+    text: "file changes: update /Users/zeeland/.rudder/instances/default/organizations/org/workspaces/agents/gabriel--fixture/instructions/MEMORY.md",
+  },
+  {
+    kind: "system",
+    ts: "2026-03-11T15:22:28.724Z",
+    text: "memory update failed: update /Users/zeeland/.rudder/instances/default/organizations/org/workspaces/agents/gabriel--fixture/life/preferences.yml permission denied",
+  },
+  {
     kind: "assistant",
     ts: "2026-03-11T15:22:29.214Z",
     text: "I’ve confirmed the duplication: the run page has the only full transcript renderer, while live surfaces still collapse output into feed strings. I’m pulling markdown utilities and adapter shapes now so the new renderer can stay shared.",
