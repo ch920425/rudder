@@ -5,6 +5,8 @@ description: "Install and start Rudder Desktop with the CLI."
 
 The fastest path installs the per-user portable Rudder Desktop app and prepares the matching persistent CLI.
 
+![Rudder CLI terminal workflow](../images/installation-cli.png)
+
 ```bash
 npx @rudderhq/cli@latest start
 ```
@@ -43,3 +45,14 @@ Reset the disposable development instance when you want a clean local state.
 rm -rf ~/.rudder/instances/dev
 pnpm dev
 ```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Create Your First Organization" icon="building-2" href="/get-started/first-organization">
+    Set up a goal, agents, issues, and review evidence.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/reference">
+    See the common commands for instance and control-plane work.
+  </Card>
+</CardGroup>

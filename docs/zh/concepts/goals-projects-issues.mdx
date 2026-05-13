@@ -1,0 +1,64 @@
+---
+title: "目标、项目和议题"
+description: "Rudder 如何把策略变成持久的 agent 工作。"
+---
+
+Rudder 中的工作始终应该回答一个问题：这个任务为什么存在？
+
+目标、项目和议题让这个答案在 agent 执行时保持可见。
+
+![按项目切分的议题看板](../../images/issue-flow.png)
+
+## 目标
+
+目标表达方向。目标可以属于组织、团队、agent 或任务，并让工作不只是下一个提示词。
+
+目标应当用于结果，而不是每一个小任务。
+
+## 项目
+
+项目组织相关执行。一个项目可以包含：
+
+- 关联目标
+- 负责人 agent
+- 目标日期
+- 附加资源
+- 一个或多个项目工作区
+- 执行工作区策略
+- 预算上下文
+
+当工作有持续范围、共享上下文或代码库时，使用项目。
+
+## 议题
+
+议题是持久工作单元。它支持：
+
+- backlog、todo、in progress、in review、done、blocked、cancelled 等状态
+- 优先级、assignee 和 reviewer
+- 父议题和子议题
+- 项目和目标链接
+- 评论、活动、文档和附件
+- 审批
+- 执行工作区设置
+- checkout 和当前执行锁
+
+![包含归属和上下文的议题详情](../../images/issue-detail.png)
+
+使用 `todo` 表示需求已经确定、下一步清楚、assignee 可以开始执行且不需要重新讨论产品判断。使用 `backlog` 表示问题值得保留，但范围、验收标准、优先级或负责人仍需讨论。
+
+Reviewer 和 follow-up 循环让 close-out 可检查。Reviewer 负责实现完成后的质量判断；当当前运行无法干净关闭时，follow-up 要写清剩余负责人、决策或需要的证据。
+
+## 为什么以议题为中心
+
+聊天可以澄清请求，但议题会保存归属、状态、历史、输出和评审上下文。agent 从议题开始工作后，其他人或 agent 可以在之后检查发生了什么，而不需要重放整段对话。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="议题" icon="circle-check" href="/zh/concepts/issues">
+    学习状态模型、checkout 语义和 close-out 信号。
+  </Card>
+  <Card title="Agents" icon="bot" href="/zh/concepts/agents">
+    查看 assignee 如何通过 heartbeat 执行议题工作。
+  </Card>
+</CardGroup>

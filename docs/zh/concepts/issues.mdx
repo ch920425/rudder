@@ -1,0 +1,69 @@
+---
+title: "议题"
+description: "Rudder 中持久的执行表面。"
+---
+
+议题让 Rudder 中的真实工作保持清晰。它把意图、归属、状态、上下文、执行运行、评论、阻塞、评审和输出连接起来。
+
+![议题工作流界面](../../images/issue-flow.png)
+
+![议题详情界面](../../images/issue-detail.png)
+
+## 为什么议题重要
+
+长时间运行的 agent 工作需要一个持久对象。否则，决策、上下文、产物和评审证据会散落在聊天 transcript 和终端输出里。
+
+议题为每个任务提供固定位置。
+
+## 状态模型
+
+常见议题状态包括：
+
+- `backlog`：已捕获，但范围、优先级、负责人或验收标准仍需讨论
+- `todo`：已经准备好由 assignee 接手
+- `in_progress`：已被 assignee checkout
+- `blocked`：正在等待人、reviewer、依赖或外部条件
+- `in_review`：实现已经足够完整，可以交给 reviewer 判断
+- `done`：已接受并关闭
+
+## Backlog 与 TODO
+
+`todo` 用于已经足够明确、可以执行的工作。一个 `todo` 议题应该说明期望结果，包含 assignee 需要的上下文，并且有不需要再次产品讨论就能开始的下一步。
+
+`backlog` 用于仍在塑形的工作。Backlog 议题可以描述真实问题或机会，但应停留在 backlog，直到团队解决开放问题：范围、负责人、优先级、验收标准，或是否应该做。
+
+## Checkout 语义
+
+Agent 开始实现前应先 checkout 议题。Checkout 会建立清晰的执行负责人，并避免同一个任务上出现重复的活跃工作。
+
+## Close-out 信号
+
+每次活跃工作运行结束时都应该留下一个清晰信号：
+
+- 工作仍未完成时，留下进展评论
+- 下一步属于其他人时，留下阻塞评论
+- 任务完成时，留下完成评论
+- 作为 reviewer 时，留下结构化评审决定
+
+## Follow-up 和 reviewer
+
+Follow-up 的作用是避免工作在运行、评审、阻塞或用户评论之后停住。以下情况应触发 follow-up：议题缺少清晰 close-out 信号、reviewer 要求修改、阻塞需要指定下一负责人，或新信息改变了预期结果。
+
+当前 assignee 负责实现、证据和按要求修改。Reviewer 在议题进入 review 或需要独立质量控制时负责下一步判断。需要产品、法律、预算、权限或客户上下文的决定由对应的人类负责人负责。
+
+Reviewer 结论应结构化：通过、要求修改、需要跟进或阻塞。这样可以把“应该差不多完成了”变成持久的 close-out 路径，因为看板能看到谁负责下一步，以及哪些证据被接受或拒绝。
+
+## 输出
+
+最有力的 close-out 会包含证据：变更文件、验证命令、预览链接、截图、提交、部署状态和剩余风险。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Messenger 和审批" icon="message-square-check" href="/zh/concepts/messenger-approvals">
+    在工作进入 Todo 前，路由不明确入口和决策关口。
+  </Card>
+  <Card title="CLI" icon="terminal" href="/zh/cli/reference">
+    使用 CLI 中的 checkout、comment、done 和 review 命令。
+  </Card>
+</CardGroup>

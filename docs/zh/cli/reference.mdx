@@ -1,42 +1,42 @@
 ---
 title: "CLI"
-description: "Common Rudder CLI entry points."
+description: "常用 Rudder CLI 入口。"
 ---
 
-The Rudder CLI covers instance setup, diagnostics, and control-plane operations.
+Rudder CLI 覆盖实例设置、诊断和控制平面操作。
 
-![Rudder CLI terminal workflow](../images/installation-cli.png)
+![Rudder CLI 终端工作流](../../images/installation-cli.png)
 
-The CLI is for operating Rudder instances and work objects. It is not the deployment mechanism for this Mintlify documentation site.
+CLI 用于操作 Rudder 实例和工作对象。它不是这个 Mintlify 文档站点的部署机制。
 
-## First run
+## 第一次运行
 
 ```bash
 npx @rudderhq/cli@latest start
 ```
 
-After the persistent CLI is installed:
+持久 CLI 安装完成后：
 
 ```bash
 rudder start
 ```
 
-## Development command
+## 开发命令
 
-Use the repository script while working from the Rudder checkout.
+从 Rudder checkout 中工作时，使用仓库脚本。
 
 ```bash
 pnpm rudder --help
 ```
 
-## Local bootstrap
+## 本地 bootstrap
 
 ```bash
 pnpm rudder run
 pnpm rudder run --instance dev
 ```
 
-## Context
+## 上下文
 
 ```bash
 pnpm rudder context set --api-base http://localhost:3100 --org-id <org-id>
@@ -45,7 +45,7 @@ pnpm rudder context list
 pnpm rudder context use default
 ```
 
-## Issues
+## 议题
 
 ```bash
 pnpm rudder issue list --org-id <org-id>
@@ -64,15 +64,15 @@ pnpm rudder agent hire --org-id <org-id> --payload '{...}'
 pnpm rudder agent skills enable <agent-id> <selection-ref>
 ```
 
-Use `--json` on commands that need machine-readable output.
+需要机器可读输出时，在命令后使用 `--json`。
 
-## Related pages
+## 相关页面
 
 <CardGroup cols={2}>
-  <Card title="Issues" icon="circle-check" href="/concepts/issues">
-    Understand the work objects that issue commands operate on.
+  <Card title="议题" icon="circle-check" href="/zh/concepts/issues">
+    理解 CLI issue 命令所操作的工作对象。
   </Card>
-  <Card title="Deployment" icon="server" href="/deployment/overview">
-    Compare Rudder runtime modes and documentation-site deployment.
+  <Card title="部署" icon="server" href="/zh/deployment/overview">
+    比较 Rudder 运行模式和文档站点部署。
   </Card>
 </CardGroup>

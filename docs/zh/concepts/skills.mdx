@@ -1,0 +1,43 @@
+---
+title: "技能"
+description: "给 agent 使用的可复用操作说明。"
+---
+
+技能把可复用说明、参考资料、脚本和资产打包给 agent 使用。它帮助 agent 稳定执行重复工作流，而不需要把长提示词复制到每个任务里。
+
+![组织技能库](../../images/skills-library.png)
+
+## 什么适合放进技能
+
+技能应该足够聚焦，能在触发时立即有用。常见示例包括：
+
+- 调试某一类运行 transcript
+- 创建插件
+- 维护 mock 数据
+- 运行预览 server
+- 整理记忆文件
+
+## 个人技能和组织技能
+
+个人技能保存在 agent 的 home 目录下。组织技能保存在共享组织技能目录中，并可以为 agent 启用。
+
+把个人技能提升为组织技能时，应复制到组织技能目录并同步该共享路径，确保未来运行不依赖某个 agent 的私有副本。
+
+## 技能加载
+
+运行时技能加载来自 Rudder 中 agent 的 enabled-skills 配置。把文件安装到磁盘上，并不等于已经为未来运行启用了该技能。
+
+## 技能与插件
+
+当你需要保存 agent 操作知识时，使用技能。当你需要扩展 Rudder 产品界面、worker API、UI 路由、任务、启动器或集成时，使用插件。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="插件" icon="plug" href="/zh/plugins/overview">
+    通过可信 worker 和 UI package 扩展 Rudder。
+  </Card>
+  <Card title="Agents" icon="bot" href="/zh/concepts/agents">
+    为需要该工作流的 agent 启用技能。
+  </Card>
+</CardGroup>

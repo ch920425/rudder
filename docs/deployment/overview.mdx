@@ -7,6 +7,10 @@ Rudder supports local-first operation and authenticated deployments.
 
 ![Instance settings](../images/instance-settings.png)
 
+<Note>
+  This page describes Rudder product deployment modes. The separate "Documentation site deployment" section is only for publishing this Mintlify documentation site and is not required to use Rudder.
+</Note>
+
 ## Runtime modes
 
 | Mode | Exposure | Human auth | Primary use |
@@ -46,5 +50,18 @@ pnpm docs:validate
 Deployment should be wired through Mintlify's GitHub integration for the `docs/` subdirectory, then pointed at `doc.rudder.zeeland.studio` as the production custom domain.
 
 <Warning>
-  This repository does not currently contain Vercel or Mintlify project metadata for `doc.rudder.zeeland.studio`. Domain binding requires access to the Mintlify workspace and DNS provider.
+  Documentation site publishing is separate from Rudder runtime installation, CLI setup, and product deployment. The repository does not currently contain Vercel or Mintlify project metadata for `doc.rudder.zeeland.studio`; domain binding requires access to the Mintlify workspace and DNS provider.
 </Warning>
+
+## CLI relationship
+
+The Rudder CLI starts and operates Rudder instances, sets local context, and manages control-plane objects such as issues and agents. It does not deploy the Mintlify documentation site. Use the CLI when running Rudder; use Mintlify's deployment flow when publishing these docs.
+
+<CardGroup cols={2}>
+  <Card title="Install Rudder" icon="download" href="/get-started/installation">
+    Start Rudder Desktop and prepare the persistent CLI.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/reference">
+    Use Rudder's command surface for instance and issue operations.
+  </Card>
+</CardGroup>
