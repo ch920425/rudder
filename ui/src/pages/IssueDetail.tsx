@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate, useParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
 import { organizationsApi } from "../api/orgs";
-import { chatsApi } from "../api/chats";
 import { activityApi } from "../api/activity";
 import { heartbeatsApi } from "../api/heartbeats";
 import { agentsApi } from "../api/agents";
@@ -116,6 +115,17 @@ type IssueCostSummaryData = {
   hasCost: boolean;
   hasTokens: boolean;
 };
+
+type IssueChatTarget = Pick<Issue, "id" | "identifier" | "title" | "projectId" | "assigneeAgentId">;
+
+export function buildIssueChatHref(issue: IssueChatTarget) {
+  const params = new URLSearchParams({
+    issueId: issue.id,
+  });
+  if (issue.projectId) params.set("projectId", issue.projectId);
+  if (issue.assigneeAgentId) params.set("agentId", issue.assigneeAgentId);
+  return `/messenger/chat?${params.toString()}`;
+}
 
 const ISSUE_UPDATE_METADATA_KEYS = new Set([
   "identifier",
@@ -1493,27 +1503,16 @@ export function IssueDetail() {
     },
   });
 
-  const openInChat = useMutation({
-    mutationFn: async () => {
-      if (!resolvedCompanyId || !issue) throw new Error("Issue is not ready");
-      return chatsApi.create(resolvedCompanyId, {
-        title: `Discuss ${issue.identifier ?? "issue"}`,
-        contextLinks: [{ entityType: "issue", entityId: issue.id }],
-      });
-    },
-    onSuccess: (conversation) => {
-      if (resolvedCompanyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(resolvedCompanyId) });
-      }
-      navigate(`/chat/${conversation.id}`);
-    },
-    onError: (err) => {
+  const openInChat = useCallback(() => {
+    if (!issue) {
       pushToast({
-        title: err instanceof Error ? err.message : "Failed to open chat",
+        title: "Issue is not ready",
         tone: "error",
       });
-    },
-  });
+      return;
+    }
+    navigate(buildIssueChatHref(issue));
+  }, [issue, navigate, pushToast]);
 
   const createSubIssue = useMutation({
     mutationFn: async (title: string) => {
@@ -1715,8 +1714,7 @@ export function IssueDetail() {
         variant="ghost"
         size="sm"
         className="h-7 px-2 text-xs"
-        onClick={() => openInChat.mutate()}
-        disabled={openInChat.isPending}
+        onClick={openInChat}
       >
         <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
         Chat
@@ -1849,7 +1847,7 @@ export function IssueDetail() {
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={() => openInChat.mutate()}
+              onClick={openInChat}
               title="Open in chat"
             >
               <MessageSquare className="h-4 w-4" />

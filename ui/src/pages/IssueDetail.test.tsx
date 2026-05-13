@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IssueDetail } from "./IssueDetail";
+import { IssueDetail, buildIssueChatHref } from "./IssueDetail";
 
 let capturedMentions: Array<Record<string, unknown>> = [];
 let mockSourceBreadcrumb: { label: string; href: string } | null = null;
@@ -484,6 +484,25 @@ vi.mock("lucide-react", () => {
       if (prop === "__esModule") return true;
       return target[prop as keyof typeof target] ?? Icon;
     },
+  });
+});
+
+describe("buildIssueChatHref", () => {
+  it("opens the Messenger new-chat composer with pending issue context", () => {
+    const href = buildIssueChatHref({
+      id: "issue-123",
+      identifier: "ORG2-123",
+      title: "Clarify issue chat behavior",
+      projectId: "project-1",
+      assigneeAgentId: "agent-1",
+    });
+    const url = new URL(href, "http://rudder.test");
+
+    expect(url.pathname).toBe("/messenger/chat");
+    expect(url.searchParams.get("issueId")).toBe("issue-123");
+    expect(url.searchParams.get("projectId")).toBe("project-1");
+    expect(url.searchParams.get("agentId")).toBe("agent-1");
+    expect(url.searchParams.has("prefill")).toBe(false);
   });
 });
 

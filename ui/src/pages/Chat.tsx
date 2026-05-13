@@ -247,6 +247,28 @@ function projectContextId(conversation: ChatConversation | null | undefined) {
   return conversation?.contextLinks.find((link) => link.entityType === "project")?.entityId ?? null;
 }
 
+export function resolveDraftIssueContext(issues: Issue[] | undefined, requestedIssueId: string | null | undefined) {
+  const normalizedIssueId = requestedIssueId?.trim();
+  if (!normalizedIssueId) return null;
+  return (issues ?? []).find((issue) => issue.id === normalizedIssueId || issue.identifier === normalizedIssueId) ?? null;
+}
+
+export function draftIssueContextLabel(issue: Pick<Issue, "identifier" | "title"> | null | undefined) {
+  if (!issue) return "this issue";
+  return issue.identifier?.trim() || issue.title.trim() || "this issue";
+}
+
+export function buildDraftChatContextLinks(projectId: string | null, issueId: string | null) {
+  const contextLinks: Array<{ entityType: "issue" | "project"; entityId: string }> = [];
+  if (issueId) {
+    contextLinks.push({ entityType: "issue", entityId: issueId });
+  }
+  if (projectId) {
+    contextLinks.push({ entityType: "project", entityId: projectId });
+  }
+  return contextLinks;
+}
+
 function issueAssigneeMentionLabel(
   issue: Pick<Issue, "assigneeAgentId" | "assigneeUserId">,
   agentById: Map<string, Agent>,
@@ -1743,6 +1765,7 @@ function StreamTranscriptItem({
   streamStartedAt,
   streamEndedAt,
   assistantMessageBody,
+  showDeveloperDiagnostics,
   defaultOpen = false,
   onOpenChange,
 }: {
@@ -1751,6 +1774,7 @@ function StreamTranscriptItem({
   streamStartedAt: Date;
   streamEndedAt?: Date | null;
   assistantMessageBody?: string | null;
+  showDeveloperDiagnostics?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -1837,6 +1861,7 @@ function StreamTranscriptItem({
               streaming={streamingActive}
               collapseStdout
               presentation="chat"
+              showDeveloperDiagnostics={showDeveloperDiagnostics}
               hiddenAssistantMessageText={assistantMessageBody}
             />
           </div>
@@ -2017,9 +2042,10 @@ function ChatWorkspace() {
     chatMessagesScrollElementRef.current = element;
     chatMessagesActivityRef(element);
   }, [chatMessagesActivityRef]);
-  const pendingPrefill = searchParams.get("prefill")?.trim() ?? "";
+  const pendingPrefill = searchParams.get("prefill") ?? "";
   const pendingAgentPrefill = searchParams.get("agentId")?.trim() ?? "";
   const pendingProjectPrefill = searchParams.get("projectId")?.trim() ?? "";
+  const pendingIssueId = searchParams.get("issueId")?.trim() ?? "";
   const relativePath = toOrganizationRelativePath(location.pathname);
   const chatRouteBase = relativePath.startsWith("/messenger/chat") ? "/messenger/chat" : "/chat";
   const openLocalFile = useCallback((targetPath: string) => {
@@ -2197,6 +2223,11 @@ function ChatWorkspace() {
     queryKey: queryKeys.instance.profileSettings,
     queryFn: () => instanceSettingsApi.getProfile(),
   });
+  const generalSettingsQuery = useQuery({
+    queryKey: queryKeys.instance.generalSettings,
+    queryFn: () => instanceSettingsApi.getGeneral(),
+  });
+  const showDeveloperDiagnostics = generalSettingsQuery.data?.showDeveloperDiagnostics === true;
 
   useEffect(() => {
     if (pendingPrefill) return;
@@ -2270,6 +2301,12 @@ function ChatWorkspace() {
   const selectedConversation = conversationQuery.data
     ?? conversationsQuery.data?.find((conversation) => conversation.id === conversationId)
     ?? null;
+  const draftIssueContext = !selectedConversation
+    ? resolveDraftIssueContext(issues, pendingIssueId)
+    : null;
+  const draftIssueContextId = !selectedConversation && pendingIssueId
+    ? draftIssueContext?.id ?? pendingIssueId
+    : null;
   const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId;
   const selectedConversationProjectId = projectContextId(selectedConversation);
   const pendingSelectedConversationProjectId =
@@ -2824,9 +2861,10 @@ function ChatWorkspace() {
           preferredAgentId: selectedDraftAgentId,
           issueCreationMode: "manual_approval",
           planMode: draftPlanMode,
-          contextLinks: draftProjectId === NO_PROJECT_ID
-            ? []
-            : [{ entityType: "project", entityId: draftProjectId }],
+          contextLinks: buildDraftChatContextLinks(
+            draftProjectId === NO_PROJECT_ID ? null : draftProjectId,
+            draftIssueContextId,
+          ),
         });
         const startedAt = new Date();
         conversation = upsertOptimisticConversation(createdConversation, body, startedAt);
@@ -3462,6 +3500,8 @@ function ChatWorkspace() {
     : t("chat.emptyState.heading");
   const composerPlaceholder = activePlanMode
     ? t("chat.composer.planModePlaceholder")
+    : draftIssueContext
+      ? t("chat.composer.issuePlaceholder", { issue: draftIssueContextLabel(draftIssueContext) })
     : t("chat.composer.placeholder");
   const expandedPromptGroup = EMPTY_STATE_PROMPT_GROUPS.find((group) => group.label === expandedEmptyStatePrompt) ?? null;
   const emptyStatePromptOptionsId = "chat-empty-state-prompt-options";
@@ -4067,6 +4107,7 @@ function ChatWorkspace() {
                                     streamStartedAt={persistedProcessStartedAt!}
                                     streamEndedAt={persistedProcessEndedAt}
                                     assistantMessageBody={message.body}
+                                    showDeveloperDiagnostics={showDeveloperDiagnostics}
                                     defaultOpen={Boolean(openProcessMessageIds[message.id])}
                                     onOpenChange={(open) => setProcessOpenForMessage(message.id, open)}
                                   />
@@ -4135,6 +4176,7 @@ function ChatWorkspace() {
                                 state={activeStream.state}
                                 streamStartedAt={activeStream.createdAt}
                                 assistantMessageBody={activeStream.body}
+                                showDeveloperDiagnostics={showDeveloperDiagnostics}
                               />
                               <AssistantDraftItem
                                 body={activeStream.body}

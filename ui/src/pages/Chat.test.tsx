@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Agent, ChatConversation, ChatMessage } from "@rudderhq/shared";
+import type { Agent, ChatConversation, ChatMessage, Issue } from "@rudderhq/shared";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
 import {
@@ -10,13 +10,16 @@ import {
   INTERRUPTED_CHAT_CONTINUATION_PROMPT,
   ProposalCard,
   assistantStateLabel,
+  buildDraftChatContextLinks,
   canContinueInterruptedChatMessage,
   canRetryFailedChatMessage,
   computeDisplayedChatMessages,
   createChatImageDesktopPayload,
+  draftIssueContextLabel,
   findRetrySourceUserMessage,
   isChatAgentSelectionLocked,
   isUserVisibleIncomingChatMessage,
+  resolveDraftIssueContext,
   resolveChatImageFilename,
   scrollChatMessagesToBottom,
   statusChipClassName,
@@ -155,6 +158,28 @@ describe("ChatSystemMessageBody", () => {
     expect(html).toContain("rudder-markdown");
     expect(html).toContain("<strong>approved</strong>");
     expect(html).not.toContain("chat-system-issue-link");
+  });
+});
+
+describe("draft issue chat context", () => {
+  it("resolves pending issue context by id or identifier", () => {
+    const issue = {
+      id: "issue-1",
+      identifier: "ZST-146",
+      title: "Fix chat routing",
+    } as Issue;
+
+    expect(resolveDraftIssueContext([issue], "issue-1")).toBe(issue);
+    expect(resolveDraftIssueContext([issue], "ZST-146")).toBe(issue);
+    expect(resolveDraftIssueContext([issue], "missing")).toBeNull();
+  });
+
+  it("attaches issue context before project context when creating a draft chat", () => {
+    expect(buildDraftChatContextLinks("project-1", "issue-1")).toEqual([
+      { entityType: "issue", entityId: "issue-1" },
+      { entityType: "project", entityId: "project-1" },
+    ]);
+    expect(draftIssueContextLabel({ identifier: null, title: "Untitled fix" })).toBe("Untitled fix");
   });
 });
 

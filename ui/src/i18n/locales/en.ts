@@ -38,6 +38,7 @@ export const en = {
   "chat.emptyState.heading": "What can I help with?",
   "chat.emptyState.headingNamed": "What can I help with, {{name}}?",
   "chat.composer.placeholder": "Ask anything",
+  "chat.composer.issuePlaceholder": "Ask about {{issue}}",
   "chat.composer.planModePlaceholder": "Ask for follow-up changes",
   "organizations.description": "Manage organizations for this Rudder instance.",
   "organizationSkills.createSkillChatPrompt":
