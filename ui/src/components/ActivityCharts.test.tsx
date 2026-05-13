@@ -44,14 +44,14 @@ function buildSkillAnalytics(overrides: Partial<AgentSkillAnalytics> = {}): Agen
     endDate: "2026-05-12",
     totalCount: 1,
     totalRunsWithSkills: 1,
-    evidenceCounts: { used: 0, requested: 0, loaded: 1 },
+    evidenceCounts: { used: 1, requested: 0, loaded: 0 },
     skills: [
       {
         key: "build-advisor",
         label: "build-advisor",
         count: 1,
-        evidence: "loaded",
-        evidenceCounts: { used: 0, requested: 0, loaded: 1 },
+        evidence: "used",
+        evidenceCounts: { used: 1, requested: 0, loaded: 0 },
       },
     ],
     days: [
@@ -65,14 +65,14 @@ function buildSkillAnalytics(overrides: Partial<AgentSkillAnalytics> = {}): Agen
         date: "2026-05-12",
         totalCount: 1,
         runCount: 1,
-        evidenceCounts: { used: 0, requested: 0, loaded: 1 },
+        evidenceCounts: { used: 1, requested: 0, loaded: 0 },
         skills: [
           {
             key: "build-advisor",
             label: "build-advisor",
             count: 1,
-            evidence: "loaded",
-            evidenceCounts: { used: 0, requested: 0, loaded: 1 },
+            evidence: "used",
+            evidenceCounts: { used: 1, requested: 0, loaded: 0 },
           },
         ],
       },
@@ -89,5 +89,22 @@ describe("SkillsUsageChart", () => {
     expect(container.textContent).toContain("Not enough skill usage to chart yet.");
     expect(container.textContent).toContain("1 skill use across 1 run");
     expect(container.textContent).not.toContain("Skill Usage Distribution");
+  });
+
+  it("does not expose telemetry evidence categories in the user-facing chart", () => {
+    const container = render(<SkillsUsageChart analytics={buildSkillAnalytics({
+      totalCount: 3,
+      totalRunsWithSkills: 3,
+      evidenceCounts: { used: 1, requested: 1, loaded: 1 },
+      days: [
+        { date: "2026-05-06", totalCount: 1, runCount: 1, evidenceCounts: { used: 1, requested: 0, loaded: 0 }, skills: [{ key: "build-advisor", label: "build-advisor", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } }] },
+        { date: "2026-05-07", totalCount: 1, runCount: 1, evidenceCounts: { used: 0, requested: 1, loaded: 0 }, skills: [{ key: "prompt-only", label: "prompt-only", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } }] },
+        { date: "2026-05-08", totalCount: 1, runCount: 1, evidenceCounts: { used: 0, requested: 0, loaded: 1 }, skills: [{ key: "loaded-only", label: "loaded-only", count: 1, evidence: "loaded", evidenceCounts: { used: 0, requested: 0, loaded: 1 } }] },
+      ],
+    })} />);
+
+    expect(container.textContent).toContain("Skill Usage Timeline");
+    expect(container.textContent).not.toContain("Prompt requested");
+    expect(container.textContent).not.toContain("Loaded only");
   });
 });

@@ -114,6 +114,10 @@ test.describe("Agent dashboard skills analytics", () => {
         message: "adapter invocation",
         payload: {
           prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md) and [$screenshot](/workspace/.agents/skills/screenshot/SKILL.md)",
+          usedSkills: [
+            { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
+            { key: "screenshot", runtimeName: "screenshot", name: "Screenshot" },
+          ],
           loadedSkills: [
             { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
             { key: "screenshot", runtimeName: "screenshot", name: "Screenshot" },
@@ -131,13 +135,32 @@ test.describe("Agent dashboard skills analytics", () => {
         level: "info",
         message: "adapter invocation",
         payload: {
-          prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md) and [$pua](/workspace/.agents/skills/pua/SKILL.md)",
+          prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md), [$pua](/workspace/.agents/skills/pua/SKILL.md), and [$unused-requested](/workspace/.agents/skills/unused-requested/SKILL.md)",
           loadedSkills: [
             { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
             { key: "pua", runtimeName: "pua", name: "PUA" },
+            { key: "unused-requested", runtimeName: "unused-requested", name: "Unused Requested" },
           ],
         },
         createdAt: new Date(recentAfternoon.getTime() + 5 * 1000),
+      },
+      {
+        orgId: organization.id,
+        runId: runTwoId,
+        agentId: agent.id,
+        seq: 2,
+        eventType: "adapter.skill_usage",
+        stream: "system",
+        level: "info",
+        message: "skill usage inferred from transcript",
+        payload: {
+          source: "transcript.skill_file_read",
+          usedSkills: [
+            { key: "rudder/build-advisor", label: "build-advisor" },
+            { key: "pua", label: "pua" },
+          ],
+        },
+        createdAt: new Date(recentAfternoon.getTime() + 10 * 1000),
       },
       {
         orgId: organization.id,
@@ -185,6 +208,9 @@ test.describe("Agent dashboard skills analytics", () => {
     await expect(page.getByText("build-advisor").first()).toBeVisible();
     await expect(page.getByText("screenshot").first()).toBeVisible();
     await expect(page.getByText("pua").first()).toBeVisible();
+    await expect(page.getByText("unused-requested")).toHaveCount(0);
+    await expect(page.getByText("Prompt requested")).toHaveCount(0);
+    await expect(page.getByText("Loaded only")).toHaveCount(0);
     await page.keyboard.press("Escape");
 
     const recentDayColumn = mainContent.getByLabel(new RegExp(`${escapeRegExp(formatDayTitle(recentDateKey))}: 4 skill uses across 2 runs`));
@@ -273,6 +299,10 @@ test.describe("Agent dashboard skills analytics", () => {
         message: "adapter invocation",
         payload: {
           prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md) and [$screenshot](/workspace/.agents/skills/screenshot/SKILL.md)",
+          usedSkills: [
+            { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
+            { key: "screenshot", runtimeName: "screenshot", name: "Screenshot" },
+          ],
           loadedSkills: [
             { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
             { key: "screenshot", runtimeName: "screenshot", name: "Screenshot" },
@@ -290,13 +320,32 @@ test.describe("Agent dashboard skills analytics", () => {
         level: "info",
         message: "adapter invocation",
         payload: {
-          prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md) and [$deep-research](/workspace/.agents/skills/deep-research/SKILL.md)",
+          prompt: "Use [$build-advisor](/workspace/.agents/skills/build-advisor/SKILL.md), [$deep-research](/workspace/.agents/skills/deep-research/SKILL.md), and [$unused-requested](/workspace/.agents/skills/unused-requested/SKILL.md)",
           loadedSkills: [
             { key: "rudder/build-advisor", runtimeName: "build-advisor", name: "Build Advisor" },
             { key: "deep-research", runtimeName: "deep-research", name: "Deep Research" },
+            { key: "unused-requested", runtimeName: "unused-requested", name: "Unused Requested" },
           ],
         },
         createdAt: new Date(secondRunAt.getTime() + 5 * 1000),
+      },
+      {
+        orgId: organization.id,
+        runId: secondRunId,
+        agentId: secondAgent.id,
+        seq: 2,
+        eventType: "adapter.skill_usage",
+        stream: "system",
+        level: "info",
+        message: "skill usage inferred from transcript",
+        payload: {
+          source: "transcript.skill_file_read",
+          usedSkills: [
+            { key: "rudder/build-advisor", label: "build-advisor" },
+            { key: "deep-research", label: "deep-research" },
+          ],
+        },
+        createdAt: new Date(secondRunAt.getTime() + 10 * 1000),
       },
     ]);
 
@@ -322,6 +371,9 @@ test.describe("Agent dashboard skills analytics", () => {
     await expect(page.getByText("build-advisor").first()).toBeVisible();
     await expect(page.getByText("screenshot").first()).toBeVisible();
     await expect(page.getByText("deep-research").first()).toBeVisible();
+    await expect(page.getByText("unused-requested")).toHaveCount(0);
+    await expect(page.getByText("Prompt requested")).toHaveCount(0);
+    await expect(page.getByText("Loaded only")).toHaveCount(0);
     await page.keyboard.press("Escape");
 
     const recentDayColumn = mainContent.getByLabel(new RegExp(`${escapeRegExp(formatDayTitle(recentDateKey))}: 4 skill uses across 2 runs`));
