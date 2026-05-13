@@ -60,8 +60,17 @@ test.describe("Agent detail cancelled run retry", () => {
 
     const detailPane = page.getByTestId("agent-runs-detail-pane");
     await expect(detailPane.getByText("Adapter failed")).toBeVisible({ timeout: 15_000 });
-    const retryButton = detailPane.getByRole("button", { name: "Retry" });
+    const summaryCard = detailPane.getByTestId("run-summary-card");
+    const retryButton = summaryCard.getByTestId("run-detail-retry");
     await expect(retryButton).toBeVisible();
+    await expect(retryButton).toHaveText(/Retry/);
+
+    const summaryBox = await summaryCard.boundingBox();
+    const retryBox = await retryButton.boundingBox();
+    expect(summaryBox).not.toBeNull();
+    expect(retryBox).not.toBeNull();
+    expect(retryBox!.x + retryBox!.width).toBeGreaterThan(summaryBox!.x + summaryBox!.width * 0.75);
+    expect(retryBox!.y).toBeLessThan(summaryBox!.y + 48);
 
     const retryResponsePromise = page.waitForResponse((response) =>
       response.url().includes(`/api/heartbeat-runs/${runId}/retry`) && response.request().method() === "POST",

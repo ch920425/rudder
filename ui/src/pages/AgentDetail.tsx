@@ -4172,50 +4172,68 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
   const passiveFollowupAttempt = typeof passiveFollowupContext?.attempt === "number" ? passiveFollowupContext.attempt : null;
   const passiveFollowupMaxAttempts =
     typeof passiveFollowupContext?.maxAttempts === "number" ? passiveFollowupContext.maxAttempts : null;
+  const runActionButton = (() => {
+    if (run.status === "running" || run.status === "queued") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-xs text-destructive hover:text-destructive"
+          onClick={() => cancelRun.mutate()}
+          disabled={cancelRun.isPending}
+        >
+          {cancelRun.isPending ? "Cancelling..." : "Cancel"}
+        </Button>
+      );
+    }
+    if (canResumeLostRun) {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          onClick={() => recoverRun.mutate()}
+          disabled={recoverRun.isPending}
+          data-testid="run-detail-retry"
+        >
+          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+          {recoverRun.isPending ? "Resuming..." : "Resume"}
+        </Button>
+      );
+    }
+    if (canRetryRun) {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          onClick={() => recoverRun.mutate()}
+          disabled={recoverRun.isPending}
+          data-testid="run-detail-retry"
+        >
+          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+          {recoverRun.isPending ? "Retrying..." : "Retry"}
+        </Button>
+      );
+    }
+    return null;
+  })();
 
   return (
     <div className="space-y-4 min-w-0">
       {/* Run summary card */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden" data-testid="run-summary-card">
         <div className="flex flex-col sm:flex-row">
           {/* Left column: status + timing */}
           <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <StatusBadge status={run.status} />
-              {(run.status === "running" || run.status === "queued") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive text-xs h-6 px-2"
-                  onClick={() => cancelRun.mutate()}
-                  disabled={cancelRun.isPending}
-                >
-                  {cancelRun.isPending ? "Cancelling…" : "Cancel"}
-                </Button>
-              )}
-              {canResumeLostRun && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-6 px-2"
-                  onClick={() => recoverRun.mutate()}
-                  disabled={recoverRun.isPending}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  {recoverRun.isPending ? "Resuming…" : "Resume"}
-                </Button>
-              )}
-              {canRetryRun && !canResumeLostRun && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-6 px-2"
-                  onClick={() => recoverRun.mutate()}
-                  disabled={recoverRun.isPending}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  {recoverRun.isPending ? "Retrying…" : "Retry"}
-                </Button>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <StatusBadge status={run.status} />
+              </div>
+              {runActionButton && (
+                <div className="shrink-0">
+                  {runActionButton}
+                </div>
               )}
             </div>
             {recoverRun.isError && (
