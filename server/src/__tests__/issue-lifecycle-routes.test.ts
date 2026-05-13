@@ -1608,6 +1608,48 @@ describe("issue lifecycle routes", () => {
     expect(renderedPrompt).toContain("please check the retry path");
   });
 
+  it("does not wake the assignee for ordinary comments on backlog issues", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: "backlog",
+      }),
+    );
+
+    const res = await request(createApp())
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: "parking this for later" });
+
+    expect(res.status).toBe(201);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
+  });
+
+  it("wakes only mentioned agents for comments on backlog issues", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: "backlog",
+      }),
+    );
+    mockIssueService.findMentionedAgents.mockResolvedValue([PEER_AGENT_ID]);
+
+    const res = await request(createApp())
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: "@Peer Agent can you look at the UX?" });
+
+    expect(res.status).toBe(201);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(1);
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      PEER_AGENT_ID,
+      expect.objectContaining({
+        source: "automation",
+        reason: "issue_comment_mentioned",
+      }),
+    );
+  });
+
   it("does not enqueue a duplicate wakeup when an agent checks out its own issue in-run", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({

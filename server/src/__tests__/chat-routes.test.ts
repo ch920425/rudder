@@ -586,7 +586,7 @@ describe("chat routes", () => {
     expect(res.body.messages).toHaveLength(2);
   });
 
-  it("defaults manual approval-backed issue proposals to the selected chat agent", async () => {
+  it("does not default manual approval-backed issue proposals to the selected chat agent", async () => {
     const conversation = createConversation({
       preferredAgentId: "agent-1",
       chatRuntime: {
@@ -607,13 +607,11 @@ describe("chat routes", () => {
           title: "Implement owned flow",
           description: "Create a tracked implementation task for the selected agent.",
           priority: "medium",
-          assigneeAgentId: "agent-1",
         },
       },
     };
 
     mockChatService.getById.mockResolvedValue(conversation);
-    mockAgentService.getById.mockResolvedValue({ id: "agent-1", orgId: "organization-1", status: "idle" });
     mockChatService.listMessages.mockResolvedValue([userMessage]);
     mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
     mockChatService.addMessage.mockResolvedValueOnce(proposalMessage);
@@ -654,23 +652,14 @@ describe("chat routes", () => {
       .send({ body: "Need the selected agent to own this" });
 
     expect(res.status).toBe(201);
-    expect(mockChatService.createProposalApproval).toHaveBeenCalledWith(
-      "organization-1",
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          proposedIssue: expect.objectContaining({ assigneeAgentId: "agent-1" }),
-        }),
-      }),
-    );
-    expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
-      1,
-      "chat-1",
-      expect.objectContaining({
-        structuredPayload: expect.objectContaining({
-          issueProposal: expect.objectContaining({ assigneeAgentId: "agent-1" }),
-        }),
-      }),
-    );
+    const approvalInput = mockChatService.createProposalApproval.mock.calls[0]?.[1] as any;
+    expect(approvalInput.payload.proposedIssue.assigneeAgentId).toBeUndefined();
+    expect(approvalInput.payload.proposedIssue.assigneeUserId).toBeUndefined();
+
+    const savedMessage = mockChatService.addMessage.mock.calls[0]?.[1] as any;
+    expect(savedMessage.structuredPayload.issueProposal.assigneeAgentId).toBeUndefined();
+    expect(savedMessage.structuredPayload.issueProposal.assigneeUserId).toBeUndefined();
+    expect(mockAgentService.getById).not.toHaveBeenCalledWith("agent-1");
   });
 
   it("keeps plan-mode issue proposals approval-backed and preserves the plan document", async () => {

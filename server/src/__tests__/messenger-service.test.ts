@@ -570,7 +570,7 @@ describe("messengerService and issue follows", () => {
     expect(results.find((conversation) => conversation.id === messageChatId)?.searchPreview).toContain("launch-token");
   });
 
-  it("assigns approved chat issue proposals to the selected chat agent by default", async () => {
+  it("does not assign approved chat issue proposals to the selected chat agent by default", async () => {
     const orgId = randomUUID();
     const agentId = randomUUID();
     const userId = "board-user-approval";
@@ -632,11 +632,11 @@ describe("messengerService and issue follows", () => {
 
     expect(issue).toMatchObject({
       title: "Implement selected work",
-      assigneeAgentId: agentId,
+      assigneeAgentId: null,
       reviewerAgentId: agentId,
       createdByUserId: userId,
     });
-    expect(persistedIssue?.assigneeAgentId).toBe(agentId);
+    expect(persistedIssue?.assigneeAgentId).toBeNull();
     expect(persistedIssue?.reviewerAgentId).toBe(agentId);
   });
 

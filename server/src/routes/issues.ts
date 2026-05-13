@@ -1889,7 +1889,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
       const assigneeId = currentIssue.assigneeAgentId;
       const actorIsAgent = actor.actorType === "agent";
       const selfComment = actorIsAgent && actor.actorId === assigneeId;
-      const skipWake = selfComment || isClosed;
+      const backlogComment = currentIssue.status === "backlog";
+      const skipWake = selfComment || isClosed || backlogComment;
       if (assigneeId && (reopened || !skipWake)) {
         if (reopened) {
           wakeups.set(assigneeId, {

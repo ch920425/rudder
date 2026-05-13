@@ -163,36 +163,48 @@ test.describe("Chat proposal review block", () => {
     await expect(page.locator(".rudder-mdxeditor-content").last()).toBeVisible();
   });
 
-  test("assigns approved chat-created issues to the selected chat agent", async ({ page }) => {
+  test("preserves explicit assignees on approved chat-created issues", async ({ page }) => {
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Assign-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Proposal Owner",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {},
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json();
     const command = await writeProposalStub("proposal-review-assignee", {
       kind: "issue_proposal",
       body: "Create a scoped issue for the selected chat agent.",
       structuredPayload: {
         issueProposal: {
           title: "Selected chat agent assignment test",
-          description: "Verify approved chat issue proposals default to the selected conversation agent.",
+          description: "Verify approved chat issue proposals preserve explicit assignment.",
           priority: "medium",
+          assigneeAgentId: agent.id,
         },
       },
     });
-    const organization = await createProposalOrg(page, `Assign-${Date.now()}`, command);
-    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
-      data: {
-        name: "Proposal Owner",
-        role: "engineer",
-        agentRuntimeType: "codex_local",
-        agentRuntimeConfig: {
-          model: "gpt-5.4",
-          command,
-        },
-      },
+    const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+      name: "Proposal Agent",
+      command,
     });
-    expect(agentRes.ok()).toBe(true);
-    const agent = await agentRes.json();
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
     const conversationRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
       data: {
         title: "Selected agent proposal",
-        preferredAgentId: agent.id,
+        preferredAgentId: chatAgent.id,
         issueCreationMode: "manual_approval",
       },
     });
