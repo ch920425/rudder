@@ -5888,6 +5888,7 @@ export function heartbeatService(db: Db) {
       evidence: { evidence: AgentSkillTelemetryEvidence; skills: Array<{ key: string; label: string }> },
     ) {
       if (!days.has(date)) return;
+      if (evidence.evidence !== "used") return;
       if (evidence.skills.length === 0) return;
 
       const runBucket = runEvidence.get(runId) ?? { date, skills: new Map() };

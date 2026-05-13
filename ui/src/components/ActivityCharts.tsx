@@ -103,12 +103,6 @@ function TooltipMetricRow({
   );
 }
 
-function formatEvidenceLabel(value: string): string {
-  if (value === "used") return "Used";
-  if (value === "requested") return "Prompt requested";
-  return "Loaded only";
-}
-
 function formatSkillUseCount(count: number): string {
   return `${count} skill use${count === 1 ? "" : "s"}`;
 }
@@ -303,15 +297,6 @@ function SkillDistributionPie({
                 value={`${segment.count} · ${formatPercent(segment.count, analytics.totalCount)}`}
               />
             ))}
-            {Object.entries(analytics.evidenceCounts)
-              .filter(([, count]) => count > 0)
-              .map(([evidence, count]) => (
-                <TooltipMetricRow
-                  key={evidence}
-                  label={formatEvidenceLabel(evidence)}
-                  value={count}
-                />
-              ))}
           </div>
         </div>
       </TooltipContent>
@@ -706,15 +691,6 @@ export function SkillsUsageChart({
                       <>
                         <TooltipMetricRow label="Skill uses" value={day.totalCount} />
                         <TooltipMetricRow label="Runs with skill usage" value={day.runCount} />
-                        {Object.entries(day.evidenceCounts)
-                          .filter(([, count]) => count > 0)
-                          .map(([evidence, count]) => (
-                            <TooltipMetricRow
-                              key={`${day.date}:${evidence}`}
-                              label={formatEvidenceLabel(evidence)}
-                              value={count}
-                            />
-                          ))}
                         {topSkills.map((skill) => (
                           <TooltipMetricRow
                             key={`${day.date}:${skill.key}`}

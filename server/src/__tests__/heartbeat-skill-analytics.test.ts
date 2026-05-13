@@ -59,6 +59,12 @@ async function getAvailablePort(): Promise<number> {
 }
 
 async function startTempDatabase() {
+  const externalConnectionString = process.env.RUDDER_HEARTBEAT_SKILLS_TEST_DATABASE_URL?.trim();
+  if (externalConnectionString) {
+    await applyPendingMigrations(externalConnectionString);
+    return { connectionString: externalConnectionString, dataDir: "", instance: null };
+  }
+
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudder-heartbeat-skills-"));
   const port = await getAvailablePort();
   const EmbeddedPostgres = await getEmbeddedPostgresCtor();
@@ -372,28 +378,21 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     expect(analytics.windowDays).toBe(30);
     expect(analytics.startDate).toBe("2026-03-24");
     expect(analytics.endDate).toBe("2026-04-22");
-    expect(analytics.totalCount).toBe(7);
-    expect(analytics.totalRunsWithSkills).toBe(4);
-    expect(analytics.evidenceCounts).toEqual({ used: 2, requested: 5, loaded: 0 });
+    expect(analytics.totalCount).toBe(2);
+    expect(analytics.totalRunsWithSkills).toBe(1);
+    expect(analytics.evidenceCounts).toEqual({ used: 2, requested: 0, loaded: 0 });
     expect(analytics.skills).toEqual([
-      { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-      { key: "pua", label: "pua", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
       { key: "runtime-used", label: "runtime-used", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
-      { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
       { key: "skill-read", label: "skill-read", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
     ]);
 
     const april20 = analytics.days.find((day) => day.date === "2026-04-20");
     expect(april20).toEqual({
       date: "2026-04-20",
-      totalCount: 4,
-      runCount: 2,
-      evidenceCounts: { used: 0, requested: 4, loaded: 0 },
-      skills: [
-        { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-        { key: "pua", label: "pua", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-        { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-      ],
+      totalCount: 0,
+      runCount: 0,
+      evidenceCounts: { used: 0, requested: 0, loaded: 0 },
+      skills: [],
     });
 
     const april19 = analytics.days.find((day) => day.date === "2026-04-19");
@@ -411,12 +410,10 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     const april18 = analytics.days.find((day) => day.date === "2026-04-18");
     expect(april18).toEqual({
       date: "2026-04-18",
-      totalCount: 1,
-      runCount: 1,
-      evidenceCounts: { used: 0, requested: 1, loaded: 0 },
-      skills: [
-        { key: "pua", label: "pua", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-      ],
+      totalCount: 0,
+      runCount: 0,
+      evidenceCounts: { used: 0, requested: 0, loaded: 0 },
+      skills: [],
     });
 
     expect(analytics.days.find((day) => day.date === "2026-03-10")).toBeUndefined();
@@ -429,20 +426,16 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
     expect(customAnalytics.windowDays).toBe(1);
     expect(customAnalytics.startDate).toBe("2026-04-20");
     expect(customAnalytics.endDate).toBe("2026-04-20");
-    expect(customAnalytics.totalCount).toBe(4);
-    expect(customAnalytics.totalRunsWithSkills).toBe(2);
-    expect(customAnalytics.evidenceCounts).toEqual({ used: 0, requested: 4, loaded: 0 });
+    expect(customAnalytics.totalCount).toBe(0);
+    expect(customAnalytics.totalRunsWithSkills).toBe(0);
+    expect(customAnalytics.evidenceCounts).toEqual({ used: 0, requested: 0, loaded: 0 });
     expect(customAnalytics.days).toEqual([
       {
         date: "2026-04-20",
-        totalCount: 4,
-        runCount: 2,
-        evidenceCounts: { used: 0, requested: 4, loaded: 0 },
-        skills: [
-          { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-          { key: "pua", label: "pua", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-          { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-        ],
+        totalCount: 0,
+        runCount: 0,
+        evidenceCounts: { used: 0, requested: 0, loaded: 0 },
+        skills: [],
       },
     ]);
 
@@ -452,30 +445,21 @@ describe("heartbeatService.getAgentSkillAnalytics", () => {
 
     expect(organizationAnalytics.agentId).toBe("__all__");
     expect(organizationAnalytics.orgId).toBe(orgId);
-    expect(organizationAnalytics.totalCount).toBe(9);
-    expect(organizationAnalytics.totalRunsWithSkills).toBe(5);
-    expect(organizationAnalytics.evidenceCounts).toEqual({ used: 2, requested: 7, loaded: 0 });
+    expect(organizationAnalytics.totalCount).toBe(2);
+    expect(organizationAnalytics.totalRunsWithSkills).toBe(1);
+    expect(organizationAnalytics.evidenceCounts).toEqual({ used: 2, requested: 0, loaded: 0 });
     expect(organizationAnalytics.skills).toEqual([
-      { key: "pua", label: "pua", count: 3, evidence: "requested", evidenceCounts: { used: 0, requested: 3, loaded: 0 } },
-      { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-      { key: "deep-research", label: "deep-research", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
       { key: "runtime-used", label: "runtime-used", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
-      { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
       { key: "skill-read", label: "skill-read", count: 1, evidence: "used", evidenceCounts: { used: 1, requested: 0, loaded: 0 } },
     ]);
 
     const orgApril20 = organizationAnalytics.days.find((day) => day.date === "2026-04-20");
     expect(orgApril20).toEqual({
       date: "2026-04-20",
-      totalCount: 6,
-      runCount: 3,
-      evidenceCounts: { used: 0, requested: 6, loaded: 0 },
-      skills: [
-        { key: "rudder/build-advisor", label: "build-advisor", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-        { key: "pua", label: "pua", count: 2, evidence: "requested", evidenceCounts: { used: 0, requested: 2, loaded: 0 } },
-        { key: "deep-research", label: "deep-research", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-        { key: "screenshot", label: "screenshot", count: 1, evidence: "requested", evidenceCounts: { used: 0, requested: 1, loaded: 0 } },
-      ],
+      totalCount: 0,
+      runCount: 0,
+      evidenceCounts: { used: 0, requested: 0, loaded: 0 },
+      skills: [],
     });
   });
 
