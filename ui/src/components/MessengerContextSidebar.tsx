@@ -8,6 +8,8 @@ import {
   DollarSign,
   ListFilter,
   Loader2,
+  Mail,
+  MailOpen,
   MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
@@ -255,6 +257,7 @@ function ChatThreadRow({
   onStartRename,
   onArchive,
   onTogglePin,
+  onToggleUnread,
   onCopyConversationId,
   onSelect,
 }: {
@@ -269,6 +272,7 @@ function ChatThreadRow({
   onStartRename: () => void;
   onArchive: () => void;
   onTogglePin: () => void;
+  onToggleUnread: () => void;
   onCopyConversationId: () => void;
   onSelect: (href: string) => void;
 }) {
@@ -396,6 +400,19 @@ function ChatThreadRow({
                   <>
                     <Pin className="h-4 w-4" />
                     Pin
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onToggleUnread}>
+                {conversation.isUnread ? (
+                  <>
+                    <MailOpen className="h-4 w-4" />
+                    Mark as Read
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4" />
+                    Mark as Unread
                   </>
                 )}
               </DropdownMenuItem>
@@ -756,8 +773,16 @@ export function MessengerContextSidebar() {
   });
 
   const updateConversationUserStateMutation = useMutation({
-    mutationFn: ({ chatId, pinned }: { chatId: string; pinned: boolean }) =>
-      chatsApi.updateUserState(chatId, { pinned }),
+    mutationFn: ({
+      chatId,
+      pinned,
+      unread,
+    }: {
+      chatId: string;
+      pinned?: boolean;
+      unread?: boolean;
+    }) =>
+      chatsApi.updateUserState(chatId, { pinned, unread }),
     onSuccess: async (conversation) => {
       await refreshChatViews(conversation.id);
     },
@@ -935,6 +960,12 @@ export function MessengerContextSidebar() {
                       updateConversationUserStateMutation.mutate({
                         chatId: conversation.id,
                         pinned: !conversation.isPinned,
+                      });
+                    }}
+                    onToggleUnread={() => {
+                      updateConversationUserStateMutation.mutate({
+                        chatId: conversation.id,
+                        unread: !conversation.isUnread,
                       });
                     }}
                     onCopyConversationId={() => void copyConversationId(conversation.id)}

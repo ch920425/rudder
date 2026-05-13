@@ -873,6 +873,34 @@ export function chatService(db: Db) {
     return row;
   }
 
+  async function markUnread(conversationId: string, orgId: string, userId: string) {
+    const latestIncomingMessage = await db
+      .select({ createdAt: chatMessages.createdAt })
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.orgId, orgId),
+          eq(chatMessages.conversationId, conversationId),
+          isNull(chatMessages.supersededAt),
+          visibleIncomingMessageSql(),
+        ),
+      )
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(1)
+      .then((rows) => rows[0] ?? null);
+
+    if (!latestIncomingMessage) {
+      return markRead(conversationId, orgId, userId, new Date(0));
+    }
+
+    return markRead(
+      conversationId,
+      orgId,
+      userId,
+      new Date(latestIncomingMessage.createdAt.getTime() - 1),
+    );
+  }
+
   async function setPinned(conversationId: string, orgId: string, userId: string, pinned: boolean) {
     const conversation = await getConversationOrThrow(conversationId);
     const now = new Date();
@@ -1772,6 +1800,7 @@ export function chatService(db: Db) {
     update,
     resolve,
     markRead,
+    markUnread,
     setPinned,
     listMessages,
     addMessage,

@@ -29,6 +29,7 @@ const mockChatService = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   markRead: vi.fn(),
+  markUnread: vi.fn(),
   setPinned: vi.fn(),
   listMessages: vi.fn(),
   getMessage: vi.fn(),
@@ -279,6 +280,21 @@ describe("chat routes", () => {
       "user-1",
     );
     expect(mockChatAssistantService.enrichConversations).toHaveBeenCalled();
+  });
+
+  it("updates chat unread state through the user-state endpoint", async () => {
+    const conversation = createConversation();
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.markUnread.mockResolvedValue({});
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/user-state")
+      .send({ unread: true });
+
+    expect(res.status).toBe(200);
+    expect(mockChatService.markUnread).toHaveBeenCalledWith("chat-1", "organization-1", "user-1");
+    expect(mockChatService.markRead).not.toHaveBeenCalled();
+    expect(res.body.id).toBe("chat-1");
   });
 
   it("creates a conversation using the organization default issue creation mode", async () => {

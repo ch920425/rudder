@@ -178,6 +178,7 @@ export const chatsApi = {
     chatId: string,
     data: {
       pinned?: boolean;
+      unread?: boolean;
     },
   ) => api.post<ChatConversation>(`/chats/${chatId}/user-state`, data),
 };

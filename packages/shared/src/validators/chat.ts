@@ -84,6 +84,7 @@ export const resolveChatOperationProposalSchema = z.object({
 
 export const updateChatConversationUserStateSchema = z.object({
   pinned: z.boolean().optional(),
+  unread: z.boolean().optional(),
 });
 
 export type ChatConversationStatus = z.infer<typeof chatConversationStatusSchema>;

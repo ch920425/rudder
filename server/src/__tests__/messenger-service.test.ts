@@ -465,6 +465,48 @@ describe("messengerService and issue follows", () => {
     expect(afterStatusOnlyUpdate?.needsAttention).toBe(false);
   });
 
+  it("can mark a read chat unread by rewinding to the latest visible incoming message", async () => {
+    const orgId = randomUUID();
+    const conversationId = randomUUID();
+    const userId = "board-user-mark-unread";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Chat Mark Unread Org",
+      urlKey: deriveOrganizationUrlKey("Chat Mark Unread Org"),
+      issuePrefix: `U${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Mark unread chat",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+
+    await chatSvc.addUserChatMessage(conversationId, orgId, "User messages are not unread work.");
+    await chatSvc.addMessage(conversationId, {
+      orgId,
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Incoming assistant reply",
+    });
+    await chatSvc.markRead(conversationId, orgId, userId, new Date());
+
+    const [afterRead] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterRead?.unreadCount).toBe(0);
+
+    await chatSvc.markUnread(conversationId, orgId, userId);
+
+    const [afterUnread] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterUnread?.unreadCount).toBe(1);
+    expect(afterUnread?.isUnread).toBe(true);
+    expect(afterUnread?.needsAttention).toBe(true);
+  });
+
   it("searches chat conversations by title, summary, and message body without leaking organizations", async () => {
     const orgId = randomUUID();
     const otherOrgId = randomUUID();

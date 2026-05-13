@@ -1872,6 +1872,13 @@ export function chatRoutes(db: Db, storage: StorageService) {
     if (typeof req.body.pinned === "boolean") {
       await svc.setPinned(conversation.id, conversation.orgId, userId, req.body.pinned);
     }
+    if (typeof req.body.unread === "boolean") {
+      if (req.body.unread) {
+        await svc.markUnread(conversation.id, conversation.orgId, userId);
+      } else {
+        await svc.markRead(conversation.id, conversation.orgId, userId);
+      }
+    }
     const refreshed = await svc.getById(conversation.id, userId);
     res.json(await assistantSvc.enrichConversation(refreshed as ChatConversation));
   });
