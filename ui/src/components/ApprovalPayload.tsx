@@ -84,7 +84,6 @@ function ChatField({ chatConversationId, chatConversation }: {
           <Link className="font-medium text-foreground underline-offset-4 hover:underline" to={`/messenger/chat/${resolvedConversation.id}`}>
             {resolvedConversation.title.trim() || "Untitled chat"}
           </Link>
-          <p className="text-xs text-muted-foreground">Conversation where the agent proposed this issue.</p>
         </div>
       ) : (
         <span className="font-medium">Chat conversation</span>
