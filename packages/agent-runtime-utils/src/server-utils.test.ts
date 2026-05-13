@@ -636,7 +636,47 @@ describe("syncLocalCliCredentialHomeEntries", () => {
 });
 
 describe("ensureLocalCliCredentialShimsInPath", () => {
-  it("runs selected host CLI commands with operator HOME without changing runtime HOME", async () => {
+  it("does not shim default commands when managed HOME credentials work", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-shims-managed-"));
+    const operatorHome = path.join(root, "operator-home");
+    const targetHome = path.join(root, "agent-home");
+    const binDir = path.join(root, "bin");
+    const fakeVercel = path.join(binDir, "vercel");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(path.join(operatorHome, ".config", "vercel"), { recursive: true });
+    await fs.mkdir(path.join(targetHome, ".config", "vercel"), { recursive: true });
+    await fs.writeFile(path.join(targetHome, ".config", "vercel", "auth.json"), "{}\n", "utf8");
+    await fs.writeFile(
+      fakeVercel,
+      [
+        "#!/bin/sh",
+        "if [ \"$1\" = \"whoami\" ] && [ -f \"$HOME/.config/vercel/auth.json\" ]; then exit 0; fi",
+        "exit 1",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(fakeVercel, 0o755);
+
+    try {
+      const env = await ensureLocalCliCredentialShimsInPath({
+        operatorHome,
+        targetHome,
+        env: {
+          HOME: targetHome,
+          PATH: binDir,
+        },
+      });
+
+      expect(env.HOME).toBe(targetHome);
+      expect(env.PATH?.split(":")[0]).toBe(binDir);
+      await expect(fs.lstat(path.join(targetHome, ".rudder", "local-cli-shims", "vercel"))).rejects.toThrow();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("runs selected host CLI commands with operator HOME when managed HOME auth fails", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-shims-"));
     const operatorHome = path.join(root, "operator-home");
     const targetHome = path.join(root, "agent-home");
@@ -650,12 +690,17 @@ describe("ensureLocalCliCredentialShimsInPath", () => {
       fakeGh,
       [
         "#!/bin/sh",
+        "if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then",
+        "  test -f \"$HOME/auth-ok\"",
+        "  exit $?",
+        "fi",
         `printf '{"home":"%s","userProfile":"%s"}\\n' "$HOME" "$USERPROFILE" > ${JSON.stringify(capturePath)}`,
         "",
       ].join("\n"),
       "utf8",
     );
     await fs.chmod(fakeGh, 0o755);
+    await fs.writeFile(path.join(operatorHome, "auth-ok"), "yes\n", "utf8");
 
     try {
       const env = await ensureLocalCliCredentialShimsInPath({
@@ -665,7 +710,7 @@ describe("ensureLocalCliCredentialShimsInPath", () => {
           HOME: targetHome,
           PATH: binDir,
         },
-        commands: ["gh"],
+        commands: [{ command: "gh", authCheckArgs: ["auth", "status"] }],
       });
 
       expect(env.HOME).toBe(targetHome);

@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+  applyGitCredentialHelperPolicyEnv,
   applyGitIdentityPreparationEnv,
   ensureGitIdentityFileConfig,
   ensureGitRepositoryIdentityConfig,
@@ -106,7 +107,7 @@ describe("git identity guard", () => {
     }
   });
 
-  it("includes host global Git config when a safe identity is resolved", async () => {
+  it("copies only safe host global Git identity into the isolated config", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-git-identity-include-"));
     try {
       const repo = await createRepoWithoutStoredIdentity(root);
@@ -141,13 +142,13 @@ describe("git identity guard", () => {
       });
       await expect(runGit(repo, [
         "config",
-        "--get",
+        "--get-all",
         "credential.helper",
       ], {
         HOME: isolatedHome,
         GIT_CONFIG_GLOBAL: path.join(isolatedHome, ".gitconfig"),
         GIT_CONFIG_NOSYSTEM: "1",
-      })).resolves.toMatchObject({ stdout: "store\n" });
+      })).rejects.toMatchObject({ stdout: "" });
       await expect(runGit(repo, [
         "config",
         "--get",
@@ -157,9 +158,32 @@ describe("git identity guard", () => {
         GIT_CONFIG_GLOBAL: path.join(isolatedHome, ".gitconfig"),
         GIT_CONFIG_NOSYSTEM: "1",
       })).resolves.toMatchObject({ stdout: "operator@example.com\n" });
+      const managedConfig = await fs.readFile(path.join(isolatedHome, ".gitconfig"), "utf8");
+      expect(managedConfig).not.toContain("[include]");
+      expect(managedConfig).not.toContain("helper = store");
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("injects a narrow gh-backed Git credential helper policy through env config", async () => {
+    const env: Record<string, string> = {
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "protocol.version",
+      GIT_CONFIG_VALUE_0: "2",
+    };
+
+    applyGitCredentialHelperPolicyEnv(env);
+
+    expect(env).toMatchObject({
+      GIT_CONFIG_COUNT: "3",
+      GIT_CONFIG_KEY_0: "protocol.version",
+      GIT_CONFIG_VALUE_0: "2",
+      GIT_CONFIG_KEY_1: "credential.helper",
+      GIT_CONFIG_VALUE_1: "",
+      GIT_CONFIG_KEY_2: "credential.helper",
+      GIT_CONFIG_VALUE_2: "!gh auth git-credential",
+    });
   });
 
   it("prevents Git fallback commits when isolated HOME has no usable identity", async () => {

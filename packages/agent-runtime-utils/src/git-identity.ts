@@ -160,48 +160,16 @@ async function unsetGitConfigValue(args: string[], key: string, opts: { cwd?: st
   await runGit([...args, "--unset-all", key], opts);
 }
 
-async function existingGitConfigPaths(candidates: string[]): Promise<string[]> {
-  const seen = new Set<string>();
-  const existing: string[] = [];
-  for (const candidate of candidates) {
-    const normalized = nonEmpty(candidate);
-    if (!normalized) continue;
-    const resolved = path.resolve(normalized);
-    if (seen.has(resolved)) continue;
-    const stat = await fs.stat(resolved).catch(() => null);
-    if (!stat?.isFile()) continue;
-    seen.add(resolved);
-    existing.push(resolved);
-  }
-  return existing;
-}
-
-async function resolveHostGlobalGitConfigIncludes(sourceEnv: NodeJS.ProcessEnv, targetConfigPath: string): Promise<string[]> {
-  const home = nonEmpty(sourceEnv.HOME);
-  const xdgConfigHome = nonEmpty(sourceEnv.XDG_CONFIG_HOME);
-  const candidates = [
-    nonEmpty(sourceEnv.GIT_CONFIG_GLOBAL) ?? "",
-    home ? path.join(home, ".gitconfig") : "",
-    xdgConfigHome ? path.join(xdgConfigHome, "git", "config") : "",
-    home ? path.join(home, ".config", "git", "config") : "",
-  ].filter(Boolean);
-  const target = path.resolve(targetConfigPath);
-  return (await existingGitConfigPaths(candidates)).filter((candidate) => candidate !== target);
-}
-
-function renderGitConfigIncludes(includePaths: string[]): string[] {
-  if (includePaths.length === 0) return [];
-  return ["[include]", ...includePaths.map((includePath) => `\tpath = ${includePath}`), ""];
-}
-
-async function writeGitConfigSeed(configPath: string, includePaths: string[]): Promise<void> {
+async function writeGitConfigSeed(configPath: string): Promise<void> {
   await fs.mkdir(path.dirname(configPath), { recursive: true });
-  const lines = renderGitConfigIncludes(includePaths);
-  await fs.writeFile(configPath, lines.length > 0 ? `${lines.join("\n")}\n` : "", "utf8");
+  await fs.writeFile(configPath, "", "utf8");
 }
 
-async function writeFallbackGitConfigFile(configPath: string, identity: GitIdentity | null, includePaths: string[] = []): Promise<void> {
-  const lines = [...renderGitConfigIncludes(includePaths), "[user]", "\tuseConfigOnly = true"];
+async function writeFallbackGitConfigFile(configPath: string, identity: GitIdentity | null): Promise<void> {
+  const lines = ["[user]", "\tuseConfigOnly = true"];
+  if (identity?.source === "global") {
+    lines.push(`\tname = ${identity.name}`, `\temail = ${identity.email}`);
+  }
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, `${lines.join("\n")}\n`, "utf8");
 }
@@ -239,19 +207,20 @@ export async function ensureGitIdentityFileConfig(input: {
     cwd: input.cwd,
     sourceEnv,
   });
-  const includePaths = identity
-    ? await resolveHostGlobalGitConfigIncludes(sourceEnv, gitConfigPath)
-    : [];
   const warnings: string[] = [];
 
   try {
-    await writeGitConfigSeed(gitConfigPath, includePaths);
+    await writeGitConfigSeed(gitConfigPath);
     await setGitConfigValue(configArgs, "user.useConfigOnly", "true", { cwd: input.cwd, env: sourceEnv });
     await unsetGitConfigValue(configArgs, "user.name", { cwd: input.cwd, env: sourceEnv });
     await unsetGitConfigValue(configArgs, "user.email", { cwd: input.cwd, env: sourceEnv });
+    if (identity?.source === "global") {
+      await setGitConfigValue(configArgs, "user.name", identity.name, { cwd: input.cwd, env: sourceEnv });
+      await setGitConfigValue(configArgs, "user.email", identity.email, { cwd: input.cwd, env: sourceEnv });
+    }
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : String(error));
-    await writeFallbackGitConfigFile(gitConfigPath, identity, includePaths);
+    await writeFallbackGitConfigFile(gitConfigPath, identity);
   }
 
   if (input.onLog) {
@@ -270,6 +239,33 @@ export async function ensureGitIdentityFileConfig(input: {
     configuredUseConfigOnly: true,
     warnings,
   };
+}
+
+function readGitConfigEnvCount(env: Record<string, string>): number {
+  const raw = nonEmpty(env.GIT_CONFIG_COUNT);
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function appendGitConfigEnvValue(env: Record<string, string>, key: string, value: string): void {
+  const index = readGitConfigEnvCount(env);
+  env[`GIT_CONFIG_KEY_${index}`] = key;
+  env[`GIT_CONFIG_VALUE_${index}`] = value;
+  env.GIT_CONFIG_COUNT = String(index + 1);
+}
+
+export function applyGitCredentialHelperPolicyEnv(
+  env: Record<string, string>,
+  options: {
+    helper?: string;
+    resetExistingHelpers?: boolean;
+  } = {},
+): void {
+  if (options.resetExistingHelpers ?? true) {
+    appendGitConfigEnvValue(env, "credential.helper", "");
+  }
+  appendGitConfigEnvValue(env, "credential.helper", options.helper ?? "!gh auth git-credential");
 }
 
 export async function ensureGitRepositoryIdentityConfig(input: {

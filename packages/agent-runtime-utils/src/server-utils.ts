@@ -78,7 +78,24 @@ const DEFAULT_LOCAL_CLI_CREDENTIAL_HOME_ENTRIES = [
   "Library/Application Support/gh",
   "Library/Application Support/com.heroku.cli",
 ] as const;
-const DEFAULT_LOCAL_CLI_OPERATOR_HOME_SHIM_COMMANDS = ["gh"] as const;
+type LocalCliCredentialShimCommand = {
+  command: string;
+  authCheckArgs?: readonly string[];
+  credentialEntries?: readonly string[];
+};
+
+const DEFAULT_LOCAL_CLI_OPERATOR_HOME_SHIM_COMMANDS = [
+  {
+    command: "gh",
+    authCheckArgs: ["auth", "status"],
+    credentialEntries: [".config/gh", "Library/Application Support/gh"],
+  },
+  {
+    command: "vercel",
+    authCheckArgs: ["whoami"],
+    credentialEntries: [".config/vercel", ".vercel", ".config/configstore"],
+  },
+] as const satisfies readonly LocalCliCredentialShimCommand[];
 
 export interface RudderSkillEntry {
   key: string;
@@ -1536,12 +1553,110 @@ async function writeOperatorHomeShim(input: {
   return shimPath;
 }
 
+function normalizeShimCommand(input: string | LocalCliCredentialShimCommand): LocalCliCredentialShimCommand {
+  return typeof input === "string" ? { command: input } : input;
+}
+
+async function runCredentialShimAuthCheck(input: {
+  targetCommand: string;
+  args: readonly string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  home: string;
+}): Promise<boolean> {
+  const env = {
+    ...input.env,
+    HOME: input.home,
+    USERPROFILE: input.home,
+  };
+  return await new Promise<boolean>((resolve) => {
+    const child = spawn(input.targetCommand, [...input.args], {
+      cwd: input.cwd,
+      env,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve(false);
+    }, 1000);
+    child.on("error", () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      resolve(code === 0);
+    });
+  });
+}
+
+async function credentialBridgeSatisfied(input: {
+  operatorHome: string;
+  targetHome: string;
+  entries: readonly string[];
+}): Promise<boolean> {
+  for (const entry of input.entries) {
+    const source = path.join(input.operatorHome, entry);
+    const target = path.join(input.targetHome, entry);
+    if (!(await localCliPathExists(source)) || !(await localCliPathExists(target))) continue;
+    const [sourceRealpath, targetRealpath] = await Promise.all([
+      fs.realpath(source).catch(() => null),
+      fs.realpath(target).catch(() => null),
+    ]);
+    if (sourceRealpath && targetRealpath && sourceRealpath === targetRealpath) return true;
+  }
+  return false;
+}
+
+async function shouldPrepareOperatorHomeShim(input: {
+  command: LocalCliCredentialShimCommand;
+  targetCommand: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  targetHome: string;
+  operatorHome: string;
+}): Promise<boolean> {
+  const authCheckArgs = input.command.authCheckArgs;
+  if (!authCheckArgs || authCheckArgs.length === 0) return true;
+
+  if (input.command.credentialEntries && input.command.credentialEntries.length > 0) {
+    const hasOperatorCredentialEntry = await Promise.all(
+      input.command.credentialEntries.map((entry) => localCliPathExists(path.join(input.operatorHome, entry))),
+    );
+    if (!hasOperatorCredentialEntry.some(Boolean)) return false;
+    if (await credentialBridgeSatisfied({
+      operatorHome: input.operatorHome,
+      targetHome: input.targetHome,
+      entries: input.command.credentialEntries,
+    })) {
+      return false;
+    }
+  }
+
+  const managedHomeWorks = await runCredentialShimAuthCheck({
+    targetCommand: input.targetCommand,
+    args: authCheckArgs,
+    cwd: input.cwd,
+    env: input.env,
+    home: input.targetHome,
+  });
+  if (managedHomeWorks) return false;
+
+  return await runCredentialShimAuthCheck({
+    targetCommand: input.targetCommand,
+    args: authCheckArgs,
+    cwd: input.cwd,
+    env: input.env,
+    home: input.operatorHome,
+  });
+}
+
 export async function ensureLocalCliCredentialShimsInPath(input: {
   operatorHome?: string | null;
   targetHome: string;
   env: NodeJS.ProcessEnv;
   cwd?: string;
-  commands?: readonly string[];
+  commands?: readonly (string | LocalCliCredentialShimCommand)[];
   onLog?: ((stream: "stdout" | "stderr", chunk: string) => Promise<void>) | null;
 }): Promise<NodeJS.ProcessEnv> {
   const operatorHome = nonEmptyEnvPath(input.operatorHome ?? undefined);
@@ -1556,12 +1671,23 @@ export async function ensureLocalCliCredentialShimsInPath(input: {
   const shimDir = path.join(targetHome, ".rudder", "local-cli-shims");
   const prepared: string[] = [];
 
-  for (const command of commands) {
-    const targetCommand = await resolveCommandPath(command, cwd, normalized);
+  for (const rawCommand of commands) {
+    const command = normalizeShimCommand(rawCommand);
+    const targetCommand = await resolveCommandPath(command.command, cwd, normalized);
     if (!targetCommand) continue;
     if (path.dirname(targetCommand) === shimDir) continue;
-    await writeOperatorHomeShim({ shimDir, command, targetCommand, operatorHome });
-    prepared.push(command);
+    if (!(await shouldPrepareOperatorHomeShim({
+      command,
+      targetCommand,
+      cwd,
+      env: normalized,
+      targetHome,
+      operatorHome,
+    }))) {
+      continue;
+    }
+    await writeOperatorHomeShim({ shimDir, command: command.command, targetCommand, operatorHome });
+    prepared.push(command.command);
   }
 
   if (prepared.length === 0) return normalized;

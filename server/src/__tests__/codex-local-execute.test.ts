@@ -229,6 +229,46 @@ process.stdin.on("end", () => {
   await fs.chmod(commandPath, 0o755);
 }
 
+async function writeGitCredentialCaptureCodexCommand(commandPath: string): Promise<void> {
+  const script = `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
+
+process.stdin.resume();
+process.stdin.on("end", () => {
+  const result = spawnSync("git", ["credential", "fill"], {
+    input: "protocol=https\\nhost=github.com\\n\\n",
+    encoding: "utf8",
+  });
+  const capturePath = process.env.RUDDER_TEST_CAPTURE_PATH;
+  if (capturePath) {
+    fs.writeFileSync(capturePath, JSON.stringify({
+      status: result.status,
+      stdout: result.stdout || "",
+      stderr: result.stderr || "",
+      home: process.env.HOME || null,
+      gitConfigGlobal: process.env.GIT_CONFIG_GLOBAL || null,
+      gitConfigCount: process.env.GIT_CONFIG_COUNT || null,
+      helperConfig: Object.keys(process.env)
+        .filter((key) => /^GIT_CONFIG_(KEY|VALUE)_\\d+$/.test(key))
+        .sort()
+        .map((key) => [key, process.env[key]]),
+    }), "utf8");
+  }
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr || result.stdout || "git credential fill failed");
+    process.exit(result.status || 1);
+    return;
+  }
+  console.log(JSON.stringify({ type: "thread.started", thread_id: "codex-session-1" }));
+  console.log(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "credential captured" } }));
+  console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 } }));
+});
+`;
+  await fs.writeFile(commandPath, script, "utf8");
+  await fs.chmod(commandPath, 0o755);
+}
+
 async function runGit(cwd: string, args: string[], env?: NodeJS.ProcessEnv) {
   return execFileAsync("git", args, {
     cwd,
@@ -474,6 +514,137 @@ describe("codex execute", () => {
     }
   });
 
+  it("injects a gh-backed Git credential helper while preserving managed HOME identity guards", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-git-credential-helper-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "codex");
+    const capturePath = path.join(root, "capture.json");
+    const ghHomeCapturePath = path.join(root, "gh-home.txt");
+    const hostBin = path.join(root, "host-bin");
+    const operatorHome = path.join(root, "operator-home");
+    const sharedCodexHome = path.join(root, "shared-codex-home");
+    const paperclipHome = path.join(root, "rudder-home");
+    const managedCodexHome = managedCodexHomePath({ rudderHome: paperclipHome });
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(hostBin, { recursive: true });
+    await fs.mkdir(path.join(operatorHome, ".config", "gh"), { recursive: true });
+    await fs.mkdir(sharedCodexHome, { recursive: true });
+    await fs.mkdir(path.join(managedCodexHome, "home", ".config", "gh"), { recursive: true });
+    await fs.writeFile(path.join(operatorHome, "auth-ok"), "yes\n", "utf8");
+    await fs.writeFile(path.join(managedCodexHome, "home", ".config", "gh", "hosts.yml"), "stale\n", "utf8");
+    await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
+    await fs.writeFile(path.join(sharedCodexHome, "config.toml"), 'model = "codex-mini-latest"\n', "utf8");
+    await fs.writeFile(
+      path.join(hostBin, "gh"),
+      [
+        "#!/bin/sh",
+        "if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then",
+        "  test -f \"$HOME/auth-ok\"",
+        "  exit $?",
+        "fi",
+        "if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"git-credential\" ]; then",
+        `  printf '%s\\n' "$HOME" > ${JSON.stringify(ghHomeCapturePath)}`,
+        "  cat >/dev/null",
+        "  printf 'protocol=https\\nhost=github.com\\nusername=x-access-token\\npassword=operator-token\\n\\n'",
+        "  exit 0",
+        "fi",
+        "exit 1",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(path.join(hostBin, "gh"), 0o755);
+    await writeGitCredentialCaptureCodexCommand(commandPath);
+
+    const restoreGitEnv = clearInheritedGitIdentityEnv();
+    const previousHome = process.env.HOME;
+    const previousPaperclipHome = process.env.RUDDER_HOME;
+    const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
+    const previousPaperclipInWorktree = process.env.RUDDER_IN_WORKTREE;
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.HOME = operatorHome;
+    process.env.RUDDER_HOME = paperclipHome;
+    delete process.env.RUDDER_INSTANCE_ID;
+    delete process.env.RUDDER_IN_WORKTREE;
+    process.env.CODEX_HOME = sharedCodexHome;
+
+    try {
+      const result = await execute({
+        runId: "run-git-credential-helper",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Codex Coder",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            PATH: `${hostBin}:${process.env.PATH ?? ""}`,
+            RUDDER_OPERATOR_HOME: operatorHome,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+            GIT_CONFIG_NOSYSTEM: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {
+          rudderWorkspace: {
+            orgWorkspaceRoot: path.join(root, "org-workspace"),
+            orgSkillsDir: path.join(root, "org-workspace", "skills"),
+            orgPlansDir: path.join(root, "org-workspace", "plans"),
+          },
+        },
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        status: number;
+        stdout: string;
+        stderr: string;
+        home: string | null;
+        gitConfigGlobal: string | null;
+        gitConfigCount: string | null;
+        helperConfig: Array<[string, string]>;
+      };
+      expect(capture.status).toBe(0);
+      expect(capture.stdout).toContain("password=operator-token");
+      expect(capture.home).toBe(path.join(managedCodexHome, "home"));
+      expect(capture.gitConfigGlobal).toBe(path.join(managedCodexHome, "home", ".gitconfig"));
+      expect(capture.gitConfigCount).toBe("2");
+      expect(capture.helperConfig).toEqual(expect.arrayContaining([
+        ["GIT_CONFIG_KEY_0", "credential.helper"],
+        ["GIT_CONFIG_VALUE_0", ""],
+        ["GIT_CONFIG_KEY_1", "credential.helper"],
+        ["GIT_CONFIG_VALUE_1", "!gh auth git-credential"],
+      ]));
+      await expect(fs.readFile(ghHomeCapturePath, "utf8")).resolves.toBe(`${operatorHome}\n`);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousPaperclipHome === undefined) delete process.env.RUDDER_HOME;
+      else process.env.RUDDER_HOME = previousPaperclipHome;
+      if (previousPaperclipInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
+      else process.env.RUDDER_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousPaperclipInWorktree === undefined) delete process.env.RUDDER_IN_WORKTREE;
+      else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = previousCodexHome;
+      restoreGitEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("uses a Rudder-managed CODEX_HOME outside worktree mode while preserving shared auth and config", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-default-"));
     const workspace = path.join(root, "workspace");
@@ -564,7 +735,7 @@ describe("codex execute", () => {
       expect(capture.userProfile).toBe(path.join(managedCodexHome, "home"));
       expect(capture.agentHome).toBe(path.join(managedCodexHome, "home"));
       expect(capture.rudderOperatorHome).toBe(operatorHome);
-      expect(capture.pathEnv?.split(":")[0]).toBe(path.join(managedCodexHome, "home", ".rudder", "local-cli-shims"));
+      expect(capture.pathEnv?.split(":")[0]).not.toBe(path.join(managedCodexHome, "home", ".rudder", "local-cli-shims"));
       expect(capture.codexSkillEntries).toEqual(["rudder"]);
       expect(capture.argv).toEqual(expect.arrayContaining([
         "exec",
@@ -593,10 +764,7 @@ describe("codex execute", () => {
       expect(managedConfigContents).not.toContain("[[skills.config]]");
       expect((await fs.lstat(managedGh)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedGh)).toBe(await fs.realpath(path.join(operatorHome, ".config", "gh")));
-      expect((await fs.lstat(managedGhShim)).isFile()).toBe(true);
-      const managedGhShimContents = await fs.readFile(managedGhShim, "utf8");
-      expect(managedGhShimContents).toContain(`export HOME='${operatorHome}'`);
-      expect(managedGhShimContents).not.toContain("oauth_token");
+      await expect(fs.lstat(managedGhShim)).rejects.toThrow();
       expect((await fs.lstat(managedSkillLink)).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(managedSkillLink)).toBe(
         await fs.realpath(path.join(process.cwd(), "server", "resources", "bundled-skills", "rudder")),
