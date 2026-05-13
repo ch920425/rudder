@@ -24,20 +24,21 @@ function cssBlock(selector: string) {
 describe("index.css motion rules", () => {
   it("keeps command palette entry animation on compositor-friendly properties", () => {
     const commandPaletteContent = cssBlock(".command-palette-content");
-    const desktopPop = cssBlock("@keyframes command-palette-pop");
-    const desktopClose = cssBlock("@keyframes command-palette-close");
-    const mobilePop = cssBlock("@keyframes command-palette-pop-mobile");
-    const mobileClose = cssBlock("@keyframes command-palette-close-mobile");
+    const desktopEnter = cssBlock("@keyframes command-palette-enter");
+    const desktopExit = cssBlock("@keyframes command-palette-exit");
+    const mobileEnter = cssBlock("@keyframes command-palette-enter-mobile");
+    const mobileExit = cssBlock("@keyframes command-palette-exit-mobile");
     const commandPaletteMotion = [
       commandPaletteContent,
-      desktopPop,
-      desktopClose,
-      mobilePop,
-      mobileClose,
+      desktopEnter,
+      desktopExit,
+      mobileEnter,
+      mobileExit,
     ].join("\n");
 
     expect(commandPaletteContent).toContain("will-change: opacity, transform");
     expect(commandPaletteMotion).not.toContain("filter:");
     expect(commandPaletteMotion).not.toContain("backdrop-filter");
+    expect(commandPaletteMotion).not.toContain("scale(");
   });
 });

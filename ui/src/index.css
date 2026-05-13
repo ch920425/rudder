@@ -622,11 +622,11 @@
   }
 
   .command-palette-content[data-state="open"] {
-    animation: command-palette-pop 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: command-palette-enter 120ms cubic-bezier(0.2, 0, 0, 1) both !important;
   }
 
   .command-palette-content[data-state="closed"] {
-    animation: command-palette-close 110ms ease-in;
+    animation: command-palette-exit 80ms cubic-bezier(0.4, 0, 1, 1) both !important;
   }
 
   .rail-create-menu-content {
@@ -641,29 +641,25 @@
     animation: rail-create-menu-close 95ms ease-in;
   }
 
-  @keyframes command-palette-pop {
+  @keyframes command-palette-enter {
     0% {
       opacity: 0;
-      transform: translate(-50%, calc(-50% - 10px)) scale(0.94);
-    }
-    65% {
-      opacity: 1;
-      transform: translate(-50%, calc(-50% + 1px)) scale(1.01);
+      transform: translate(-50%, calc(-50% - 4px));
     }
     100% {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: translate(-50%, -50%);
     }
   }
 
-  @keyframes command-palette-close {
+  @keyframes command-palette-exit {
     from {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: translate(-50%, -50%);
     }
     to {
       opacity: 0;
-      transform: translate(-50%, calc(-50% - 6px)) scale(0.97);
+      transform: translate(-50%, calc(-50% - 3px));
     }
   }
 
@@ -700,11 +696,11 @@
 
   @media (max-width: 767.98px) {
     .command-palette-content[data-state="open"] {
-      animation-name: command-palette-pop-mobile;
+      animation-name: command-palette-enter-mobile;
     }
 
     .command-palette-content[data-state="closed"] {
-      animation-name: command-palette-close-mobile;
+      animation-name: command-palette-exit-mobile;
     }
   }
 
@@ -717,25 +713,25 @@
     }
   }
 
-  @keyframes command-palette-pop-mobile {
+  @keyframes command-palette-enter-mobile {
     0% {
       opacity: 0;
-      transform: translate(-50%, -0.75rem) scale(0.97);
+      transform: translate(-50%, -0.25rem);
     }
     100% {
       opacity: 1;
-      transform: translate(-50%, 0) scale(1);
+      transform: translate(-50%, 0);
     }
   }
 
-  @keyframes command-palette-close-mobile {
+  @keyframes command-palette-exit-mobile {
     from {
       opacity: 1;
-      transform: translate(-50%, 0) scale(1);
+      transform: translate(-50%, 0);
     }
     to {
       opacity: 0;
-      transform: translate(-50%, -0.5rem) scale(0.98);
+      transform: translate(-50%, -0.25rem);
     }
   }
 
