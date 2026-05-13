@@ -52,7 +52,7 @@ type TranscriptDigestBucket =
   | "run"
   | "tool";
 
-type TranscriptActionIconCategory = TranscriptToolCategory | "stdout";
+type TranscriptActionIconCategory = TranscriptToolCategory | "stdout" | "memory";
 type TranscriptActionIconStatus = "running" | "completed" | "error" | "neutral";
 
 interface TranscriptActionIconTreatment {
@@ -78,6 +78,14 @@ interface TranscriptToolCardEntry {
   result?: string;
   isError?: boolean;
   status: "running" | "completed" | "error";
+}
+
+type TranscriptMemoryScope = "stable_instructions" | "daily_note" | "knowledge_graph";
+
+interface TranscriptMemoryUpdateChange {
+  operation: string;
+  path: string;
+  scope: TranscriptMemoryScope;
 }
 
 type TranscriptTodoListItem = Extract<TranscriptEntry, { kind: "todo_list" }>["items"][number];
@@ -150,6 +158,18 @@ type TranscriptBlock =
       type: "stdout";
       ts: string;
       text: string;
+    }
+  | {
+      type: "memory_update";
+      ts: string;
+      status: "completed" | "error";
+      agentName: string | null;
+      scope: TranscriptMemoryScope;
+      changes: TranscriptMemoryUpdateChange[];
+      summary: string;
+      effect: string;
+      rawText: string;
+      failureReason?: string;
     }
   | {
       type: "event";
@@ -370,6 +390,8 @@ function getTranscriptActionIconTreatment(category: TranscriptActionIconCategory
       return { key: "mcp", label: "MCP tool", Icon: Plug };
     case "stdout":
       return { key: "stdout", label: "Output", Icon: Logs };
+    case "memory":
+      return { key: "memory", label: "Agent memory", Icon: FileText };
     case "help":
       return { key: "help", label: "Help", Icon: FileSearch };
     case "tool":
@@ -798,6 +820,155 @@ function unwrapQuotedToken(token: string): string {
 
 function cleanShellToken(token: string): string {
   return unwrapQuotedToken(token).replace(/[;,|&]+$/g, "").trim();
+}
+
+function normalizeTranscriptPathToken(value: string): string {
+  return cleanShellToken(value)
+    .replace(/^file:\/\//i, "")
+    .replace(/\\/g, "/")
+    .trim();
+}
+
+function titleCaseAgentSlug(value: string): string {
+  const base = value.split("--")[0] || value;
+  return base
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function inferAgentNameFromMemoryPath(path: string): string | null {
+  const normalized = normalizeTranscriptPathToken(path);
+  const match = normalized.match(/\/workspaces\/agents\/([^/]+)/i);
+  const slug = match?.[1];
+  return slug ? titleCaseAgentSlug(slug) : null;
+}
+
+function classifyAgentMemoryPath(path: string): TranscriptMemoryScope | null {
+  const normalized = normalizeTranscriptPathToken(path);
+  const lower = normalized.toLowerCase();
+  const hasAgentHomeSignal =
+    lower.startsWith("$agent_home/")
+    || lower.includes("/.rudder/instances/")
+    || lower.includes("/workspaces/agents/")
+    || lower.includes("/agents/");
+  const isRelativeStableMemory = /^(?:\.\/)?instructions\/memory\.md$/i.test(normalized);
+  const isRelativeDailyMemory = /^(?:\.\/)?memory\/[^/]+/i.test(normalized);
+  const isRelativeKnowledgeGraph = /^(?:\.\/)?life\/[^/]+/i.test(normalized);
+
+  if ((hasAgentHomeSignal || isRelativeStableMemory) && /(?:^|\/)instructions\/memory\.md$/i.test(normalized)) {
+    return "stable_instructions";
+  }
+  if ((hasAgentHomeSignal || isRelativeDailyMemory) && /(?:^|\/)memory\/[^/]+/i.test(normalized)) {
+    return "daily_note";
+  }
+  if ((hasAgentHomeSignal || isRelativeKnowledgeGraph) && /(?:^|\/)life\/[^/]+/i.test(normalized)) {
+    return "knowledge_graph";
+  }
+  return null;
+}
+
+function formatMemoryScopeLabel(scope: TranscriptMemoryScope): string {
+  switch (scope) {
+    case "stable_instructions":
+      return "Stable instructions";
+    case "daily_note":
+      return "Daily note";
+    case "knowledge_graph":
+      return "Knowledge graph";
+    default:
+      return "Agent memory";
+  }
+}
+
+function formatMemoryScopeSummary(scope: TranscriptMemoryScope): string {
+  switch (scope) {
+    case "stable_instructions":
+      return "stable memory instructions";
+    case "daily_note":
+      return "daily memory note";
+    case "knowledge_graph":
+      return "knowledge graph memory";
+    default:
+      return "agent memory";
+  }
+}
+
+function formatMemoryEffect(scope: TranscriptMemoryScope): string {
+  return scope === "stable_instructions" ? "Effective next run" : "Effective immediately";
+}
+
+function formatMemoryOperation(value: string, status: "completed" | "error"): string {
+  if (status === "error") return "failed to update";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "add" || normalized === "create" || normalized === "created") return "created";
+  if (normalized === "delete" || normalized === "remove" || normalized === "removed") return "removed";
+  return "updated";
+}
+
+function splitFileChangeEntries(value: string): string[] {
+  return value
+    .replace(/\s*\(\+\d+\s+more\)\s*$/i, "")
+    .split(/,\s+(?=(?:add|create|created|update|updated|modify|modified|delete|remove|removed)\s+)/i)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function extractMemoryUpdateFailureReason(text: string, body: string): string | undefined {
+  if (!/\b(?:failed|error|errored)\b/i.test(text)) return undefined;
+  const withoutChanges = body.replace(/^(?:add|create|created|update|updated|modify|modified|delete|remove|removed)\s+\S+\s*/i, "").trim();
+  return withoutChanges || compactWhitespace(text);
+}
+
+function parseMemoryUpdateSystemText(text: string, ts: string): Extract<TranscriptBlock, { type: "memory_update" }> | null {
+  const trimmed = compactWhitespace(text);
+  const match =
+    trimmed.match(/^file changes:\s*(.+)$/i)
+    ?? trimmed.match(/^file_change:\s*(.+)$/i)
+    ?? trimmed.match(/^file changes failed:\s*(.+)$/i)
+    ?? trimmed.match(/^memory update failed:\s*(.+)$/i);
+  if (!match) return null;
+
+  const status: "completed" | "error" = /\b(?:failed|error|errored)\b/i.test(trimmed) ? "error" : "completed";
+  const changes = splitFileChangeEntries(match[1] ?? "")
+    .map((entry) => {
+      const changeMatch = entry.match(/^(add|create|created|update|updated|modify|modified|delete|remove|removed)\s+(.+)$/i);
+      if (!changeMatch) return null;
+      const path = normalizeTranscriptPathToken(changeMatch[2] ?? "");
+      const scope = classifyAgentMemoryPath(path);
+      if (!scope) return null;
+      return {
+        operation: changeMatch[1] ?? "update",
+        path,
+        scope,
+      } satisfies TranscriptMemoryUpdateChange;
+    })
+    .filter((change): change is TranscriptMemoryUpdateChange => Boolean(change));
+
+  if (changes.length === 0) return null;
+
+  const primaryChange = changes[0]!;
+  const agentName = changes.map((change) => inferAgentNameFromMemoryPath(change.path)).find(Boolean) ?? null;
+  const scopes = [...new Set(changes.map((change) => change.scope))];
+  const scope = scopes.length === 1 ? primaryChange.scope : "knowledge_graph";
+  const scopeSummary = scopes.length === 1 ? formatMemoryScopeSummary(primaryChange.scope) : "agent memory";
+  const operation = formatMemoryOperation(primaryChange.operation, status);
+  const actor = agentName ?? "Agent";
+  const summary = `${actor} ${operation} ${scopeSummary}.`;
+
+  return {
+    type: "memory_update",
+    ts,
+    status,
+    agentName,
+    scope,
+    changes,
+    summary,
+    effect: formatMemoryEffect(primaryChange.scope),
+    rawText: text,
+    failureReason: extractMemoryUpdateFailureReason(trimmed, match[1] ?? ""),
+  };
 }
 
 function tokenizeShell(command: string): string[] {
@@ -2100,6 +2271,11 @@ export function normalizeTranscript(
       if (compactWhitespace(entry.text).toLowerCase() === "turn started") {
         continue;
       }
+      const memoryUpdate = parseMemoryUpdateSystemText(entry.text, entry.ts);
+      if (memoryUpdate) {
+        blocks.push(memoryUpdate);
+        continue;
+      }
       const activity = parseSystemActivity(entry.text);
       if (activity) {
         const existing = activity.activityId ? pendingActivityBlocks.get(activity.activityId) : undefined;
@@ -2461,6 +2637,7 @@ function renderTranscriptBlock({
           presentation={presentation}
         />
       )}
+      {block.type === "memory_update" && <TranscriptMemoryUpdateRow block={block} density={density} />}
       {block.type === "activity" && <TranscriptActivityRow block={block} density={density} />}
       {block.type === "event" && (
         <TranscriptEventRow block={block} density={density} presentation={presentation} />
@@ -2823,6 +3000,134 @@ function TranscriptTodoListRow({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function TranscriptMemoryUpdateRow({
+  block,
+  density,
+}: {
+  block: Extract<TranscriptBlock, { type: "memory_update" }>;
+  density: TranscriptDensity;
+}) {
+  const [open, setOpen] = useState(block.status === "error" && Boolean(block.failureReason));
+  const compact = density === "compact";
+  const isError = block.status === "error";
+  const title = isError ? "Memory update failed" : "Agent memory updated";
+  const statusLabel = isError ? "Failed" : "Updated";
+  const scopeLabel = formatMemoryScopeLabel(block.scope);
+  const agentLabel = block.agentName ?? "Agent";
+  const expandedState = open ? "expanded" : "collapsed";
+  const ariaLabel = `${title}, ${statusLabel}, ${agentLabel}, ${scopeLabel}, ${expandedState}`;
+  const paths = block.changes.map((change) => change.path);
+  const tags = [agentLabel, scopeLabel, block.effect];
+
+  return (
+    <div
+      data-transcript-memory-update="true"
+      className={cn(
+        "rounded-lg border px-2.5 py-2",
+        isError
+          ? "border-red-500/20 bg-red-500/[0.04]"
+          : "border-border/45 bg-muted/10",
+      )}
+      title={getTranscriptTimestampTitle(block.ts)}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        className="flex cursor-pointer items-start gap-2 text-left"
+        onClick={() => {
+          if (hasSelectedText()) return;
+          setOpen((value) => !value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen((value) => !value);
+          }
+        }}
+        aria-expanded={open}
+        aria-label={ariaLabel}
+      >
+        <TranscriptActionIconSlot category="memory" status={isError ? "error" : "completed"} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className={cn(
+              "font-semibold tracking-[0.05em]",
+              compact ? "text-[11px]" : "text-xs",
+              isError ? "text-red-700 dark:text-red-300" : "text-foreground/80",
+            )}>
+              {title}
+            </span>
+            <span className={cn(
+              "text-[10px] font-medium",
+              isError ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300",
+            )}>
+              {statusLabel}
+            </span>
+            <span className="hidden text-[10px] font-medium tabular-nums text-muted-foreground sm:inline">
+              {formatTranscriptTimestamp(block.ts)}
+            </span>
+          </div>
+          <div className={cn("mt-1 break-words text-foreground/82", compact ? "text-xs leading-5" : "text-sm leading-6")}>
+            {isError && block.failureReason ? block.failureReason : block.summary}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex max-w-full items-center rounded-md border border-border/55 bg-background/65 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                <span className="truncate">{tag}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="mt-0.5 inline-flex h-5 w-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((value) => !value);
+          }}
+          aria-expanded={open}
+          aria-label={open ? "Collapse memory update details" : "Expand memory update details"}
+        >
+          <DisclosureChevron open={open} className="h-4 w-4" />
+        </button>
+      </div>
+      {open ? (
+        <div className="motion-disclosure-enter mt-2 space-y-2 border-t border-border/30 pt-2">
+          {isError && block.failureReason ? (
+            <div>
+              <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                Failure
+              </div>
+              <div className="whitespace-pre-wrap break-words text-xs text-red-700 dark:text-red-300">
+                {block.failureReason}
+              </div>
+            </div>
+          ) : null}
+          <div>
+            <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
+              Paths
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/80">
+              {paths.join("\n")}
+            </pre>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
+              Raw event
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/80">
+              {block.rawText}
+            </pre>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -3572,14 +3877,7 @@ function TranscriptChatTimeline({
 
 interface DetailTimelineRow {
   key: string;
-  block:
-    | Extract<TranscriptBlock, { type: "message" }>
-    | Extract<TranscriptBlock, { type: "thinking" }>
-    | Extract<TranscriptBlock, { type: "tool" }>
-    | Extract<TranscriptBlock, { type: "todo_list" }>
-    | Extract<TranscriptBlock, { type: "activity" }>
-    | Extract<TranscriptBlock, { type: "event" }>
-    | Extract<TranscriptBlock, { type: "stdout" }>;
+  block: Exclude<TranscriptBlock, { type: "command_group" }>;
 }
 
 function expandDetailTimelineBlocks(blocks: TranscriptBlock[]): DetailTimelineRow[] {
@@ -3638,6 +3936,14 @@ function expandDetailTimelineBlocks(blocks: TranscriptBlock[]): DetailTimelineRo
     }
 
     if (block.type === "activity") {
+      rows.push({
+        key: `${block.type}-${block.ts}-${rows.length}`,
+        block,
+      });
+      continue;
+    }
+
+    if (block.type === "memory_update") {
       rows.push({
         key: `${block.type}-${block.ts}-${rows.length}`,
         block,

@@ -54,6 +54,17 @@ test.describe("Run transcript detail", () => {
     await skillUseRow.click();
     await expect(page.getByText("/Users/zeeland/.codex/skills/flomo-local-api/SKILL.md", { exact: false })).toBeVisible();
 
+    await expect(page.getByText("Agent memory updated", { exact: false })).toBeVisible();
+    await expect(page.getByText("Gabriel updated stable memory instructions.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Stable instructions", { exact: false })).toBeVisible();
+    await expect(page.getByText("Effective next run", { exact: false })).toBeVisible();
+    await expect(page.getByText("/workspaces/agents/gabriel--fixture/instructions/MEMORY.md", { exact: false })).toHaveCount(0);
+    await page.getByRole("button", { name: "Expand memory update details" }).first().click();
+    await expect(page.getByText("/workspaces/agents/gabriel--fixture/instructions/MEMORY.md", { exact: false })).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /Memory update failed, Failed/ })).toBeVisible();
+    await expect(page.getByText("Knowledge graph", { exact: false })).toBeVisible();
+    await expect(page.getByText("permission denied", { exact: false }).first()).toBeVisible();
+
     await page.screenshot({
       path: "/tmp/rudder-run-transcript-detail-expanded.png",
       fullPage: true,
