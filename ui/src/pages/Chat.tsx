@@ -16,6 +16,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RotateCcw,
   Settings2,
   Square,
   Sparkles,
@@ -1046,6 +1047,26 @@ export function canContinueInterruptedChatMessage(message: Pick<ChatMessage, "ro
   return message.role === "assistant" && message.status === "interrupted";
 }
 
+export function canRetryFailedChatMessage(message: Pick<ChatMessage, "role" | "kind" | "status" | "chatTurnId">) {
+  return message.role === "assistant"
+    && message.kind === "message"
+    && message.status === "failed"
+    && Boolean(message.chatTurnId);
+}
+
+export function findRetrySourceUserMessage(
+  messages: ChatMessage[],
+  failedMessage: Pick<ChatMessage, "chatTurnId" | "turnVariant">,
+) {
+  if (!failedMessage.chatTurnId) return null;
+  return messages.find((message) =>
+    message.role === "user"
+    && message.kind === "message"
+    && message.chatTurnId === failedMessage.chatTurnId
+    && message.turnVariant === failedMessage.turnVariant
+  ) ?? null;
+}
+
 export function isUserVisibleIncomingChatMessage(
   message: Pick<ChatMessage, "role" | "kind" | "body" | "approvalId" | "supersededAt">,
 ) {
@@ -1416,6 +1437,7 @@ function ChatMessageItem({
   onCopyMessageText,
   onEditUserMessage,
   onContinueInterruptedMessage,
+  onRetryFailedMessage,
   onOpenImage,
   onOpenFile,
   onMarkdownLinkClick,
@@ -1434,6 +1456,7 @@ function ChatMessageItem({
   onCopyMessageText: (text: string) => void | Promise<void>;
   onEditUserMessage: (message: ChatMessage) => void;
   onContinueInterruptedMessage: (message: ChatMessage) => void;
+  onRetryFailedMessage: (message: ChatMessage) => void;
   onOpenImage: (preview: AttachmentPreviewState) => void;
   onOpenFile: (targetPath: string) => void;
   onMarkdownLinkClick?: MarkdownLinkClickHandler;
@@ -1483,6 +1506,7 @@ function ChatMessageItem({
   const isUser = message.role === "user";
   const statusLabel = !isUser ? assistantStateLabel(message.status) : null;
   const canContinueInterrupted = canContinueInterruptedChatMessage(message);
+  const canRetryFailed = canRetryFailedChatMessage(message);
 
   if (!isUser) {
     return (
@@ -1505,6 +1529,16 @@ function ChatMessageItem({
                   onClick={() => onContinueInterruptedMessage(message)}
                 >
                   Continue
+                </button>
+              ) : null}
+              {canRetryFailed ? (
+                <button
+                  type="button"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/15"
+                  onClick={() => onRetryFailedMessage(message)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  Retry
                 </button>
               ) : null}
             </div>
@@ -2731,6 +2765,7 @@ function ChatWorkspace() {
       bodyOverride?: string;
       filesOverride?: File[];
       conversationOverride?: ChatConversation;
+      editUserMessageIdOverride?: string | null;
     },
   ) => {
     if (!selectedOrganizationId) {
@@ -2754,7 +2789,7 @@ function ChatWorkspace() {
           conversationId: draftStorageConversationId,
         }
       : null;
-    const editUserMessageId = usesComposerState ? editForkUserMessageId : null;
+    const editUserMessageId = options?.editUserMessageIdOverride ?? (usesComposerState ? editForkUserMessageId : null);
     const editTargetMessage = editUserMessageId
       ? rawMessages.find((message) => message.id === editUserMessageId) ?? null
       : null;
@@ -3347,6 +3382,29 @@ function ChatWorkspace() {
       composerEditorRef.current?.focus();
     });
   }, [clearPendingFilesForCurrentScope]);
+
+  const retryFailedMessage = useCallback(
+    (message: ChatMessage) => {
+      if (!selectedConversation) return;
+      const sourceUserMessage = findRetrySourceUserMessage(rawMessages, message);
+      if (!sourceUserMessage) {
+        pushToast({
+          title: "Retry unavailable",
+          body: "The original user message for this failed reply could not be found.",
+          tone: "error",
+        });
+        return;
+      }
+
+      void sendMessage({
+        bodyOverride: sourceUserMessage.body,
+        filesOverride: [],
+        conversationOverride: selectedConversation,
+        editUserMessageIdOverride: sourceUserMessage.id,
+      });
+    },
+    [pushToast, rawMessages, selectedConversation, sendMessage],
+  );
 
   const editDraftOnly = useCallback((text: string) => {
     setEditForkUserMessageId(null);
@@ -4049,6 +4107,7 @@ function ChatWorkspace() {
                                       conversationOverride: selectedConversation,
                                     });
                                   }}
+                                  onRetryFailedMessage={retryFailedMessage}
                                   onOpenImage={setAttachmentPreview}
                                   onOpenFile={openLocalFile}
                                   onMarkdownLinkClick={handleChatMarkdownLinkClick}

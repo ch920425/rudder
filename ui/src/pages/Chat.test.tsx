@@ -11,8 +11,10 @@ import {
   ProposalCard,
   assistantStateLabel,
   canContinueInterruptedChatMessage,
+  canRetryFailedChatMessage,
   computeDisplayedChatMessages,
   createChatImageDesktopPayload,
+  findRetrySourceUserMessage,
   isChatAgentSelectionLocked,
   isUserVisibleIncomingChatMessage,
   resolveChatImageFilename,
@@ -279,6 +281,60 @@ describe("interrupted chat messages", () => {
   it("does not offer continuation for completed or user messages", () => {
     expect(canContinueInterruptedChatMessage(message({ role: "assistant", status: "completed" }))).toBe(false);
     expect(canContinueInterruptedChatMessage(message({ role: "user", status: "interrupted" }))).toBe(false);
+  });
+});
+
+describe("failed chat retry", () => {
+  it("offers retry for failed assistant messages in a turn", () => {
+    expect(canRetryFailedChatMessage(message({
+      role: "assistant",
+      kind: "message",
+      status: "failed",
+      chatTurnId: "turn-1",
+    }))).toBe(true);
+
+    expect(canRetryFailedChatMessage(message({
+      role: "assistant",
+      kind: "message",
+      status: "failed",
+      chatTurnId: null,
+    }))).toBe(false);
+    expect(canRetryFailedChatMessage(message({
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      chatTurnId: "turn-1",
+    }))).toBe(false);
+    expect(canRetryFailedChatMessage(message({
+      role: "user",
+      kind: "message",
+      status: "failed",
+      chatTurnId: "turn-1",
+    }))).toBe(false);
+  });
+
+  it("finds the same-turn user message as the retry source", () => {
+    const source = message({
+      id: "user-1",
+      role: "user",
+      kind: "message",
+      body: "Retry this request",
+      chatTurnId: "turn-1",
+      turnVariant: 2,
+    });
+    const failed = message({
+      id: "assistant-1",
+      role: "assistant",
+      kind: "message",
+      status: "failed",
+      chatTurnId: "turn-1",
+      turnVariant: 2,
+    });
+
+    expect(findRetrySourceUserMessage([
+      message({ id: "user-other", role: "user", chatTurnId: "turn-1", turnVariant: 1 }),
+      source,
+    ], failed)).toBe(source);
   });
 });
 
