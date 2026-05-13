@@ -16,6 +16,7 @@ import { organizationsApi } from "../api/orgs";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToast } from "../context/ToastContext";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { useViewedOrganization } from "../hooks/useViewedOrganization";
 import { readDesktopShell, type DesktopIdeTarget, type DesktopWorkspaceLaunchTarget } from "../lib/desktop-shell";
 import { queryKeys } from "../lib/queryKeys";
@@ -340,6 +341,10 @@ export function OrganizationWorkspaces() {
   const [openingWorkspaceTargetId, setOpeningWorkspaceTargetId] = useState<
     DesktopWorkspaceLaunchTarget["id"] | null
   >(null);
+  const filesScrollRef = useScrollbarActivityRef("org-workspaces:files");
+  const editorScrollRef = useScrollbarActivityRef(
+    selectedFilePath ? `org-workspaces:editor:${selectedFilePath}` : "org-workspaces:editor",
+  );
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Workspaces" }]);
@@ -645,14 +650,14 @@ export function OrganizationWorkspaces() {
   }
 
   return (
-    <div className="flex min-h-full flex-col gap-4">
+    <div className="flex min-h-full flex-col gap-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
       {!workspace.rootExists ? (
         <EmptyState
           icon={HardDrive}
           message={workspace.message ?? "The shared workspace root is not available on this machine yet."}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:h-full lg:overflow-hidden lg:flex-row">
           <section
             data-testid="org-workspaces-files-card"
             className="flex min-h-[320px] flex-col rounded-[var(--radius-lg)] border border-border bg-card lg:min-h-0 lg:w-[300px] lg:flex-none"
@@ -663,7 +668,11 @@ export function OrganizationWorkspaces() {
                 {workspace.directoryPath ? workspace.directoryPath : "/"}
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
+            <div
+              ref={filesScrollRef}
+              data-testid="org-workspaces-files-scroll"
+              className="scrollbar-auto-hide min-h-0 flex-1 overflow-auto px-2 py-2"
+            >
               {workspace.entries.length === 0 ? (
                 <div className="px-2 py-3 text-sm text-muted-foreground">
                   {workspace.message ?? "This folder is empty."}
@@ -773,11 +782,16 @@ export function OrganizationWorkspaces() {
                     value={draftContent}
                     onChange={(event) => setDraftContent(event.target.value)}
                     spellCheck={false}
-                    className="block min-h-[280px] flex-1 overflow-auto border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-foreground outline-none"
+                    ref={editorScrollRef}
+                    className="scrollbar-auto-hide block min-h-[280px] flex-1 overflow-auto border-0 bg-transparent px-4 py-4 font-mono text-sm leading-6 text-foreground outline-none"
                   />
                 </div>
               ) : selectedFileDetail?.previewKind === "image" && selectedFileDetail.contentPath ? (
-                <div className="flex h-full min-h-[420px] items-center justify-center overflow-auto bg-accent/10 p-4">
+                <div
+                  ref={editorScrollRef}
+                  data-testid="org-workspaces-image-preview-scroll"
+                  className="scrollbar-auto-hide flex h-full min-h-[420px] items-center justify-center overflow-auto bg-accent/10 p-4"
+                >
                   <img
                     data-testid="org-workspaces-image-preview"
                     src={selectedFileDetail.contentPath}
@@ -786,7 +800,11 @@ export function OrganizationWorkspaces() {
                   />
                 </div>
               ) : selectedFileDetail?.content ? (
-                <div className="h-full min-h-0 overflow-auto">
+                <div
+                  ref={editorScrollRef}
+                  data-testid="org-workspaces-readonly-preview-scroll"
+                  className="scrollbar-auto-hide h-full min-h-0 overflow-auto"
+                >
                   <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
                     {selectedFileDetail.message ?? "This file is shown read-only here."}
                   </div>
