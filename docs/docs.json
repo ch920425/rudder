@@ -2,6 +2,8 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Rudder",
+  "logo": "/logo.png",
+  "favicon": "/favicon.svg",
   "colors": {
     "primary": "#0F766E",
     "light": "#14B8A6",
@@ -13,6 +15,19 @@
     }
   },
   "navigation": {
+    "global": {
+      "languages": [
+        {
+          "language": "en",
+          "default": true,
+          "href": "/"
+        },
+        {
+          "language": "cn",
+          "href": "/zh"
+        }
+      ]
+    },
     "languages": [
       {
         "language": "en",
