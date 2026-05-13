@@ -5759,8 +5759,8 @@ export function heartbeatService(db: Db) {
   ) {
     const run = await getRun(runId);
     if (!run) throw notFound("Heartbeat run not found");
-    if (run.status !== "failed" && run.status !== "timed_out") {
-      throw conflict("Only failed or timed out runs can be retried", {
+    if (run.status !== "failed" && run.status !== "timed_out" && run.status !== "cancelled") {
+      throw conflict("Only failed, timed out, or cancelled runs can be retried", {
         status: run.status,
       });
     }

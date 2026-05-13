@@ -4093,7 +4093,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
     },
   });
   const canResumeLostRun = run.errorCode === "process_lost" && run.status === "failed";
-  const canRetryRun = run.status === "failed" || run.status === "timed_out";
+  const canRetryRun = run.status === "failed" || run.status === "timed_out" || run.status === "cancelled";
   const recoverRun = useMutation({
     mutationFn: async () => retryHeartbeatRun(run),
     onSuccess: (newRun) => {
