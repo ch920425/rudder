@@ -197,6 +197,14 @@ async function advanceAutosaveDebounce() {
   });
 }
 
+async function fillTextarea(textarea: HTMLTextAreaElement, value: string) {
+  await act(async () => {
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    valueSetter?.call(textarea, value);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 beforeEach(() => {
   installLocalStorageMock();
   vi.useFakeTimers();
@@ -221,17 +229,28 @@ afterEach(() => {
 });
 
 describe("NewIssueDialog autosave", () => {
-  it("does not copy an opened saved draft into the generic new issue autosave", async () => {
+  it("autosaves an opened saved draft back to the same draft", async () => {
     window.localStorage.setItem(ISSUE_DRAFTS_STORAGE_KEY, JSON.stringify([savedDraft]));
     mockState.newIssueDefaults = { draftId: savedDraft.id };
 
     await renderDialog();
-    expect((document.querySelector("textarea[placeholder='Issue title']") as HTMLTextAreaElement | null)?.value)
-      .toBe("Saved draft issue");
+    const titleInput = document.querySelector("textarea[placeholder='Issue title']") as HTMLTextAreaElement | null;
+    expect(titleInput?.value).toBe("Saved draft issue");
+    expect(document.body.textContent).toContain("Saved to Draft Issues");
+    expect(document.body.textContent).not.toContain("Save Draft");
+
+    await fillTextarea(titleInput!, "Edited saved draft issue");
 
     await advanceAutosaveDebounce();
 
     expect(window.localStorage.getItem(ISSUE_AUTOSAVE_STORAGE_KEY)).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem(ISSUE_DRAFTS_STORAGE_KEY) ?? "[]")).toMatchObject([
+      {
+        id: savedDraft.id,
+        createdAt: savedDraft.createdAt,
+        title: "Edited saved draft issue",
+      },
+    ]);
   });
 
   it("continues to autosave ordinary new issue drafts", async () => {

@@ -166,8 +166,18 @@ test.describe("New issue project context", () => {
     const dialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByPlaceholder("Issue title")).toHaveValue("Recovered draft issue");
+    await expect(dialog.getByRole("button", { name: "Save Draft" })).toHaveCount(0);
+    await expect(dialog.getByText("Saved to Draft Issues")).toBeVisible();
+    await dialog.getByPlaceholder("Issue title").fill("Recovered draft issue edited");
     await page.waitForTimeout(900);
     await expect.poll(async () => page.evaluate(() => window.localStorage.getItem("rudder:issue-autosave"))).toBeNull();
+    await expect.poll(async () => page.evaluate(() => {
+      const drafts = JSON.parse(window.localStorage.getItem("rudder:issue-drafts") ?? "[]") as Array<{
+        id: string;
+        title: string;
+      }>;
+      return drafts.find((draft) => draft.id === "draft-recovery-e2e")?.title;
+    })).toBe("Recovered draft issue edited");
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);

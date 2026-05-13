@@ -13,6 +13,7 @@ import {
   resolveDefaultNewIssueProjectId,
   saveIssueAutosave,
   summarizeIssueDrafts,
+  updateIssueDraft,
 } from "./new-issue-dialog";
 
 const projects = [
@@ -261,6 +262,27 @@ describe("issue autosave and draft persistence", () => {
       projectId: "project-1",
       status: "backlog",
       priority: "high",
+    });
+  });
+
+  it("updates an existing saved draft in place", () => {
+    const savedDraft = createIssueDraft(draft);
+    const updated = updateIssueDraft(savedDraft?.id, {
+      ...draft,
+      title: "Updated saved draft",
+      description: "Updated body",
+    });
+
+    expect(updated).toMatchObject({
+      id: savedDraft?.id,
+      createdAt: savedDraft?.createdAt,
+      title: "Updated saved draft",
+      description: "Updated body",
+    });
+    expect(listIssueDrafts("org-1")).toHaveLength(1);
+    expect(readSavedIssueDraft(savedDraft?.id, "org-1")).toMatchObject({
+      title: "Updated saved draft",
+      description: "Updated body",
     });
   });
 

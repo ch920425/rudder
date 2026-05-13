@@ -167,6 +167,26 @@ function writeAllIssueDrafts(drafts: SavedIssueDraft[]) {
   emitIssueDraftChanged();
 }
 
+function issueDraftContentKey(draft: IssueDraft): string {
+  return JSON.stringify({
+    orgId: draft.orgId ?? null,
+    title: draft.title,
+    description: draft.description,
+    status: draft.status,
+    priority: draft.priority,
+    labelIds: draft.labelIds ?? [],
+    assigneeValue: draft.assigneeValue ?? "",
+    assigneeId: draft.assigneeId ?? "",
+    reviewerValue: draft.reviewerValue ?? "",
+    projectId: draft.projectId ?? "",
+    projectWorkspaceId: draft.projectWorkspaceId ?? "",
+    assigneeModelOverride: draft.assigneeModelOverride ?? "",
+    assigneeThinkingEffort: draft.assigneeThinkingEffort ?? "",
+    assigneeChrome: Boolean(draft.assigneeChrome),
+    useIsolatedExecutionWorkspace: Boolean(draft.useIsolatedExecutionWorkspace),
+  });
+}
+
 export function listIssueDrafts(orgId?: string | null): SavedIssueDraft[] {
   return readAllIssueDrafts()
     .filter((draft) => !orgId || !draft.orgId || draft.orgId === orgId)
@@ -189,6 +209,27 @@ export function createIssueDraft(draft: IssueDraft): SavedIssueDraft | null {
   };
   writeAllIssueDrafts([savedDraft, ...readAllIssueDrafts()]);
   return savedDraft;
+}
+
+export function updateIssueDraft(id: string | null | undefined, draft: IssueDraft): SavedIssueDraft | null {
+  if (!id || !hasMeaningfulIssueDraft(draft)) return null;
+  const drafts = readAllIssueDrafts();
+  const draftIndex = drafts.findIndex((savedDraft) => savedDraft.id === id);
+  if (draftIndex === -1) return null;
+
+  const existingDraft = drafts[draftIndex];
+  if (issueDraftContentKey(existingDraft) === issueDraftContentKey(draft)) return existingDraft;
+
+  const updatedDraft: SavedIssueDraft = {
+    ...draft,
+    id,
+    createdAt: existingDraft.createdAt,
+    updatedAt: new Date().toISOString(),
+  };
+  const nextDrafts = [...drafts];
+  nextDrafts[draftIndex] = updatedDraft;
+  writeAllIssueDrafts(nextDrafts);
+  return updatedDraft;
 }
 
 export function deleteIssueDraft(id: string | null | undefined) {

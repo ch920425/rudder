@@ -25,6 +25,7 @@ import {
   resolveDraftBackedNewIssueValues,
   saveIssueAutosave,
   type IssueDraft,
+  updateIssueDraft,
 } from "../lib/new-issue-dialog";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { buildAgentSkillMentionOptions } from "../lib/agent-skill-mentions";
@@ -292,6 +293,7 @@ export function NewIssueDialog() {
   const [activeSavedIssueDraftId, setActiveSavedIssueDraftId] = useState<string | null>(null);
   const [redirectingIssueRef, setRedirectingIssueRef] = useState<string | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftSaveRef = useRef<{ draft: IssueDraft; savedDraftId: string | null } | null>(null);
   const openContextLocationRef = useRef<{ pathname: string; search: string } | null>(null);
 
   const effectiveCompanyId = dialogCompanyId ?? selectedOrganizationId;
@@ -423,6 +425,26 @@ export function NewIssueDialog() {
     enabled: Boolean(effectiveCompanyId) && newIssueOpen && supportsAssigneeOverrides,
   });
 
+  const clearPendingDraftSave = useCallback(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = null;
+    pendingDraftSaveRef.current = null;
+  }, []);
+
+  const flushPendingDraftSave = useCallback(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = null;
+    const pendingSave = pendingDraftSaveRef.current;
+    pendingDraftSaveRef.current = null;
+    if (!pendingSave) return;
+
+    if (pendingSave.savedDraftId) {
+      updateIssueDraft(pendingSave.savedDraftId, pendingSave.draft);
+      return;
+    }
+    saveIssueAutosave(pendingSave.draft);
+  }, []);
+
   const createIssue = useMutation({
     mutationFn: async ({
       orgId,
@@ -459,7 +481,7 @@ export function NewIssueDialog() {
       queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(orgId) });
       queryClient.setQueryData(queryKeys.issues.detail(issue.identifier ?? issue.id), issue);
       queryClient.setQueryData(queryKeys.issues.detail(issue.id), issue);
-      if (draftTimer.current) clearTimeout(draftTimer.current);
+      clearPendingDraftSave();
       const issueRef = issue.identifier ?? issue.id;
       const issueDetailHref = buildCreatedIssueDetailHref({ issue, orgId, organizations });
       const sourceHref = buildIssueDetailSourceHref(openContextLocationRef.current);
@@ -510,22 +532,17 @@ export function NewIssueDialog() {
 
   // Debounced draft saving
   const scheduleSave = useCallback(
-    (draft: IssueDraft) => {
+    (draft: IssueDraft, savedDraftId: string | null = null) => {
       if (draftTimer.current) clearTimeout(draftTimer.current);
-      draftTimer.current = setTimeout(() => {
-        saveIssueAutosave(draft);
-      }, DEBOUNCE_MS);
+      pendingDraftSaveRef.current = { draft, savedDraftId };
+      draftTimer.current = setTimeout(flushPendingDraftSave, DEBOUNCE_MS);
     },
-    [],
+    [flushPendingDraftSave],
   );
 
   // Save draft on meaningful changes
   useEffect(() => {
     if (!newIssueOpen) return;
-    if (requestedSavedIssueDraftId) {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      return;
-    }
     if (!hasMeaningfulIssueDraft({
       title,
       description,
@@ -556,7 +573,7 @@ export function NewIssueDialog() {
       assigneeModelOverride,
       assigneeThinkingEffort,
       assigneeChrome,
-    });
+    }, activeSavedIssueDraftId);
   }, [
     title,
     description,
@@ -572,7 +589,7 @@ export function NewIssueDialog() {
     assigneeChrome,
     effectiveCompanyId,
     newIssueOpen,
-    requestedSavedIssueDraftId,
+    activeSavedIssueDraftId,
     scheduleSave,
   ]);
 
@@ -712,9 +729,9 @@ export function NewIssueDialog() {
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
+      flushPendingDraftSave();
     };
-  }, []);
+  }, [flushPendingDraftSave]);
 
   function reset() {
     setTitle("");
@@ -738,6 +755,11 @@ export function NewIssueDialog() {
     setCompanyOpen(false);
     setActiveSavedIssueDraftId(null);
     setRedirectingIssueRef(null);
+  }
+
+  function handleCloseNewIssue() {
+    flushPendingDraftSave();
+    closeNewIssue();
   }
 
   function handleCompanyChange(orgId: string) {
@@ -771,7 +793,7 @@ export function NewIssueDialog() {
       assigneeChrome,
     });
     if (!savedDraft) return;
-    if (draftTimer.current) clearTimeout(draftTimer.current);
+    clearPendingDraftSave();
     deleteIssueDraft(activeSavedIssueDraftId);
     clearIssueAutosave();
     pushToast({
@@ -1043,7 +1065,7 @@ export function NewIssueDialog() {
     <Dialog
       open={newIssueOpen}
       onOpenChange={(open) => {
-        if (!open && !isCreatingOrRedirecting) closeNewIssue();
+        if (!open && !isCreatingOrRedirecting) handleCloseNewIssue();
       }}
     >
       <DialogContent
@@ -1164,7 +1186,7 @@ export function NewIssueDialog() {
               variant="ghost"
               size="icon-xs"
               className="text-muted-foreground"
-              onClick={() => closeNewIssue()}
+              onClick={handleCloseNewIssue}
               disabled={isCreatingOrRedirecting}
             >
               <span className="text-lg leading-none">&times;</span>
@@ -1706,18 +1728,25 @@ export function NewIssueDialog() {
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "text-muted-foreground disabled:opacity-100",
-              !canSaveDraft && "disabled:border-border/40 disabled:bg-muted/20 disabled:text-muted-foreground/70",
-            )}
-            onClick={saveDraftIssue}
-            disabled={isCreatingOrRedirecting || !canSaveDraft}
-          >
-            Save Draft
-          </Button>
+          {activeSavedIssueDraftId ? (
+            <div className="inline-flex min-h-8 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Saved to Draft Issues
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "text-muted-foreground disabled:opacity-100",
+                !canSaveDraft && "disabled:border-border/40 disabled:bg-muted/20 disabled:text-muted-foreground/70",
+              )}
+              onClick={saveDraftIssue}
+              disabled={isCreatingOrRedirecting || !canSaveDraft}
+            >
+              Save Draft
+            </Button>
+          )}
           <div className="flex items-center gap-3">
             <div className="min-h-5 text-right">
               {redirectingIssueRef ? (
