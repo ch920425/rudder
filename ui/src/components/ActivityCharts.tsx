@@ -104,9 +104,13 @@ function TooltipMetricRow({
 }
 
 function formatEvidenceLabel(value: string): string {
-  if (value === "used") return "Runtime reported";
+  if (value === "used") return "Used";
   if (value === "requested") return "Prompt requested";
   return "Loaded only";
+}
+
+function formatSkillUseCount(count: number): string {
+  return `${count} skill use${count === 1 ? "" : "s"}`;
 }
 
 function ChartColumnTooltip({
@@ -266,7 +270,7 @@ function SkillDistributionPie({
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={`Skill usage distribution: ${analytics.totalCount} skill signals across ${analytics.skills.length} skills`}
+          aria-label={`Skill usage distribution: ${formatSkillUseCount(analytics.totalCount)} across ${analytics.skills.length} skills`}
           className="mx-auto flex w-full max-w-[12rem] appearance-none items-center justify-center rounded-full bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <span
@@ -287,7 +291,7 @@ function SkillDistributionPie({
           <div className="border-b border-background/15 pb-2">
             <div className="font-medium text-background">Skill usage distribution</div>
             <div className="text-[11px] text-background/70">
-              {analytics.totalCount} skill signals across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}
+              {formatSkillUseCount(analytics.totalCount)} across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}
             </div>
           </div>
           <div className="space-y-1.5">
@@ -664,7 +668,7 @@ export function SkillsUsageChart({
       >
         <p className="font-medium text-foreground">Not enough skill usage to chart yet.</p>
         <p className="mt-1 text-xs leading-relaxed">
-          {analytics.totalCount} skill signal{analytics.totalCount === 1 ? "" : "s"} across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}. Charts appear after at least {minimumRunsForSkillEvidenceChart} runs with evidence.
+          {formatSkillUseCount(analytics.totalCount)} across {analytics.totalRunsWithSkills} run{analytics.totalRunsWithSkills === 1 ? "" : "s"}. Charts appear after at least {minimumRunsForSkillEvidenceChart} runs with skill usage.
         </p>
       </div>
     );
@@ -677,11 +681,11 @@ export function SkillsUsageChart({
   return (
     <TooltipProvider delayDuration={120}>
       <div className="grid gap-3 lg:grid-cols-[minmax(12rem,0.7fr)_minmax(0,3fr)]">
-        <SkillChartPanel title="Skill Usage Distribution" subtitle="Share of SKILL.md reads, runtime-reported use, and prompt-requested fallback signals in this window.">
+        <SkillChartPanel title="Skill Usage Distribution" subtitle="Which skills were used most in this window.">
           <SkillDistributionPanel analytics={analytics} colorBySkillKey={colorBySkillKey} />
         </SkillChartPanel>
 
-        <SkillChartPanel title="Skill Usage Timeline" subtitle={`Daily skill usage signals over the last ${analytics.windowDays} day${analytics.windowDays === 1 ? "" : "s"}.`}>
+        <SkillChartPanel title="Skill Usage Timeline" subtitle={`Daily skill usage over the last ${analytics.windowDays} day${analytics.windowDays === 1 ? "" : "s"}.`}>
           <div>
             <div className="flex items-end gap-[3px] h-36">
               {days.map((day) => {
@@ -690,7 +694,7 @@ export function SkillsUsageChart({
                 const otherCount = day.skills.slice(6).reduce((sum, skill) => sum + skill.count, 0);
                 const title =
                   day.totalCount > 0
-                    ? `${day.totalCount} skill signals across ${day.runCount} run${day.runCount === 1 ? "" : "s"}`
+                    ? `${formatSkillUseCount(day.totalCount)} across ${day.runCount} run${day.runCount === 1 ? "" : "s"}`
                     : "No skill usage";
 
                 return (
@@ -700,8 +704,8 @@ export function SkillsUsageChart({
                     title={title}
                     details={
                       <>
-                        <TooltipMetricRow label="Skill signals" value={day.totalCount} />
-                        <TooltipMetricRow label="Runs with evidence" value={day.runCount} />
+                        <TooltipMetricRow label="Skill uses" value={day.totalCount} />
+                        <TooltipMetricRow label="Runs with skill usage" value={day.runCount} />
                         {Object.entries(day.evidenceCounts)
                           .filter(([, count]) => count > 0)
                           .map(([evidence, count]) => (

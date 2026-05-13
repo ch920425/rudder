@@ -591,8 +591,8 @@ export function Dashboard() {
                   </p>
                 </div>
                 <div className="text-right text-[11px] text-muted-foreground tabular-nums">
-                  <div>{visibleSkillAnalytics.totalCount} skill signals</div>
-                  <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage signals</div>
+                  <div>{visibleSkillAnalytics.totalCount} skill uses</div>
+                  <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage</div>
                 </div>
               </div>
               <SkillsUsageChart analytics={visibleSkillAnalytics} />

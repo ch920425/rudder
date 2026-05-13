@@ -87,7 +87,7 @@ describe("SkillsUsageChart", () => {
 
     expect(container.querySelector('[data-testid="skill-evidence-low-sample"]')).toBeTruthy();
     expect(container.textContent).toContain("Not enough skill usage to chart yet.");
-    expect(container.textContent).toContain("1 skill signal across 1 run");
+    expect(container.textContent).toContain("1 skill use across 1 run");
     expect(container.textContent).not.toContain("Skill Usage Distribution");
   });
 });
