@@ -352,10 +352,6 @@ vi.mock("../components/PriorityIcon", () => ({
   PriorityIcon: () => <span>Priority</span>,
 }));
 
-vi.mock("../components/StatusBadge", () => ({
-  StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
-}));
-
 vi.mock("../components/Identity", () => ({
   Identity: ({ name }: { name: string }) => <span>{name}</span>,
 }));
@@ -656,30 +652,7 @@ describe("IssueDetail", () => {
     expect(html).not.toContain("Hidden document update unique");
   });
 
-  it("renders linked approvals inside the activity timeline", () => {
-    queryData.set(JSON.stringify(["issues", "approvals", "ORG2-1"]), [
-      {
-        id: "approval-chat-123",
-        orgId: "org-2",
-        type: "chat_issue_creation",
-        requestedByAgentId: "agent-1",
-        requestedByUserId: null,
-        status: "pending",
-        payload: { proposedIssue: { title: "Drafted follow-up issue" } },
-        decisionNote: null,
-        decidedByUserId: null,
-        decidedAt: null,
-        createdAt: new Date("2026-04-20T01:30:00.000Z"),
-        updatedAt: new Date("2026-04-20T01:30:00.000Z"),
-        link: {
-          issueId: "issue-parent",
-          approvalId: "approval-chat-123",
-          linkedByAgentId: null,
-          linkedByUserId: "user-1",
-          createdAt: new Date("2026-04-20T01:31:00.000Z"),
-        },
-      },
-    ]);
+  it("renders approval link events as ordinary activity rows", () => {
     queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), [
       {
         id: "activity-approval-linked",
@@ -702,37 +675,13 @@ describe("IssueDetail", () => {
     const html = renderToStaticMarkup(<IssueDetail />);
 
     expect(html).toContain('href="/messenger/approvals/approval-chat-123"');
-    expect(html).toContain("Linked approval");
-    expect(html).toContain("Issue proposed from chat");
-    expect(html).toContain("pending");
+    expect(html).toContain("linked");
+    expect(html).toContain("an approval");
     expect(html).not.toContain("Linked Approvals");
-    expect(html).not.toContain("linked an approval");
+    expect(html).not.toContain("Issue proposed from chat");
   });
 
   it("orders existing approvals by the later issue link time", () => {
-    queryData.set(JSON.stringify(["issues", "approvals", "ORG2-1"]), [
-      {
-        id: "approval-created-first",
-        orgId: "org-2",
-        type: "chat_issue_creation",
-        requestedByAgentId: "agent-1",
-        requestedByUserId: null,
-        status: "pending",
-        payload: { proposedIssue: { title: "Older approval linked later" } },
-        decisionNote: null,
-        decidedByUserId: null,
-        decidedAt: null,
-        createdAt: new Date("2026-04-19T23:00:00.000Z"),
-        updatedAt: new Date("2026-04-19T23:00:00.000Z"),
-        link: {
-          issueId: "issue-parent",
-          approvalId: "approval-created-first",
-          linkedByAgentId: null,
-          linkedByUserId: "user-1",
-          createdAt: new Date("2026-04-20T00:01:00.000Z"),
-        },
-      },
-    ]);
     queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), [
       {
         id: "activity-created",
@@ -767,35 +716,30 @@ describe("IssueDetail", () => {
 
     const html = renderToStaticMarkup(<IssueDetail />);
 
-    expect(html.indexOf("created the issue")).toBeLessThan(html.indexOf("Linked approval"));
-    expect(html).not.toContain("linked an approval");
+    expect(html.indexOf("created the issue")).toBeLessThan(
+      html.indexOf('href="/messenger/approvals/approval-created-first"'),
+    );
+    expect(html).toContain('href="/messenger/approvals/approval-created-first"');
   });
 
-  it("keeps an approval link fallback when it is not the same link event as the card", () => {
-    queryData.set(JSON.stringify(["issues", "approvals", "ORG2-1"]), [
-      {
-        id: "approval-repeat-link",
-        orgId: "org-2",
-        type: "chat_issue_creation",
-        requestedByAgentId: "agent-1",
-        requestedByUserId: null,
-        status: "pending",
-        payload: { proposedIssue: { title: "Repeated link attempt" } },
-        decisionNote: null,
-        decidedByUserId: null,
-        decidedAt: null,
-        createdAt: new Date("2026-04-20T00:10:00.000Z"),
-        updatedAt: new Date("2026-04-20T00:10:00.000Z"),
-        link: {
-          issueId: "issue-parent",
-          approvalId: "approval-repeat-link",
-          linkedByAgentId: null,
-          linkedByUserId: "user-1",
-          createdAt: new Date("2026-04-20T00:11:00.000Z"),
-        },
-      },
-    ]);
+  it("keeps repeated approval link activity events visible", () => {
     queryData.set(JSON.stringify(["issues", "activity", "ORG2-1"]), [
+      {
+        id: "activity-approval-linked",
+        orgId: "org-2",
+        actorType: "user",
+        actorId: "user-1",
+        action: "issue.approval_linked",
+        entityType: "issue",
+        entityId: "issue-parent",
+        agentId: null,
+        runId: null,
+        details: {
+          approvalId: "approval-repeat-link",
+          linkCreatedAt: "2026-04-20T00:11:00.000Z",
+        },
+        createdAt: new Date("2026-04-20T00:11:00.000Z"),
+      },
       {
         id: "activity-approval-linked-later",
         orgId: "org-2",
@@ -816,8 +760,7 @@ describe("IssueDetail", () => {
 
     const html = renderToStaticMarkup(<IssueDetail />);
 
-    expect(html).toContain("Linked approval");
-    expect(html).toContain("linked an approval");
+    expect(html.match(/href="\/messenger\/approvals\/approval-repeat-link"/g)).toHaveLength(2);
   });
 
   it("moves the linked Linear issue summary into activity instead of a separate tab", () => {

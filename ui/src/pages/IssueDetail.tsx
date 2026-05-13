@@ -40,8 +40,6 @@ import { ScrollToBottom } from "../components/ScrollToBottom";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { formatPriorityLabel } from "../lib/priorities";
-import { StatusBadge } from "../components/StatusBadge";
-import { approvalLabel, defaultTypeIcon, typeIcon } from "../components/ApprovalPayload";
 import { Identity } from "../components/Identity";
 import { AgentIdentity } from "../components/AgentAvatar";
 import { PluginSlotMount, PluginSlotOutlet, usePluginSlots } from "@/plugins/slots";
@@ -97,7 +95,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { ActivityEvent } from "@rudderhq/shared";
-import type { Agent, Issue, IssueAttachment, IssueLinkedApproval, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
+import type { Agent, Issue, IssueAttachment, OrganizationWorkspaceFileEntry } from "@rudderhq/shared";
 
 type CommentReassignment = {
   assigneeAgentId: string | null;
@@ -640,6 +638,21 @@ function renderActivityDescription(
     }
   }
 
+  if (evt.action === "issue.approval_linked" || evt.action === "issue.approval_unlinked") {
+    const approvalId = typeof details?.approvalId === "string" ? details.approvalId : null;
+    if (approvalId) {
+      const verb = evt.action === "issue.approval_linked" ? "linked" : "unlinked";
+      return (
+        <>
+          {verb}{" "}
+          <Link to={`/messenger/approvals/${approvalId}`} className="underline underline-offset-4 hover:text-foreground">
+            an approval
+          </Link>
+        </>
+      );
+    }
+  }
+
   return formatAction(evt.action, details, agentMap, currentBoardUserId);
 }
 
@@ -723,58 +736,6 @@ function IssueActivityRow({
       <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
     </div>
   );
-}
-
-function LinkedApprovalActivityCard({ approval }: { approval: IssueLinkedApproval }) {
-  const Icon = typeIcon[approval.type] ?? defaultTypeIcon;
-  const label = approvalLabel(approval.type, approval.payload);
-  const linkedAt = approval.link.createdAt;
-
-  return (
-    <Link
-      to={`/messenger/approvals/${approval.id}`}
-      className="group flex items-start gap-2 rounded-sm border border-border bg-accent/20 px-3 py-2 text-sm transition-colors hover:bg-accent/30"
-      data-testid="issue-activity-linked-approval"
-    >
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-      <span className="min-w-0 flex-1 space-y-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-foreground">Linked approval</span>
-          <StatusBadge status={approval.status} />
-        </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate">{label}</span>
-          <span className="font-mono">{approval.id.slice(0, 8)}</span>
-        </span>
-      </span>
-      <span className="ml-auto shrink-0 text-xs text-muted-foreground">{relativeTime(linkedAt)}</span>
-    </Link>
-  );
-}
-
-function timestampMs(value: Date | string | null | undefined): number | null {
-  if (!value) return null;
-  const ms = new Date(value).getTime();
-  return Number.isFinite(ms) ? ms : null;
-}
-
-function isMatchingApprovalLinkEvent(evt: ActivityEvent, approval: IssueLinkedApproval): boolean {
-  const details = asRecord(evt.details);
-  const approvalId = typeof details?.approvalId === "string" ? details.approvalId : null;
-  if (evt.action !== "issue.approval_linked" || approvalId !== approval.id) return false;
-
-  const linkedAtMs = timestampMs(approval.link.createdAt);
-  if (linkedAtMs === null) return false;
-
-  const detailsLinkedAt = typeof details?.linkCreatedAt === "string" ? details.linkCreatedAt : null;
-  if (detailsLinkedAt) {
-    return timestampMs(detailsLinkedAt) === linkedAtMs;
-  }
-
-  const eventMs = timestampMs(evt.createdAt);
-  return eventMs !== null && Math.abs(eventMs - linkedAtMs) < 5000;
 }
 
 function LinearIssueActivityCard({ data }: { data: Extract<LinearIssueLinkData, { linked: true }> }) {
@@ -982,12 +943,6 @@ export function IssueDetail() {
     queryFn: () => activityApi.runsForIssue(issueId!),
     enabled: !!issueId,
     refetchInterval: 5000,
-  });
-
-  const { data: linkedApprovals } = useQuery({
-    queryKey: queryKeys.issues.approvals(issueId!),
-    queryFn: () => issuesApi.listApprovals(issueId!),
-    enabled: !!issueId,
   });
 
   const { data: attachments } = useQuery({
@@ -1324,21 +1279,8 @@ export function IssueDetail() {
       });
     }
 
-    const linkedApprovalById = new Map((linkedApprovals ?? []).map((approval) => [approval.id, approval]));
-    for (const approval of linkedApprovals ?? []) {
-      items.push({
-        id: `linked-approval:${approval.id}`,
-        createdAt: approval.link.createdAt,
-        node: <LinkedApprovalActivityCard approval={approval} />,
-      });
-    }
-
     for (const evt of activity ?? []) {
       if (!shouldShowIssueActivityEvent(evt)) continue;
-      const details = asRecord(evt.details);
-      const approvalId = typeof details?.approvalId === "string" ? details.approvalId : null;
-      const linkedApproval = approvalId ? linkedApprovalById.get(approvalId) : null;
-      if (linkedApproval && isMatchingApprovalLinkEvent(evt, linkedApproval)) continue;
       items.push({
         id: evt.id,
         createdAt: evt.createdAt,
@@ -1354,7 +1296,7 @@ export function IssueDetail() {
     }
 
     return items;
-  }, [activity, agentMap, currentBoardUserId, linearIssueLink, linkedApprovals, operatorDisplayName]);
+  }, [activity, agentMap, currentBoardUserId, linearIssueLink, operatorDisplayName]);
 
   const invalidateIssue = () => {
     const issueOrgId = issue?.orgId ?? resolvedCompanyId ?? selectedOrganizationId;

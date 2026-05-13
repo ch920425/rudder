@@ -1515,10 +1515,26 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       });
 
       if (sourceIssueIds.length > 0) {
-        await issueApprovalsSvc.linkManyForApproval(approval.id, sourceIssueIds, {
+        const links = await issueApprovalsSvc.linkManyForApproval(approval.id, sourceIssueIds, {
           agentId: actor.actorType === "agent" ? actor.actorId : null,
           userId: actor.actorType === "user" ? actor.actorId : null,
         });
+        for (const link of links) {
+          await logActivity(db, {
+            orgId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "issue.approval_linked",
+            entityType: "issue",
+            entityId: link.issueId,
+            details: {
+              approvalId: approval.id,
+              linkCreatedAt: link.createdAt.toISOString(),
+            },
+          });
+        }
       }
     }
 

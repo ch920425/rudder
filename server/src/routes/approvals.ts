@@ -210,10 +210,26 @@ export function approvalRoutes(db: Db) {
     });
 
     if (uniqueIssueIds.length > 0) {
-      await issueApprovalsSvc.linkManyForApproval(approval.id, uniqueIssueIds, {
+      const links = await issueApprovalsSvc.linkManyForApproval(approval.id, uniqueIssueIds, {
         agentId: actor.agentId,
         userId: actor.actorType === "user" ? actor.actorId : null,
       });
+      for (const link of links) {
+        await logActivity(db, {
+          orgId,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          agentId: actor.agentId,
+          runId: actor.runId,
+          action: "issue.approval_linked",
+          entityType: "issue",
+          entityId: link.issueId,
+          details: {
+            approvalId: approval.id,
+            linkCreatedAt: link.createdAt.toISOString(),
+          },
+        });
+      }
     }
 
     await logActivity(db, {

@@ -164,12 +164,12 @@ test.describe("Issue activity", () => {
     await page.goto(`/issues/${issue.identifier ?? issue.id}`);
     const activity = page.getByRole("region", { name: "Activity" });
     await expect(activity).toBeVisible();
-    await expect(activity.getByTestId("issue-activity-linked-approval")).toBeVisible();
-    await expect(activity.getByRole("link", { name: /Linked approval/ })).toHaveAttribute(
+    await expect(activity.getByText("linked an approval", { exact: false })).toBeVisible();
+    await expect(activity.getByRole("link", { name: "an approval" })).toHaveAttribute(
       "href",
       new RegExp(`/messenger/approvals/${approval.id}$`),
     );
-    await expect(activity.getByText("Issue proposed from chat")).toBeVisible();
+    await expect(activity.getByText("Issue proposed from chat")).toHaveCount(0);
     await expect(page.getByText("Linked Approvals")).toHaveCount(0);
   });
 
@@ -217,11 +217,14 @@ test.describe("Issue activity", () => {
     const activity = page.getByRole("region", { name: "Activity" });
     await expect(activity).toBeVisible();
     await expect(activity.getByText("created the issue", { exact: false })).toBeVisible();
-    await expect(activity.getByTestId("issue-activity-linked-approval")).toBeVisible();
-    await expect(activity.getByText("linked an approval", { exact: false })).toHaveCount(0);
+    await expect(activity.getByText("linked an approval", { exact: false })).toBeVisible();
+    await expect(activity.getByRole("link", { name: "an approval" })).toHaveAttribute(
+      "href",
+      new RegExp(`/messenger/approvals/${approval.id}$`),
+    );
 
     const createdBox = await activity.getByText("created the issue", { exact: false }).boundingBox();
-    const approvalBox = await activity.getByTestId("issue-activity-linked-approval").boundingBox();
+    const approvalBox = await activity.getByText("linked an approval", { exact: false }).boundingBox();
     expect(createdBox?.y).toBeLessThan(approvalBox?.y ?? 0);
   });
 });

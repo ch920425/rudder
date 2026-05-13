@@ -1644,10 +1644,24 @@ export function chatService(db: Db) {
           messageId,
           proposal: planDocument ? { issueProposal: proposedIssue, planDocument } : proposedIssue,
         });
-        await issueApprovalsSvc.linkManyForApproval(approval.id, [issue.id], {
+        const links = await issueApprovalsSvc.linkManyForApproval(approval.id, [issue.id], {
           agentId: null,
           userId: actorUserId ?? "board",
         });
+        for (const link of links) {
+          await logActivity(db, {
+            orgId: approval.orgId,
+            actorType: "user",
+            actorId: actorUserId ?? "board",
+            action: "issue.approval_linked",
+            entityType: "issue",
+            entityId: link.issueId,
+            details: {
+              approvalId: approval.id,
+              linkCreatedAt: link.createdAt.toISOString(),
+            },
+          });
+        }
         await addMessage(conversationId, {
           orgId: approval.orgId,
           role: "system",

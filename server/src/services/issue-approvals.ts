@@ -155,7 +155,7 @@ export function issueApprovalService(db: Db) {
     },
 
     linkManyForApproval: async (approvalId: string, issueIds: string[], actor?: LinkActor) => {
-      if (issueIds.length === 0) return;
+      if (issueIds.length === 0) return [];
 
       const approval = await getApproval(approvalId);
       if (!approval) throw notFound("Approval not found");
@@ -179,7 +179,7 @@ export function issueApprovalService(db: Db) {
         }
       }
 
-      await db
+      return db
         .insert(issueApprovals)
         .values(
           uniqueIssueIds.map((issueId) => ({
@@ -190,7 +190,8 @@ export function issueApprovalService(db: Db) {
             linkedByUserId: actor?.userId ?? null,
           })),
         )
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning();
     },
   };
 }
