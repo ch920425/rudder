@@ -1,6 +1,9 @@
 # Documentation Screenshot Asset Inventory
 
-All listed screenshots use English-only product content.
+All listed screenshots use English-only product content from the
+`mock-data-maintainer` landing demo org. Refresh the set with `pnpm landing:shots`,
+review `/tmp/rudder-landing-proof-shots/shots`, then copy the matching files into
+this directory.
 
 | File | Purpose | Suggested reference page | Desktop/mobile crop notes |
 | --- | --- | --- | --- |
