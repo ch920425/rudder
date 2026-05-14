@@ -20,6 +20,8 @@ import {
   buildGithubReleaseAssetDownloadUrl,
   buildForceQuitCommand,
   buildLinuxDesktopEntry,
+  buildWindowsRobocopyMirrorCommand,
+  buildWindowsZipExtractCommand,
   compareStableSemver,
   copyPortableAppBundle,
   downloadAsset,
@@ -27,6 +29,7 @@ import {
   getCliUpdateNotice,
   isInstalledDesktopCurrent,
   isPersistentCliVersionCurrent,
+  isSuccessfulRobocopyExitCode,
   parseChecksumFile,
   resolveAssetChecksum,
   resolveCliInstallSpec,
@@ -352,6 +355,33 @@ describe("desktop start command helpers", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("uses Windows-native archive and mirror commands for portable app installs", () => {
+    expect(buildWindowsZipExtractCommand("C:\\Temp\\Rudder.zip", "C:\\Temp\\rudder-extract")).toEqual({
+      command: "tar.exe",
+      args: ["-xf", "C:\\Temp\\Rudder.zip", "-C", "C:\\Temp\\rudder-extract"],
+    });
+    expect(buildWindowsRobocopyMirrorCommand("C:\\Temp\\win-unpacked", "C:\\Users\\test\\AppData\\Local\\Programs\\Rudder")).toEqual({
+      command: "robocopy.exe",
+      args: [
+        "C:\\Temp\\win-unpacked",
+        "C:\\Users\\test\\AppData\\Local\\Programs\\Rudder",
+        "/MIR",
+        "/R:2",
+        "/W:1",
+        "/NFL",
+        "/NDL",
+        "/NJH",
+        "/NJS",
+        "/NP",
+      ],
+    });
+    expect(isSuccessfulRobocopyExitCode(0)).toBe(true);
+    expect(isSuccessfulRobocopyExitCode(1)).toBe(true);
+    expect(isSuccessfulRobocopyExitCode(7)).toBe(true);
+    expect(isSuccessfulRobocopyExitCode(8)).toBe(false);
+    expect(isSuccessfulRobocopyExitCode(null)).toBe(false);
   });
 
   it("resolves the current CLI version from npm execution metadata", () => {

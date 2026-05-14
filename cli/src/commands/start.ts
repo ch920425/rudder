@@ -576,8 +576,31 @@ function runChecked(command: string, args: string[], options: { cwd?: string; sh
   throw new Error(`${command} ${args.join(" ")} failed${output ? `: ${output}` : ""}`);
 }
 
+function formatCommandFailure(command: string, args: string[], stdout: unknown, stderr: unknown): string {
+  const output = [stdout, stderr]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join("\n")
+    .trim();
+  return `${command} ${args.join(" ")} failed${output ? `: ${output}` : ""}`;
+}
+
 function powershellQuote(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+export function buildWindowsZipExtractCommand(zipPath: string, outputDir: string): { command: string; args: string[] } {
+  return { command: "tar.exe", args: ["-xf", zipPath, "-C", outputDir] };
+}
+
+export function buildWindowsRobocopyMirrorCommand(sourcePath: string, destinationPath: string): { command: string; args: string[] } {
+  return {
+    command: "robocopy.exe",
+    args: [sourcePath, destinationPath, "/MIR", "/R:2", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"],
+  };
+}
+
+export function isSuccessfulRobocopyExitCode(status: number | null): boolean {
+  return typeof status === "number" && status >= 0 && status <= 7;
 }
 
 async function extractZip(zipPath: string, outputDir: string, target: DesktopAssetTarget): Promise<void> {
@@ -590,13 +613,8 @@ async function extractZip(zipPath: string, outputDir: string, target: DesktopAss
   }
 
   if (target.platform === "windows") {
-    runChecked("powershell.exe", [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-Command",
-      `Expand-Archive -LiteralPath ${powershellQuote(zipPath)} -DestinationPath ${powershellQuote(outputDir)} -Force`,
-    ]);
+    const command = buildWindowsZipExtractCommand(zipPath, outputDir);
+    runChecked(command.command, command.args);
     return;
   }
 
@@ -788,6 +806,17 @@ async function installPortableDesktop(
 }
 
 export async function copyPortableAppBundle(sourcePath: string, destinationPath: string): Promise<void> {
+  if (process.platform === "win32") {
+    await mkdir(destinationPath, { recursive: true });
+    const command = buildWindowsRobocopyMirrorCommand(sourcePath, destinationPath);
+    const result = spawnSync(command.command, command.args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (isSuccessfulRobocopyExitCode(result.status)) return;
+    throw new Error(formatCommandFailure(command.command, command.args, result.stdout, result.stderr));
+  }
+
   await cp(sourcePath, destinationPath, { recursive: true, verbatimSymlinks: true });
 }
 
