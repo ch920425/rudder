@@ -1,5 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_CODEX_STUB } from "./support/e2e-env";
+import { createDb, heartbeatRuns } from "../../packages/db/src/index.ts";
+import { E2E_CODEX_STUB, E2E_DATABASE_URL } from "./support/e2e-env";
+
+const e2eDb = createDb(E2E_DATABASE_URL);
+
+test.afterAll(async () => {
+  await (e2eDb as unknown as { $client?: { end: () => Promise<void> } }).$client?.end();
+});
 
 async function createOrganization(page: Page, name: string) {
   const orgRes = await page.request.post("/api/orgs", {
@@ -173,6 +181,69 @@ test.describe("Run transcript detail", () => {
 
     await page.screenshot({
       path: "tests/e2e/test-results/agent-run-detail-tabs.png",
+      fullPage: true,
+    });
+  });
+
+  test("keeps long stderr excerpts inside the run detail pane", async ({ page }) => {
+    const organization = await createOrganization(page, `Run-Detail-Long-Stderr-${Date.now()}`);
+
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Stderr Layout Tester",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          command: E2E_CODEX_STUB,
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json() as { id: string };
+
+    const runId = randomUUID();
+    await e2eDb.insert(heartbeatRuns).values({
+      id: runId,
+      orgId: organization.id,
+      agentId: agent.id,
+      invocationSource: "scheduled",
+      triggerDetail: "Scheduled heartbeat",
+      status: "failed",
+      startedAt: new Date("2026-05-14T08:33:42.000Z"),
+      finishedAt: new Date("2026-05-14T08:33:43.000Z"),
+      error: "Runtime hook failed",
+      errorCode: "runtime_hook_failed",
+      stderrExcerpt:
+        "2026-05-14T08:33:42.273612Z WARN codex_core::session::turn: after_agent hook failed; continuing " +
+        `turn_id=${"019e2597-e63f-7520-9143-4bf97a7bfefc".repeat(8)} hook_name=legacy_notify error=No such file or directory (os error 2)`,
+      createdAt: new Date("2026-05-14T08:33:42.000Z"),
+      updatedAt: new Date("2026-05-14T08:33:43.000Z"),
+    });
+
+    await page.addInitScript((orgId: string) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/agents/${agent.id}/runs/${runId}`, { waitUntil: "domcontentloaded" });
+
+    const detailPane = page.getByTestId("agent-runs-detail-pane");
+    const listPane = page.getByTestId("agent-runs-list-pane");
+    const stderrExcerpt = detailPane.getByTestId("run-stderr-excerpt");
+    await expect(stderrExcerpt).toBeVisible({ timeout: 15_000 });
+
+    const detailBox = await detailPane.boundingBox();
+    const listBox = await listPane.boundingBox();
+    const stderrBox = await stderrExcerpt.boundingBox();
+    expect(detailBox).not.toBeNull();
+    expect(listBox).not.toBeNull();
+    expect(stderrBox).not.toBeNull();
+    expect(stderrBox!.x).toBeGreaterThanOrEqual(detailBox!.x);
+    expect(stderrBox!.x + stderrBox!.width).toBeLessThanOrEqual(detailBox!.x + detailBox!.width + 1);
+    expect(stderrBox!.x + stderrBox!.width).toBeLessThan(listBox!.x);
+
+    await page.screenshot({
+      path: "/tmp/rudder-agent-run-stderr-contained.png",
       fullPage: true,
     });
   });
