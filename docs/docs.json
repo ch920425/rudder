@@ -49,24 +49,6 @@
                 ]
               }
             ]
-          },
-          {
-            "tab": "Build",
-            "groups": [
-              {
-                "group": "Extending Rudder",
-                "pages": [
-                  "plugins/overview",
-                  "cli/reference"
-                ]
-              },
-              {
-                "group": "Operations",
-                "pages": [
-                  "deployment/overview"
-                ]
-              }
-            ]
           }
         ]
       },
@@ -99,24 +81,6 @@
                   "zh/concepts/messenger-approvals",
                   "zh/concepts/workspaces",
                   "zh/concepts/skills"
-                ]
-              }
-            ]
-          },
-          {
-            "tab": "构建",
-            "groups": [
-              {
-                "group": "扩展 Rudder",
-                "pages": [
-                  "zh/plugins/overview",
-                  "zh/cli/reference"
-                ]
-              },
-              {
-                "group": "运维",
-                "pages": [
-                  "zh/deployment/overview"
                 ]
               }
             ]
