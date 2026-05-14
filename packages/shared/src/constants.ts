@@ -162,6 +162,7 @@ export type ChatMessageRole = (typeof CHAT_MESSAGE_ROLES)[number];
 
 export const CHAT_MESSAGE_KINDS = [
   "message",
+  "ask_user",
   "issue_proposal",
   "operation_proposal",
   "system_event",

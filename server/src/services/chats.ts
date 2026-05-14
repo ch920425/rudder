@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@rudderhq/db";
-import { formatMessengerPreview, formatMessengerTitle, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
+import { formatMessengerPreview, formatMessengerTitle, sanitizeChatStructuredPayload, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
 import {
   agents,
   approvals,
@@ -1069,7 +1069,7 @@ export function chatService(db: Db) {
       input: {
         orgId: string;
         role: "user" | "assistant" | "system";
-        kind: "message" | "issue_proposal" | "operation_proposal" | "system_event";
+        kind: "message" | "ask_user" | "issue_proposal" | "operation_proposal" | "system_event";
         status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
         body: string;
         structuredPayload?: Record<string, unknown> | null;
@@ -1089,7 +1089,10 @@ export function chatService(db: Db) {
           kind: input.kind,
           status: input.status ?? "completed",
           body: input.body,
-          structuredPayload: withPersistedTranscript(input.structuredPayload ?? null, input.transcript ?? []),
+          structuredPayload: withPersistedTranscript(
+            sanitizeChatStructuredPayload(input.structuredPayload ?? null),
+            input.transcript ?? [],
+          ),
           approvalId: input.approvalId ?? null,
           replyingAgentId: input.replyingAgentId ?? null,
           chatTurnId: input.chatTurnId ?? null,
@@ -1111,7 +1114,7 @@ export function chatService(db: Db) {
       conversationId: string,
       messageId: string,
       input: {
-        kind?: "message" | "issue_proposal" | "operation_proposal" | "system_event";
+        kind?: "message" | "ask_user" | "issue_proposal" | "operation_proposal" | "system_event";
         status?: "streaming" | "completed" | "stopped" | "failed" | "interrupted";
         body?: string;
         structuredPayload?: Record<string, unknown> | null;
@@ -1153,8 +1156,8 @@ export function chatService(db: Db) {
             ? {
               structuredPayload: withPersistedTranscript(
                 input.structuredPayload !== undefined
-                  ? input.structuredPayload
-                  : stripChatMetadataFromPayload(existing.structuredPayload),
+                  ? sanitizeChatStructuredPayload(input.structuredPayload)
+                  : sanitizeChatStructuredPayload(stripChatMetadataFromPayload(existing.structuredPayload)),
                 input.transcript !== undefined
                   ? input.transcript
                   : chatTranscriptFromPayload(existing.structuredPayload),
@@ -1219,7 +1222,7 @@ export function chatService(db: Db) {
         .update(chatMessages)
         .set({
           structuredPayload: withPersistedTranscript(
-            structuredPayload,
+            sanitizeChatStructuredPayload(structuredPayload),
             chatTranscriptFromPayload(existing.structuredPayload),
           ),
           updatedAt: new Date(),

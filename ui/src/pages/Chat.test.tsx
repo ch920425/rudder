@@ -15,9 +15,13 @@ import {
   canRetryFailedChatMessage,
   computeDisplayedChatMessages,
   draftIssueContextLabel,
+  askUserRequestFromMessage,
+  findLatestUnansweredAskUserMessage,
   findRetrySourceUserMessage,
+  formatAskUserAnswerMessage,
   isChatAgentSelectionLocked,
   isChatProjectSelectionLocked,
+  isAskUserMessageAnswered,
   isUserVisibleIncomingChatMessage,
   resolveDraftIssueContext,
   scrollChatMessagesToBottom,
@@ -396,6 +400,70 @@ describe("isUserVisibleIncomingChatMessage", () => {
       kind: "message",
       body: "User-authored text",
     }))).toBe(false);
+  });
+});
+
+describe("ask_user chat messages", () => {
+  const askUserPayload = {
+    requestUserInput: {
+      questions: [
+        {
+          id: "scope",
+          header: "Scope",
+          question: "Which scope should the agent implement?",
+          options: [
+            { id: "narrow", label: "Narrow path", description: "Smallest shippable path", recommended: true },
+            { id: "broad", label: "Broad path" },
+          ],
+          allowFreeform: true,
+        },
+      ],
+    },
+  };
+
+  it("finds the latest visible unanswered ask_user message by branch order", () => {
+    const firstAsk = message({
+      id: "ask-1",
+      role: "assistant",
+      kind: "ask_user",
+      body: "Need scope.",
+      structuredPayload: askUserPayload,
+      createdAt: new Date("2026-05-07T00:00:01.000Z"),
+    });
+    const firstAnswer = message({
+      id: "user-2",
+      role: "user",
+      kind: "message",
+      body: "Use the narrow path.",
+      createdAt: new Date("2026-05-07T00:00:02.000Z"),
+    });
+    const secondAsk = message({
+      id: "ask-2",
+      role: "assistant",
+      kind: "ask_user",
+      body: "Need review route.",
+      structuredPayload: askUserPayload,
+      createdAt: new Date("2026-05-07T00:00:03.000Z"),
+    });
+
+    const messages = [firstAsk, firstAnswer, secondAsk];
+    expect(askUserRequestFromMessage(firstAsk)?.questions[0]?.id).toBe("scope");
+    expect(isAskUserMessageAnswered(firstAsk, messages)).toBe(true);
+    expect(isAskUserMessageAnswered(secondAsk, messages)).toBe(false);
+    expect(findLatestUnansweredAskUserMessage(messages)).toBe(secondAsk);
+  });
+
+  it("formats selected and freeform answers as a normal user message", () => {
+    const request = askUserPayload.requestUserInput;
+
+    expect(formatAskUserAnswerMessage(request, {
+      scope: { kind: "freeform", text: "Ship the narrow path, but leave extension points obvious." },
+    })).toBe([
+      "Answering the requested input:",
+      "",
+      "- Scope",
+      "  Answer: Ship the narrow path, but leave extension points obvious.",
+    ].join("\n"));
   });
 });
 

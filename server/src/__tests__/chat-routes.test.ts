@@ -602,6 +602,75 @@ describe("chat routes", () => {
     expect(res.body.messages).toHaveLength(2);
   });
 
+  it("persists assistant ask_user replies without creating approvals", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Need help deciding scope");
+    const askUserPayload = {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            header: "Scope",
+            question: "Which scope should the agent implement?",
+            options: [
+              { id: "narrow", label: "Narrow", recommended: true },
+              { id: "broad", label: "Broad" },
+            ],
+            allowFreeform: true,
+          },
+        ],
+      },
+    };
+    const askUserMessage = {
+      ...createMessage("message-ask-user", "assistant", "ask_user", "I need one decision before continuing."),
+      structuredPayload: askUserPayload,
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(askUserMessage);
+    mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
+      outcome: "completed",
+      partialBody: "I need one decision before continuing.",
+      replyingAgentId: "agent-1",
+      reply: {
+        kind: "ask_user",
+        body: "I need one decision before continuing.",
+        structuredPayload: askUserPayload,
+        replyingAgentId: "agent-1",
+      },
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "Need help deciding scope" });
+
+    expect(res.status).toBe(201);
+    expect(mockChatService.createProposalApproval).not.toHaveBeenCalled();
+    expect(mockChatService.addMessage).toHaveBeenNthCalledWith(
+      1,
+      "chat-1",
+      expect.objectContaining({
+        role: "assistant",
+        kind: "ask_user",
+        approvalId: null,
+        structuredPayload: askUserPayload,
+      }),
+    );
+    expect(mockObserveExecutionEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: "chat.reply.persisted",
+        metadata: expect.objectContaining({
+          assistantKind: "ask_user",
+          approvalId: null,
+        }),
+      }),
+    );
+    expect(res.body.messages).toHaveLength(2);
+  });
+
   it("does not default manual approval-backed issue proposals to the selected chat agent", async () => {
     const conversation = createConversation({
       preferredAgentId: "agent-1",
@@ -1277,6 +1346,86 @@ describe("chat routes", () => {
         expect.objectContaining({ kind: "tool_call", name: "read_file" }),
       ],
     }));
+  });
+
+  it("updates a streaming assistant placeholder into ask_user on final", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Need help choosing scope");
+    const progressMessage = {
+      ...createMessage("message-assistant", "assistant", "message", ""),
+      status: "streaming",
+    };
+    const askUserPayload = {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            question: "Which scope should the agent implement?",
+            options: [
+              { id: "narrow", label: "Narrow" },
+              { id: "broad", label: "Broad" },
+            ],
+          },
+        ],
+      },
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(progressMessage);
+    mockChatAssistantService.streamChatAssistantReply.mockImplementation(async (input) => {
+      await input.onAssistantState?.("streaming");
+      await input.onAssistantDelta?.("I need one decision.");
+      await input.onAssistantState?.("finalizing");
+      return {
+        outcome: "completed",
+        partialBody: "I need one decision.",
+        replyingAgentId: "agent-1",
+        reply: {
+          kind: "ask_user",
+          body: "I need one decision.",
+          structuredPayload: askUserPayload,
+          replyingAgentId: "agent-1",
+        },
+      };
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages/stream")
+      .send({ body: "Need help choosing scope" })
+      .buffer(true)
+      .parse((response, callback) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          text += chunk;
+        });
+        response.on("end", () => callback(null, text));
+      });
+
+    expect(res.status).toBe(201);
+    const events = String(res.body)
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+
+    expect(events.at(-1)?.type).toBe("final");
+    expect(events.at(-1)?.messages[0]).toEqual(expect.objectContaining({
+      id: "message-assistant",
+      kind: "ask_user",
+      structuredPayload: askUserPayload,
+    }));
+    expect(mockChatService.updateMessage).toHaveBeenLastCalledWith(
+      "chat-1",
+      "message-assistant",
+      expect.objectContaining({
+        kind: "ask_user",
+        status: "completed",
+        body: "I need one decision.",
+        structuredPayload: askUserPayload,
+      }),
+    );
   });
 
   it("stores streamed chat attachments before invoking the assistant", async () => {

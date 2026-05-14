@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+import {
+  chatAskUserRequestFromStructuredPayload,
+  chatAskUserRequestSchema,
+  chatRichReferencesFromStructuredPayload,
+  sanitizeChatStructuredPayload,
+} from "./chat.js";
+
+describe("chat ask_user request payloads", () => {
+  it("accepts one to three structured questions with two to three options", () => {
+    const payload = {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            header: "Scope",
+            question: "Which scope should the agent implement?",
+            options: [
+              { id: "narrow", label: "Narrow", description: "Smallest shippable path", recommended: true },
+              { id: "broad", label: "Broad" },
+            ],
+            allowFreeform: true,
+          },
+        ],
+      },
+    };
+
+    expect(chatAskUserRequestSchema.safeParse(payload.requestUserInput).success).toBe(true);
+    expect(chatAskUserRequestFromStructuredPayload(payload)).toEqual(payload.requestUserInput);
+    expect(sanitizeChatStructuredPayload(payload)).toEqual(payload);
+  });
+
+  it("drops malformed requestUserInput during general structured payload sanitization", () => {
+    expect(sanitizeChatStructuredPayload({
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            question: "Which scope?",
+            options: [{ id: "only", label: "Only one option" }],
+          },
+        ],
+      },
+      summary: "keep this",
+    })).toEqual({ summary: "keep this" });
+  });
+});
+
+describe("chat rich references", () => {
+  it("keeps valid issue and comment references", () => {
+    const refs = chatRichReferencesFromStructuredPayload({
+      richReferences: [
+        { type: "issue", identifier: "ZST-153", display: "card" },
+        {
+          type: "issue_comment",
+          issueId: "11111111-1111-4111-8111-111111111111",
+          commentId: "22222222-2222-4222-8222-222222222222",
+          display: "card",
+        },
+      ],
+    });
+
+    expect(refs).toEqual([
+      { type: "issue", identifier: "ZST-153", display: "card" },
+      {
+        type: "issue_comment",
+        issueId: "11111111-1111-4111-8111-111111111111",
+        commentId: "22222222-2222-4222-8222-222222222222",
+        display: "card",
+      },
+    ]);
+  });
+
+  it("drops invalid references and caps the list", () => {
+    const payload = {
+      summary: "done",
+      richReferences: [
+        { type: "issue" },
+        { type: "issue", identifier: "ZST-1", display: "card" },
+        { type: "issue", identifier: "ZST-2", display: "card" },
+        { type: "issue", identifier: "ZST-3", display: "card" },
+        { type: "issue", identifier: "ZST-4", display: "card" },
+        { type: "issue", identifier: "ZST-5", display: "card" },
+        { type: "issue", identifier: "ZST-6", display: "card" },
+      ],
+    };
+
+    expect(sanitizeChatStructuredPayload(payload)).toEqual({
+      summary: "done",
+      richReferences: [
+        { type: "issue", identifier: "ZST-1", display: "card" },
+        { type: "issue", identifier: "ZST-2", display: "card" },
+        { type: "issue", identifier: "ZST-3", display: "card" },
+        { type: "issue", identifier: "ZST-4", display: "card" },
+        { type: "issue", identifier: "ZST-5", display: "card" },
+      ],
+    });
+  });
+});

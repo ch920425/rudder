@@ -96,6 +96,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   kind:
     | "message"
+    | "ask_user"
     | "issue_proposal"
     | "operation_proposal"
     | "system_event";
@@ -115,6 +116,42 @@ export interface ChatMessage {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ChatRichReferenceDisplay = "card" | "inline";
+
+export interface ChatAskUserOption {
+  id: string;
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface ChatAskUserQuestion {
+  id: string;
+  header?: string;
+  question: string;
+  options: ChatAskUserOption[];
+  allowFreeform?: boolean;
+}
+
+export interface ChatAskUserRequest {
+  questions: ChatAskUserQuestion[];
+}
+
+export type ChatRichReference =
+  | {
+    type: "issue";
+    issueId?: string;
+    identifier?: string;
+    display?: ChatRichReferenceDisplay;
+  }
+  | {
+    type: "issue_comment";
+    issueId?: string;
+    identifier?: string;
+    commentId: string;
+    display?: ChatRichReferenceDisplay;
+  };
 
 export type ChatOperationProposalDecisionAction = "approve" | "reject" | "requestRevision";
 

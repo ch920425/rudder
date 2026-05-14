@@ -604,7 +604,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       } as ChatMessage;
     };
     const saveAssistantMessage = async (input: {
-      kind: "message" | "issue_proposal" | "operation_proposal";
+      kind: "message" | "ask_user" | "issue_proposal" | "operation_proposal";
       body: string;
       structuredPayload?: Record<string, unknown> | null;
       approvalId?: string | null;
@@ -733,6 +733,16 @@ export function chatRoutes(db: Db, storage: StorageService) {
         approvalId: approval.id,
       });
       createdMessages.push(await attachGeneratedFiles(proposalMessage as ChatMessage, assistantReply.generatedAttachments));
+      return createdMessages;
+    }
+
+    if (assistantReply.kind === "ask_user") {
+      const assistantMessage = await saveAssistantMessage({
+        kind: "ask_user",
+        body: assistantReply.body,
+        structuredPayload: assistantReply.structuredPayload,
+      });
+      createdMessages.push(await attachGeneratedFiles(assistantMessage as ChatMessage, assistantReply.generatedAttachments));
       return createdMessages;
     }
 

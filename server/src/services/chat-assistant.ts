@@ -10,6 +10,7 @@ import type {
   ChatRuntimeDescriptor,
   OperatorProfileSettings,
 } from "@rudderhq/shared";
+import { chatAskUserRequestFromStructuredPayload, sanitizeChatStructuredPayload } from "@rudderhq/shared";
 import { findServerAdapter } from "../agent-runtimes/index.js";
 import type { AgentRuntimeInvocationMeta, AgentRuntimeLoadedSkillMeta } from "../agent-runtimes/index.js";
 import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "../agent-runtimes/types.js";
@@ -30,7 +31,7 @@ interface ResolvedChatRuntimeSource {
 }
 
 export interface ChatAssistantResult {
-  kind: "message" | "issue_proposal" | "operation_proposal";
+  kind: "message" | "ask_user" | "issue_proposal" | "operation_proposal";
   body: string;
   structuredPayload: Record<string, unknown> | null;
   replyingAgentId?: string | null;
@@ -304,6 +305,7 @@ function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource,
     "Treat message attachments as part of the user's message. If an image attachment is present, fetch or inspect it before claiming you cannot see the image.",
     "Attachment URLs in the conversation input are relative to $RUDDER_API_URL and require Authorization: Bearer $RUDDER_API_KEY when fetched from tools.",
     "Use result kind 'message' for clarification, summaries, and small requests that can stay in chat.",
+    "Use result kind 'ask_user' only when one to three short structured questions are blocked on the user's decision before the conversation can continue safely.",
     "Use result kind 'issue_proposal' for larger work that should become an issue.",
     "Reply in two phases.",
     "Phase 1: while you work, write concise progress updates in Markdown with no JSON fences. These are process transcript entries, not the final answer.",
@@ -354,6 +356,39 @@ function buildResponseSchemaPromptSection(planMode: boolean) {
             agentId: "optional uuid",
             reason: "short explanation",
           },
+          requestUserInput: {
+            questions: [
+              {
+                id: "stable_question_id",
+                header: "optional short header",
+                question: "required short question",
+                options: [
+                  {
+                    id: "stable_option_id",
+                    label: "required short option label",
+                    description: "optional short tradeoff",
+                    recommended: false,
+                  },
+                ],
+                allowFreeform: true,
+              },
+            ],
+          },
+          richReferences: [
+            {
+              type: "issue",
+              issueId: "optional issue uuid",
+              identifier: "optional issue identifier such as ZST-153",
+              display: "card|inline",
+            },
+            {
+              type: "issue_comment",
+              issueId: "optional issue uuid",
+              identifier: "optional issue identifier such as ZST-153",
+              commentId: "required comment uuid",
+              display: "card|inline",
+            },
+          ],
         },
       },
       null,
@@ -486,15 +521,19 @@ function validateAssistantResult(
   const body = options.bodyOverride?.trim() || payloadBody || options.bodyFallback?.trim() || "";
   const structuredPayload =
     payload.structuredPayload && typeof payload.structuredPayload === "object" && !Array.isArray(payload.structuredPayload)
-      ? (payload.structuredPayload as Record<string, unknown>)
+      ? sanitizeChatStructuredPayload(payload.structuredPayload as Record<string, unknown>)
       : null;
 
   if (!body) {
     throw new Error("Assistant response body was empty");
   }
 
-  if (kind !== "message" && kind !== "issue_proposal" && kind !== "operation_proposal") {
+  if (kind !== "message" && kind !== "ask_user" && kind !== "issue_proposal" && kind !== "operation_proposal") {
     throw new Error(`Unsupported assistant result kind: ${kind}`);
+  }
+
+  if (kind === "ask_user" && !chatAskUserRequestFromStructuredPayload(structuredPayload)) {
+    throw new Error("ask_user assistant responses require structuredPayload.requestUserInput with 1-3 valid questions");
   }
 
   return {

@@ -199,6 +199,29 @@ function assistantSummary(ctx: { context?: Record<string, unknown> }, body: stri
   })}`;
 }
 
+function askUserSummary(ctx: { context?: Record<string, unknown> }) {
+  return `${sentinelFromContext(ctx)}${JSON.stringify({
+    kind: "ask_user",
+    body: "I need one decision before continuing.",
+    structuredPayload: {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            header: "Scope",
+            question: "Which scope should I use?",
+            options: [
+              { id: "narrow", label: "Narrow", description: "Smallest shippable path", recommended: true },
+              { id: "broad", label: "Broad" },
+            ],
+            allowFreeform: true,
+          },
+        ],
+      },
+    },
+  })}`;
+}
+
 describe("chatAssistantService operator profile prompt injection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -407,6 +430,59 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(prompt).not.toContain("Plan mode is active for this conversation.");
     expect(prompt).not.toContain("required markdown plan for the issue plan document");
     expect(prompt).toContain("\"body\": \"optional markdown plan\"");
+  });
+
+  it("parses ask_user final results and includes requestUserInput guidance in normal chat", async () => {
+    const svc = chatAssistantService({} as any);
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => ({
+      summary: askUserSummary(ctx),
+      resultJson: null,
+      timedOut: false,
+      exitCode: 0,
+      errorMessage: null,
+    }));
+
+    const result = await svc.generateChatAssistantReply({
+      conversation: makeConversation({ planMode: false }),
+      messages: makeMessages(),
+      contextLinks: [],
+      operatorProfile: null,
+    });
+
+    const prompt = mockAdapter.execute.mock.calls.at(-1)?.[0]?.context?.chatPrompt as string;
+    expect(prompt).toContain("Use result kind 'ask_user'");
+    expect(prompt).toContain("requestUserInput");
+    expect(result).toEqual(expect.objectContaining({
+      kind: "ask_user",
+      body: "I need one decision before continuing.",
+      structuredPayload: expect.objectContaining({
+        requestUserInput: expect.objectContaining({
+          questions: [expect.objectContaining({ id: "scope" })],
+        }),
+      }),
+    }));
+  });
+
+  it("rejects ask_user final results without a valid requestUserInput payload", async () => {
+    const svc = chatAssistantService({} as any);
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => ({
+      summary: `${sentinelFromContext(ctx)}${JSON.stringify({
+        kind: "ask_user",
+        body: "I need input.",
+        structuredPayload: null,
+      })}`,
+      resultJson: null,
+      timedOut: false,
+      exitCode: 0,
+      errorMessage: null,
+    }));
+
+    await expect(svc.generateChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+      operatorProfile: null,
+    })).rejects.toThrow("ask_user assistant responses require structuredPayload.requestUserInput");
   });
 
   it("omits the operator profile section when all profile fields are blank", async () => {
