@@ -95,7 +95,7 @@ export function normalizeReleaseVersion(tagName: string, channel: DesktopUpdateC
   const parsed = parseVersion(normalized);
   if (!parsed) return null;
   if (channel === "stable" && parsed.prerelease) return null;
-  if (channel === "canary" && !parsed.prerelease?.startsWith("canary.")) return null;
+  if (channel === "canary" && parsed.prerelease && !parsed.prerelease.startsWith("canary.")) return null;
   return `${parsed.major}.${parsed.minor}.${parsed.patch}`;
 }
 
@@ -107,7 +107,7 @@ function normalizeReleaseDisplayVersion(tagName: string, channel: DesktopUpdateC
   const parsed = parseVersion(normalized);
   if (!parsed) return null;
   if (channel === "stable" && parsed.prerelease) return null;
-  if (channel === "canary" && !parsed.prerelease?.startsWith("canary.")) return null;
+  if (channel === "canary" && parsed.prerelease && !parsed.prerelease.startsWith("canary.")) return null;
   return parsed.prerelease
     ? `${parsed.major}.${parsed.minor}.${parsed.patch}-${parsed.prerelease}`
     : `${parsed.major}.${parsed.minor}.${parsed.patch}`;

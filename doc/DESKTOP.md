@@ -250,8 +250,9 @@ Packaged Desktop checks for updates on startup against GitHub Releases. The
 local Desktop update channel defaults to stable, so update checks compare
 against the latest stable release unless the operator enables canary updates in
 Settings > General. With canary enabled, startup, menu, and About-page checks
-compare against the latest canary release. Beta prereleases are ignored; if a
-newer matching release exists, the app prompts the user to update.
+compare against both stable releases and canary prereleases, then select the
+newest semantic version. Beta prereleases are ignored; if a newer matching
+release exists, the app prompts the user to update.
 When the operator chooses Update, Desktop starts the bundled CLI
 `start --no-cli` portable replacement flow for the discovered version. That
 flow downloads the matching release asset, verifies `SHASUMS256.txt`, requests

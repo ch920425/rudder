@@ -285,9 +285,9 @@ export const en = {
   "general.updates.unavailable": "Desktop update settings are unavailable in this environment.",
   "general.updates.canary.title": "Receive early desktop updates",
   "general.updates.canary.disabledDescription":
-    "Install test versions before the regular desktop release.",
+    "Install the newest stable release, and include test versions when they are newer.",
   "general.updates.canary.enabledDescription":
-    "This machine checks for test versions before the regular desktop release.",
+    "This machine checks both stable releases and newer test versions.",
   "general.diagnostics.developer.title": "Show developer diagnostics",
   "general.diagnostics.developer.description":
     "Show internal Rudder runtime, workspace, session, and adapter diagnostics in transcripts.",
@@ -459,13 +459,13 @@ export const en = {
     "Manage inbox alerts, badge behavior, and permission repair from the dedicated Notifications settings page.",
   "about.notifications.open": "Open notifications",
   "about.updates.title": "Check for updates",
-  "about.updates.description": "Compare this desktop build against the selected GitHub release channel.",
+  "about.updates.description": "Compare this desktop build against the selected GitHub release policy.",
   "about.updates.check": "Check for updates",
   "about.updates.install": "Update",
   "about.updates.download": "Download update",
   "about.updates.installing": "Updating...",
   "about.updates.channel.stable": "Stable",
-  "about.updates.channel.canary": "Canary",
+  "about.updates.channel.canary": "Stable + Canary",
   "about.updates.available.inline": "{{channel}} release available: {{latestVersion}}.",
   "about.updates.current.inline": "{{channel}} is already current: {{currentVersion}}.",
   "about.updates.unavailable.inline": "{{channel}} release comparison is not available right now.",
