@@ -41,4 +41,13 @@ describe("index.css motion rules", () => {
     expect(commandPaletteMotion).not.toContain("backdrop-filter");
     expect(commandPaletteMotion).not.toContain("scale(");
   });
+
+  it("positions command palette against the viewport", () => {
+    const commandPaletteContent = cssBlock(".command-palette-content");
+    const commandPaletteDesktopPositioning =
+      indexCss.match(/@media \(min-width: 768px\) \{\s*\.command-palette-content \{[^}]+}/)?.[0] ?? "";
+
+    expect(commandPaletteContent).toContain("left: 50vw");
+    expect(commandPaletteDesktopPositioning).toContain("top: 50vh");
+  });
 });

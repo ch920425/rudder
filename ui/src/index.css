@@ -615,9 +615,16 @@
   }
 
   .command-palette-content {
+    left: 50vw;
     transform-origin: center 42%;
     will-change: opacity, transform;
     backface-visibility: hidden;
+  }
+
+  @media (min-width: 768px) {
+    .command-palette-content {
+      top: 50vh;
+    }
   }
 
   .command-palette-content--from-rail {
@@ -780,6 +787,51 @@
     box-shadow: var(--shadow-lg);
     -webkit-backdrop-filter: blur(24px) saturate(118%);
     backdrop-filter: blur(24px) saturate(118%);
+  }
+
+  .glass-popover {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklab, var(--surface-overlay) 74%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 58%, transparent) 100%
+      );
+    border: 1px solid color-mix(in oklab, var(--border-base) 72%, transparent);
+    box-shadow:
+      0 28px 72px -36px rgb(0 0 0 / 0.42),
+      inset 0 1px 0 rgb(255 255 255 / 0.18);
+    -webkit-backdrop-filter: blur(30px) saturate(132%);
+    backdrop-filter: blur(30px) saturate(132%);
+  }
+
+  html.dark .glass-popover {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklab, var(--surface-overlay) 70%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 54%, transparent) 100%
+      );
+    border-color: color-mix(in oklab, var(--border-strong) 68%, transparent);
+    box-shadow:
+      0 30px 78px -34px rgb(0 0 0 / 0.64),
+      inset 0 1px 0 rgb(255 255 255 / 0.1);
+  }
+
+  .command-palette-glass [data-slot="command"] {
+    background: transparent;
+  }
+
+  .command-palette-glass [data-slot="command-input-wrapper"] {
+    background: color-mix(in oklab, var(--surface-overlay) 34%, transparent);
+    border-bottom-color: color-mix(in oklab, var(--border-base) 56%, transparent);
+  }
+
+  .command-palette-glass [data-slot="command-separator"] {
+    background: color-mix(in oklab, var(--border-base) 44%, transparent);
+  }
+
+  .command-palette-glass [data-selected="true"] {
+    background: color-mix(in oklab, var(--surface-active) 70%, transparent);
   }
 
   .surface-active {

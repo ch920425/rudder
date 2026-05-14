@@ -128,8 +128,8 @@ export function CommandPalette() {
         setOpen(v);
         if (v && isMobile) setSidebarOpen(false);
       }} className={launchSource === "primary-rail"
-        ? "command-palette-content command-palette-content--from-rail sm:max-w-2xl"
-        : "command-palette-content sm:max-w-2xl"
+        ? "command-palette-content command-palette-content--from-rail glass-popover command-palette-glass sm:max-w-2xl"
+        : "command-palette-content glass-popover command-palette-glass sm:max-w-2xl"
       }>
       <CommandInput
         placeholder="Search issues, chats, agents, projects..."

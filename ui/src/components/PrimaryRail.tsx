@@ -346,7 +346,7 @@ export function PrimaryRail({
           <DropdownMenuContent
             side="right"
             align="start"
-            className="rail-create-menu-content surface-overlay w-48 text-foreground"
+            className="rail-create-menu-content glass-popover w-48 text-foreground"
           >
             <DropdownMenuItem onClick={() => navigate("/messenger/chat")}>
               <MessageCirclePlus className="h-4 w-4" />
