@@ -539,6 +539,7 @@ export function App() {
           <Route path="organization/settings/workspace/backups" element={<UnprefixedBoardRedirect />} />
           <Route path="organization/export/*" element={<UnprefixedBoardRedirect />} />
           <Route path="organization/import" element={<UnprefixedBoardRedirect />} />
+          <Route path="workspaces" element={<UnprefixedBoardRedirect />} />
           <Route path="workspaces/backups" element={<UnprefixedBoardRedirect />} />
           <Route path="settings" element={<LegacySettingsRedirect />} />
           <Route path="settings/*" element={<LegacySettingsRedirect />} />
