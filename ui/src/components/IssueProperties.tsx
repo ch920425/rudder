@@ -732,7 +732,7 @@ export function IssueProperties({
               </div>
             </div>
 
-            <div className="ml-[5.75rem] mt-1.5 min-w-0 space-y-1">
+            <div className={cn("mt-1.5 min-w-0 space-y-1", inline ? "ml-0" : "ml-[5.75rem]")}>
               {subIssueComposerOpen && onCreateSubIssue ? (
                 <form className="space-y-1" onSubmit={submitSubIssue}>
                   <div className="flex items-center gap-1.5">
@@ -777,12 +777,14 @@ export function IssueProperties({
                     <Link
                       key={child.id}
                       to={`/issues/${childPathId}`}
-                      className="flex min-w-0 items-center gap-1.5 rounded px-1 py-1 text-xs transition-colors hover:bg-accent/50"
+                      className="grid max-w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 overflow-hidden rounded px-1 py-1 text-xs transition-colors hover:bg-accent/50"
                       title={child.title}
                     >
                       <StatusIcon status={child.status} />
                       <span className="min-w-0 flex-1 truncate">{child.title}</span>
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{childLabel}</span>
+                      <span className="min-w-0 max-w-[5.5rem] truncate font-mono text-[11px] text-muted-foreground">
+                        {childLabel}
+                      </span>
                     </Link>
                   );
                 })

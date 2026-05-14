@@ -119,4 +119,81 @@ test.describe("Issue detail sub-issues", () => {
     await expect(page.getByText("created the issue")).toBeVisible();
     await expect(page.locator('[contenteditable="true"]').last()).toBeVisible();
   });
+
+  test("keeps long sub-issue rows inside the mobile properties sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `${ORG_NAME}-Mobile` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Mobile properties parent",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+
+    const longTitle = "Investigate a very long child issue title that should truncate before the identifier";
+    const childRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: longTitle,
+        status: "todo",
+        priority: "medium",
+        parentId: issue.id,
+      },
+    });
+    expect(childRes.ok()).toBe(true);
+    const childIssue = await childRes.json();
+    const childIdentifier = childIssue.identifier ?? childIssue.id.slice(0, 8);
+
+    await page.goto(`/issues/${issue.identifier ?? issue.id}`);
+    await page.getByRole("button", { name: "Properties" }).click();
+
+    const propertiesDialog = page.getByRole("dialog", { name: "Properties" });
+    await expect(propertiesDialog).toBeVisible();
+
+    const childLink = propertiesDialog.getByRole("link").filter({ hasText: longTitle });
+    await expect(childLink).toBeVisible();
+    await expect(childLink.getByText(childIdentifier, { exact: true })).toBeVisible();
+
+    const titleNode = childLink.getByText(longTitle, { exact: true });
+    const titleLayout = await titleNode.evaluate((node) => {
+      const style = window.getComputedStyle(node);
+
+      return {
+        clientWidth: node.clientWidth,
+        overflowX: style.overflowX,
+        scrollWidth: node.scrollWidth,
+        textOverflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
+      };
+    });
+    expect(titleLayout.textOverflow).toBe("ellipsis");
+    expect(titleLayout.overflowX).toBe("hidden");
+    expect(titleLayout.whiteSpace).toBe("nowrap");
+    expect(titleLayout.clientWidth).toBeLessThan(titleLayout.scrollWidth);
+
+    const dialogBox = await propertiesDialog.boundingBox();
+    const linkBox = await childLink.boundingBox();
+    const identifierBox = await childLink.getByText(childIdentifier, { exact: true }).boundingBox();
+
+    expect(dialogBox).not.toBeNull();
+    expect(linkBox).not.toBeNull();
+    expect(identifierBox).not.toBeNull();
+
+    const dialogRight = (dialogBox?.x ?? 0) + (dialogBox?.width ?? 0);
+    const linkRight = (linkBox?.x ?? 0) + (linkBox?.width ?? 0);
+    const identifierRight = (identifierBox?.x ?? 0) + (identifierBox?.width ?? 0);
+
+    expect(linkBox?.x ?? 0).toBeGreaterThanOrEqual((dialogBox?.x ?? 0) - 1);
+    expect(linkRight).toBeLessThanOrEqual(dialogRight + 1);
+    expect(identifierRight).toBeLessThanOrEqual(linkRight + 1);
+  });
 });
