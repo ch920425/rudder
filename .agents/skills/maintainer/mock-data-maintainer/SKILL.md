@@ -71,17 +71,21 @@ Prefer these scripts over rewriting the seed flow in a one-off answer.
    - what they are trying to do
    - what conflict, risk, or decision the data should reveal
    - what changed before and after the workflow
-4. Define entities and relationships before writing rows.
-5. Add time, status, priority, budget, ownership, and failure signals where they
+4. Ground Rudder scenarios in production-like operator work. Prefer a coherent
+   mix of synthetic records plus sanitized real scenario patterns from Rudder
+   development, release, support, growth, and agent-ops work over generic SaaS
+   examples.
+5. Define entities and relationships before writing rows.
+6. Add time, status, priority, budget, ownership, and failure signals where they
    make the scenario clearer.
-6. Choose the output form:
+7. Choose the output form:
    - live seed command
    - TypeScript seed script
    - JSON fixture
    - CSV
    - SQL inserts
    - Markdown scenario brief
-7. Include usage notes and reset notes.
+8. Include usage notes and reset notes.
 
 ## Output Shape
 
@@ -125,6 +129,22 @@ opaque generated IDs.
   work, use `references/rudder-studio-scenario.md` and the Rudder Studio
   fixture files instead of inventing a new one-off org.
 - For screenshots, make data visually legible across pages. Avoid empty shells.
+- For product screenshots, seed the underlying run/output evidence too: dashboards,
+  agent detail pages, Calendar, Messenger, and charts should be downstream of
+  coherent issues, heartbeat runs, run logs, comments, approvals, costs, and
+  calendar events instead of isolated component fixtures.
+- For screenshot and demo requests, prefer Desktop-shell capture when the
+  product claim is about the installed app, local operator workflow, or
+  production-like Rudder use. Browser capture is acceptable for narrow web UI
+  checks, but the final dataset should still work inside the Desktop shell.
+- Dashboard, Calendar, and agent run screenshots must include non-empty
+  transcript/output evidence. If a seeded page would show empty transcript,
+  empty run output, or decorative calendar-only blocks, treat the seed as
+  incomplete.
+- Capture flows must validate the specific screenshot surface before claiming
+  success. Use selectors and content assertions for the meaningful records on
+  each page, and fail or report blocked if the page is empty, stale, or showing
+  the wrong scenario.
 - For testing, include deterministic setup and reset strategy.
 - For workflow explanation, include persona, motivation, conflict, decision
   point, and outcome.
@@ -146,6 +166,7 @@ Good mock data has:
 Avoid:
 
 - lorem ipsum rows without relationships
+- generic use-case copy that could describe any SaaS or task board
 - perfect happy-path-only data
 - overfitting to one component when the user needs a whole workflow
 - mixing production-looking secrets into examples
@@ -157,3 +178,40 @@ End with the concrete artifact or command the user can use immediately. If the
 data is meant for local screenshots, include the exact route or local URL to
 open after seeding. If the data is meant for tests, include the fixture entry
 point and reset expectation.
+
+## Regression Checks
+
+Use these checks when updating this skill or screenshot/demo fixtures:
+
+### Case: Use-case-led Rudder screenshot data
+
+Input: user asks for Rudder screenshots or demo data that should feel like real
+operator work.
+
+Expected behavior: choose Landing Demo Org or Rudder Studio, ground the
+scenario in sanitized Rudder-shaped work, seed issues/runs/logs/costs/approvals
+before deriving Dashboard, Calendar, Messenger, and agent-detail views.
+
+Must not: return generic SaaS use cases, isolated component rows, or empty page
+fixtures.
+
+### Case: Desktop-shell product evidence
+
+Input: user needs screenshots proving the installed local Rudder experience.
+
+Expected behavior: prefer Desktop-shell capture or coordinate with the
+screenshot skill that can capture Desktop shell; browser screenshots are only
+supporting evidence for narrow route checks.
+
+Must not: present browser-only proof as sufficient for a Desktop product claim.
+
+### Case: Screenshot capture validation
+
+Input: a capture script or manual flow saves Dashboard, Calendar, chat,
+approval, or agent run screenshots.
+
+Expected behavior: assert page selectors plus scenario-specific text and
+non-empty transcript/output evidence before declaring success.
+
+Must not: silently save screenshots when the page loaded but the scenario data,
+run output, transcript, or Calendar work history is missing.
