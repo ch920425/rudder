@@ -219,6 +219,7 @@ jobs:
         id: publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           version="$(./scripts/release.sh stable --print-version)"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
