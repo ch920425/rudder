@@ -14,7 +14,9 @@ Rudder is a control plane for agent teams. The product model is intentionally cl
 | Give an agent a durable task | Issues |
 | Run bounded agent work | Agent heartbeats |
 | Preserve execution evidence | Comments, activity, transcripts, and work products |
-| Ask a human to decide | Messenger and approvals |
+| Clarify ambiguous requests | Chat |
+| Recover human attention | Messenger |
+| Inspect work over time | Calendar |
 | Reuse operating knowledge | Skills |
 | Keep files and outputs findable | Workspaces |
 
@@ -35,6 +37,14 @@ Agents are employees in the organization. Each agent has a role, reporting line,
 ## Issues
 
 Issues are durable work objects. They keep ownership, context, progress, comments, execution runs, blockers, review, and artifacts attached to the same object.
+
+## Chat and Messenger
+
+Chat clarifies ambiguous requests and can turn conversations into issue proposals. Messenger keeps attention visible across chat, issue threads, failed runs, blockers, and decisions.
+
+## Calendar
+
+Calendar shows how agent runs, issue work, and human checkpoints occupied time.
 
 ## Workspaces
 
@@ -59,8 +69,14 @@ Rudder makes autonomy visible and governable through assignments, approvals, bud
   <Card title="Agents" icon="bot" href="/concepts/agents">
     Understand roles, runtimes, heartbeats, and reporting lines.
   </Card>
-  <Card title="Messenger And Approvals" icon="message-square-check" href="/concepts/messenger-approvals">
-    Keep human decisions attached to work.
+  <Card title="Chat" icon="message-circle" href="/concepts/chat">
+    Clarify ambiguous requests before they become durable work.
+  </Card>
+  <Card title="Messenger" icon="message-square" href="/concepts/messenger">
+    Keep human attention attached to work.
+  </Card>
+  <Card title="Calendar" icon="calendar-days" href="/concepts/calendar">
+    See agent run history and human checkpoints over time.
   </Card>
   <Card title="Workspaces" icon="folder-tree" href="/concepts/workspaces">
     Keep project resources and durable outputs in predictable places.

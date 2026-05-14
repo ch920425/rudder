@@ -2471,6 +2471,8 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       startedAt: heartbeatRuns.startedAt,
       finishedAt: heartbeatRuns.finishedAt,
       createdAt: heartbeatRuns.createdAt,
+      stdoutExcerpt: heartbeatRuns.stdoutExcerpt,
+      resultJson: heartbeatRuns.resultJson,
       agentId: heartbeatRuns.agentId,
       agentName: agentsTable.name,
       agentRuntimeType: agentsTable.agentRuntimeType,
@@ -2614,6 +2616,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       limitBytes: Number.isFinite(limitBytes) ? limitBytes : 256000,
     });
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(result);
   });
 
@@ -2648,6 +2651,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       limitBytes: Number.isFinite(limitBytes) ? limitBytes : 256000,
     });
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(result);
   });
 
@@ -2671,6 +2675,8 @@ export function agentRoutes(db: Db, storage?: StorageService) {
         startedAt: heartbeatRuns.startedAt,
         finishedAt: heartbeatRuns.finishedAt,
         createdAt: heartbeatRuns.createdAt,
+        stdoutExcerpt: heartbeatRuns.stdoutExcerpt,
+        resultJson: heartbeatRuns.resultJson,
         agentId: heartbeatRuns.agentId,
         agentName: agentsTable.name,
         agentRuntimeType: agentsTable.agentRuntimeType,

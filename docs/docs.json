@@ -4,6 +4,9 @@
   "name": "Rudder",
   "logo": "/logo.png",
   "favicon": "/favicon.svg",
+  "icons": {
+    "library": "lucide"
+  },
   "colors": {
     "primary": "#0F766E",
     "light": "#14B8A6",
@@ -14,6 +17,15 @@
       "canonical": "https://doc.rudder.zeeland.studio"
     }
   },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "icon": "github",
+        "href": "https://github.com/Undertone0809/rudder"
+      }
+    ]
+  },
   "navigation": {
     "languages": [
       {
@@ -22,15 +34,10 @@
         "tabs": [
           {
             "tab": "Get Started",
-            "groups": [
-              {
-                "group": "Start Here",
-                "pages": [
-                  "index",
-                  "get-started/installation",
-                  "get-started/first-organization"
-                ]
-              }
+            "pages": [
+              "index",
+              "get-started/installation",
+              "get-started/first-organization"
             ]
           },
           {
@@ -43,11 +50,19 @@
                   "concepts/goals-projects-issues",
                   "concepts/agents",
                   "concepts/issues",
-                  "concepts/messenger-approvals",
+                  "concepts/chat",
+                  "concepts/messenger",
+                  "concepts/calendar",
                   "concepts/workspaces",
                   "concepts/skills"
                 ]
               }
+            ]
+          },
+          {
+            "tab": "How-to Guides",
+            "pages": [
+              "how-to/issue-lifecycle"
             ]
           }
         ]
@@ -57,15 +72,10 @@
         "tabs": [
           {
             "tab": "开始使用",
-            "groups": [
-              {
-                "group": "入口",
-                "pages": [
-                  "zh/index",
-                  "zh/get-started/installation",
-                  "zh/get-started/first-organization"
-                ]
-              }
+            "pages": [
+              "zh/index",
+              "zh/get-started/installation",
+              "zh/get-started/first-organization"
             ]
           },
           {
@@ -78,18 +88,87 @@
                   "zh/concepts/goals-projects-issues",
                   "zh/concepts/agents",
                   "zh/concepts/issues",
-                  "zh/concepts/messenger-approvals",
+                  "zh/concepts/chat",
+                  "zh/concepts/messenger",
+                  "zh/concepts/calendar",
                   "zh/concepts/workspaces",
                   "zh/concepts/skills"
                 ]
               }
+            ]
+          },
+          {
+            "tab": "操作指南",
+            "pages": [
+              "zh/how-to/issue-lifecycle"
             ]
           }
         ]
       }
     ]
   },
-  "footerSocials": {
-    "github": "https://github.com/Undertone0809/rudder"
-  }
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Undertone0809/rudder"
+    },
+    "links": [
+      {
+        "header": "Docs",
+        "items": [
+          {
+            "label": "Install Rudder",
+            "href": "/get-started/installation"
+          },
+          {
+            "label": "First organization",
+            "href": "/get-started/first-organization"
+          },
+          {
+            "label": "Issue lifecycle guide",
+            "href": "/how-to/issue-lifecycle"
+          }
+        ]
+      },
+      {
+        "header": "Product",
+        "items": [
+          {
+            "label": "Chat",
+            "href": "/concepts/chat"
+          },
+          {
+            "label": "Messenger",
+            "href": "/concepts/messenger"
+          },
+          {
+            "label": "Calendar",
+            "href": "/concepts/calendar"
+          }
+        ]
+      },
+      {
+        "header": "Project",
+        "items": [
+          {
+            "label": "GitHub",
+            "href": "https://github.com/Undertone0809/rudder"
+          },
+          {
+            "label": "Changelog",
+            "href": "https://github.com/Undertone0809/rudder/releases"
+          }
+        ]
+      }
+    ]
+  },
+  "redirects": [
+    {
+      "source": "/concepts/messenger-approvals",
+      "destination": "/concepts/messenger"
+    },
+    {
+      "source": "/zh/concepts/messenger-approvals",
+      "destination": "/zh/concepts/messenger"
+    }
+  ]
 }
