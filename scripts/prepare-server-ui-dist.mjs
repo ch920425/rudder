@@ -7,13 +7,26 @@ import { spawnSync } from "node:child_process";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const uiDist = path.join(repoRoot, "ui", "dist");
 const serverUiDist = path.join(repoRoot, "server", "ui-dist");
-const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
-function run(command, args) {
+function resolvePackageManagerCommand() {
+  if (process.env.npm_execpath) {
+    return {
+      command: process.execPath,
+      argsPrefix: [process.env.npm_execpath],
+    };
+  }
+
+  return {
+    command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+    argsPrefix: [],
+  };
+}
+
+function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     stdio: "inherit",
-    shell: process.platform === "win32",
+    ...options,
   });
   if (result.status === 0) return;
   throw new Error(`${command} ${args.join(" ")} exited with code ${result.status ?? "unknown"}`);
@@ -29,7 +42,8 @@ async function pathExists(filePath) {
 }
 
 console.log("  -> Building @rudderhq/ui...");
-run(pnpmBin, ["--filter", "@rudderhq/ui", "build"]);
+const packageManager = resolvePackageManagerCommand();
+run(packageManager.command, [...packageManager.argsPrefix, "--filter", "@rudderhq/ui", "build"]);
 
 if (!(await pathExists(path.join(uiDist, "index.html")))) {
   throw new Error(`UI build output missing at ${path.join(uiDist, "index.html")}`);
