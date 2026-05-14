@@ -1056,7 +1056,7 @@ Skill references shown to users are scope-aware and stable:
 Rules:
 
 - `organization.urlKey` is the stable public organization segment and does not change when the organization name changes
-- only Rudder-owned bundled skill directories are exposed through the bundled surface; community presets seed into the organization library as optional organization skills instead
+- only Rudder-owned bundled skill directories are exposed through the bundled surface; curated community presets seed into the organization library as optional organization skills instead
 - existing internal skill keys remain valid as compatibility input, but the UI should render the readable public form
 - markdown link text uses the readable public reference, while the link target still points at the real `SKILL.md` path
 - search and selection should work from installed organization skills only; agent snapshot internals are not part of the picker surface

@@ -175,11 +175,6 @@ const COMMUNITY_PRESET_SKILLS: readonly CommunityPresetDefinition[] = [
     source: "repo",
   },
   {
-    slug: "skill-creator",
-    source: "github",
-    sourceUrl: "https://github.com/Undertone0809/skill-creator/tree/main/.agents/skills",
-  },
-  {
     slug: "software-product-advisor",
     source: "repo",
   },

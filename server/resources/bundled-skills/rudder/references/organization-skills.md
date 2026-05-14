@@ -152,7 +152,7 @@ the full optional enabled-skill set intentionally.
 
 ## Notes
 
-- Built-in Rudder skills live in the organization library but are not auto-enabled.
+- Built-in Rudder skills live in the organization library and are always loaded for agent runs.
 - New organizations also seed optional community preset skills into the organization library. They stay organization-managed and default-off for agents.
 - If a skill reference is missing or ambiguous, Rudder returns `422`.
 - Prefer linking back to the relevant issue, approval, and agent when commenting about skill changes.
