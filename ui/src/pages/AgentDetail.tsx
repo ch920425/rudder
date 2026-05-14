@@ -61,6 +61,7 @@ import { PackageFileTree, buildFileTree } from "../components/PackageFileTree";
 import { ScrollToBottom } from "../components/ScrollToBottom";
 import { formatCents, formatDate, formatDateTime, relativeTime, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { cn } from "../lib/utils";
+import { formatRunDurationLabel, formatRunTimingTitle } from "../lib/run-duration-label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
@@ -1724,7 +1725,21 @@ function SummaryRow({ label, children }: { label: string; children: React.ReactN
   );
 }
 
+function useRunDurationNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+
+  return now;
+}
+
 function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: string }) {
+  const now = useRunDurationNow(runs.some((r) => r.status === "running" || r.status === "queued"));
+
   if (runs.length === 0) return null;
 
   const sorted = [...runs].sort(
@@ -1737,6 +1752,8 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
   const statusInfo = runStatusIcons[run.status] ?? { icon: Clock, color: "text-neutral-400" };
   const StatusIcon = statusInfo.icon;
   const runReason = describeRunReason(run);
+  const durationLabel = formatRunDurationLabel(run, now) ?? relativeTime(run.createdAt);
+  const timingTitle = formatRunTimingTitle(run);
   const summary = run.resultJson
     ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
     : run.error ?? "";
@@ -1778,7 +1795,9 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
           )} title={runReason.description}>
             {runReason.label}
           </span>
-          <span className="ml-auto text-xs text-muted-foreground">{relativeTime(run.createdAt)}</span>
+          <span className="ml-auto shrink-0 text-xs font-medium tabular-nums text-foreground" title={timingTitle || undefined}>
+            {durationLabel}
+          </span>
         </div>
 
         {summary && (
@@ -3891,6 +3910,10 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
   const runLabel = run.id.slice(0, 8);
   const runReason = describeRunReason(run);
   const destination = isSelected ? `/agents/${agentId}/runs` : `/agents/${agentId}/runs/${run.id}`;
+  const isActive = run.status === "running" || run.status === "queued";
+  const now = useRunDurationNow(isActive);
+  const durationLabel = formatRunDurationLabel(run, now) ?? relativeTime(run.createdAt);
+  const timingTitle = formatRunTimingTitle(run);
 
   const openRun = () => {
     navigate(destination);
@@ -3951,8 +3974,8 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
         )} title={runReason.description}>
           {runReason.label}
         </span>
-        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
-          {relativeTime(run.createdAt)}
+        <span className="ml-auto shrink-0 text-[11px] font-medium tabular-nums text-foreground" title={timingTitle || undefined}>
+          {durationLabel}
         </span>
       </div>
       {summary && (
@@ -4121,29 +4144,13 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
     },
   });
 
-  const isRunning = run.status === "running" && !!run.startedAt && !run.finishedAt;
-  const [elapsedSec, setElapsedSec] = useState<number>(() => {
-    if (!run.startedAt) return 0;
-    return Math.max(0, Math.round((Date.now() - new Date(run.startedAt).getTime()) / 1000));
-  });
-
-  useEffect(() => {
-    if (!isRunning || !run.startedAt) return;
-    const startMs = new Date(run.startedAt).getTime();
-    setElapsedSec(Math.max(0, Math.round((Date.now() - startMs) / 1000)));
-    const id = setInterval(() => {
-      setElapsedSec(Math.max(0, Math.round((Date.now() - startMs) / 1000)));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [isRunning, run.startedAt]);
-
+  const isRunActive = run.status === "queued" || (run.status === "running" && !run.finishedAt);
+  const durationNow = useRunDurationNow(isRunActive);
+  const durationLabel = formatRunDurationLabel(run, durationNow);
+  const timingTitle = formatRunTimingTitle(run);
   const timeFormat: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" };
   const startTime = run.startedAt ? new Date(run.startedAt).toLocaleTimeString("en-US", timeFormat) : null;
   const endTime = run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString("en-US", timeFormat) : null;
-  const durationSec = run.startedAt && run.finishedAt
-    ? Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)
-    : null;
-  const displayDurationSec = durationSec ?? (isRunning ? elapsedSec : null);
   const hasMetrics = metrics.input > 0 || metrics.output > 0 || metrics.cached > 0 || metrics.cost > 0;
   const hasSession = !!(run.sessionIdBefore || run.sessionIdAfter);
   const sessionChanged = run.sessionIdBefore && run.sessionIdAfter && run.sessionIdBefore !== run.sessionIdAfter;
@@ -4231,20 +4238,22 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
                 {recoverRun.error instanceof Error ? recoverRun.error.message : "Failed to recover run"}
               </div>
             )}
-            {startTime && (
+            {(durationLabel || startTime) && (
               <div className="space-y-0.5">
-                <div className="text-sm font-mono">
-                  {startTime}
-                  {endTime && <span className="text-muted-foreground"> &rarr; </span>}
-                  {endTime}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {relativeTime(run.startedAt!)}
-                  {run.finishedAt && <> &rarr; {relativeTime(run.finishedAt)}</>}
-                </div>
-                {displayDurationSec !== null && (
-                  <div className="text-xs text-muted-foreground">
-                    Duration: {displayDurationSec >= 60 ? `${Math.floor(displayDurationSec / 60)}m ${displayDurationSec % 60}s` : `${displayDurationSec}s`}
+                {durationLabel && (
+                  <div className="text-sm font-medium tabular-nums">
+                    {durationLabel}
+                  </div>
+                )}
+                {startTime && (
+                  <div className="text-[11px] text-muted-foreground" title={timingTitle || undefined}>
+                    <span className="font-mono">{startTime}</span>
+                    {endTime && (
+                      <>
+                        <span> &rarr; </span>
+                        <span className="font-mono">{endTime}</span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
