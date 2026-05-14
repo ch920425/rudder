@@ -20,10 +20,13 @@ const smokeMode = smokeModeArg?.slice("--mode=".length) ?? process.env.RUDDER_DE
 const smokeScenario = smokeScenarioArg?.slice("--scenario=".length) ?? process.env.RUDDER_DESKTOP_SMOKE_SCENARIO ?? null;
 const tmpRoot = await mkdtemp(path.join(os.tmpdir(), "rudder-desktop-smoke-"));
 const REQUIRED_BUNDLED_SKILLS = [
+  "conversation-to-skill",
   "para-memory-files",
   "rudder",
   "rudder-create-agent",
   "rudder-create-plugin",
+  "skill-creator",
+  "skill-optimizer",
 ];
 console.log(`[desktop-smoke] temp root: ${tmpRoot}`);
 
@@ -380,7 +383,15 @@ async function closeDesktop(electronApp) {
 async function verifyNativeApplicationMenu(electronApp, page, companyId, issuePrefix) {
   const platform = await electronApp.evaluate(() => process.platform);
   if (platform !== "darwin") {
-    console.log("[desktop-smoke] native macOS application menu check skipped");
+    const { hasApplicationMenu, visibleMenuBarWindows } = await electronApp.evaluate(({ BrowserWindow, Menu }) => ({
+      hasApplicationMenu: Boolean(Menu.getApplicationMenu()),
+      visibleMenuBarWindows: BrowserWindow.getAllWindows()
+        .filter((window) => !window.isDestroyed() && window.isMenuBarVisible())
+        .length,
+    }));
+    assert.equal(hasApplicationMenu, false, "native application menu should be hidden on non-macOS platforms");
+    assert.equal(visibleMenuBarWindows, 0, "desktop windows should hide the native menu bar on non-macOS platforms");
+    console.log("[desktop-smoke] native non-macOS application menu hidden");
     return page;
   }
 

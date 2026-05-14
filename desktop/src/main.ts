@@ -966,10 +966,15 @@ async function createDesktopWindow(initialUrl: string): Promise<BrowserWindow> {
     minHeight: 720,
     title: APP_NAME,
     show: false,
+    autoHideMenuBar: process.platform !== "darwin",
     ...macWindowEffects,
     ...(desktopWindowIcon ? { icon: desktopWindowIcon } : {}),
     webPreferences: createDesktopWebPreferences(preloadPath),
   });
+
+  if (process.platform !== "darwin") {
+    window.setMenuBarVisibility(false);
+  }
 
   window.once("ready-to-show", () => {
     window.show();
@@ -1105,7 +1110,10 @@ async function openDesktopRoute(targetPath: string): Promise<void> {
 }
 
 function installApplicationMenu(appName: string): void {
-  if (process.platform !== "darwin") return;
+  if (process.platform !== "darwin") {
+    Menu.setApplicationMenu(null);
+    return;
+  }
 
   const menu = Menu.getApplicationMenu();
   const appMenu = menu?.items[0]?.submenu;
