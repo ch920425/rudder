@@ -8,8 +8,6 @@ Rudder began from a fork of an early version of Paperclip. That gave us a practi
 
 Rudder is built for the moment when agent work stops looking like a single prompt and starts looking like a real team.
 
-Current status: V1 is under active development. The current north-star metric is the weekly count of real agent-work loops completed end-to-end through Rudder.
-
 ## The Design Idea
 
 Rudder is shaped by a simple belief: the most useful way to work with agents is closer to the way humans coordinate with each other.
