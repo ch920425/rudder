@@ -493,7 +493,7 @@ function KanbanCard({
             {hasPeopleMeta ? (
               <span
                 data-slot="kanban-card-people"
-                className="grid min-w-0 flex-1 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))]"
+                className="grid min-w-0 flex-1 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(6rem,1fr))]"
               >
                 {assigneeMeta}
                 {reviewerMeta}
