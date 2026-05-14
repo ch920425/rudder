@@ -62,6 +62,14 @@ test.describe("Issue board display properties", () => {
         role: "qa",
       },
     );
+    const assignee = await apiPost<{ id: string; name: string }>(
+      page,
+      `/api/orgs/${organization.id}/agents`,
+      {
+        name: "Build Bot",
+        role: "engineer",
+      },
+    );
 
     const issue = await apiPost<{ identifier: string | null }>(
       page,
@@ -73,6 +81,7 @@ test.describe("Issue board display properties", () => {
         status: "todo",
         priority: "high",
         labelIds: [label.id],
+        assigneeAgentId: assignee.id,
         reviewerAgentId: reviewer.id,
       },
     );
@@ -85,6 +94,9 @@ test.describe("Issue board display properties", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText(project.name);
     await expect(card).toContainText(label.name);
+    await expect(card).toContainText("Assignee");
+    await expect(card).toContainText(assignee.name);
+    await expect(card).toContainText("Reviewer");
     await expect(card).toContainText(reviewer.name);
     await expect(card).toContainText("Created");
     await expect(card).not.toContainText("Updated");

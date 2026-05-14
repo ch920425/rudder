@@ -150,4 +150,33 @@ describe("KanbanBoard", () => {
     expect(onOpenIssue).toHaveBeenCalledWith(issue);
   });
 
+  it("labels assignee and reviewer metadata when both render on a board card", () => {
+    const container = render(
+      <KanbanBoard
+        issues={[{
+          ...issue,
+          assigneeAgentId: null,
+          assigneeUserId: "user-1",
+          reviewerUserId: "user-1",
+        }]}
+        currentUserId="user-1"
+        onUpdateIssue={() => undefined}
+      />,
+    );
+
+    const card = container.querySelector('[data-testid="kanban-card-RUD-1"]');
+    const people = card?.querySelector('[data-slot="kanban-card-people"]');
+    const assignee = card?.querySelector('[data-slot="kanban-card-assignee"]');
+    const reviewer = card?.querySelector('[data-slot="kanban-card-reviewer"]');
+
+    expect(people?.className).toContain("grid");
+    expect(people?.className).toContain("minmax(6rem,1fr)");
+    expect(assignee?.textContent).toContain("Assignee");
+    expect(assignee?.textContent).toContain("Me");
+    expect(assignee?.getAttribute("title")).toBe("Assignee: Me");
+    expect(reviewer?.textContent).toContain("Reviewer");
+    expect(reviewer?.textContent).toContain("Me");
+    expect(reviewer?.getAttribute("title")).toBe("Reviewer: Me");
+  });
+
 });

@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
-import { AgentIdentity } from "./AgentAvatar";
+import { AgentIcon } from "./AgentAvatar";
 import { Button } from "@/components/ui/button";
 import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
 import { cn } from "@/lib/utils";
@@ -198,6 +198,59 @@ function CreateIssueAction({ status, onCreateIssue }: CreateIssueActionProps) {
   );
 }
 
+function KanbanPersonMeta({
+  relationship,
+  agent,
+  userId,
+  fallbackId,
+  currentUserId,
+}: {
+  relationship: "assignee" | "reviewer";
+  agent?: Agent | null;
+  userId?: string | null;
+  fallbackId?: string | null;
+  currentUserId?: string | null;
+}) {
+  const roleLabel = relationship === "assignee" ? "Assignee" : "Reviewer";
+  const displayName = agent
+    ? formatChatAgentLabel(agent)
+    : userId
+      ? (formatAssigneeUserLabel(userId, currentUserId) ?? "User")
+      : fallbackId
+        ? fallbackId.slice(0, 8)
+        : null;
+
+  if (!displayName) return null;
+
+  const Icon = relationship === "assignee" ? User : UserCheck;
+
+  return (
+    <span
+      data-slot={`kanban-card-${relationship}`}
+      title={`${roleLabel}: ${displayName}`}
+      className="inline-flex min-w-0 items-center gap-1.5 rounded-sm bg-muted/35 px-1.5 py-1 text-muted-foreground ring-1 ring-border/35"
+    >
+      <span
+        data-slot="kanban-card-person-role"
+        className="shrink-0 text-[10px] font-medium leading-none text-muted-foreground/75"
+      >
+        {roleLabel}
+      </span>
+      {agent ? (
+        <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs">
+          <AgentIcon icon={agent.icon} role={agent.role} className="h-3 w-3 shrink-0" />
+          <span className="truncate">{displayName}</span>
+        </span>
+      ) : (
+        <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs">
+          <Icon className="h-3 w-3 shrink-0" />
+          <span className={cn("truncate", fallbackId && "font-mono")}>{displayName}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 /* ── Droppable Column ── */
 
 function KanbanColumn({
@@ -367,6 +420,25 @@ function KanbanCard({
   const showProject = visibleProperties.has("project") && Boolean(projectName);
   const showUpdated = visibleProperties.has("updated");
   const showCreated = visibleProperties.has("created");
+  const assigneeMeta = showAssignee ? (
+    <KanbanPersonMeta
+      relationship="assignee"
+      agent={agent}
+      userId={issue.assigneeUserId}
+      fallbackId={!agent && issue.assigneeAgentId ? issue.assigneeAgentId : null}
+      currentUserId={currentUserId}
+    />
+  ) : null;
+  const reviewerMeta = showReviewer ? (
+    <KanbanPersonMeta
+      relationship="reviewer"
+      agent={reviewerAgent}
+      userId={issue.reviewerUserId}
+      fallbackId={!reviewerAgent && issue.reviewerAgentId ? issue.reviewerAgentId : null}
+      currentUserId={currentUserId}
+    />
+  ) : null;
+  const hasPeopleMeta = Boolean(assigneeMeta || reviewerMeta);
 
   return (
     <div
@@ -411,69 +483,20 @@ function KanbanCard({
           </div>
         ) : null}
         <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
-        {(showPriority || showAssignee || showReviewer) && (
-          <div data-slot="kanban-card-metadata" className="flex min-w-0 items-center gap-2 overflow-hidden">
-            {showPriority ? <PriorityIcon priority={issue.priority} /> : null}
-            {showAssignee && issue.assigneeAgentId ? (
-              agent ? (
-                <AgentIdentity
-                  name={formatChatAgentLabel(agent)}
-                  icon={agent.icon}
-                  role={agent.role}
-                  size="xs"
-                  className="min-w-0 flex-1 text-muted-foreground"
-                />
-              ) : (
-                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground font-mono">
-                  {issue.assigneeAgentId.slice(0, 8)}
-                </span>
-              )
-            ) : null}
-            {showAssignee && issue.assigneeUserId ? (
-              <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground">
-                <User className="h-3 w-3 shrink-0" />
-                <span className="truncate">
-                  {formatAssigneeUserLabel(issue.assigneeUserId, currentUserId) ?? "User"}
-                </span>
+        {(showPriority || hasPeopleMeta) && (
+          <div data-slot="kanban-card-metadata" className="flex min-w-0 items-start gap-1.5 overflow-hidden">
+            {showPriority ? (
+              <span className="shrink-0 pt-1">
+                <PriorityIcon priority={issue.priority} />
               </span>
             ) : null}
-            {showReviewer && issue.reviewerAgentId ? (
-              reviewerAgent ? (
-                <span
-                  data-slot="kanban-card-reviewer"
-                  title="Reviewer"
-                  className="inline-flex min-w-0 flex-1 items-center gap-1 text-muted-foreground"
-                >
-                  <UserCheck className="h-3 w-3 shrink-0" />
-                  <AgentIdentity
-                    name={formatChatAgentLabel(reviewerAgent)}
-                    icon={reviewerAgent.icon}
-                    role={reviewerAgent.role}
-                    size="xs"
-                    className="min-w-0 flex-1"
-                  />
-                </span>
-              ) : (
-                <span
-                  data-slot="kanban-card-reviewer"
-                  title="Reviewer"
-                  className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
-                >
-                  <UserCheck className="h-3 w-3 shrink-0" />
-                  <span className="truncate font-mono">{issue.reviewerAgentId.slice(0, 8)}</span>
-                </span>
-              )
-            ) : null}
-            {showReviewer && issue.reviewerUserId ? (
+            {hasPeopleMeta ? (
               <span
-                data-slot="kanban-card-reviewer"
-                title="Reviewer"
-                className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
+                data-slot="kanban-card-people"
+                className="grid min-w-0 flex-1 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))]"
               >
-                <UserCheck className="h-3 w-3 shrink-0" />
-                <span className="truncate">
-                  {formatAssigneeUserLabel(issue.reviewerUserId, currentUserId) ?? "User"}
-                </span>
+                {assigneeMeta}
+                {reviewerMeta}
               </span>
             ) : null}
           </div>
