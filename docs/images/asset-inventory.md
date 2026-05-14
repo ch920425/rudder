@@ -12,7 +12,6 @@ this directory.
 | `mobile-dashboard.png` | Mobile dashboard with English agent cards and bottom navigation. | Responsive/mobile docs callouts when needed. | Mobile 780 x 1688. Preserve the header, first two cards, and bottom navigation. |
 | `organization-work.png` | Organization workspaces surface with managed paths and resources. | `docs/get-started/first-organization.mdx` | Desktop 1440 x 960. Keep both workspace and resource columns visible. |
 | `skills-library.png` | Organization skills library and skill detail view. | `docs/concepts/skills.mdx` | Desktop 1440 x 960. Keep the org nav, skills list, and selected skill detail in frame. |
-| `instance-settings.png` | Instance settings with language, log privacy, and Git identity controls. | `docs/deployment/overview.mdx` | Desktop 1440 x 960. Centered modal; avoid cropping the blue modal border. |
 | `messenger-approvals.png` | Messenger approval queue with pending budget decision and linked work context. | `docs/concepts/messenger-approvals.mdx` | Desktop 1440 x 960. Keep thread list, approval body, and right context panel visible. |
 | `workspaces-resources.png` | Workspaces and resources view focused on injected project inputs and durable output paths. | `docs/concepts/workspaces.mdx` | Desktop 1440 x 960. Keep both workspaces and resources panels visible. |
 | `installation-cli.png` | Installation and CLI terminal workflow. | `docs/get-started/installation.mdx` | Desktop 1440 x 960. Terminal and setup checklist should remain readable together. |
