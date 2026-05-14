@@ -12,7 +12,6 @@ Skills package reusable instructions, references, scripts, and assets for agents
 A skill should be narrow enough to be useful at the moment it is triggered. Typical examples include:
 
 - debugging a specific class of run transcript
-- creating a plugin
 - maintaining mock data
 - running a preview server
 - organizing memory files
@@ -27,17 +26,13 @@ When promoting a personal skill for organization use, copy it into the organizat
 
 Runtime skill loading comes from the agent's enabled-skills configuration in Rudder. Installing files on disk is not the same as enabling a skill for future runs.
 
-## Skills vs plugins
-
-Use skills for agent operating knowledge. Use plugins when you need to extend Rudder's product surface, worker APIs, UI routes, jobs, launchers, or integrations.
-
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Plugins" icon="plug" href="/plugins/overview">
-    Extend Rudder with trusted worker and UI packages.
-  </Card>
   <Card title="Agents" icon="bot" href="/concepts/agents">
     Enable skills on agents that need the workflow.
+  </Card>
+  <Card title="Workspaces" icon="folder-tree" href="/concepts/workspaces">
+    Keep shared inputs and outputs in predictable locations.
   </Card>
 </CardGroup>
