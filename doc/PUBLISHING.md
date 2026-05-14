@@ -4,6 +4,19 @@ Low-level reference for how Rudder packages are prepared and published to npm.
 
 For the maintainer workflow, use [doc/RELEASING.md](RELEASING.md). This document focuses on packaging internals.
 
+## Use-Case Boundary
+
+Read this document when you need to understand or change packaging mechanics:
+
+- how the CLI bundle becomes npm-publishable
+- why workspace dependencies are rewritten for canaries
+- how public packages are discovered and ordered
+- why Desktop assets are attached to GitHub Releases instead of npm
+- how rollback changes the npm dist-tag without unpublishing
+
+If the job is to ship a release end-to-end, use [RELEASING.md](RELEASING.md)
+first.
+
 ## Current Release Entry Points
 
 Use these scripts:

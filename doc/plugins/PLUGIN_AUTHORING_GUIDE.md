@@ -4,6 +4,19 @@ This guide describes the current, implemented way to create a Rudder plugin in t
 
 It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec includes future ideas; this guide only covers the alpha surface that exists now.
 
+## Use-Case Index
+
+- **I want to create a plugin package:** start with
+  [Scaffold a plugin](#scaffold-a-plugin).
+- **I want to run it locally in Rudder:** install the built package from an
+  absolute local path through the plugin manager or API.
+- **I want to know what APIs are safe to use today:** read
+  [Supported alpha surface](#supported-alpha-surface).
+- **I want to add a page to an organization:** read
+  [Organization routes](#organization-routes).
+- **I want to publish for others:** publish an npm package or private
+  npm-compatible package; GitHub repository installs are not first-class yet.
+
 ## Current reality
 
 - Treat plugin workers and plugin UI as trusted code.
@@ -116,7 +129,7 @@ Mount surfaces currently wired in the host include:
 
 ## Organization routes
 
-Plugins may declare a `page` slot with `routePath` to own a organization route like:
+Plugins may declare a `page` slot with `routePath` to own an organization route like:
 
 ```text
 /:orgPrefix/<routePath>

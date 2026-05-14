@@ -3,6 +3,29 @@
 This guide is the entrypoint for local development.
 It keeps the shortest path here and routes deep operational details to focused docs.
 
+## Use-Case Index
+
+- **I need one local app quickly:** run `pnpm install`, then `pnpm dev`; see
+  [Start Dev](#start-dev).
+- **I need an isolated worktree:** initialize with `pnpm rudder worktree init`
+  before running `pnpm dev`; see
+  [Concurrent Codex / Worktree Development](#concurrent-codex--worktree-development).
+- **I changed Desktop startup or packaging:** run the Desktop-specific workflow
+  in [DESKTOP.md](./DESKTOP.md), including `pnpm desktop:verify` when packaged
+  behavior can be affected.
+- **I changed schema, API, server, or UI contracts:** keep shared types,
+  validators, routes, clients, docs, and tests synchronized; see the repo root
+  `AGENTS.md`.
+- **I am writing a plan:** use the dated plan-doc templates and taxonomy in
+  [Plan Docs](#plan-docs).
+
+## Documentation Authoring Principle
+
+Write contributor docs from the job outward. Start with the scenario a human or
+agent is trying to complete, show the shortest working path, then explain the
+underlying subsystem and escape hatches. When adding a schema, command, or
+service detail, include the use case that makes it necessary.
+
 ## Deployment Modes
 
 For mode definitions and intended CLI behavior, see `doc/DEPLOYMENT-MODES.md`.

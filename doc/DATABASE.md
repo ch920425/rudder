@@ -1,6 +1,16 @@
 # Database
 
-Rudder uses PostgreSQL via [Drizzle ORM](https://orm.drizzle.team/). There are three ways to run the database, from simplest to most production-ready.
+Rudder uses PostgreSQL via [Drizzle ORM](https://orm.drizzle.team/). Choose the
+database mode by use case:
+
+| Use case | Recommended mode |
+|---|---|
+| Run Rudder locally with no setup | Embedded PostgreSQL |
+| Develop against a visible local database server | Local PostgreSQL with Docker |
+| Deploy a shared or production instance | Hosted PostgreSQL |
+
+The schema stays the same across modes; only connection and persistence
+behavior changes.
 
 ## 1. Embedded PostgreSQL — zero config
 

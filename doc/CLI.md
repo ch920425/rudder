@@ -5,6 +5,20 @@ Rudder CLI now supports both:
 - instance setup/diagnostics (`onboard`, `doctor`, `configure`, `env`, `allowed-hostname`)
 - control-plane client operations (issues, approvals, agents, activity, dashboard)
 
+## Use-Case Index
+
+- **Install and launch Rudder for the first time:** use
+  `npx @rudderhq/cli@latest start`.
+- **Work from the repo during development:** use `pnpm rudder ...`.
+- **Inspect or switch local defaults:** use `rudder context ...`.
+- **Create, search, update, or close work:** use `rudder issue ...`.
+- **Run a local agent manually:** use `rudder agent local-cli ...` and export
+  the printed `RUDDER_*` environment.
+- **Review or govern work:** use `rudder approval ...`,
+  `rudder activity ...`, and `rudder dashboard get`.
+
+Prefer the use case above before scanning the full command list.
+
 ## Base Usage
 
 Use repo script in development:

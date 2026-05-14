@@ -8,6 +8,25 @@ One Rudder instance can run multiple organizations. An **organization** is the f
 
 The current north-star metric is the weekly count of real agent-work loops completed end-to-end through Rudder.
 
+## Primary Use Cases
+
+Rudder should be explained through the loops it enables:
+
+1. **Start an AI-native organization.** The operator creates an organization,
+   states the goal, hires the first agent, and approves the initial work
+   structure.
+2. **Turn intent into tracked work.** The operator uses Messenger, issue
+   creation, or CLI commands to convert a request into an issue with owner,
+   reviewer, context, and expected output.
+3. **Run an agent work loop.** An agent wakes up, checks out one issue, works in
+   its configured runtime/workspace, reports progress, attaches evidence, and
+   moves the issue forward.
+4. **Govern autonomy.** The board reviews approvals, blocked work, budget
+   incidents, failed runs, reviewer queues, and outputs before work drifts.
+5. **Reuse operating context.** Agents rely on goals, projects, issues,
+   comments, resources, skills, and workspaces instead of receiving one-off
+   prompts with no durable memory.
+
 ## Core Concepts
 
 ### Organization
@@ -79,6 +98,16 @@ The board entry point should be `Messenger`, with legacy `/chat` and `/inbox` ro
 5. Define their reports
 6. Set budgets and define initial strategic work
 7. Hit go — agents start heartbeats and the organization runs
+
+## Concept Map By Use Case
+
+| Use case | Product surfaces | Why it exists |
+|---|---|---|
+| Start an organization | Organizations, goals, CEO hire, approvals | Give the agent team a mission and a first accountable owner |
+| Assign work | Messenger, issues, projects, reviewers | Keep durable work outside transient chat |
+| Execute work | Agents, heartbeats, runtime config, workspaces | Let agents act while staying inside operator-defined boundaries |
+| Review output | Issue comments, work products, reviewer routing, activity | Make "done" visible and auditable |
+| Control risk | Budgets, approvals, pause/resume, failed-run attention | Prevent hidden spend and unaudited autonomy |
 
 ## Guidelines
 

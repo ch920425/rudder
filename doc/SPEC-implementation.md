@@ -25,6 +25,31 @@ Rudder V1 must provide a full control-plane loop for autonomous agents:
 Success means one operator can run a small AI-native organization end-to-end with clear visibility and control.
 The V1 north-star metric is the weekly count of real agent-work loops completed end-to-end through Rudder.
 
+## 2.1 Primary V1 Use Cases
+
+The V1 contract is organized around end-to-end loops, not isolated CRUD
+surfaces:
+
+1. **First successful organization loop**
+   - The board creates an organization, defines the goal, hires or configures
+     the first agent, creates initial work, and observes a completed issue.
+2. **Issue-backed agent execution loop**
+   - An issue is assigned, an agent atomically checks it out, the runtime is
+     invoked, progress is recorded through comments/activity, output evidence is
+     attached, and the issue reaches `done`, `blocked`, or `in_review`.
+3. **Reviewer closeout loop**
+   - Work that needs review moves to `in_review`, the reviewer receives
+     attention, and the reviewer records a structured decision instead of
+     leaving the issue stranded.
+4. **Operator intervention loop**
+   - The board can see failed runs, budget incidents, approvals, blocked work,
+     and active agent execution, then pause, resume, cancel, reassign, approve,
+     or request changes.
+5. **Local-first install loop**
+   - A user can start from npm or the packaged Desktop app, get a working local
+     instance without manual database setup, and return to the same persistent
+     profile from Desktop, browser, or CLI.
+
 ## 3. Explicit V1 Product Decisions
 
 These decisions close open questions from `SPEC.md` for V1.

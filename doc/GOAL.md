@@ -14,6 +14,24 @@ The measure of our success is not whether one organization works. It's whether R
 
 Our current operating north-star metric is narrower and more concrete: the weekly count of real agent-work loops completed end-to-end through Rudder.
 
+## How To Use This Document
+
+Use this document to make product tradeoffs, not to look up API details.
+
+Three use cases should stay visible in every strategic decision:
+
+1. A solo operator installs Rudder, creates an organization, hires a CEO agent,
+   and sees a first useful issue completed.
+2. A board operator can inspect the organization at any moment and understand
+   who is working, why the work matters, what it cost, and what needs human
+   attention.
+3. An agent can wake up, understand its assignment and boundaries, do useful
+   work, leave evidence, and close the loop without losing organizational
+   context.
+
+If a proposed feature does not improve at least one of these loops, treat it as
+edge functionality or plugin territory until proven otherwise.
+
 ## The Problem
 
 Task management software doesn't go far enough. When your entire workforce is AI agents, you need more than a to-do list — you need a **control plane** for an entire organization.
