@@ -60,6 +60,7 @@ interface StartCommandOptions {
   open?: boolean;
   waitForActiveRuns?: boolean;
   desktopProgressJson?: boolean;
+  desktopWaitForApply?: boolean;
   dryRun?: boolean;
   versionCheck?: boolean;
 }
@@ -85,6 +86,7 @@ type DesktopUpdateProgressPhase =
   | "downloading_checksums"
   | "downloading_asset"
   | "verifying_checksum"
+  | "ready_to_install"
   | "waiting_for_active_runs"
   | "preparing_restart"
   | "closing"
@@ -186,6 +188,41 @@ function createDesktopProgressFactory(): ProgressReporterFactory {
       },
     };
   };
+}
+
+async function waitForDesktopApplySignal(): Promise<void> {
+  process.stdin.setEncoding("utf8");
+  process.stdin.resume();
+
+  await new Promise<void>((resolve, reject) => {
+    let buffer = "";
+    const cleanup = () => {
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.off("error", onError);
+    };
+    const onData = (chunk: string) => {
+      buffer += chunk;
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      if (lines.some((line) => line.trim() === "apply")) {
+        cleanup();
+        resolve();
+      }
+    };
+    const onEnd = () => {
+      cleanup();
+      reject(new Error("Desktop update apply signal ended before confirmation."));
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onError);
+  });
 }
 
 export function resolveCurrentCliVersion(env: NodeJS.ProcessEnv = process.env): string {
@@ -1114,6 +1151,19 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
         () => assertChecksumMatch(installerPath, expectedChecksum),
         desktopProgressJson ? "verifying_checksum" : null,
       );
+
+      if (desktopProgressJson && opts.desktopWaitForApply === true) {
+        writeDesktopProgress({
+          phase: "ready_to_install",
+          message: "Desktop update is downloaded and verified.",
+          percent: 100,
+        });
+        await waitForDesktopApplySignal();
+        writeDesktopProgress({
+          phase: "preparing_restart",
+          message: "Applying Desktop update...",
+        });
+      }
 
       await runStartPhase(
         "Replacing existing Rudder Desktop if needed...",

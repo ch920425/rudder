@@ -248,8 +248,11 @@ During an in-app update, Desktop shows a compact bottom-right update status card
 with structured progress from the bundled CLI. Byte-backed downloads may show a
 determinate percentage; release resolution, checksum verification, active-run
 waiting, replacement preparation, and relaunch are shown as phase status rather
-than fake percentages. Settings > About can also show the same update session as
-a denser phase-by-phase diagnostic panel for debugging or validation.
+than fake percentages. After the release asset is downloaded and verified, the
+card switches to a ready state with a Restart to update action; replacement and
+relaunch begin only after that confirmation. Settings > About can also show the
+same update session as a denser phase-by-phase diagnostic panel for debugging or
+validation.
 
 This is a full portable asset replacement. It is not a binary-delta incremental
 update path.

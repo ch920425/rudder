@@ -189,6 +189,7 @@ type DesktopUpdateProgressPhase =
   | "downloading_checksums"
   | "downloading_asset"
   | "verifying_checksum"
+  | "ready_to_install"
   | "waiting_for_active_runs"
   | "preparing_restart"
   | "closing"
@@ -206,6 +207,11 @@ type DesktopUpdateProgressEvent = {
   error?: string;
   at: string;
 };
+
+type DesktopUpdateApplyResult =
+  | { status: "started"; updateId: string; version: string }
+  | { status: "unavailable"; message: string }
+  | { status: "failed"; message: string };
 
 const DESKTOP_GITHUB_REPO = "Undertone0809/rudder";
 const DESKTOP_RELEASES_URL = `https://github.com/${DESKTOP_GITHUB_REPO}/releases`;
@@ -347,6 +353,7 @@ function parseDesktopUpdateProgressLine(
     "downloading_checksums",
     "downloading_asset",
     "verifying_checksum",
+    "ready_to_install",
     "waiting_for_active_runs",
     "preparing_restart",
     "closing",
@@ -554,12 +561,17 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       DESKTOP_GITHUB_REPO,
       "--no-version-check",
       "--desktop-progress-json",
+      "--desktop-wait-for-apply",
       ...(waitForActiveRuns ? ["--wait-for-active-runs"] : []),
     ];
     const child = spawn(process.execPath, args, {
       detached: true,
       env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    activeDesktopUpdates.set(updateId, {
+      version: normalizedVersion,
+      stdin: child.stdin,
     });
     let stdoutBuffer = "";
     child.stdout?.setEncoding("utf8");
@@ -578,6 +590,7 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       if (trimmed) console.warn("[rudder-desktop] update child stderr", trimmed);
     });
     child.on("error", (error) => {
+      activeDesktopUpdates.delete(updateId);
       updateDesktopUpdateProgress(updateId, normalizedVersion, {
         phase: "failed",
         message: "Update failed to start.",
@@ -585,6 +598,7 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       });
     });
     child.on("exit", (code) => {
+      activeDesktopUpdates.delete(updateId);
       if (code && code !== 0) {
         updateDesktopUpdateProgress(updateId, normalizedVersion, {
           phase: "failed",
@@ -611,6 +625,36 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       message: "Update failed to start.",
       error: error instanceof Error ? error.message : String(error),
     });
+    return {
+      status: "failed",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function applyUpdate(updateId: string | null | undefined): Promise<DesktopUpdateApplyResult> {
+  const normalizedUpdateId = updateId?.trim();
+  if (!normalizedUpdateId) {
+    return { status: "unavailable", message: "No update session was provided." };
+  }
+
+  const session = activeDesktopUpdates.get(normalizedUpdateId);
+  if (!session?.stdin || session.stdin.destroyed) {
+    return { status: "unavailable", message: "The update session is no longer waiting to apply." };
+  }
+
+  try {
+    session.stdin.write("apply\n");
+    updateDesktopUpdateProgress(normalizedUpdateId, session.version, {
+      phase: "preparing_restart",
+      message: "Applying Desktop update...",
+    });
+    return {
+      status: "started",
+      updateId: normalizedUpdateId,
+      version: session.version,
+    };
+  } catch (error) {
     return {
       status: "failed",
       message: error instanceof Error ? error.message : String(error),
@@ -776,6 +820,10 @@ let currentBootState: BootState = {
   },
 };
 let latestDesktopUpdateProgress: DesktopUpdateProgressEvent | null = null;
+const activeDesktopUpdates = new Map<string, {
+  version: string;
+  stdin: NodeJS.WritableStream & { destroyed?: boolean };
+}>();
 let serverHandle: StartedServer | null = null;
 let startInFlight: Promise<void> | null = null;
 let quitInFlight: Promise<void> | null = null;
@@ -1965,6 +2013,7 @@ function registerIpc(): void {
   });
   ipcMain.handle("desktop:check-for-updates", async () => checkForUpdates());
   ipcMain.handle("desktop:install-update", async (_event, version: string) => installUpdate(version));
+  ipcMain.handle("desktop:apply-update", async (_event, updateId: string) => applyUpdate(updateId));
   ipcMain.handle("desktop:get-update-progress", async () => latestDesktopUpdateProgress);
   ipcMain.handle("desktop:send-feedback", async () => {
     await shell.openExternal(createFeedbackMailtoUrl());

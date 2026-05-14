@@ -53,6 +53,10 @@ Decision update, 2026-05-14:
   explanation surface, not the default global update UI.
 - The default card should stay lightweight. The detailed Settings surface may
   show phase list, byte counts, active-run waiting, and failure details.
+- The compact card's downloaded/verified state is the `Status Capsule + Final
+  Confirm` direction: after the progress finishes, the card becomes an explicit
+  `Restart to update` action. Replacement must not begin before that final
+  confirmation.
 
 ## What Is The Problem?
 
@@ -158,30 +162,40 @@ Impact:
    Downloading checksums...
    Downloading desktop asset...
    Verifying checksum...
+   Update ready. Restart to finish.
    Waiting for active runs...
    Preparing to restart...
    Rudder will close and reopen to finish the update.
    ```
 
-7. If active runs exist, Rudder keeps the existing native confirmation prompt:
+7. After download and checksum verification complete, the global card becomes
+   actionable:
+
+   ```text
+   Update ready
+   Downloaded and verified. Restart to finish the update.
+   [Restart to update]
+   ```
+
+8. If active runs exist, Rudder keeps the existing native confirmation prompt:
    Download and Update When Idle, or Cancel.
-8. If the operator confirms, the progress card moves to a queued/waiting state:
+9. If the operator confirms, the progress card can later move to a queued/waiting state:
 
    ```text
    Update queued
    Waiting for 2 active runs to finish. Rudder will update when idle.
    ```
 
-9. If the update fails, the global card becomes actionable:
+10. If the update fails, the global card becomes actionable:
 
    ```text
    Update failed while verifying checksum.
    [Retry] [Open Releases]
    ```
 
-10. Settings > About may show the detailed phase list and diagnostic details
+11. Settings > About may show the detailed phase list and diagnostic details
     while the global card stays compact.
-11. When replacement begins, the old app can only say that Rudder will close and
+12. When replacement begins, the old app can only say that Rudder will close and
     reopen. The app should not promise continued in-window progress after that
     point.
 

@@ -13,6 +13,7 @@ const PHASE_LABEL_KEYS: Record<DesktopUpdateProgressPhase, TranslationKey> = {
   downloading_checksums: "about.updates.progress.phase.downloading_checksums",
   downloading_asset: "about.updates.progress.phase.downloading_asset",
   verifying_checksum: "about.updates.progress.phase.verifying_checksum",
+  ready_to_install: "about.updates.progress.phase.ready_to_install",
   waiting_for_active_runs: "about.updates.progress.phase.waiting_for_active_runs",
   preparing_restart: "about.updates.progress.phase.preparing_restart",
   closing: "about.updates.progress.phase.closing",
@@ -33,7 +34,7 @@ function formatBytes(value: number | null | undefined): string | null {
 
 function phaseTone(phase: DesktopUpdateProgressPhase): "active" | "ready" | "failed" {
   if (phase === "failed") return "failed";
-  if (phase === "closing") return "ready";
+  if (phase === "ready_to_install" || phase === "closing") return "ready";
   return "active";
 }
 
@@ -59,6 +60,12 @@ export function DesktopUpdateStatusCard() {
     const desktopShell = readDesktopShell();
     if (!desktopShell) return;
     await desktopShell.installUpdate(currentProgress.version);
+  }
+
+  async function applyUpdate() {
+    const desktopShell = readDesktopShell();
+    if (!desktopShell?.applyUpdate) return;
+    await desktopShell.applyUpdate(currentProgress.updateId);
   }
 
   async function openReleases() {
@@ -96,7 +103,9 @@ export function DesktopUpdateStatusCard() {
               <p className="text-sm font-semibold leading-5">
                 {tone === "failed"
                   ? t("about.updates.progress.failedTitle")
-                  : t("about.updates.progress.title", { version: currentProgress.version.startsWith("v") ? currentProgress.version : `v${currentProgress.version}` })}
+                  : currentProgress.phase === "ready_to_install"
+                    ? t("about.updates.progress.readyTitle")
+                    : t("about.updates.progress.title", { version: currentProgress.version.startsWith("v") ? currentProgress.version : `v${currentProgress.version}` })}
               </p>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressLabel}</span>
             </div>
@@ -112,6 +121,13 @@ export function DesktopUpdateStatusCard() {
                   )}
                   style={{ width: `${Math.max(0, Math.min(100, currentProgress.percent))}%` }}
                 />
+              </div>
+            ) : null}
+            {currentProgress.phase === "ready_to_install" ? (
+              <div className="mt-2">
+                <Button type="button" size="sm" className="h-8 px-3 text-xs" onClick={() => void applyUpdate()}>
+                  {t("about.updates.progress.restartToUpdate")}
+                </Button>
               </div>
             ) : null}
             {tone === "failed" ? (

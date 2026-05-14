@@ -87,6 +87,7 @@ export function createProgram(): Command {
     .option("--no-open", "Install Desktop without launching it")
     .option("--wait-for-active-runs", "Wait for active Rudder runs to finish before replacing Desktop", false)
     .option("--desktop-progress-json", "Emit newline-delimited Desktop update progress events")
+    .option("--desktop-wait-for-apply", "Wait for an apply signal after downloading and verifying the Desktop update", false)
     .option("--no-version-check", "Skip checking npm for a newer Rudder CLI version")
     .option("--dry-run", "Print the start actions without changing the machine", false)
     .action(startCommand);

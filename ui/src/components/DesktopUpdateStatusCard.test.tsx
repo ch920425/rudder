@@ -25,6 +25,7 @@ function renderHarness(initialProgress: DesktopUpdateProgressEvent | null) {
     },
   });
   let listener: ((event: DesktopUpdateProgressEvent) => void) | null = null;
+  const applyUpdate = vi.fn();
 
   Object.defineProperty(window, "desktopShell", {
     configurable: true,
@@ -37,6 +38,7 @@ function renderHarness(initialProgress: DesktopUpdateProgressEvent | null) {
         };
       }),
       installUpdate: vi.fn(),
+      applyUpdate,
       openExternal: vi.fn(),
     } as Partial<DesktopShellApi>,
   });
@@ -61,6 +63,7 @@ function renderHarness(initialProgress: DesktopUpdateProgressEvent | null) {
   };
 
   return {
+    applyUpdate,
     emit(event: DesktopUpdateProgressEvent) {
       act(() => listener?.(event));
     },
@@ -112,5 +115,31 @@ describe("DesktopUpdateStatusCard", () => {
 
     expect(document.body.textContent).toContain("Updating to v0.2.2");
     expect(document.body.textContent).toContain("Verifying checksum");
+  });
+
+  it("shows the final restart action after the update package is ready", async () => {
+    const harness = renderHarness({
+      updateId: "update-3",
+      version: "0.2.3",
+      phase: "ready_to_install",
+      message: "Desktop update is downloaded and verified.",
+      percent: 100,
+      at: new Date().toISOString(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("Update ready");
+    const action = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "Restart to update");
+    expect(action).toBeTruthy();
+
+    act(() => {
+      action?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(harness.applyUpdate).toHaveBeenCalledWith("update-3");
   });
 });

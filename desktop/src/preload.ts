@@ -57,6 +57,7 @@ type DesktopUpdateProgressPhase =
   | "downloading_checksums"
   | "downloading_asset"
   | "verifying_checksum"
+  | "ready_to_install"
   | "waiting_for_active_runs"
   | "preparing_restart"
   | "closing"
@@ -74,6 +75,11 @@ type DesktopUpdateProgressEvent = {
   error?: string;
   at: string;
 };
+
+type DesktopUpdateApplyResult =
+  | { status: "started"; updateId: string; version: string }
+  | { status: "unavailable"; message: string }
+  | { status: "failed"; message: string };
 
 type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -171,6 +177,8 @@ contextBridge.exposeInMainWorld("desktopShell", {
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates") as Promise<DesktopUpdateCheckResult>,
   installUpdate: (version: string) =>
     ipcRenderer.invoke("desktop:install-update", version) as Promise<DesktopUpdateInstallResult>,
+  applyUpdate: (updateId: string) =>
+    ipcRenderer.invoke("desktop:apply-update", updateId) as Promise<DesktopUpdateApplyResult>,
   getUpdateProgress: () =>
     ipcRenderer.invoke("desktop:get-update-progress") as Promise<DesktopUpdateProgressEvent | null>,
   onUpdateProgress: (listener: (event: DesktopUpdateProgressEvent) => void) => {
@@ -216,6 +224,7 @@ declare global {
       getAppVersion(): Promise<string>;
       checkForUpdates(): Promise<DesktopUpdateCheckResult>;
       installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
+      applyUpdate(updateId: string): Promise<DesktopUpdateApplyResult>;
       getUpdateProgress(): Promise<DesktopUpdateProgressEvent | null>;
       onUpdateProgress(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
       getSystemPermissions(): Promise<DesktopSystemPermissions>;

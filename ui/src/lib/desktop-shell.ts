@@ -61,6 +61,7 @@ export type DesktopUpdateProgressPhase =
   | "downloading_checksums"
   | "downloading_asset"
   | "verifying_checksum"
+  | "ready_to_install"
   | "waiting_for_active_runs"
   | "preparing_restart"
   | "closing"
@@ -78,6 +79,11 @@ export type DesktopUpdateProgressEvent = {
   error?: string;
   at: string;
 };
+
+export type DesktopUpdateApplyResult =
+  | { status: "started"; updateId: string; version: string }
+  | { status: "unavailable"; message: string }
+  | { status: "failed"; message: string };
 
 export type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -138,6 +144,7 @@ export type DesktopShellApi = {
   getAppVersion(): Promise<string>;
   checkForUpdates(): Promise<DesktopUpdateCheckResult>;
   installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
+  applyUpdate?(updateId: string): Promise<DesktopUpdateApplyResult>;
   getUpdateProgress?(): Promise<DesktopUpdateProgressEvent | null>;
   onUpdateProgress?(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
   getSystemPermissions?(): Promise<DesktopSystemPermissions>;
