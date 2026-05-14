@@ -64,7 +64,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
   const agentsSvc = agentService(db);
   const goalsSvc = goalService(db);
   const access = accessService(db);
-  const assistantSvc = chatAssistantService(db);
+  const assistantSvc = chatAssistantService(db, storage);
   const operatorProfiles = operatorProfileService(db);
 
   const upload = multer({

@@ -42,7 +42,14 @@ process.stdin.on("end", async () => {
   const hasAttachmentSection = prompt.includes("Current user message attachments:");
   const hasImage = prompt.includes("clipboard-image.png");
   const hasTextFile = prompt.includes("notes.txt");
-  const body = hasAttachmentSection && hasImage && hasTextFile
+  const localPath = prompt.match(/localPath=([^;\\n]+)/)?.[1]?.trim();
+  const localImageReadable = localPath
+    ? await fs.access(localPath).then(() => true, () => false)
+    : false;
+  const hasInternalDownloadInstruction = prompt.includes("downloadCommand")
+    || prompt.includes("Authorization: Bearer")
+    || prompt.includes("curl -L");
+  const body = hasAttachmentSection && hasImage && hasTextFile && localImageReadable && !hasInternalDownloadInstruction
     ? "I found 2 attachments: clipboard-image.png and notes.txt."
     : "Attachment context missing.";
   const finalText = body + "\\n" + sentinel + JSON.stringify({
@@ -259,7 +266,10 @@ test("pastes clipboard images and files into chat as pending attachments and exp
         prompt.includes("Current user message attachments:")
         && prompt.includes("clipboard-image.png")
         && prompt.includes("notes.txt")
-        && prompt.includes("$RUDDER_API_URL/api/assets/")
+        && prompt.includes("localPath=")
+        && !prompt.includes("downloadCommand")
+        && !prompt.includes("Authorization: Bearer")
+        && !prompt.includes("curl -L")
       );
     }).toBe(true);
   } finally {

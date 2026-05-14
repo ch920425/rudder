@@ -1,4 +1,9 @@
+import { createWriteStream } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
 import type { TranscriptEntry } from "@rudderhq/agent-runtime-utils";
 import type { RudderSkillEntry } from "@rudderhq/agent-runtime-utils/server-utils";
 import type { Db } from "@rudderhq/db";
@@ -17,10 +22,16 @@ import type { AgentRuntimeExecutionContext, AgentRuntimeExecutionResult } from "
 import { agentRunContextService, type AgentRunContextAgent } from "./agent-run-context.js";
 import { agentService } from "./agents.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
+import type { StorageService } from "../storage/types.js";
 import { executeAdapterWithModelFallbacks } from "./runtime-kernel/model-fallback.js";
 
 const CHAT_UNSUPPORTED_ADAPTER_TYPES = new Set<AgentRuntimeType>(["process", "http"]);
 const CHAT_RESULT_SENTINEL_PREFIX = "__RUDDER_RESULT_";
+
+interface ChatAttachmentPromptReference {
+  localPath?: string;
+  localPathError?: string;
+}
 
 interface ResolvedChatRuntimeSource {
   descriptor: ChatRuntimeDescriptor;
@@ -133,7 +144,10 @@ function unavailableAgentDescriptor(input: {
   };
 }
 
-function buildPrompt(input: GenerateChatAssistantReplyInput) {
+function buildPrompt(
+  input: GenerateChatAssistantReplyInput,
+  attachmentReferences: Map<string, ChatAttachmentPromptReference> = new Map(),
+) {
   const contextSummary = input.contextLinks.map((link) => ({
     entityType: link.entityType,
     entityId: link.entityId,
@@ -149,16 +163,19 @@ function buildPrompt(input: GenerateChatAssistantReplyInput) {
     kind: message.kind,
     status: message.status,
     body: message.body,
-    attachments: message.attachments.map((attachment) => ({
-      id: attachment.id,
-      assetId: attachment.assetId,
-      name: attachment.originalFilename ?? attachment.assetId,
-      contentType: attachment.contentType,
-      byteSize: attachment.byteSize,
-      contentPath: attachment.contentPath,
-      fetchUrl: `$RUDDER_API_URL${attachment.contentPath}`,
-      downloadCommand: `curl -L -H "Authorization: Bearer $RUDDER_API_KEY" "$RUDDER_API_URL${attachment.contentPath}" -o ${attachment.originalFilename ?? attachment.assetId}`,
-    })),
+    attachments: message.attachments.map((attachment) => {
+      const reference = attachmentReferences.get(attachment.id);
+      return {
+        id: attachment.id,
+        assetId: attachment.assetId,
+        name: attachment.originalFilename ?? attachment.assetId,
+        contentType: attachment.contentType,
+        byteSize: attachment.byteSize,
+        contentPath: attachment.contentPath,
+        ...(reference?.localPath ? { localPath: reference.localPath } : {}),
+        ...(reference?.localPathError ? { localPathError: reference.localPathError } : {}),
+      };
+    }),
     structuredPayload: message.structuredPayload,
   }));
 
@@ -183,20 +200,34 @@ function buildPrompt(input: GenerateChatAssistantReplyInput) {
   );
 }
 
-function buildCurrentUserAttachmentPromptSection(messages: ChatMessage[]) {
+function buildCurrentUserAttachmentPromptSection(
+  messages: ChatMessage[],
+  attachmentReferences: Map<string, ChatAttachmentPromptReference> = new Map(),
+) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]!;
     if (message.role !== "user" || message.attachments.length === 0) continue;
 
     const lines = [
       "Current user message attachments:",
-      `- The latest user message includes ${message.attachments.length} attachment(s). Inspect them before answering.`,
+      `- The latest user message includes ${message.attachments.length} attachment(s). Inspect any listed localPath directly before answering.`,
       `- User message body: ${JSON.stringify(summarizeBody(message.body))}`,
       ...message.attachments.map((attachment, attachmentIndex) => {
         const name = attachment.originalFilename ?? attachment.assetId;
-        const fetchUrl = `$RUDDER_API_URL${attachment.contentPath}`;
-        const downloadCommand = `curl -L -H "Authorization: Bearer $RUDDER_API_KEY" "${fetchUrl}" -o ${name}`;
-        return `- [${attachmentIndex + 1}] name=${name}; contentType=${attachment.contentType}; byteSize=${attachment.byteSize}; contentPath=${attachment.contentPath}; fetchUrl=${fetchUrl}; downloadCommand=${downloadCommand}`;
+        const reference = attachmentReferences.get(attachment.id);
+        const parts = [
+          `name=${name}`,
+          `contentType=${attachment.contentType}`,
+          `byteSize=${attachment.byteSize}`,
+          `contentPath=${attachment.contentPath}`,
+        ];
+        if (reference?.localPath) {
+          parts.push(`localPath=${reference.localPath}`);
+          parts.push("runtimeReference=local_image_file");
+        } else if (reference?.localPathError) {
+          parts.push(`localPathError=${reference.localPathError}`);
+        }
+        return `- [${attachmentIndex + 1}] ${parts.join("; ")}`;
       }),
     ];
     return lines.join("\n");
@@ -302,8 +333,8 @@ function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource,
     "This is the dedicated chat scene. Do not use heartbeat issue bootstrap framing.",
     "Always reply in the same language as the user's most recent substantive message unless they explicitly ask for a different language.",
     "Always prefer clarification before proposing issue creation when requirements are incomplete.",
-    "Treat message attachments as part of the user's message. If an image attachment is present, fetch or inspect it before claiming you cannot see the image.",
-    "Attachment URLs in the conversation input are relative to $RUDDER_API_URL and require Authorization: Bearer $RUDDER_API_KEY when fetched from tools.",
+    "Treat message attachments as part of the user's message. If an image attachment includes localPath metadata, inspect that local file before claiming you cannot see the image.",
+    "Do not expose internal attachment retrieval commands or auth-bearing asset fetch instructions to the user.",
     "Use result kind 'message' for clarification, summaries, and small requests that can stay in chat.",
     "Use result kind 'ask_user' only when one to three short structured questions are blocked on the user's decision before the conversation can continue safely.",
     "Use result kind 'issue_proposal' for larger work that should become an issue.",
@@ -512,6 +543,88 @@ function extractGeneratedAttachments(result: AgentRuntimeExecutionResult): ChatG
   return attachments;
 }
 
+function isImageAttachment(attachment: Pick<ChatMessage["attachments"][number], "contentType">) {
+  return attachment.contentType.toLowerCase().startsWith("image/");
+}
+
+function extensionForContentType(contentType: string) {
+  switch (contentType.toLowerCase()) {
+    case "image/png":
+      return ".png";
+    case "image/jpeg":
+    case "image/jpg":
+      return ".jpg";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "image/svg+xml":
+      return ".svg";
+    default:
+      return "";
+  }
+}
+
+function safeAttachmentFilename(
+  attachment: Pick<ChatMessage["attachments"][number], "id" | "assetId" | "originalFilename" | "contentType">,
+  index: number,
+) {
+  const fallbackExt = extensionForContentType(attachment.contentType);
+  const sourceName = attachment.originalFilename ?? `${attachment.assetId}${fallbackExt}`;
+  const base = path.basename(sourceName).trim();
+  const cleaned = base
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const filename = cleaned || `attachment-${index + 1}${fallbackExt}`;
+  const hasExt = path.extname(filename).length > 0;
+  const withExt = hasExt || !fallbackExt ? filename : `${filename}${fallbackExt}`;
+  return `${String(index + 1).padStart(2, "0")}-${attachment.id.replace(/[^a-zA-Z0-9._-]+/g, "_")}-${withExt}`.slice(0, 180);
+}
+
+async function prepareChatAttachmentReferences(input: {
+  runtimeType: AgentRuntimeType;
+  messages: ChatMessage[];
+  storage?: StorageService;
+  runId: string;
+}) {
+  const references = new Map<string, ChatAttachmentPromptReference>();
+  if (input.runtimeType !== "codex_local" || !input.storage) {
+    return { references, cleanup: async () => {} };
+  }
+
+  const attachments = input.messages
+    .slice(-12)
+    .flatMap((message) => message.attachments)
+    .filter(isImageAttachment);
+  if (attachments.length === 0) {
+    return { references, cleanup: async () => {} };
+  }
+
+  const safeRunId = input.runId.replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `rudder-chat-attachments-${safeRunId}-`));
+
+  await Promise.all(attachments.map(async (attachment, index) => {
+    const targetPath = path.join(dir, safeAttachmentFilename(attachment, index));
+    try {
+      const object = await input.storage!.getObject(attachment.orgId, attachment.objectKey);
+      await pipeline(object.stream, createWriteStream(targetPath, { mode: 0o600 }));
+      references.set(attachment.id, { localPath: targetPath });
+    } catch (error) {
+      references.set(attachment.id, {
+        localPathError: error instanceof Error ? error.message : "Failed to prepare image attachment",
+      });
+    }
+  }));
+
+  return {
+    references,
+    cleanup: async () => {
+      await fs.rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
 function validateAssistantResult(
   payload: Record<string, unknown>,
   options: { bodyOverride?: string | null; bodyFallback?: string | null } = {},
@@ -548,11 +661,12 @@ function buildConversationPrompt(
   runtimeSource: ResolvedChatRuntimeSource,
   resultSentinel: string,
   orgResourcesPrompt: string,
+  attachmentReferences: Map<string, ChatAttachmentPromptReference> = new Map(),
 ) {
   const operatorProfileSection = buildOperatorProfilePromptSection(input.operatorProfile);
   const selectedProjectSection = buildSelectedProjectPromptSection(input.contextLinks);
   const selectedIssueSection = buildSelectedIssuePromptSection(input.conversation, input.contextLinks);
-  const currentUserAttachmentSection = buildCurrentUserAttachmentPromptSection(input.messages.slice(-12));
+  const currentUserAttachmentSection = buildCurrentUserAttachmentPromptSection(input.messages.slice(-12), attachmentReferences);
   /**
    * Chat prompt assembly stays compositional on purpose.
    *
@@ -573,7 +687,7 @@ function buildConversationPrompt(
     ...(operatorProfileSection ? [operatorProfileSection] : []),
     ...(currentUserAttachmentSection ? [currentUserAttachmentSection] : []),
     "Conversation input:",
-    buildPrompt(input),
+    buildPrompt(input, attachmentReferences),
   ].join("\n\n");
 }
 
@@ -941,7 +1055,7 @@ function shouldSuppressChatTranscriptEntry(entry: TranscriptEntry, resultSentine
   return false;
 }
 
-export function chatAssistantService(db: Db) {
+export function chatAssistantService(db: Db, storage?: StorageService) {
   const agentsSvc = agentService(db);
   const runContextSvc = agentRunContextService(db);
 
@@ -1170,11 +1284,18 @@ export function chatAssistantService(db: Db) {
     let parser = adapter.parseStdoutLine;
     let stdoutLineBuffer = "";
     const { rudderWorkspace, rudderWorkspaces, rudderRuntimeServiceIntents, rudderScene } = sceneContext;
+    const preparedAttachments = await prepareChatAttachmentReferences({
+      runtimeType: runtimeAgentType,
+      messages: input.messages,
+      storage,
+      runId,
+    });
     const prompt = buildConversationPrompt(
       input,
       runtimeSource,
       resultSentinel,
       typeof rudderWorkspace.orgResourcesPrompt === "string" ? rudderWorkspace.orgResourcesPrompt : "",
+      preparedAttachments.references,
     );
 
     const processTranscriptEntries = async (entries: TranscriptEntry[]) => {
@@ -1231,77 +1352,89 @@ export function chatAssistantService(db: Db) {
 
     await maybeEmitAssistantState(input.onAssistantState, "streaming");
 
-    const result = await executeAdapterWithModelFallbacks(adapter, {
-      runId,
-      agent: stubAgent({
-        orgId: input.conversation.orgId,
-        agentRuntimeType: runtimeAgentType,
-        agentRuntimeConfig: config,
-        sourceLabel: runtimeSource.descriptor.sourceLabel,
-        sourceId: runtimeAgentId,
-      }),
-      runtime: {
-        sessionId: null,
-        sessionParams: null,
-        sessionDisplayId: null,
-        taskKey: null,
-      },
-      config,
-      context: {
-        chatPrompt: prompt,
-        chatConversationId: input.conversation.id,
-        chatMode: true,
-        rudderScene,
-        rudderWorkspace,
-        rudderWorkspaces,
-        ...(rudderRuntimeServiceIntents ? { rudderRuntimeServiceIntents } : {}),
-        ...(linkedProjectId ? { projectId: linkedProjectId } : {}),
-        ...(linkedIssueIds[0] ? { issueId: linkedIssueIds[0] } : {}),
-        ...(linkedIssueIds.length > 0 ? { issueIds: linkedIssueIds } : {}),
-      },
-      onMeta: async (meta) => {
-        await input.onInvocationMeta?.({
-          ...meta,
-          loadedSkills: runtimeSource.runtimeSkills,
+    const chatAttachments = Array.from(preparedAttachments.references.entries()).map(([attachmentId, reference]) => ({
+      attachmentId,
+      ...reference,
+    }));
+
+    const result = await (async () => {
+      try {
+        return await executeAdapterWithModelFallbacks(adapter, {
+          runId,
+          agent: stubAgent({
+            orgId: input.conversation.orgId,
+            agentRuntimeType: runtimeAgentType,
+            agentRuntimeConfig: config,
+            sourceLabel: runtimeSource.descriptor.sourceLabel,
+            sourceId: runtimeAgentId,
+          }),
+          runtime: {
+            sessionId: null,
+            sessionParams: null,
+            sessionDisplayId: null,
+            taskKey: null,
+          },
+          config,
+          context: {
+            chatPrompt: prompt,
+            chatConversationId: input.conversation.id,
+            chatMode: true,
+            rudderScene,
+            rudderWorkspace,
+            rudderWorkspaces,
+            ...(chatAttachments.length > 0 ? { chatAttachments } : {}),
+            ...(rudderRuntimeServiceIntents ? { rudderRuntimeServiceIntents } : {}),
+            ...(linkedProjectId ? { projectId: linkedProjectId } : {}),
+            ...(linkedIssueIds[0] ? { issueId: linkedIssueIds[0] } : {}),
+            ...(linkedIssueIds.length > 0 ? { issueIds: linkedIssueIds } : {}),
+          },
+          onMeta: async (meta) => {
+            await input.onInvocationMeta?.({
+              ...meta,
+              loadedSkills: runtimeSource.runtimeSkills,
+            });
+          },
+          authToken: adapter.supportsLocalAgentJwt
+            ? createLocalAgentJwt(
+              runtimeAgentId,
+              input.conversation.orgId,
+              runtimeAgentType,
+              runId,
+            ) ?? undefined
+            : undefined,
+          abortSignal: input.abortSignal,
+          onLog: async (stream, chunk) => {
+            if (stream === "stdout") {
+              if (chunk.startsWith("[rudder]")) {
+                const entry: TranscriptEntry = {
+                  kind: "stdout",
+                  ts: new Date().toISOString(),
+                  text: chunk,
+                };
+                await maybeEmitObservedTranscriptEntry(input.onObservedTranscriptEntry, entry);
+                await maybeEmitTranscriptEntry(input.onTranscriptEntry, entry);
+                return;
+              }
+              await flushStdoutChunk(chunk);
+            }
+          },
+        }, {
+          resolveAdapter: findServerAdapter,
+          createAuthToken: (agentRuntimeType) =>
+            createLocalAgentJwt(
+              runtimeAgentId,
+              input.conversation.orgId,
+              agentRuntimeType,
+              runId,
+            ) ?? undefined,
+          onAttemptStart: (_attempt, attemptAdapter) => {
+            parser = attemptAdapter.parseStdoutLine;
+          },
         });
-      },
-      authToken: adapter.supportsLocalAgentJwt
-        ? createLocalAgentJwt(
-          runtimeAgentId,
-          input.conversation.orgId,
-          runtimeAgentType,
-          runId,
-        ) ?? undefined
-        : undefined,
-      abortSignal: input.abortSignal,
-      onLog: async (stream, chunk) => {
-        if (stream === "stdout") {
-          if (chunk.startsWith("[rudder]")) {
-            const entry: TranscriptEntry = {
-              kind: "stdout",
-              ts: new Date().toISOString(),
-              text: chunk,
-            };
-            await maybeEmitObservedTranscriptEntry(input.onObservedTranscriptEntry, entry);
-            await maybeEmitTranscriptEntry(input.onTranscriptEntry, entry);
-            return;
-          }
-          await flushStdoutChunk(chunk);
-        }
-      },
-    }, {
-      resolveAdapter: findServerAdapter,
-      createAuthToken: (agentRuntimeType) =>
-        createLocalAgentJwt(
-          runtimeAgentId,
-          input.conversation.orgId,
-          agentRuntimeType,
-          runId,
-        ) ?? undefined,
-      onAttemptStart: (_attempt, attemptAdapter) => {
-        parser = attemptAdapter.parseStdoutLine;
-      },
-    });
+      } finally {
+        await preparedAttachments.cleanup();
+      }
+    })();
 
     await flushStdoutChunk("", true);
     await maybeEmitAssistantDelta(input.onAssistantDelta, sentinelStream.finish());

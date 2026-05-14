@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatContextLink, ChatConversation, ChatMessage } from "@rudderhq/shared";
 
@@ -136,6 +137,20 @@ function makeMessages(): ChatMessage[] {
     createdAt: now,
     updatedAt: now,
   }];
+}
+
+function makeStorageService(body = Buffer.from("image-bytes")) {
+  return {
+    provider: "local_disk",
+    getObject: vi.fn(async () => ({
+      stream: Readable.from(body),
+      contentType: "image/png",
+      contentLength: body.length,
+    })),
+    putFile: vi.fn(),
+    headObject: vi.fn(),
+    deleteObject: vi.fn(),
+  };
 }
 
 function makeProjectContextLink(): ChatContextLink {
@@ -347,8 +362,9 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(prompt).toContain("- Background about the operator: Prefers concise, implementation-first responses.");
   });
 
-  it("includes chat attachments in the runtime prompt and injects agent API auth", async () => {
-    const svc = chatAssistantService({} as any);
+  it("includes chat attachments in the runtime prompt as prepared local image paths without auth-bearing download commands", async () => {
+    const storage = makeStorageService();
+    const svc = chatAssistantService({} as any, storage as any);
     const [message] = makeMessages();
     const messageWithAttachment: ChatMessage = {
       ...message!,
@@ -383,14 +399,25 @@ describe("chatAssistantService operator profile prompt injection", () => {
     const prompt = executeInput?.context?.chatPrompt as string;
     expect(prompt).toContain("Treat message attachments as part of the user's message.");
     expect(prompt).toContain("Current user message attachments:");
-    expect(prompt).toContain("The latest user message includes 1 attachment(s). Inspect them before answering.");
+    expect(prompt).toContain("The latest user message includes 1 attachment(s). Inspect any listed localPath directly before answering.");
     expect(prompt).toContain('User message body: "Help me scope this work."');
     expect(prompt).toContain("- [1] name=image.png; contentType=image/png; byteSize=1234; contentPath=/api/assets/asset-1/content;");
+    expect(prompt).toMatch(/localPath=.*image\.png/);
+    expect(prompt).toContain("runtimeReference=local_image_file");
     expect(prompt).toContain("\"attachments\": [");
     expect(prompt).toContain("\"name\": \"image.png\"");
     expect(prompt).toContain("\"contentType\": \"image/png\"");
-    expect(prompt).toContain("\"fetchUrl\": \"$RUDDER_API_URL/api/assets/asset-1/content\"");
-    expect(prompt).toContain("Authorization: Bearer $RUDDER_API_KEY");
+    expect(prompt).toMatch(/"localPath": ".*image\.png"/);
+    expect(prompt).not.toContain("\"fetchUrl\"");
+    expect(prompt).not.toContain("downloadCommand");
+    expect(prompt).not.toContain("Authorization: Bearer $RUDDER_API_KEY");
+    expect(executeInput?.context?.chatAttachments).toEqual([
+      expect.objectContaining({
+        attachmentId: "attachment-1",
+        localPath: expect.stringMatching(/image\.png$/),
+      }),
+    ]);
+    expect(storage.getObject).toHaveBeenCalledWith("organization-1", "chats/chat-1/image.png");
     expect(executeInput?.authToken).toEqual(expect.any(String));
   });
 
