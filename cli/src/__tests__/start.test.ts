@@ -572,6 +572,72 @@ describe("desktop start command helpers", () => {
     );
   });
 
+  it("prefers the GitHub release asset API URL when downloading assets", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-download-api-test."));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(responseFromChunks(["asset"])) as never;
+
+    try {
+      const assetPath = await downloadAsset(
+        {
+          name: "Rudder-0.3.1-linux-x64.AppImage",
+          url: "https://api.github.com/repos/example/rudder/releases/assets/123",
+          browser_download_url: "https://github.com/example/rudder/releases/download/v0.3.1/Rudder.AppImage",
+        },
+        dir,
+      );
+
+      expect(await readFile(assetPath, "utf8")).toBe("asset");
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/example/rudder/releases/assets/123",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: "application/octet-stream",
+            "User-Agent": "rudder-cli-installer",
+          }),
+        }),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the browser download URL when the asset API URL fails", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-download-fallback-test."));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("api timed out"))
+      .mockResolvedValueOnce(responseFromChunks(["asset"])) as never;
+
+    try {
+      const assetPath = await downloadAsset(
+        {
+          name: "Rudder-0.3.1-linux-x64.AppImage",
+          url: "https://api.github.com/repos/example/rudder/releases/assets/123",
+          browser_download_url: "https://github.com/example/rudder/releases/download/v0.3.1/Rudder.AppImage",
+        },
+        dir,
+      );
+
+      expect(await readFile(assetPath, "utf8")).toBe("asset");
+      expect(globalThis.fetch).toHaveBeenNthCalledWith(
+        2,
+        "https://github.com/example/rudder/releases/download/v0.3.1/Rudder.AppImage",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: "*/*",
+            "User-Agent": "rudder-cli-installer",
+          }),
+        }),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("compares stable semver versions", () => {
     expect(compareStableSemver("0.3.2", "0.3.1")).toBeGreaterThan(0);
     expect(compareStableSemver("0.3.1", "0.3.1")).toBe(0);
