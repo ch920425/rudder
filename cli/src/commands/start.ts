@@ -59,6 +59,7 @@ interface StartCommandOptions {
   desktopInstallDir?: string;
   open?: boolean;
   waitForActiveRuns?: boolean;
+  desktopProgressJson?: boolean;
   dryRun?: boolean;
   versionCheck?: boolean;
 }
@@ -78,6 +79,28 @@ type UpdateQuitResponse =
 
 export type ProgressReporterFactory = (label: string) => ByteProgressReporter;
 
+type DesktopUpdateProgressPhase =
+  | "starting"
+  | "resolving_release"
+  | "downloading_checksums"
+  | "downloading_asset"
+  | "verifying_checksum"
+  | "waiting_for_active_runs"
+  | "preparing_restart"
+  | "closing"
+  | "failed";
+
+type DesktopUpdateProgressEvent = {
+  source: "rudder-desktop-update";
+  phase: DesktopUpdateProgressPhase;
+  message: string;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  error?: string;
+  at: string;
+};
+
 const STABLE_SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const CANARY_SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$/;
 const CLI_REGISTRY_LATEST_URL = "https://registry.npmjs.org/@rudderhq%2fcli/latest";
@@ -85,6 +108,85 @@ const DESKTOP_APP_NAME = "Rudder";
 const DESKTOP_METADATA_FILE = ".rudder-desktop-install.json";
 const DESKTOP_CHECKSUM_ASSET_NAME = "SHASUMS256.txt";
 const GITHUB_ASSET_DOWNLOAD_ACCEPT = "application/octet-stream";
+
+function normalizeProgressTotal(totalBytes: number | null | undefined): number | null {
+  return typeof totalBytes === "number" && Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : null;
+}
+
+function writeDesktopProgress(event: Omit<DesktopUpdateProgressEvent, "source" | "at">): void {
+  const payload: DesktopUpdateProgressEvent = {
+    source: "rudder-desktop-update",
+    ...event,
+    at: new Date().toISOString(),
+  };
+  try {
+    process.stdout.write(`${JSON.stringify(payload)}\n`);
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+    if (code !== "EPIPE") throw error;
+  }
+}
+
+function desktopDownloadPhase(label: string): DesktopUpdateProgressPhase {
+  return label.toLowerCase().includes("shasums")
+    ? "downloading_checksums"
+    : "downloading_asset";
+}
+
+function createDesktopProgressFactory(): ProgressReporterFactory {
+  return (label: string) => {
+    const phase = desktopDownloadPhase(label);
+    let latestReceivedBytes = 0;
+    let latestTotalBytes: number | null | undefined = null;
+
+    function emitByteProgress(
+      message: string,
+      receivedBytes: number,
+      totalBytes: number | null | undefined,
+    ): void {
+      const total = normalizeProgressTotal(totalBytes);
+      writeDesktopProgress({
+        phase,
+        message,
+        transferredBytes: Math.max(0, receivedBytes),
+        ...(total === null
+          ? {}
+          : {
+            totalBytes: total,
+            percent: Math.max(0, Math.min(100, Math.floor((Math.max(0, receivedBytes) / total) * 100))),
+          }),
+      });
+    }
+
+    return {
+      start(totalBytes?: number | null) {
+        latestReceivedBytes = 0;
+        latestTotalBytes = totalBytes;
+        emitByteProgress(label, 0, totalBytes);
+      },
+      update(receivedBytes: number, totalBytes?: number | null) {
+        latestReceivedBytes = receivedBytes;
+        latestTotalBytes = totalBytes;
+        emitByteProgress(label, receivedBytes, totalBytes);
+      },
+      finish(receivedBytes = latestReceivedBytes, totalBytes = latestTotalBytes) {
+        latestReceivedBytes = receivedBytes;
+        latestTotalBytes = totalBytes;
+        emitByteProgress(`${label} complete`, receivedBytes, totalBytes);
+      },
+      fail() {
+        writeDesktopProgress({
+          phase,
+          message: `${label} failed`,
+          transferredBytes: Math.max(0, latestReceivedBytes),
+          error: `${label} failed`,
+        });
+      },
+    };
+  };
+}
 
 export function resolveCurrentCliVersion(env: NodeJS.ProcessEnv = process.env): string {
   const version = resolveCliVersion(import.meta.url, env);
@@ -789,15 +891,29 @@ async function runStartPhase<T>(
   message: string,
   successMessage: string,
   task: () => Promise<T> | T,
+  progressPhase?: DesktopUpdateProgressPhase | null,
 ): Promise<T> {
+  if (progressPhase) {
+    writeDesktopProgress({ phase: progressPhase, message });
+  }
   const spinner = p.spinner();
   spinner.start(message);
   try {
     const result = await task();
     spinner.stop(successMessage);
+    if (progressPhase) {
+      writeDesktopProgress({ phase: progressPhase, message: successMessage });
+    }
     return result;
   } catch (error) {
     spinner.stop(pc.red(`${message} failed.`));
+    if (progressPhase) {
+      writeDesktopProgress({
+        phase: "failed",
+        message: `${message} failed.`,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     throw error;
   }
 }
@@ -809,6 +925,13 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
   const repo = opts.repo?.trim() || DEFAULT_DESKTOP_RELEASE_REPO;
   const version = opts.targetVersion?.trim() || opts.version?.trim() || resolveCurrentCliVersion();
   const dryRun = opts.dryRun === true;
+  const desktopProgressJson = opts.desktopProgressJson === true;
+
+  if (desktopProgressJson) {
+    process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") throw error;
+    });
+  }
 
   if (!installCli && !installDesktop && !installRuntime) {
     throw new Error("Nothing to start. Remove --no-cli, --no-runtime, or --no-desktop.");
@@ -897,13 +1020,16 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
     }
 
     const directReleaseVersion = resolveDesktopReleaseVersion(tag);
-    const progressFactory: ProgressReporterFactory = createByteProgress;
+    const progressFactory: ProgressReporterFactory = desktopProgressJson
+      ? createDesktopProgressFactory()
+      : createByteProgress;
     let release: GithubRelease | null = null;
     try {
       release = await runStartPhase(
         "Resolving Desktop release...",
         "Desktop release resolved.",
         () => fetchGithubRelease(repo, tag),
+        desktopProgressJson ? "resolving_release" : null,
       );
     } catch (error) {
       if (!directReleaseVersion) throw error;
@@ -949,6 +1075,7 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
           await removeMacQuarantine(installPaths, target);
           await createPlatformLaunchers(installPaths, target);
         },
+        desktopProgressJson ? "preparing_restart" : null,
       );
     } else {
       const installerPath = await downloadAsset(asset, outputDir, progressFactory);
@@ -956,17 +1083,20 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
         "Verifying Desktop checksum...",
         `Verified ${pc.cyan(path.basename(installerPath))}.`,
         () => assertChecksumMatch(installerPath, expectedChecksum),
+        desktopProgressJson ? "verifying_checksum" : null,
       );
 
       await runStartPhase(
         "Replacing existing Rudder Desktop if needed...",
         "Existing Desktop install is ready for replacement.",
         () => prepareForDesktopReplace(installPaths, target, { waitForActiveRuns: opts.waitForActiveRuns === true }),
+        desktopProgressJson ? (opts.waitForActiveRuns === true ? "waiting_for_active_runs" : "preparing_restart") : null,
       );
       await runStartPhase(
         "Installing portable Desktop app...",
         `Installed Rudder Desktop to ${pc.cyan(installPaths.appPath)}.`,
         () => installPortableDesktop(installerPath, installPaths, target),
+        desktopProgressJson ? "preparing_restart" : null,
       );
       await runStartPhase(
         "Preparing Desktop launchers...",
@@ -975,6 +1105,7 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
           await removeMacQuarantine(installPaths, target);
           await createPlatformLaunchers(installPaths, target);
         },
+        desktopProgressJson ? "preparing_restart" : null,
       );
       await writeInstallMetadata(installPaths, releaseTag, asset.name, checksum);
     }
@@ -984,6 +1115,7 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
         "Launching Rudder Desktop...",
         "Rudder Desktop launched.",
         () => launchDesktop(installPaths, target),
+        desktopProgressJson ? "closing" : null,
       );
     }
   }

@@ -177,11 +177,35 @@ type OpenNotificationSettingsResult = {
 };
 
 type DesktopUpdateInstallResult =
-  | { status: "started"; version: string }
-  | { status: "waiting"; version: string; totalRuns: number; message: string }
+  | { status: "started"; version: string; updateId?: string }
+  | { status: "waiting"; version: string; updateId?: string; totalRuns: number; message: string }
   | { status: "unavailable"; message: string }
   | { status: "blocked"; totalRuns: number; message: string }
   | { status: "failed"; message: string };
+
+type DesktopUpdateProgressPhase =
+  | "starting"
+  | "resolving_release"
+  | "downloading_checksums"
+  | "downloading_asset"
+  | "verifying_checksum"
+  | "waiting_for_active_runs"
+  | "preparing_restart"
+  | "closing"
+  | "failed";
+
+type DesktopUpdateProgressEvent = {
+  updateId: string;
+  version: string;
+  phase: DesktopUpdateProgressPhase;
+  message: string;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  totalRuns?: number;
+  error?: string;
+  at: string;
+};
 
 const DESKTOP_GITHUB_REPO = "Undertone0809/rudder";
 const DESKTOP_RELEASES_URL = `https://github.com/${DESKTOP_GITHUB_REPO}/releases`;
@@ -269,6 +293,79 @@ function setDesktopUpdateChannel(channel: unknown): DesktopUpdateChannel {
 
 function desktopMessageBoxWindow(): BrowserWindow | undefined {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+}
+
+function publishDesktopUpdateProgress(event: DesktopUpdateProgressEvent): void {
+  latestDesktopUpdateProgress = event;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:update-progress", event);
+  }
+}
+
+function updateDesktopUpdateProgress(
+  updateId: string,
+  version: string,
+  patch: Omit<DesktopUpdateProgressEvent, "updateId" | "version" | "at"> & { at?: string },
+): void {
+  publishDesktopUpdateProgress({
+    updateId,
+    version,
+    ...patch,
+    at: patch.at ?? new Date().toISOString(),
+  });
+}
+
+function normalizeProgressPercent(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.min(100, Math.floor(value)));
+}
+
+function normalizeProgressBytes(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
+  return Math.floor(value);
+}
+
+function parseDesktopUpdateProgressLine(
+  updateId: string,
+  version: string,
+  line: string,
+): DesktopUpdateProgressEvent | null {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (typeof payload !== "object" || payload === null) return null;
+  const record = payload as Record<string, unknown>;
+  if (record.source !== "rudder-desktop-update") return null;
+  if (typeof record.phase !== "string" || typeof record.message !== "string") return null;
+  const phase = record.phase as DesktopUpdateProgressPhase;
+  if (![
+    "starting",
+    "resolving_release",
+    "downloading_checksums",
+    "downloading_asset",
+    "verifying_checksum",
+    "waiting_for_active_runs",
+    "preparing_restart",
+    "closing",
+    "failed",
+  ].includes(phase)) return null;
+
+  const totalBytes = normalizeProgressBytes(record.totalBytes);
+  const transferredBytes = normalizeProgressBytes(record.transferredBytes);
+  return {
+    updateId,
+    version,
+    phase,
+    message: record.message,
+    ...(normalizeProgressPercent(record.percent) === undefined ? {} : { percent: normalizeProgressPercent(record.percent) }),
+    ...(transferredBytes === undefined ? {} : { transferredBytes }),
+    ...(totalBytes === undefined ? {} : { totalBytes }),
+    ...(typeof record.error === "string" ? { error: record.error.slice(0, 500) } : {}),
+    at: typeof record.at === "string" ? record.at : new Date().toISOString(),
+  };
 }
 
 async function showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
@@ -399,6 +496,7 @@ async function showManualUpdateCheckDialog(): Promise<void> {
 
 async function installUpdate(version: string | null | undefined): Promise<DesktopUpdateInstallResult> {
   const normalizedVersion = version?.trim();
+  const updateId = randomUUID();
   if (!app.isPackaged) {
     return {
       status: "unavailable",
@@ -413,11 +511,20 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
   }
 
   try {
+    updateDesktopUpdateProgress(updateId, normalizedVersion, {
+      phase: "starting",
+      message: `Starting update to ${formatVersionForDisplay(normalizedVersion)}.`,
+    });
     const activeRuns = await listActiveRunsForQuit();
     let waitForActiveRuns = false;
     if (activeRuns.totalRuns > 0) {
       const decision = await promptForDeferredUpdate(activeRuns);
       if (decision !== "wait") {
+        updateDesktopUpdateProgress(updateId, normalizedVersion, {
+          phase: "failed",
+          message: "Update paused because active runs are still running.",
+          totalRuns: activeRuns.totalRuns,
+        });
         return {
           status: "blocked",
           totalRuns: activeRuns.totalRuns,
@@ -427,6 +534,12 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
         };
       }
       waitForActiveRuns = true;
+      updateDesktopUpdateProgress(updateId, normalizedVersion, {
+        phase: "waiting_for_active_runs",
+        message:
+          `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will update after active runs finish.`,
+        totalRuns: activeRuns.totalRuns,
+      });
     }
 
     const profileName = currentBootState.runtime?.localEnv;
@@ -440,26 +553,64 @@ async function installUpdate(version: string | null | undefined): Promise<Deskto
       "--repo",
       DESKTOP_GITHUB_REPO,
       "--no-version-check",
+      "--desktop-progress-json",
       ...(waitForActiveRuns ? ["--wait-for-active-runs"] : []),
     ];
     const child = spawn(process.execPath, args, {
       detached: true,
       env: process.env,
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdoutBuffer = "";
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdoutBuffer += chunk;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const event = parseDesktopUpdateProgressLine(updateId, normalizedVersion, line.trim());
+        if (event) publishDesktopUpdateProgress(event);
+      }
+    });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      const trimmed = chunk.trim();
+      if (trimmed) console.warn("[rudder-desktop] update child stderr", trimmed);
+    });
+    child.on("error", (error) => {
+      updateDesktopUpdateProgress(updateId, normalizedVersion, {
+        phase: "failed",
+        message: "Update failed to start.",
+        error: error.message,
+      });
+    });
+    child.on("exit", (code) => {
+      if (code && code !== 0) {
+        updateDesktopUpdateProgress(updateId, normalizedVersion, {
+          phase: "failed",
+          message: `Update installer exited with code ${code}.`,
+        });
+      }
     });
     child.unref();
     if (waitForActiveRuns) {
       return {
         status: "waiting",
         version: normalizedVersion,
+        updateId,
         totalRuns: activeRuns.totalRuns,
         message:
           `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will update after `
           + `${activeRuns.totalRuns} active run${activeRuns.totalRuns === 1 ? "" : "s"} finish.`,
       };
     }
-    return { status: "started", version: normalizedVersion };
+    return { status: "started", version: normalizedVersion, updateId };
   } catch (error) {
+    updateDesktopUpdateProgress(updateId, normalizedVersion ?? "unknown", {
+      phase: "failed",
+      message: "Update failed to start.",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       status: "failed",
       message: error instanceof Error ? error.message : String(error),
@@ -624,6 +775,7 @@ let currentBootState: BootState = {
     instanceId: initialProfile.instanceId,
   },
 };
+let latestDesktopUpdateProgress: DesktopUpdateProgressEvent | null = null;
 let serverHandle: StartedServer | null = null;
 let startInFlight: Promise<void> | null = null;
 let quitInFlight: Promise<void> | null = null;
@@ -1813,6 +1965,7 @@ function registerIpc(): void {
   });
   ipcMain.handle("desktop:check-for-updates", async () => checkForUpdates());
   ipcMain.handle("desktop:install-update", async (_event, version: string) => installUpdate(version));
+  ipcMain.handle("desktop:get-update-progress", async () => latestDesktopUpdateProgress);
   ipcMain.handle("desktop:send-feedback", async () => {
     await shell.openExternal(createFeedbackMailtoUrl());
   });

@@ -244,5 +244,12 @@ the running Desktop shell to quit, replaces the per-user portable app, refreshes
 launchers, and reopens Rudder. If active agent runs exist, the update is blocked
 until active work is stopped.
 
+During an in-app update, Desktop shows a compact bottom-right update status card
+with structured progress from the bundled CLI. Byte-backed downloads may show a
+determinate percentage; release resolution, checksum verification, active-run
+waiting, replacement preparation, and relaunch are shown as phase status rather
+than fake percentages. Settings > About can also show the same update session as
+a denser phase-by-phase diagnostic panel for debugging or validation.
+
 This is a full portable asset replacement. It is not a binary-delta incremental
 update path.

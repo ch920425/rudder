@@ -10,6 +10,7 @@ import {
 } from "@/components/settings/SettingsScaffold";
 import { Button } from "@/components/ui/button";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
+import { useDesktopUpdateProgress } from "@/context/DesktopUpdateProgressContext";
 import { useI18n } from "@/context/I18nContext";
 import { useToast } from "@/context/ToastContext";
 import type { TranslationKey } from "@/i18n/locales/en";
@@ -18,10 +19,33 @@ import {
   readDesktopShell,
   type DesktopBootState,
   type DesktopUpdateCheckResult,
+  type DesktopUpdateProgressEvent,
+  type DesktopUpdateProgressPhase,
 } from "@/lib/desktop-shell";
 
 const RELEASES_URL = "https://github.com/Undertone0809/rudder/releases";
 const FEEDBACK_MAILTO = "mailto:zeeland4work@gmail.com";
+const UPDATE_PHASES: DesktopUpdateProgressPhase[] = [
+  "starting",
+  "resolving_release",
+  "downloading_checksums",
+  "downloading_asset",
+  "verifying_checksum",
+  "waiting_for_active_runs",
+  "preparing_restart",
+  "closing",
+];
+const UPDATE_PHASE_LABEL_KEYS: Record<DesktopUpdateProgressPhase, TranslationKey> = {
+  starting: "about.updates.progress.phase.starting",
+  resolving_release: "about.updates.progress.phase.resolving_release",
+  downloading_checksums: "about.updates.progress.phase.downloading_checksums",
+  downloading_asset: "about.updates.progress.phase.downloading_asset",
+  verifying_checksum: "about.updates.progress.phase.verifying_checksum",
+  waiting_for_active_runs: "about.updates.progress.phase.waiting_for_active_runs",
+  preparing_restart: "about.updates.progress.phase.preparing_restart",
+  closing: "about.updates.progress.phase.closing",
+  failed: "about.updates.progress.phase.failed",
+};
 
 function formatVersion(value: string | null | undefined, unknownLabel: string): string {
   if (!value) return unknownLabel;
@@ -101,10 +125,88 @@ function buildUpdateFeedback(
   };
 }
 
+function formatBytes(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const units = ["B", "KB", "MB", "GB"];
+  let next = Math.max(0, value);
+  let index = 0;
+  while (next >= 1024 && index < units.length - 1) {
+    next /= 1024;
+    index += 1;
+  }
+  return index === 0 ? `${Math.round(next)} ${units[index]}` : `${next.toFixed(1)} ${units[index]}`;
+}
+
+function UpdateProgressDetails({
+  progress,
+  t,
+}: {
+  progress: DesktopUpdateProgressEvent;
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+}) {
+  const activeIndex = progress.phase === "failed"
+    ? UPDATE_PHASES.length
+    : UPDATE_PHASES.indexOf(progress.phase);
+  const transferred = formatBytes(progress.transferredBytes);
+  const total = formatBytes(progress.totalBytes);
+
+  return (
+    <div className="mt-3 rounded-[calc(var(--radius-md)-1px)] border border-border/70 bg-card/60 px-3.5 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {t("about.updates.progress.detailsTitle")}
+          </div>
+          <div className="mt-1 text-sm font-medium text-foreground">
+            {t("about.updates.progress.title", {
+              version: formatVersion(progress.version, t("common.unknown")),
+            })}
+          </div>
+        </div>
+        <div className="text-right text-xs tabular-nums text-muted-foreground">
+          {progress.percent != null ? `${progress.percent}%` : transferred ?? t(UPDATE_PHASE_LABEL_KEYS[progress.phase])}
+          {transferred && total ? <div>{transferred} / {total}</div> : null}
+        </div>
+      </div>
+      {progress.percent != null ? (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-emerald-700 transition-[width] duration-300"
+            style={{ width: `${Math.max(0, Math.min(100, progress.percent))}%` }}
+          />
+        </div>
+      ) : null}
+      <div className="mt-3 grid gap-1.5">
+        {UPDATE_PHASES.map((phase, index) => {
+          const isActive = progress.phase === phase;
+          const isDone = activeIndex > index;
+          return (
+            <div
+              key={phase}
+              className={`grid grid-cols-[0.875rem_1fr] items-center gap-2 text-xs ${
+                isActive ? "text-foreground" : "text-muted-foreground"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-700" : isDone ? "bg-emerald-700/55" : "bg-muted-foreground/30"}`} />
+              <span>{t(UPDATE_PHASE_LABEL_KEYS[phase])}</span>
+            </div>
+          );
+        })}
+      </div>
+      {progress.error ? (
+        <div className="mt-3 rounded-[var(--radius-sm)] border border-destructive/25 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+          {progress.error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function InstanceAboutSettings() {
   const { t } = useI18n();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToast();
+  const { progress: updateProgress } = useDesktopUpdateProgress();
   const [desktopBootState, setDesktopBootState] = useState<DesktopBootState | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [updateResult, setUpdateResult] = useState<DesktopUpdateCheckResult | null>(null);
@@ -422,6 +524,10 @@ export function InstanceAboutSettings() {
             </div>
           )}
         />
+
+        {updateProgress ? (
+          <UpdateProgressDetails progress={updateProgress} t={t} />
+        ) : null}
 
         <SettingsRow
           title={t("about.feedback.title")}

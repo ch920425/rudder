@@ -49,11 +49,35 @@ export type DesktopUpdateCheckResult = {
 export type DesktopUpdateChannel = DesktopUpdateCheckResult["channel"];
 
 export type DesktopUpdateInstallResult =
-  | { status: "started"; version: string }
-  | { status: "waiting"; version: string; totalRuns: number; message: string }
+  | { status: "started"; version: string; updateId?: string }
+  | { status: "waiting"; version: string; updateId?: string; totalRuns: number; message: string }
   | { status: "unavailable"; message: string }
   | { status: "blocked"; totalRuns: number; message: string }
   | { status: "failed"; message: string };
+
+export type DesktopUpdateProgressPhase =
+  | "starting"
+  | "resolving_release"
+  | "downloading_checksums"
+  | "downloading_asset"
+  | "verifying_checksum"
+  | "waiting_for_active_runs"
+  | "preparing_restart"
+  | "closing"
+  | "failed";
+
+export type DesktopUpdateProgressEvent = {
+  updateId: string;
+  version: string;
+  phase: DesktopUpdateProgressPhase;
+  message: string;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  totalRuns?: number;
+  error?: string;
+  at: string;
+};
 
 export type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -114,6 +138,8 @@ export type DesktopShellApi = {
   getAppVersion(): Promise<string>;
   checkForUpdates(): Promise<DesktopUpdateCheckResult>;
   installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
+  getUpdateProgress?(): Promise<DesktopUpdateProgressEvent | null>;
+  onUpdateProgress?(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
   getSystemPermissions?(): Promise<DesktopSystemPermissions>;
   sendFeedback(): Promise<void>;
   openExternal(target: string): Promise<void>;

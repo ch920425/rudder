@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DesktopSettingsModalFrame, Layout } from "./components/Layout";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { ToastViewport } from "./components/ToastViewport";
+import { DesktopUpdateStatusCard } from "./components/DesktopUpdateStatusCard";
 import { accessApi } from "./api/access";
 import { agentsApi } from "./api/agents";
 import { authApi } from "./api/auth";
@@ -584,6 +585,7 @@ export function App() {
       ) : null}
       <OnboardingWizard />
       <ToastViewport />
+      <DesktopUpdateStatusCard />
     </>
   );
 }

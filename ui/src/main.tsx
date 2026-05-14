@@ -12,6 +12,7 @@ import { PanelProvider } from "./context/PanelContext";
 import { SidebarProvider } from "./context/SidebarContext";
 import { DialogProvider } from "./context/DialogContext";
 import { ToastProvider } from "./context/ToastContext";
+import { DesktopUpdateProgressProvider } from "./context/DesktopUpdateProgressContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { I18nProvider } from "./context/I18nContext";
 import { ChatGenerationProvider } from "./context/ChatGenerationContext";
@@ -97,23 +98,25 @@ createRoot(document.getElementById("root")!).render(
             <BrowserRouter>
               <OrganizationProvider>
                 <ToastProvider>
-                  <LiveUpdatesProvider>
-                    <TooltipProvider>
-                      <BreadcrumbProvider>
-                        <SidebarProvider>
-                          <PanelProvider>
-                            <PluginLauncherProvider>
-                              <DialogProvider>
-                                <ChatGenerationProvider>
-                                  <App />
-                                </ChatGenerationProvider>
-                              </DialogProvider>
-                            </PluginLauncherProvider>
-                          </PanelProvider>
-                        </SidebarProvider>
-                      </BreadcrumbProvider>
-                    </TooltipProvider>
-                  </LiveUpdatesProvider>
+                  <DesktopUpdateProgressProvider>
+                    <LiveUpdatesProvider>
+                      <TooltipProvider>
+                        <BreadcrumbProvider>
+                          <SidebarProvider>
+                            <PanelProvider>
+                              <PluginLauncherProvider>
+                                <DialogProvider>
+                                  <ChatGenerationProvider>
+                                    <App />
+                                  </ChatGenerationProvider>
+                                </DialogProvider>
+                              </PluginLauncherProvider>
+                            </PanelProvider>
+                          </SidebarProvider>
+                        </BreadcrumbProvider>
+                      </TooltipProvider>
+                    </LiveUpdatesProvider>
+                  </DesktopUpdateProgressProvider>
                 </ToastProvider>
               </OrganizationProvider>
             </BrowserRouter>

@@ -43,6 +43,17 @@ percentage only while bytes are being downloaded, phase-based status for
 resolution, checksum verification, replacement, launcher refresh, and relaunch,
 and explicit waiting state when active agent runs delay replacement.
 
+Decision update, 2026-05-14:
+
+- Default app-wide surface uses the compact bottom-right status card direction
+  (`Quiet Toast Card`). This is the normal operator experience across Dashboard,
+  Messenger, Issues, and other work surfaces.
+- Settings > About may show the more detailed installer-panel direction when
+  update progress exists. That panel is treated as a development/debugging and
+  explanation surface, not the default global update UI.
+- The default card should stay lightweight. The detailed Settings surface may
+  show phase list, byte counts, active-run waiting, and failure details.
+
 ## What Is The Problem?
 
 Current state:
@@ -79,8 +90,9 @@ Impact:
 - Add a Desktop update session concept for in-app updates.
 - Add a structured progress channel from the CLI `start` installer to Electron.
 - Add Electron IPC for renderer subscription to Desktop update progress.
-- Update the About page to render an update progress card after Update is
-  started.
+- Add a global bottom-right update status card after Update is started.
+- Update the About page to render a more detailed progress/debug panel when an
+  update session is active.
 - Reuse the same progress session for update actions started from startup and
   the macOS Check for Updates menu where practical.
 - Keep old result shapes compatible while adding an optional update session id.
@@ -88,7 +100,10 @@ Impact:
 
 ## Success Criteria For Change
 
-- Clicking Update produces immediate visible feedback in the About page.
+- Clicking Update produces immediate visible feedback in a global bottom-right
+  status card.
+- Settings > About can show a higher-density phase breakdown for debugging or
+  explanation.
 - Download phases show real byte-backed progress when total size is known.
 - Unknown-size downloads show transferred bytes without pretending to know a
   percentage.
@@ -128,7 +143,7 @@ Impact:
    channel.
 3. If a newer release exists, About shows the release inline and exposes Update.
 4. The operator clicks Update.
-5. About replaces the simple action row with a compact progress card:
+5. A compact bottom-right card appears across the app:
 
    ```text
    Updating to v0.2.1
@@ -157,14 +172,16 @@ Impact:
    Waiting for 2 active runs to finish. Rudder will update when idle.
    ```
 
-9. If the update fails, the card becomes actionable:
+9. If the update fails, the global card becomes actionable:
 
    ```text
    Update failed while verifying checksum.
    [Retry] [Open Releases]
    ```
 
-10. When replacement begins, the old app can only say that Rudder will close and
+10. Settings > About may show the detailed phase list and diagnostic details
+    while the global card stays compact.
+11. When replacement begins, the old app can only say that Rudder will close and
     reopen. The app should not promise continued in-window progress after that
     point.
 
@@ -251,9 +268,11 @@ desktopShell.onUpdateProgress(listener): () => void;
 desktopShell.getUpdateProgress(updateId): Promise<DesktopUpdateProgressEvent | null>;
 ```
 
-The About page should render update state in the existing Settings row rather
-than opening a modal. This keeps the lifecycle action local to the place where
-the operator started it and preserves the dense Settings surface.
+The normal app-wide surface should render as a compact bottom-right card in the
+same visual family as existing update toasts. Settings > About should render the
+same session as a denser diagnostic panel when present. This keeps the everyday
+operator experience light while preserving a place to inspect phase detail when
+debugging or validating the updater.
 
 The progress card should use:
 

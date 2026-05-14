@@ -45,11 +45,35 @@ type DesktopUpdateCheckResult = {
 type DesktopUpdateChannel = DesktopUpdateCheckResult["channel"];
 
 type DesktopUpdateInstallResult =
-  | { status: "started"; version: string }
-  | { status: "waiting"; version: string; totalRuns: number; message: string }
+  | { status: "started"; version: string; updateId?: string }
+  | { status: "waiting"; version: string; updateId?: string; totalRuns: number; message: string }
   | { status: "unavailable"; message: string }
   | { status: "blocked"; totalRuns: number; message: string }
   | { status: "failed"; message: string };
+
+type DesktopUpdateProgressPhase =
+  | "starting"
+  | "resolving_release"
+  | "downloading_checksums"
+  | "downloading_asset"
+  | "verifying_checksum"
+  | "waiting_for_active_runs"
+  | "preparing_restart"
+  | "closing"
+  | "failed";
+
+type DesktopUpdateProgressEvent = {
+  updateId: string;
+  version: string;
+  phase: DesktopUpdateProgressPhase;
+  message: string;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  totalRuns?: number;
+  error?: string;
+  at: string;
+};
 
 type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -147,6 +171,17 @@ contextBridge.exposeInMainWorld("desktopShell", {
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates") as Promise<DesktopUpdateCheckResult>,
   installUpdate: (version: string) =>
     ipcRenderer.invoke("desktop:install-update", version) as Promise<DesktopUpdateInstallResult>,
+  getUpdateProgress: () =>
+    ipcRenderer.invoke("desktop:get-update-progress") as Promise<DesktopUpdateProgressEvent | null>,
+  onUpdateProgress: (listener: (event: DesktopUpdateProgressEvent) => void) => {
+    const wrapped = (_event: IpcRendererEvent, payload: DesktopUpdateProgressEvent) => {
+      listener(payload);
+    };
+    ipcRenderer.on("desktop:update-progress", wrapped);
+    return () => {
+      ipcRenderer.removeListener("desktop:update-progress", wrapped);
+    };
+  },
   getSystemPermissions: () =>
     ipcRenderer.invoke("desktop:get-system-permissions") as Promise<DesktopSystemPermissions>,
   sendFeedback: () => ipcRenderer.invoke("desktop:send-feedback") as Promise<void>,
@@ -181,6 +216,8 @@ declare global {
       getAppVersion(): Promise<string>;
       checkForUpdates(): Promise<DesktopUpdateCheckResult>;
       installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
+      getUpdateProgress(): Promise<DesktopUpdateProgressEvent | null>;
+      onUpdateProgress(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
       getSystemPermissions(): Promise<DesktopSystemPermissions>;
       sendFeedback(): Promise<void>;
       openExternal(target: string): Promise<void>;
