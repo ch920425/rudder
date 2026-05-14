@@ -330,6 +330,9 @@
     box-shadow: var(--shadow-sm);
   }
 
+  .app-shell-backdrop {
+    background: var(--background);
+  }
 
   html.dark.desktop-shell-macos .app-shell-backdrop {
     background:
