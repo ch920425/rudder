@@ -2,19 +2,6 @@
 
 Run Rudder in Docker without installing Node or pnpm locally.
 
-## Use-Case Index
-
-- **I want a quick local container:** use the one-liner or Compose quickstart
-  with embedded PostgreSQL persisted under a bind mount.
-- **I want to test authenticated private access:** use the authenticated Compose
-  example with one `RUDDER_PUBLIC_URL`.
-- **I want local agent adapters inside Docker:** pass the required provider API
-  keys into the container and use the bundled `claude` or `codex` CLIs.
-- **I want to review untrusted PRs:** use the dedicated untrusted PR review
-  container instead of mounting your host auth state.
-- **I want a fresh-machine install smoke:** use
-  `./scripts/docker-onboard-smoke.sh`.
-
 ## One-liner (build + run)
 
 ```sh

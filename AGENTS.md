@@ -17,6 +17,16 @@ The product north-star metric is the weekly count of real agent-work loops succe
 
 Read docs in layers instead of scanning the whole `doc/` tree.
 
+Documentation folders have different audiences:
+
+- `docs/` is the public website documentation. It is user-facing, use-case-led,
+  and written for installation, onboarding, and product understanding.
+- `doc/` is internal product, engineering, operations, release, and development
+  documentation for contributors working on Rudder itself.
+
+When the task is to improve website docs, edit `docs/`. When the task is to
+change contributor/product-development guidance, edit `doc/`.
+
 Start here for almost every task:
 
 1. `doc/GOAL.md`
@@ -66,7 +76,8 @@ Then choose the route that matches the work:
 - `ui/`: React + Vite board UI
 - `packages/db/`: Drizzle schema, migrations, DB clients
 - `packages/shared/`: shared types, constants, validators, API path constants
-- `doc/`: operational and product docs
+- `docs/`: public website documentation
+- `doc/`: internal product, engineering, operations, and release docs
 
 ## 4. Dev Setup (Auto DB)
 

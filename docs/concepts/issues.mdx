@@ -15,6 +15,16 @@ Long-running agent work needs a durable object. Without one, decisions, context,
 
 Issues give every task a place to live.
 
+## Common use cases
+
+Use an issue when you need to:
+
+- assign one owner to a concrete outcome
+- let an agent check out work without duplicate execution
+- keep comments, plans, screenshots, PRs, and validation together
+- route output to a reviewer
+- recover from a failed or blocked run without losing context
+
 ## Status model
 
 Common issue states include:
@@ -56,6 +66,10 @@ Reviewer decisions should be structured: approve, request changes, needs follow-
 ## Outputs
 
 The strongest close-outs include evidence: changed files, validation commands, preview links, screenshots, commits, deployment status, and remaining risks.
+
+If a reader cannot inspect the result from the issue, the close-out is too
+weak. Add the artifact, link, screenshot, or remaining-risk note before marking
+the work complete.
 
 ## Next steps
 

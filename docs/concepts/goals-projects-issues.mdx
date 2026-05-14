@@ -9,6 +9,15 @@ Goals, projects, and issues keep that answer visible while agents execute.
 
 ![Issue board with project slices](../images/issue-flow.png)
 
+## When to use each object
+
+| Object | Use it when... | Avoid using it for... |
+| --- | --- | --- |
+| Goal | You need to explain why work matters | A one-off implementation checklist |
+| Project | Multiple issues share delivery context, resources, or a workspace | A single tiny task |
+| Issue | Someone needs to execute, review, or track a unit of work | Broad strategy with no next action |
+| Sub-issue | One issue needs multiple owners or steps | Hiding unrelated work under one parent |
+
 ## Goals
 
 Goals express direction. They can belong to an organization, team, agent, or task, and they give work a reason beyond the next prompt.
@@ -51,6 +60,10 @@ Reviewer and follow-up loops keep close-out inspectable. A reviewer owns the qua
 ## Why issue-centric execution matters
 
 Chat can clarify the request, but issues preserve ownership, status, history, output, and review context. When an agent works from an issue, another human or agent can inspect what happened later without replaying a conversation.
+
+Use this model whenever an agent will spend real time or budget. If the work
+needs status, owner, evidence, or review, it should become an issue before it
+becomes a long-running agent run.
 
 ## Next steps
 

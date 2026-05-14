@@ -7,6 +7,10 @@ The fastest path installs the per-user portable Rudder Desktop app and prepares 
 
 ![Rudder CLI terminal workflow](../images/installation-cli.png)
 
+## If you want to use Rudder
+
+Run the public install command:
+
 ```bash
 npx @rudderhq/cli@latest start
 ```
@@ -16,6 +20,10 @@ After the persistent CLI is available, the direct `rudder` form uses the same co
 ```bash
 rudder start
 ```
+
+Use this path when your goal is to open the local app, create an organization,
+and run agent work. The command keeps the CLI and portable Desktop app aligned
+with the selected release.
 
 ## Contributor setup
 
@@ -32,19 +40,8 @@ This starts the API server and UI at `http://localhost:3100`.
 
 Rudder defaults to embedded PostgreSQL in development. If `DATABASE_URL` is unset, no separate database is required.
 
-## Useful checks
-
-```bash
-curl http://localhost:3100/api/health
-curl http://localhost:3100/api/orgs
-```
-
-Reset the disposable development instance when you want a clean local state.
-
-```bash
-rm -rf ~/.rudder/instances/dev
-pnpm dev
-```
+Use this path only when you are changing Rudder source code. It starts the local
+development server and does not install the public portable Desktop app.
 
 ## Next steps
 

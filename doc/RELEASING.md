@@ -9,19 +9,6 @@ The release model is now commit-driven:
 3. Stable release notes live in `releases/vX.Y.Z.md`.
 4. Stable releases get user-facing GitHub Releases; canaries may get prerelease GitHub Releases for Desktop portable assets.
 
-## Use-Case Index
-
-- **Everyday validation of `main`:** rely on the automatic canary path after a
-  push to `main`.
-- **Ship a stable release:** choose the tested source ref, ensure
-  `releases/vX.Y.Z.md` exists on that ref, then run the stable workflow.
-- **Repair a partial release:** classify which surfaces moved first: npm, git
-  tag, GitHub Release, Desktop assets, and public install smoke.
-- **Test the public install path:** run the public install smoke against
-  `@rudderhq/cli@latest`, `@rudderhq/cli@canary`, or an exact version.
-- **Handle a bad stable:** roll back the npm `latest` dist-tag; do not unpublish
-  released packages.
-
 ## Versioning Model
 
 Rudder uses semver directly:

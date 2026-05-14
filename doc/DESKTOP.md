@@ -8,21 +8,6 @@ installing a small wrapper script into a writable bin directory and routing CLI 
 back through the installed Desktop executable. Development Desktop runs do not install
 or manage the `rudder` command.
 
-## Use-Case Index
-
-- **I am a user installing Rudder locally:** start with
-  `npx @rudderhq/cli@latest start`; it installs or updates the portable Desktop
-  app and launches it.
-- **I am developing the Desktop shell:** use `pnpm dev` or `pnpm dev:watch` for
-  the iteration loop, then run `pnpm desktop:verify` before hand-off when
-  packaged behavior can be affected.
-- **I am debugging profile or data confusion:** check
-  [Local profiles](#local-profiles) and [Data and shell paths](#data-and-shell-paths).
-- **I am changing update behavior:** read [Packaging](#packaging), especially
-  the portable replacement flow and active-run blocking rules.
-- **I am diagnosing a blank or crashed window:** start with
-  [Failure recovery](#failure-recovery).
-
 ## Scope
 
 Current desktop scope is intentionally narrow:
@@ -250,9 +235,8 @@ Packaged Desktop checks for updates on startup against GitHub Releases. The
 local Desktop update channel defaults to stable, so update checks compare
 against the latest stable release unless the operator enables canary updates in
 Settings > General. With canary enabled, startup, menu, and About-page checks
-compare against both stable releases and canary prereleases, then select the
-newest semantic version. Beta prereleases are ignored; if a newer matching
-release exists, the app prompts the user to update.
+compare against the latest canary release. Beta prereleases are ignored; if a
+newer matching release exists, the app prompts the user to update.
 When the operator chooses Update, Desktop starts the bundled CLI
 `start --no-cli` portable replacement flow for the discovered version. That
 flow downloads the matching release asset, verifies `SHASUMS256.txt`, requests
