@@ -2268,7 +2268,14 @@ export function IssueDetail() {
           </SheetHeader>
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="space-y-3 px-4 pb-4">
-              <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} inline />
+              <IssueProperties
+                issue={issue}
+                onUpdate={(data) => updateIssue.mutate(data)}
+                inline
+                childIssues={orderedChildIssues}
+                onCreateSubIssue={(title) => createSubIssue.mutateAsync(title)}
+                isCreatingSubIssue={createSubIssue.isPending}
+              />
               <IssueCostSummaryPanel summary={issueCostSummary} />
             </div>
           </ScrollArea>
@@ -2286,13 +2293,19 @@ export function IssueDetail() {
             })}
           </div>
 
-          <section className="rounded-lg border border-border bg-background/80 p-3">
+          <section aria-label="Issue properties" className="rounded-lg border border-border bg-background/80 p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                 Properties
               </p>
             </div>
-            <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} />
+            <IssueProperties
+              issue={issue}
+              onUpdate={(data) => updateIssue.mutate(data)}
+              childIssues={orderedChildIssues}
+              onCreateSubIssue={(title) => createSubIssue.mutateAsync(title)}
+              isCreatingSubIssue={createSubIssue.isPending}
+            />
           </section>
           <IssueCostSummaryPanel summary={issueCostSummary} />
         </div>

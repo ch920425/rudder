@@ -195,4 +195,66 @@ describe("IssueProperties", () => {
     expect(supportingLabel?.classList.contains("truncate")).toBe(true);
     expect(scrollRegion?.classList.contains("scrollbar-auto-hide")).toBe(true);
   });
+
+  it("renders parent and sub-issues in the properties hierarchy section", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const childIssue: Issue = {
+      ...baseIssue,
+      id: "child-1",
+      parentId: "issue-1",
+      title: "Follow-up implementation",
+      identifier: "RUD-2",
+      issueNumber: 2,
+    };
+    const parentedIssue: Issue = {
+      ...baseIssue,
+      parentId: "parent-1",
+      ancestors: [
+        {
+          id: "parent-1",
+          identifier: "RUD-0",
+          title: "Parent task",
+          description: null,
+          status: "todo",
+          priority: "medium",
+          assigneeAgentId: null,
+          assigneeUserId: null,
+          reviewerAgentId: null,
+          reviewerUserId: null,
+          projectId: null,
+          goalId: null,
+          project: null,
+          goal: null,
+        },
+      ],
+    };
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <IssueProperties
+          issue={parentedIssue}
+          onUpdate={vi.fn()}
+          childIssues={[childIssue]}
+          onCreateSubIssue={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("Parent");
+    expect(container.textContent).toContain("Parent task");
+    expect(container.querySelector('a[href="/issues/RUD-0"]')).toBeTruthy();
+    expect(container.textContent).toContain("Sub-issues");
+    expect(container.textContent).toContain("Follow-up implementation");
+    expect(container.textContent).toContain("RUD-2");
+    expect(container.querySelector('a[href="/issues/RUD-2"]')).toBeTruthy();
+  });
 });
