@@ -32,8 +32,8 @@ export function getRunFailureDisplay(run: RunFailureInput): {
       title: "Workspace permission repair needed",
       body: run.error ?? "Rudder could not verify write access to its managed agent workspace before starting the run.",
       code: run.errorCode,
-      actionLabel: "Open system permissions",
-      actionPath: "/instance/settings/notifications",
+      actionLabel: "Open instance details",
+      actionPath: "/instance/settings/about",
     };
   }
   return {

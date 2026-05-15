@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  MANAGED_WORKSPACE_CONFIGURATION_ERROR_CODE,
   preflightManagedAgentWorkspace,
   WORKSPACE_PERMISSION_REPAIR_NEEDED_CODE,
 } from "../services/managed-workspace-preflight.js";
@@ -55,6 +56,23 @@ describe("managed workspace preflight", () => {
       failure: {
         kind: "life",
         operation: "mkdir",
+      },
+    });
+  });
+
+  it("reports missing managed paths as runtime configuration errors without touching the filesystem", async () => {
+    const root = await makeTempDir("rudder-workspace-preflight-empty-");
+    cleanupDirs.add(root);
+
+    await expect(preflightManagedAgentWorkspace({
+      ...layout(path.join(root, "agent-home")),
+      lifeDir: "",
+    })).rejects.toMatchObject({
+      errorCode: MANAGED_WORKSPACE_CONFIGURATION_ERROR_CODE,
+      failure: {
+        kind: "life",
+        operation: "configure",
+        code: "MISSING_PATH",
       },
     });
   });

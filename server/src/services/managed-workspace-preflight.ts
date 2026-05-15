@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 export const WORKSPACE_PERMISSION_REPAIR_NEEDED_CODE = "workspace_permission_repair_needed";
+export const MANAGED_WORKSPACE_CONFIGURATION_ERROR_CODE = "managed_workspace_configuration_error";
 
 export type ManagedWorkspacePreflightPathKind =
   | "agent_home"
@@ -27,7 +28,7 @@ export interface ManagedWorkspacePreflightInput {
 export interface ManagedWorkspacePreflightFailure {
   kind: ManagedWorkspacePreflightPathKind;
   path: string;
-  operation: "mkdir" | "stat" | "write_probe";
+  operation: "configure" | "mkdir" | "stat" | "write_probe";
   code: string | null;
   message: string;
 }
@@ -39,6 +40,17 @@ export class WorkspacePermissionPreflightError extends Error {
   constructor(failure: ManagedWorkspacePreflightFailure) {
     super(formatWorkspacePermissionPreflightMessage(failure));
     this.name = "WorkspacePermissionPreflightError";
+    this.failure = failure;
+  }
+}
+
+export class ManagedWorkspaceConfigurationError extends Error {
+  readonly errorCode = MANAGED_WORKSPACE_CONFIGURATION_ERROR_CODE;
+  readonly failure: ManagedWorkspacePreflightFailure;
+
+  constructor(failure: ManagedWorkspacePreflightFailure) {
+    super(formatManagedWorkspaceConfigurationErrorMessage(failure));
+    this.name = "ManagedWorkspaceConfigurationError";
     this.failure = failure;
   }
 }
@@ -76,6 +88,15 @@ export function formatWorkspacePermissionPreflightMessage(
   ].join(" ");
 }
 
+export function formatManagedWorkspaceConfigurationErrorMessage(
+  failure: ManagedWorkspacePreflightFailure,
+): string {
+  return [
+    `Rudder runtime configuration error: managed ${failure.kind} path is missing before workspace preflight.`,
+    "This is a Rudder runtime bootstrap bug; rebuild the run context before starting the run.",
+  ].join(" ");
+}
+
 export function workspacePreflightPaths(
   input: ManagedWorkspacePreflightInput,
 ): ManagedWorkspacePreflightPath[] {
@@ -86,6 +107,17 @@ export function workspacePreflightPaths(
     { kind: "life", path: input.lifeDir },
     { kind: "skills", path: input.skillsDir },
   ];
+}
+
+function validatePreflightPath(entry: ManagedWorkspacePreflightPath): void {
+  if (entry.path.trim().length > 0) return;
+  throw new ManagedWorkspaceConfigurationError({
+    kind: entry.kind,
+    path: entry.path,
+    operation: "configure",
+    code: "MISSING_PATH",
+    message: "Managed workspace path is missing.",
+  });
 }
 
 async function ensureDirectory(entry: ManagedWorkspacePreflightPath): Promise<void> {
@@ -121,6 +153,7 @@ export async function preflightManagedAgentWorkspace(
 ): Promise<ManagedWorkspacePreflightPath[]> {
   const entries = workspacePreflightPaths(input);
   for (const entry of entries) {
+    validatePreflightPath(entry);
     await ensureDirectory(entry);
     await probeWritableDirectory(entry);
   }
@@ -131,4 +164,10 @@ export function isWorkspacePermissionPreflightError(
   error: unknown,
 ): error is WorkspacePermissionPreflightError {
   return error instanceof WorkspacePermissionPreflightError;
+}
+
+export function isManagedWorkspaceConfigurationError(
+  error: unknown,
+): error is ManagedWorkspaceConfigurationError {
+  return error instanceof ManagedWorkspaceConfigurationError;
 }

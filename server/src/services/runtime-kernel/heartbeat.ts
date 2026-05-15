@@ -85,6 +85,7 @@ import { executionWorkspaceService } from "../execution-workspaces.js";
 import { buildObservedRunLangfuseScores } from "../run-intelligence.js";
 import { workspaceOperationService } from "../workspace-operations.js";
 import {
+  isManagedWorkspaceConfigurationError,
   isWorkspacePermissionPreflightError,
   preflightManagedAgentWorkspace,
 } from "../managed-workspace-preflight.js";
@@ -4288,7 +4289,9 @@ export function heartbeatService(db: Db) {
       }
       await finalizeAgentStatus(agent.id, outcome);
     } catch (err) {
-      const isWorkspacePreflightFailure = isWorkspacePermissionPreflightError(err);
+      const isWorkspacePreflightFailure =
+        isWorkspacePermissionPreflightError(err) ||
+        isManagedWorkspaceConfigurationError(err);
       const message = redactCurrentUserText(
         err instanceof Error ? err.message : "Unknown adapter failure",
         await getCurrentUserRedactionOptions(),

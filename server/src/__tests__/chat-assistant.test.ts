@@ -1,4 +1,7 @@
 import { Readable } from "node:stream";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatContextLink, ChatConversation, ChatMessage } from "@rudderhq/shared";
 
@@ -76,6 +79,34 @@ vi.mock("../services/agent-run-context.js", () => ({
 }));
 
 const { chatAssistantService } = await import("../services/chat-assistant.js");
+
+let currentAgentHome = "";
+const cleanupDirs = new Set<string>();
+
+function makeManagedWorkspace(root = currentAgentHome) {
+  return {
+    agentHome: root,
+    agentRoot: root,
+    instructionsDir: path.join(root, "instructions"),
+    memoryDir: path.join(root, "memory"),
+    lifeDir: path.join(root, "life"),
+    agentSkillsDir: path.join(root, "skills"),
+  };
+}
+
+function makeSceneContext(rudderWorkspace: Record<string, unknown> = {}) {
+  const managedWorkspace = makeManagedWorkspace();
+  return {
+    rudderScene: "chat",
+    rudderWorkspace: {
+      cwd: process.cwd(),
+      source: "project_primary",
+      ...managedWorkspace,
+      ...rudderWorkspace,
+    },
+    rudderWorkspaces: [],
+  };
+}
 
 function makeConversation(overrides: Partial<ChatConversation> = {}): ChatConversation {
   const now = new Date("2026-03-29T08:00:00.000Z");
@@ -238,8 +269,10 @@ function askUserSummary(ctx: { context?: Record<string, unknown> }) {
 }
 
 describe("chatAssistantService operator profile prompt injection", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    currentAgentHome = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-chat-agent-home-"));
+    cleanupDirs.add(currentAgentHome);
     mockFindServerAdapter.mockImplementation(() => mockAdapter);
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
@@ -272,11 +305,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
       workspaceHints: [],
       warnings: [],
     });
-    mockRunContextService.buildSceneContext.mockResolvedValue({
-      rudderScene: "chat",
-      rudderWorkspace: { cwd: process.cwd(), source: "project_primary" },
-      rudderWorkspaces: [],
-    });
+    mockRunContextService.buildSceneContext.mockResolvedValue(makeSceneContext());
     mockAdapter.execute.mockImplementation(async (ctx) => ({
       summary: assistantSummary(ctx, "Clarify the goal first."),
       resultJson: null,
@@ -286,8 +315,12 @@ describe("chatAssistantService operator profile prompt injection", () => {
     }));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
+    await Promise.all(Array.from(cleanupDirs).map(async (dir) => {
+      await fs.rm(dir, { recursive: true, force: true });
+      cleanupDirs.delete(dir);
+    }));
   });
 
   it("reports chat as unavailable until a preferred agent is selected", async () => {
@@ -532,15 +565,11 @@ describe("chatAssistantService operator profile prompt injection", () => {
   });
 
   it("prepends the shared org resources section to chat prompts when present", async () => {
-    mockRunContextService.buildSceneContext.mockResolvedValueOnce({
-      rudderScene: "chat",
-      rudderWorkspace: {
+    mockRunContextService.buildSceneContext.mockResolvedValueOnce(makeSceneContext({
         cwd: process.cwd(),
         source: "project_primary",
         orgResourcesPrompt: "## Organization Resources\n\n- Main codebase: ~/projects/rudder",
-      },
-      rudderWorkspaces: [],
-    });
+    }));
 
     const svc = chatAssistantService({} as any);
 
@@ -558,16 +587,12 @@ describe("chatAssistantService operator profile prompt injection", () => {
 
   it("injects selected project context and project resources into chat prompts", async () => {
     const projectContextLink = makeProjectContextLink();
-    mockRunContextService.buildSceneContext.mockResolvedValueOnce({
-      rudderScene: "chat",
-      rudderWorkspace: {
+    mockRunContextService.buildSceneContext.mockResolvedValueOnce(makeSceneContext({
         cwd: process.cwd(),
         source: "project_primary",
         projectId: "project-1",
         orgResourcesPrompt: "## Project Resources\n\n- [primary] Launch playbook",
-      },
-      rudderWorkspaces: [],
-    });
+    }));
 
     const svc = chatAssistantService({} as any);
 
@@ -801,6 +826,28 @@ describe("chatAssistantService operator profile prompt injection", () => {
       rudderSkillSync: { desiredSkills: ["org/build-advisor"] },
     }));
     expect(result.replyingAgentId).toBe("agent-1");
+  });
+
+  it("runs preferred-agent chat after workspace preflight and parses the result sentinel", async () => {
+    const svc = chatAssistantService({} as any);
+
+    const result = await svc.generateChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+      operatorProfile: null,
+    });
+
+    const executeInput = mockAdapter.execute.mock.calls.at(-1)?.[0];
+    expect(executeInput?.context?.chatPrompt).toEqual(expect.stringContaining("You are Chat Specialist, replying inside Rudder's chat scene."));
+    expect(mockAdapter.execute).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      kind: "message",
+      body: "Clarify the goal first.",
+      replyingAgentId: "agent-1",
+    }));
+    await expect(fs.stat(path.join(currentAgentHome, "life")).then((stat) => stat.isDirectory())).resolves.toBe(true);
+    await expect(fs.stat(path.join(currentAgentHome, "skills")).then((stat) => stat.isDirectory())).resolves.toBe(true);
   });
 
   it("keeps Codex chat available when only an agent home workspace is available", async () => {

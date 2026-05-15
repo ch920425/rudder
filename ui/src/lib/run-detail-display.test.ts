@@ -59,8 +59,8 @@ describe("getRunFailureDisplay", () => {
       title: "Workspace permission repair needed",
       body: "Rudder workspace permission repair needed: managed life path is not writable: /tmp/agent/life (EACCES).",
       code: "workspace_permission_repair_needed",
-      actionLabel: "Open system permissions",
-      actionPath: "/instance/settings/notifications",
+      actionLabel: "Open instance details",
+      actionPath: "/instance/settings/about",
     });
   });
 });
