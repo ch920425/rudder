@@ -914,8 +914,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       .filter((mention) => {
         if (mentionState.trigger === "$") {
           if (mention.kind !== "skill") return false;
-        } else if (mention.kind === "skill") {
-          return false;
         }
         const searchText = (mention.searchText ?? mention.name).toLowerCase();
         return searchText.includes(q);

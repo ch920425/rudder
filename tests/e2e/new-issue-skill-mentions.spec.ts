@@ -10,7 +10,7 @@ function organizationSkillMarkdownTarget(skill: { sourceLocator?: string | null;
 }
 
 test.describe("New issue skill mentions", () => {
-  test("surfaces the current agent's enabled skills inside $ mention search", async ({ page }) => {
+  test("surfaces the current agent's enabled skills inside @ and $ mention search", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Issue-Skill-Mentions-${Date.now()}`,
@@ -75,6 +75,12 @@ test.describe("New issue skill mentions", () => {
 
     await dialog.getByPlaceholder("Issue title").fill("Use current agent skill mention");
     const composer = dialog.locator(".rudder-mdxeditor-content").first();
+
+    await composer.fill("Use @advisor");
+    const atMentionMenu = page.getByTestId("markdown-mention-menu");
+    await expect(atMentionMenu).toBeVisible({ timeout: 15_000 });
+    await expect(atMentionMenu.locator('[data-testid^="markdown-mention-option-skill:"]').first()).toContainText("build-advisor");
+
     await composer.fill("Use $advisor");
 
     const mentionMenu = page.getByTestId("markdown-mention-menu");

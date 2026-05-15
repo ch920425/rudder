@@ -693,7 +693,7 @@ describe("MarkdownEditor", () => {
     expect(onChange).toHaveBeenCalledWith("[Rudder Two](agent://agent-2) now");
   });
 
-  it("keeps skill options out of @ mention results", async () => {
+  it("includes skill options in @ mention results", async () => {
     const restoreCaretRect = stubCaretRect();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -730,7 +730,9 @@ describe("MarkdownEditor", () => {
     expect(editable).toBeTruthy();
     await placeCaretAndOpenMentionMenu(editable!, "@build".length);
 
-    expect(document.body.querySelector('[data-testid="markdown-mention-menu"]')).toBeNull();
+    const menu = document.body.querySelector('[data-testid="markdown-mention-menu"]');
+    expect(menu?.textContent).toContain("build-advisor");
+    expect(document.body.querySelector('[data-testid="markdown-mention-option-skill:build-advisor"]')).not.toBeNull();
   });
 
   it("keeps entity options out of $ mention results", async () => {
