@@ -60,6 +60,7 @@ import {
   ISSUE_DRAFT_CHANGED_EVENT,
   summarizeIssueDrafts,
 } from "@/lib/new-issue-dialog";
+import { useIssueFollows } from "@/hooks/useIssueFollows";
 import { AgentIcon } from "@/components/AgentIconPicker";
 import { AgentActionsMenu } from "@/components/AgentActionsMenu";
 import { MessengerContextSidebar } from "@/components/MessengerContextSidebar";
@@ -79,6 +80,8 @@ const RECENT_ISSUES_COLLAPSED_LIMIT = 5;
 const LINEAR_PLUGIN_KEY = "rudder.linear";
 const LINEAR_CATALOG_DATA_KEY = "linear-catalog";
 const LINEAR_PLUGIN_ROUTE_PATH = "linear";
+
+type SidebarIssue = Pick<Issue, "id" | "identifier" | "status" | "title">;
 
 type LinearSidebarItem = {
   id: string;
@@ -577,34 +580,47 @@ function ProjectListSection({
   );
 }
 
-function RecentIssueListSection({
+function SidebarIssueListSection({
   issues,
   activeIssueRef,
   closeMobileSidebar,
   onOpenIssue,
   collapsed,
   onToggleCollapsed,
+  sectionLabel,
+  ariaLabel,
+  sectionTestId,
+  listTestId,
+  rowTestIdPrefix,
+  toggleTestId,
+  scrollActivityKey,
 }: {
-  issues: Issue[];
+  issues: SidebarIssue[];
   activeIssueRef: string | null;
   closeMobileSidebar: () => void;
-  onOpenIssue: (issue: Issue) => void;
+  onOpenIssue?: (issue: SidebarIssue) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  sectionLabel: string;
+  ariaLabel: string;
+  sectionTestId: string;
+  listTestId: string;
+  rowTestIdPrefix: string;
+  toggleTestId: string;
+  scrollActivityKey: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const recentIssueScrollRef = useScrollbarActivityRef("rudder:sidebar-scroll:recent-issues");
+  const issueListScrollRef = useScrollbarActivityRef(scrollActivityKey);
 
   if (issues.length === 0) return null;
 
   const visibleLimit = expanded ? issues.length : RECENT_ISSUES_COLLAPSED_LIMIT;
   const visibleIssues = issues.slice(0, visibleLimit);
-  const sectionLabel = `Recently Viewed (${issues.length})`;
 
   return (
-    <section aria-label="Recently viewed issues" className="mt-1">
+    <section aria-label={ariaLabel} className="mt-1">
       <SectionLabel
-        testId="issue-recent-section"
+        testId={sectionTestId}
         collapsed={collapsed}
         onToggle={onToggleCollapsed}
       >
@@ -612,57 +628,57 @@ function RecentIssueListSection({
       </SectionLabel>
       {collapsed ? null : (
         <>
-      <div
-        ref={expanded ? recentIssueScrollRef : undefined}
-        data-testid="issue-recent-list"
-        className={cn(
-          "mt-2 space-y-0.5",
-          expanded && "scrollbar-auto-hide max-h-72 overflow-y-auto pr-1",
-        )}
-      >
-        {visibleIssues.map((issue) => {
-          const issueRef = issue.identifier ?? issue.id;
-          const active = activeIssueRef === issueRef || activeIssueRef === issue.id;
-          return (
-            <Link
-              key={issue.id}
-              to={issueUrl(issue)}
-              onClick={() => {
-                onOpenIssue(issue);
-                closeMobileSidebar();
-              }}
-              data-testid={`issue-recent-row-${issue.id}`}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "relative z-10 mx-1.5 flex min-h-[var(--motion-context-item-height)] items-center gap-2.5 rounded-[calc(var(--radius-sm)-1px)] border border-transparent px-3 py-2 text-sm transition-[background-color,border-color,color]",
-                active
-                  ? "border-[color:color-mix(in_oklab,var(--border-soft)_72%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_92%,var(--surface-active))] font-medium text-foreground"
-                  : "text-muted-foreground hover:border-[color:color-mix(in_oklab,var(--border-soft)_52%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--surface-elevated)_58%,transparent)] hover:text-foreground",
-              )}
+          <div
+            ref={expanded ? issueListScrollRef : undefined}
+            data-testid={listTestId}
+            className={cn(
+              "mt-2 space-y-0.5",
+              expanded && "scrollbar-auto-hide max-h-72 overflow-y-auto pr-1",
+            )}
+          >
+            {visibleIssues.map((issue) => {
+              const issueRef = issue.identifier ?? issue.id;
+              const active = activeIssueRef === issueRef || activeIssueRef === issue.id;
+              return (
+                <Link
+                  key={issue.id}
+                  to={issueUrl(issue)}
+                  onClick={() => {
+                    onOpenIssue?.(issue);
+                    closeMobileSidebar();
+                  }}
+                  data-testid={`${rowTestIdPrefix}-${issue.id}`}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative z-10 mx-1.5 flex min-h-[var(--motion-context-item-height)] items-center gap-2.5 rounded-[calc(var(--radius-sm)-1px)] border border-transparent px-3 py-2 text-sm transition-[background-color,border-color,color]",
+                    active
+                      ? "border-[color:color-mix(in_oklab,var(--border-soft)_72%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-elevated)_92%,var(--surface-active))] font-medium text-foreground"
+                      : "text-muted-foreground hover:border-[color:color-mix(in_oklab,var(--border-soft)_52%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--surface-elevated)_58%,transparent)] hover:text-foreground",
+                  )}
+                >
+                  <span className="shrink-0">
+                    <StatusIcon status={issue.status} />
+                  </span>
+                  <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground/78">{issueRef}</span>
+                    <span className="shrink-0 text-muted-foreground/55">·</span>
+                    <span className="min-w-0 truncate">{issue.title}</span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          {issues.length > RECENT_ISSUES_COLLAPSED_LIMIT ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              data-testid={toggleTestId}
+              className="mx-1.5 mt-1 flex min-h-8 w-[calc(100%-0.75rem)] items-center gap-2 rounded-[calc(var(--radius-sm)-1px)] px-3 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:color-mix(in_oklab,var(--surface-elevated)_58%,transparent)] hover:text-foreground"
             >
-              <span className="shrink-0">
-                <StatusIcon status={issue.status} />
-              </span>
-              <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground/78">{issueRef}</span>
-                <span className="shrink-0 text-muted-foreground/55">·</span>
-                <span className="min-w-0 truncate">{issue.title}</span>
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-      {issues.length > RECENT_ISSUES_COLLAPSED_LIMIT ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          data-testid="issue-recent-toggle"
-          className="mx-1.5 mt-1 flex min-h-8 w-[calc(100%-0.75rem)] items-center gap-2 rounded-[calc(var(--radius-sm)-1px)] px-3 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-[color:color-mix(in_oklab,var(--surface-elevated)_58%,transparent)] hover:text-foreground"
-        >
-          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          <span>{expanded ? "Show less" : "Show all"}</span>
-        </button>
-      ) : null}
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span>{expanded ? "Show less" : "Show all"}</span>
+            </button>
+          ) : null}
         </>
       )}
     </section>
@@ -769,6 +785,9 @@ export function ThreeColumnContextSidebar() {
     queryFn: () => issuesApi.list(selectedOrganizationId!),
     enabled: !!selectedOrganizationId && isIssuesRoute,
   });
+  const { follows: issueFollows } = useIssueFollows(
+    selectedOrganizationId && isIssuesRoute ? selectedOrganizationId : null,
+  );
   const { data: pluginContributions } = useQuery({
     queryKey: queryKeys.plugins.uiContributions,
     queryFn: () => pluginsApi.listUiContributions(),
@@ -884,6 +903,10 @@ export function ThreeColumnContextSidebar() {
     () => resolveRecentIssues(recentIssueIds, allIssues ?? []),
     [allIssues, recentIssueIds],
   );
+  const starredIssueRefs = useMemo<SidebarIssue[]>(() => {
+    const issuesById = new Map((allIssues ?? []).map((issue) => [issue.id, issue]));
+    return issueFollows.map((follow) => issuesById.get(follow.issueId) ?? follow.issue);
+  }, [allIssues, issueFollows]);
   const followingIssueCount = useMemo(() => {
     if (!currentUserId) return 0;
     return (allIssues ?? []).filter((issue) => isFollowingIssue(issue, currentUserId)).length;
@@ -984,7 +1007,7 @@ export function ThreeColumnContextSidebar() {
     if (isMobile) setSidebarOpen(false);
   };
 
-  const recordRecentIssueOpen = (issue: Issue) => {
+  const recordRecentIssueOpen = (issue: SidebarIssue) => {
     if (!selectedOrganizationId) return;
     setRecentIssueIds(recordRecentIssue(selectedOrganizationId, issue.id, readRecentIssueIds(selectedOrganizationId)));
   };
@@ -1271,13 +1294,34 @@ export function ThreeColumnContextSidebar() {
           data-testid="issue-sidebar-scroll"
           className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto pb-3.5"
         >
-          <RecentIssueListSection
+          <SidebarIssueListSection
+            issues={starredIssueRefs}
+            activeIssueRef={activeIssueRef}
+            closeMobileSidebar={closeMobileSidebar}
+            collapsed={isIssueSectionCollapsed("starred")}
+            onToggleCollapsed={() => toggleIssueSection("starred")}
+            sectionLabel={`Starred (${starredIssueRefs.length})`}
+            ariaLabel="Starred issues"
+            sectionTestId="issue-starred-section"
+            listTestId="issue-starred-list"
+            rowTestIdPrefix="issue-starred-row"
+            toggleTestId="issue-starred-toggle"
+            scrollActivityKey="rudder:sidebar-scroll:starred-issues"
+          />
+          <SidebarIssueListSection
             issues={recentIssueRefs}
             activeIssueRef={activeIssueRef}
             closeMobileSidebar={closeMobileSidebar}
             onOpenIssue={recordRecentIssueOpen}
             collapsed={isIssueSectionCollapsed("recent")}
             onToggleCollapsed={() => toggleIssueSection("recent")}
+            sectionLabel={`Recently Viewed (${recentIssueRefs.length})`}
+            ariaLabel="Recently viewed issues"
+            sectionTestId="issue-recent-section"
+            listTestId="issue-recent-list"
+            rowTestIdPrefix="issue-recent-row"
+            toggleTestId="issue-recent-toggle"
+            scrollActivityKey="rudder:sidebar-scroll:recent-issues"
           />
           <SectionLabel
             testId="workspace-projects-section"

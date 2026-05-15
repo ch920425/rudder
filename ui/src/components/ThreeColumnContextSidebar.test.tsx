@@ -22,6 +22,14 @@ const mockState = vi.hoisted(() => ({
   search: "",
   relativePath: "/issues",
   issues: [] as Array<{ id: string; identifier: string; title: string; status: string; projectId?: string | null }>,
+  follows: [] as Array<{
+    id: string;
+    orgId: string;
+    issueId: string;
+    userId: string;
+    createdAt: string;
+    issue: { id: string; identifier: string; title: string; status: string };
+  }>,
   projects: [] as Array<{ id: string; name: string; archivedAt?: string | null; color?: string | null; urlKey?: string | null }>,
   linearContributions: [] as Array<{
     pluginId: string;
@@ -159,7 +167,11 @@ vi.mock("@/context/DialogContext", () => ({
 
 vi.mock("@/hooks/useIssueFollows", () => ({
   useIssueFollows: () => ({
+    follows: mockState.follows,
     followedIssueIds: [],
+    isLoading: false,
+    error: null,
+    toggleFollowIssue: vi.fn(),
   }),
 }));
 
@@ -228,6 +240,7 @@ beforeEach(() => {
   mockState.search = "";
   mockState.relativePath = "/issues";
   mockState.issues = [];
+  mockState.follows = [];
   mockState.projects = [];
   mockState.linearContributions = [];
   mockState.linearCatalog = null;
@@ -526,6 +539,64 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
     renderSidebar();
 
     const activeRow = document.querySelector("[data-testid='issue-recent-row-issue-2']") as HTMLAnchorElement | null;
+    expect(activeRow?.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("renders starred issues as bounded sidebar rows after issues are starred", () => {
+    mockState.issues = Array.from({ length: 7 }, (_, index) => ({
+      id: `issue-${index + 1}`,
+      identifier: `RUD-${index + 1}`,
+      title: `Starred issue ${index + 1}`,
+      status: "todo",
+    }));
+    mockState.follows = mockState.issues.map((issue, index) => ({
+      id: `follow-${index + 1}`,
+      orgId: "org-1",
+      issueId: issue.id,
+      userId: "user-1",
+      createdAt: `2026-04-26T10:${String(index).padStart(2, "0")}:00.000Z`,
+      issue,
+    }));
+
+    renderSidebar();
+
+    expect(document.querySelector('a[href="/issues?scope=starred"]')).toBeNull();
+    expect(document.querySelector("[data-testid='issue-starred-section']")?.textContent).toContain("Starred (7)");
+    expect(document.querySelector("[data-testid='issue-starred-row-issue-1']")?.textContent).toContain("Starred issue 1");
+    expect(document.querySelector("[data-testid='issue-starred-row-issue-5']")?.textContent).toContain("Starred issue 5");
+    expect(document.querySelector("[data-testid='issue-starred-row-issue-6']")).toBeNull();
+
+    const toggle = document.querySelector("[data-testid='issue-starred-toggle']") as HTMLButtonElement | null;
+    expect(toggle?.textContent).toContain("Show all");
+
+    act(() => {
+      toggle?.click();
+    });
+
+    expect(document.querySelector("[data-testid='issue-starred-row-issue-7']")?.textContent).toContain("Starred issue 7");
+    const starredList = document.querySelector("[data-testid='issue-starred-list']") as HTMLDivElement | null;
+    expect(starredList?.className).toContain("max-h-72");
+    expect(starredList?.className).toContain("scrollbar-auto-hide");
+    expect(toggle?.textContent).toContain("Show less");
+  });
+
+  it("marks the active issue detail in the starred sidebar list", () => {
+    mockState.pathname = "/RUD/issues/RUD-2";
+    mockState.relativePath = "/issues/RUD-2";
+    const starredIssue = { id: "issue-2", identifier: "RUD-2", title: "Starred active issue", status: "todo" };
+    mockState.issues = [starredIssue];
+    mockState.follows = [{
+      id: "follow-1",
+      orgId: "org-1",
+      issueId: starredIssue.id,
+      userId: "user-1",
+      createdAt: "2026-04-26T10:00:00.000Z",
+      issue: starredIssue,
+    }];
+
+    renderSidebar();
+
+    const activeRow = document.querySelector("[data-testid='issue-starred-row-issue-2']") as HTMLAnchorElement | null;
     expect(activeRow?.getAttribute("aria-current")).toBe("page");
   });
 

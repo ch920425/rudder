@@ -123,6 +123,32 @@ test.describe("Issues recently viewed sidebar", () => {
     await expect(page.getByTestId(`issue-recent-row-${firstIssue.id}`)).toHaveAttribute("href", recentHrefPattern);
   });
 
+  test("shows starred issues in the sidebar after clicking star", async ({ page }) => {
+    const organization = await createOrganization(page, "Issues-Starred-Sidebar");
+    const issue = await createIssue(page, organization.id, "Sidebar starred issue");
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto("/issues");
+
+    await expect(page.getByTestId("issue-starred-section")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Starred/ })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "List view" }).click();
+    await expect(page.getByText("Sidebar starred issue", { exact: true })).toBeVisible();
+    await page.getByTitle("Star issue").first().click();
+
+    await expect(page.getByTestId("issue-starred-section")).toContainText("Starred (1)");
+    await expect(page.getByTestId(`issue-starred-row-${issue.id}`)).toContainText("Sidebar starred issue");
+    await expect(page.getByTestId(`issue-starred-row-${issue.id}`)).toHaveAttribute(
+      "href",
+      new RegExp(`/issues/${issue.identifier ?? issue.id}$`),
+    );
+  });
+
   test("records direct detail views and promotes sidebar recent clicks", async ({ page }) => {
     const organization = await createOrganization(page, "Issues-Recent-Detail");
     const firstIssue = await createIssue(page, organization.id, "Direct detail recent issue");
