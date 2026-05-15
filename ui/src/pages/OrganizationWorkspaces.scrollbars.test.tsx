@@ -14,6 +14,7 @@ const mockState = vi.hoisted(() => ({
   setHeaderActions: vi.fn(),
   pushToast: vi.fn(),
   setSearchParams: vi.fn(),
+  desktopShell: null as unknown,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -120,7 +121,7 @@ vi.mock("../hooks/useViewedOrganization", () => ({
 }));
 
 vi.mock("../lib/desktop-shell", () => ({
-  readDesktopShell: () => null,
+  readDesktopShell: () => mockState.desktopShell,
 }));
 
 let cleanupFn: (() => void) | null = null;
@@ -142,6 +143,7 @@ beforeEach(() => {
       setItem: vi.fn(),
     },
   });
+  mockState.desktopShell = null;
 });
 
 afterEach(() => {
@@ -191,5 +193,12 @@ describe("OrganizationWorkspaces scroll regions", () => {
     });
     expect(filesScroll?.classList.contains("is-scrolling")).toBe(false);
     expect(editorScroll?.classList.contains("is-scrolling")).toBe(false);
+  });
+
+  it("does not crash when the desktop shell bridge is missing newer workspace launch methods", () => {
+    mockState.desktopShell = {};
+
+    expect(() => renderWorkspacesPage()).not.toThrow();
+    expect(document.querySelector("[data-testid='org-workspaces-files-scroll']")).not.toBeNull();
   });
 });

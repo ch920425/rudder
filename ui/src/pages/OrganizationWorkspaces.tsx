@@ -359,14 +359,18 @@ export function OrganizationWorkspaces() {
     }
 
     let cancelled = false;
-    desktopShell.listAvailableIdes()
-      .then((targets) => {
-        if (!cancelled) setAvailableIdes(targets);
-      })
-      .catch(() => {
-        if (!cancelled) setAvailableIdes([]);
-      });
-    if (desktopShell.listWorkspaceLaunchTargets) {
+    if (typeof desktopShell.listAvailableIdes === "function") {
+      desktopShell.listAvailableIdes()
+        .then((targets) => {
+          if (!cancelled) setAvailableIdes(targets);
+        })
+        .catch(() => {
+          if (!cancelled) setAvailableIdes([]);
+        });
+    } else {
+      setAvailableIdes([]);
+    }
+    if (typeof desktopShell.listWorkspaceLaunchTargets === "function") {
       desktopShell.listWorkspaceLaunchTargets()
         .then((targets) => {
           if (!cancelled) setWorkspaceLaunchTargets(targets);
@@ -629,6 +633,7 @@ export function OrganizationWorkspaces() {
     if (!primaryIde || !selectedFilePath || !workspaceRootPath || !hasLoadedSelectedFile) return;
     const desktopShell = readDesktopShell();
     if (!desktopShell) return;
+    if (typeof desktopShell.openWorkspaceFileInIde !== "function") return;
 
     setOpeningInIde(true);
     try {
