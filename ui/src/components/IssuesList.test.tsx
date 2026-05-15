@@ -185,7 +185,20 @@ function renderIssuesList(
 }
 
 describe("IssuesList", () => {
+  it("defaults to board mode when no saved issue view preference exists", () => {
+    const onUpdateIssue = vi.fn();
+    const container = renderIssuesList(onUpdateIssue);
+
+    expect(container.querySelector('[data-testid="kanban-column-todo"]')).toBeTruthy();
+    expect(container.textContent).toContain("Hidden columns");
+  });
+
   it("opens the assignee picker for an unassigned issue and applies the selected assignee", () => {
+    window.localStorage.setItem(
+      "test:issues:org-1",
+      JSON.stringify({ viewMode: "list" }),
+    );
+
     const onUpdateIssue = vi.fn();
     const container = renderIssuesList(onUpdateIssue);
 
@@ -222,6 +235,11 @@ describe("IssuesList", () => {
   });
 
   it("uses auto-hiding scrollbars in issue filter and assignee popovers", () => {
+    window.localStorage.setItem(
+      "test:issues:org-1",
+      JSON.stringify({ viewMode: "list" }),
+    );
+
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
