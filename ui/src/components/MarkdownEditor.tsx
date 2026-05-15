@@ -197,6 +197,58 @@ function getVisibleTextOffsetAtPosition(editable: HTMLElement, textNode: Text, o
   return range.toString().length;
 }
 
+function findFirstTextNodeInSubtree(node: Node): Text | null {
+  if (node.nodeType === Node.TEXT_NODE) return node as Text;
+
+  for (const child of Array.from(node.childNodes)) {
+    const match = findFirstTextNodeInSubtree(child);
+    if (match) return match;
+  }
+
+  return null;
+}
+
+function findFirstTextNodeAfterNode(root: Node, node: Node): Text | null {
+  let current: Node | null = node;
+  while (current && current !== root) {
+    let sibling = current.nextSibling;
+    while (sibling) {
+      const match = findFirstTextNodeInSubtree(sibling);
+      if (match) return match;
+      sibling = sibling.nextSibling;
+    }
+    current = current.parentNode;
+  }
+
+  return null;
+}
+
+function placeCaretAfterAtomicInlineToken(editable: HTMLElement, token: HTMLElement) {
+  editable.focus();
+
+  const selection = window.getSelection();
+  if (!selection) return false;
+
+  let boundaryText = findFirstTextNodeAfterNode(editable, token);
+  if (!boundaryText && token.parentNode) {
+    boundaryText = document.createTextNode(" ");
+    token.parentNode.insertBefore(boundaryText, token.nextSibling);
+  }
+
+  const range = document.createRange();
+  if (boundaryText) {
+    const text = boundaryText.textContent ?? "";
+    const offset = text.length > 0 && /^[\s\u00A0]/u.test(text) ? 1 : 0;
+    range.setStart(boundaryText, offset);
+  } else {
+    range.setStartAfter(token);
+  }
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
 function placeCaretAtVisibleTextOffset(editable: HTMLElement, offset: number) {
   editable.focus();
 
@@ -239,6 +291,7 @@ function placeCaretAtVisibleTextOffset(editable: HTMLElement, offset: number) {
 
   const range = document.createRange();
   if (lastAtomicToken && lastTextNode && lastAtomicToken.contains(lastTextNode)) {
+    if (placeCaretAfterAtomicInlineToken(editable, lastAtomicToken)) return;
     range.setStartAfter(lastAtomicToken);
   } else if (lastTextNode) {
     range.setStart(lastTextNode, lastTextNode.textContent?.length ?? 0);
@@ -1262,18 +1315,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       let didReplaceInLexical = false;
       if (next !== current) {
         latestValueRef.current = next;
+        if (activeMarkdownIndex !== -1 && visibleMentionStart !== null) {
+          pendingMentionInputRef.current = {
+            markdownOffset: activeMarkdownIndex + replacement.length,
+            visibleOffset: visibleMentionStart + mentionVisibleLabel(option).length + 1,
+          };
+          clearPendingMentionInputSoon();
+        }
         const lexicalEditor = lexicalEditorRef.current;
         didReplaceInLexical = Boolean(lexicalEditor && editableElement
           ? replaceMentionInLexicalEditor(lexicalEditor, state, option, editableElement)
           : false);
         if (!didReplaceInLexical) {
-          if (activeMarkdownIndex !== -1 && visibleMentionStart !== null) {
-            pendingMentionInputRef.current = {
-              markdownOffset: activeMarkdownIndex + replacement.length,
-              visibleOffset: visibleMentionStart + mentionVisibleLabel(option).length + 1,
-            };
-            clearPendingMentionInputSoon();
-          }
           ref.current?.setMarkdown(next);
         }
         onChange(next);
@@ -1329,6 +1382,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
             ref.current?.focus(() => {
               selectLexicalTextOffset(caretOffset);
             }, { defaultSelection: "rootEnd", preventScroll: true });
+            if (closestAtomicInlineToken(target)) {
+              placeCaretAfterAtomicInlineToken(currentEditable, target);
+              return;
+            }
             placeCaretAtVisibleTextOffset(currentEditable, caretOffset);
           };
 

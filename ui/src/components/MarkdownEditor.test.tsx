@@ -489,6 +489,59 @@ describe("MarkdownEditor", () => {
     });
   });
 
+  it("keeps the caret on an editable boundary after a mention inserted at the end", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="hello @rud"
+          onChange={onChange}
+          mentions={[
+            {
+              id: "agent:agent-1",
+              name: "Rudder Bot",
+              kind: "agent",
+              agentId: "agent-1",
+              searchText: "rudder bot rud",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "hello @rud".length);
+    await chooseMentionOption("agent:agent-1");
+
+    expect(onChange).toHaveBeenCalledWith("hello [Rudder Bot](agent://agent-1) ");
+    await flushAnimationFrames();
+
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(selection?.anchorNode?.textContent).toBe(" ");
+    expect(selection?.anchorOffset).toBe(1);
+
+    await act(async () => {
+      editable!.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }));
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith("hello [Rudder Bot](agent://agent-1) x");
+  });
+
   it("replaces only the active repeated mention query", async () => {
     const restoreCaretRect = stubCaretRect();
     const container = document.createElement("div");
