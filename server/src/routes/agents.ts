@@ -1487,7 +1487,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
           name: agent.name,
           role: normalizedHireInput.role,
           title: normalizedHireInput.title ?? null,
-          icon: normalizedHireInput.icon ?? null,
+          icon: agent.icon ?? null,
           reportsTo: normalizedHireInput.reportsTo ?? null,
           capabilities: normalizedHireInput.capabilities ?? null,
           agentRuntimeType: requestedAdapterType,

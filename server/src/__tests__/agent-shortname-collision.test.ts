@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasAgentShortnameCollision, deduplicateAgentName } from "../services/agents.ts";
+import { createDefaultAgentAvatarIcon, hasAgentShortnameCollision, deduplicateAgentName } from "../services/agents.ts";
 import { AGENT_NAME_POOL, pickUniqueAgentName } from "../services/agent-name-pool.ts";
 
 describe("hasAgentShortnameCollision", () => {
@@ -90,5 +90,13 @@ describe("pickUniqueAgentName", () => {
     }));
     const name = pickUniqueAgentName(existingAgents, { pickIndex: () => 0 });
     expect(name).toBe("Ada");
+  });
+});
+
+describe("createDefaultAgentAvatarIcon", () => {
+  it("creates a DiceBear Notionists avatar reference", () => {
+    expect(createDefaultAgentAvatarIcon()).toMatch(
+      /^dicebear:notionists:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
   });
 });

@@ -52,7 +52,7 @@ async function expectAvatarAndNameLayout(page: Page, avatar: Locator, name: Loca
 }
 
 test.describe("Agent avatar", () => {
-  test("lets users set an emoji avatar and upload a compressed image avatar", async ({ page }) => {
+  test("uses a DiceBear avatar by default and lets users upload a compressed image avatar", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {
         name: `Agent-Avatar-${Date.now()}`,
@@ -74,6 +74,7 @@ test.describe("Agent avatar", () => {
     });
     expect(agentRes.ok()).toBe(true);
     const agent = await agentRes.json();
+    expect(agent.icon).toMatch(/^dicebear:notionists:/);
 
     await page.goto("/");
     await page.evaluate((orgId) => {
@@ -84,17 +85,13 @@ test.describe("Agent avatar", () => {
     await expect(page.getByRole("heading", { name: "Avatar Agent", exact: true })).toBeVisible();
 
     const avatarButton = page.getByRole("button", { name: "Change agent avatar" });
-    await avatarButton.click();
-    await page.getByRole("textbox", { name: "Emoji" }).fill("🧪");
-    const emojiPatch = page.waitForResponse((response) =>
-      response.request().method() === "PATCH" &&
-      response.url().includes(`/api/agents/${agent.id}`),
-    );
-    await page.getByRole("button", { name: "Apply" }).click();
-    await expect((await emojiPatch).ok()).toBe(true);
-    await expect(avatarButton).toContainText("🧪");
+    const generatedAvatarImage = avatarButton.locator('img[src^="data:image/svg+xml"]').first();
+    await expect(generatedAvatarImage).toBeVisible();
 
     await avatarButton.click();
+    await expect(page.getByRole("textbox", { name: "Emoji" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Random" })).toBeVisible();
+
     const uploadResponse = page.waitForResponse((response) =>
       response.request().method() === "POST" &&
       response.url().includes(`/api/agents/${agent.id}/avatar`),

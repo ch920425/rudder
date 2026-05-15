@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Organization workspaces agent emoji", () => {
-  test("shows each agent workspace with the agent's custom emoji", async ({ page, request }) => {
+test.describe("Organization workspaces agent avatar", () => {
+  test("shows each agent workspace with the agent's generated avatar", async ({ page, request }) => {
     const organizationRes = await request.post("/api/orgs", {
       data: {
-        name: `Organization-Workspaces-Agent-Emoji-${Date.now()}`,
+        name: `Organization-Workspaces-Agent-Avatar-${Date.now()}`,
       },
     });
     expect(organizationRes.ok()).toBe(true);
@@ -12,9 +12,8 @@ test.describe("Organization workspaces agent emoji", () => {
 
     const agentRes = await request.post(`/api/orgs/${organization.id}/agents`, {
       data: {
-        name: "Emoji Agent",
+        name: "Avatar Agent",
         role: "engineer",
-        icon: "🧠",
         agentRuntimeType: "codex_local",
         agentRuntimeConfig: {},
         runtimeConfig: {},
@@ -31,9 +30,11 @@ test.describe("Organization workspaces agent emoji", () => {
 
     await page.getByRole("button", { name: /^agents$/i }).click();
 
-    const agentWorkspaceRow = page.getByRole("button", { name: /Emoji Agent/i });
+    const agentWorkspaceRow = page.getByRole("button", { name: /Avatar Agent/i });
     await expect(agentWorkspaceRow).toBeVisible();
-    await expect(agentWorkspaceRow.getByTestId("org-workspaces-agent-icon")).toContainText("🧠");
+    await expect(
+      agentWorkspaceRow.getByTestId("org-workspaces-agent-icon").locator('img[src^="data:image/svg+xml"]'),
+    ).toBeVisible();
     await expect(agentWorkspaceRow.getByTestId("org-workspaces-agent-badge")).toHaveText("Agent");
   });
 });

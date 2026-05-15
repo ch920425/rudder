@@ -159,7 +159,7 @@ export {
 
 export {
   agentIconSchema,
-  customAgentIconSchema,
+  diceBearNotionistsAgentIconSchema,
   createAgentSchema,
   createAgentHireSchema,
   updateAgentSchema,

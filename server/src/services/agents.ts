@@ -13,7 +13,11 @@ import {
   heartbeatRunEvents,
   heartbeatRuns,
 } from "@rudderhq/db";
-import { isUuidLike, normalizeAgentUrlKey } from "@rudderhq/shared";
+import {
+  AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX,
+  isUuidLike,
+  normalizeAgentUrlKey,
+} from "@rudderhq/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { resolveHomeAwarePath, resolveOrganizationAgentsDir } from "../home-paths.js";
 import { normalizeAgentPermissions } from "./agent-permissions.js";
@@ -122,6 +126,10 @@ function hasConfigPatchFields(data: Partial<typeof agents.$inferInsert>) {
 
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function createDefaultAgentAvatarIcon() {
+  return `${AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX}${randomUUID()}`;
 }
 
 function extractWorkspaceKeyFromManagedInstructionsConfig(
@@ -553,6 +561,10 @@ export function agentService(db: Db) {
 
       const role = data.role ?? "general";
       const normalizedPermissions = normalizeAgentPermissions(data.permissions, role);
+      const icon =
+        typeof data.icon === "string" && data.icon.trim().length > 0
+          ? data.icon
+          : createDefaultAgentAvatarIcon();
       const created = await db
         .insert(agents)
         .values({
@@ -561,12 +573,12 @@ export function agentService(db: Db) {
           name: uniqueName,
           orgId,
           role,
+          icon,
           permissions: normalizedPermissions,
           workspaceKey,
         })
         .returning()
         .then((rows) => rows[0]);
-
 
       return normalizeAgentRow(created);
     },

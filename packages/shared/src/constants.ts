@@ -113,6 +113,8 @@ export const AGENT_ICON_NAMES = [
 ] as const;
 export type AgentIconName = (typeof AGENT_ICON_NAMES)[number];
 
+export const AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX = "dicebear:notionists:" as const;
+
 export const ISSUE_STATUSES = [
   "backlog",
   "todo",

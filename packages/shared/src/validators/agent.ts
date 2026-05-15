@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX,
   AGENT_RUNTIME_TYPES,
   AGENT_ICON_NAMES,
   AGENT_ROLES,
@@ -61,12 +62,14 @@ export const uploadedAgentIconSchema = z.string().regex(
   "Invalid uploaded avatar reference",
 );
 
-export const customAgentIconSchema = z.string()
-  .trim()
-  .min(1)
-  .max(24)
-  .refine((value) => !value.toLowerCase().startsWith("asset:"), "Invalid uploaded avatar reference")
-  .refine((value) => !/[<>\u0000-\u001f\u007f]/u.test(value), "Icon cannot contain markup or control characters");
+export const diceBearNotionistsAgentIconSchema = z.string().regex(
+  new RegExp(
+    `^${AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX}`
+      + "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    "i",
+  ),
+  "Invalid DiceBear avatar reference",
+);
 
 export const agentIconSchema = z.preprocess(
   (value) => {
@@ -77,7 +80,7 @@ export const agentIconSchema = z.preprocess(
   z.union([
     z.enum(AGENT_ICON_NAMES),
     uploadedAgentIconSchema,
-    customAgentIconSchema,
+    diceBearNotionistsAgentIconSchema,
   ]).nullable(),
 );
 

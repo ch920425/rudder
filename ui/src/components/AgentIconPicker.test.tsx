@@ -45,11 +45,14 @@ describe("AgentIcon", () => {
     expect(getAgentAvatarImageSrc(icon)).toBe("/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content");
   });
 
-  it("renders custom emoji values as text", () => {
-    const container = render(<AgentIcon icon="🧪" />);
+  it("renders DiceBear Notionists avatar references as images", () => {
+    const icon = "dicebear:notionists:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const container = render(<AgentIcon icon={icon} className="h-4 w-4" />);
 
-    expect(container.textContent).toBe("🧪");
-    expect(container.querySelector("img")).toBeNull();
+    const img = container.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+    expect(getAgentAvatarImageSrc(icon)).toMatch(/^data:image\/svg\+xml/);
   });
 
   it("uses the agent role avatar when no custom icon is set", () => {

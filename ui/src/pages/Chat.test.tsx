@@ -270,16 +270,16 @@ describe("ProposalCard", () => {
     expect(html).not.toContain("shadow-sm");
   });
 
-  it("keeps the assistant avatar shell for emoji replying agent avatars", () => {
+  it("renders DiceBear replying agent avatars without the assistant avatar shell", () => {
     const html = renderProposalCard(message({
       role: "assistant",
       kind: "issue_proposal",
-      body: "Keep custom text avatars inside the existing shell.",
+      body: "Use the generated avatar directly.",
       replyingAgentId: "agent-1",
       structuredPayload: {
-        title: "Review emoji avatar",
+        title: "Review generated avatar",
         priority: "medium",
-        description: "The assistant attribution should keep the non-image shell.",
+        description: "The assistant attribution should use the raw generated avatar image.",
       },
     }), conversation({}), [
       {
@@ -287,14 +287,15 @@ describe("ProposalCard", () => {
         name: "Wesley",
         role: "engineer",
         title: "Founding Engineer",
-        icon: "WE",
+        icon: "dicebear:notionists:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       } as Agent,
     ]);
 
-    expect(html).toContain("border-border/70");
-    expect(html).toContain("bg-muted/90");
-    expect(html).toContain("shadow-sm");
-    expect(html).toContain(">WE</span>");
+    expect(html).toContain("data:image/svg+xml");
+    expect(html).toContain("h-8 w-8 shrink-0");
+    expect(html).not.toContain("border-border/70");
+    expect(html).not.toContain("bg-muted/90");
+    expect(html).not.toContain("shadow-sm");
   });
 });
 
