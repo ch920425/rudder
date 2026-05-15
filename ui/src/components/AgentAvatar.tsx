@@ -1,8 +1,13 @@
+import { type CSSProperties } from "react";
 import { type AgentRole } from "@rudderhq/shared";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { getAgentIcon, getDefaultAgentIconForRole } from "../lib/agent-icons";
-import { getAgentAvatarImageSrc, normalizeAgentAvatarIconValue } from "../lib/agent-avatar";
+import {
+  getAgentAvatarBackgroundStyle,
+  getAgentAvatarImageSrc,
+  normalizeAgentAvatarIconValue,
+} from "../lib/agent-avatar";
 
 type IdentitySize = "xs" | "sm" | "default" | "lg";
 
@@ -24,9 +29,10 @@ interface AgentIconProps {
   icon: string | null | undefined;
   role?: AgentRole | null;
   className?: string;
+  style?: CSSProperties;
 }
 
-export function AgentIcon({ icon, role, className }: AgentIconProps) {
+export function AgentIcon({ icon, role, className, style }: AgentIconProps) {
   const normalized = normalizeAgentAvatarIconValue(icon);
   const effectiveIcon = normalized ?? getDefaultAgentIconForRole(role);
   const imageSrc = getAgentAvatarImageSrc(effectiveIcon);
@@ -36,6 +42,7 @@ export function AgentIcon({ icon, role, className }: AgentIconProps) {
         src={imageSrc}
         alt=""
         className={cn("inline-flex rounded-full object-cover", className)}
+        style={{ ...getAgentAvatarBackgroundStyle(effectiveIcon), ...style }}
         loading="lazy"
       />
     );

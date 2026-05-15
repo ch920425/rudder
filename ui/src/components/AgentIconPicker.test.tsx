@@ -36,17 +36,18 @@ function render(element: ReactNode) {
 
 describe("AgentIcon", () => {
   it("renders uploaded avatar asset references as images", () => {
-    const icon = "asset:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const icon = "asset:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa?bg=mint";
     const container = render(<AgentIcon icon={icon} className="h-4 w-4" />);
 
     const img = container.querySelector("img");
     expect(img).toBeTruthy();
     expect(img?.getAttribute("src")).toBe("/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content");
     expect(getAgentAvatarImageSrc(icon)).toBe("/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content");
+    expect(img?.getAttribute("style")).toContain("background:");
   });
 
   it("renders DiceBear Notionists avatar references as images", () => {
-    const icon = "dicebear:notionists:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const icon = "dicebear:notionists:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb?bg=slate";
     const container = render(<AgentIcon icon={icon} className="h-4 w-4" />);
 
     const img = container.querySelector("img");

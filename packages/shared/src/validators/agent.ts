@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_AVATAR_BACKGROUND_PRESET_IDS,
   AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX,
   AGENT_RUNTIME_TYPES,
   AGENT_ICON_NAMES,
@@ -58,14 +59,19 @@ const optionalAgentNameSchema = z.preprocess(
 );
 
 export const uploadedAgentIconSchema = z.string().regex(
-  /^asset:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  new RegExp(
+    "^asset:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+      + `(?:\\?bg=(?:${AGENT_AVATAR_BACKGROUND_PRESET_IDS.join("|")}))?$`,
+    "i",
+  ),
   "Invalid uploaded avatar reference",
 );
 
 export const diceBearNotionistsAgentIconSchema = z.string().regex(
   new RegExp(
     `^${AGENT_DICEBEAR_NOTIONISTS_ICON_PREFIX}`
-      + "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      + "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+      + `(?:\\?bg=(?:${AGENT_AVATAR_BACKGROUND_PRESET_IDS.join("|")}))?$`,
     "i",
   ),
   "Invalid DiceBear avatar reference",

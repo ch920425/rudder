@@ -77,7 +77,7 @@ const AGENT_AVATAR_CONTENT_TYPES = new Set([
 const AGENT_AVATAR_SIZE_PX = 256;
 const AGENT_AVATAR_WEBP_QUALITY = 82;
 const AGENT_AVATAR_ASSET_RE =
-  /^asset:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+  /^asset:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\?bg=[a-z0-9-]+)?$/i;
 
 type UploadedMemoryFile = {
   mimetype: string;
