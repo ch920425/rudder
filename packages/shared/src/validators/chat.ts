@@ -65,10 +65,36 @@ export const chatAskUserQuestionSchema = z.object({
   question: z.string().trim().min(1).max(240),
   options: z.array(chatAskUserOptionSchema).min(2).max(3),
   allowFreeform: z.boolean().optional(),
+}).superRefine((question, ctx) => {
+  const optionIds = new Set<string>();
+  question.options.forEach((option, index) => {
+    if (optionIds.has(option.id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Option ids must be unique within each question",
+        path: ["options", index, "id"],
+      });
+      return;
+    }
+    optionIds.add(option.id);
+  });
 });
 
 export const chatAskUserRequestSchema = z.object({
   questions: z.array(chatAskUserQuestionSchema).min(1).max(3),
+}).superRefine((request, ctx) => {
+  const questionIds = new Set<string>();
+  request.questions.forEach((question, index) => {
+    if (questionIds.has(question.id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Question ids must be unique within requestUserInput",
+        path: ["questions", index, "id"],
+      });
+      return;
+    }
+    questionIds.add(question.id);
+  });
 });
 
 const chatIssueRichReferenceSchema = z.object({

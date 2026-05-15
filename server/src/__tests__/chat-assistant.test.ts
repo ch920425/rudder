@@ -545,6 +545,65 @@ describe("chatAssistantService operator profile prompt injection", () => {
     })).rejects.toThrow("ask_user assistant responses require structuredPayload.requestUserInput");
   });
 
+  it.each([
+    ["question ids", {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            question: "Which scope should I use?",
+            options: [
+              { id: "narrow", label: "Narrow" },
+              { id: "broad", label: "Broad" },
+            ],
+          },
+          {
+            id: "scope",
+            question: "Which fallback should I use?",
+            options: [
+              { id: "wait", label: "Wait" },
+              { id: "ship", label: "Ship" },
+            ],
+          },
+        ],
+      },
+    }],
+    ["option ids", {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            question: "Which scope should I use?",
+            options: [
+              { id: "narrow", label: "Narrow" },
+              { id: "narrow", label: "Also narrow" },
+            ],
+          },
+        ],
+      },
+    }],
+  ])("rejects ask_user final results with duplicate requestUserInput %s", async (_label, structuredPayload) => {
+    const svc = chatAssistantService({} as any);
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => ({
+      summary: `${sentinelFromContext(ctx)}${JSON.stringify({
+        kind: "ask_user",
+        body: "I need one decision.",
+        structuredPayload,
+      })}`,
+      resultJson: null,
+      timedOut: false,
+      exitCode: 0,
+      errorMessage: null,
+    }));
+
+    await expect(svc.generateChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+      operatorProfile: null,
+    })).rejects.toThrow("ask_user assistant responses require structuredPayload.requestUserInput");
+  });
+
   it("omits the operator profile section when all profile fields are blank", async () => {
     const svc = chatAssistantService({} as any);
 

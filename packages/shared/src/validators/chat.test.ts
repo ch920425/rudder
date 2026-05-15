@@ -44,6 +44,78 @@ describe("chat ask_user request payloads", () => {
       summary: "keep this",
     })).toEqual({ summary: "keep this" });
   });
+
+  it("rejects duplicate question ids and duplicate option ids", () => {
+    const duplicateQuestionIds = chatAskUserRequestSchema.safeParse({
+      questions: [
+        {
+          id: "scope",
+          question: "Which scope?",
+          options: [
+            { id: "narrow", label: "Narrow" },
+            { id: "broad", label: "Broad" },
+          ],
+        },
+        {
+          id: "scope",
+          question: "Which fallback?",
+          options: [
+            { id: "wait", label: "Wait" },
+            { id: "ship", label: "Ship" },
+          ],
+        },
+      ],
+    });
+
+    expect(duplicateQuestionIds.success).toBe(false);
+    if (!duplicateQuestionIds.success) {
+      expect(duplicateQuestionIds.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          message: "Question ids must be unique within requestUserInput",
+          path: ["questions", 1, "id"],
+        }),
+      ]));
+    }
+
+    const duplicateOptionIds = chatAskUserRequestSchema.safeParse({
+      questions: [
+        {
+          id: "scope",
+          question: "Which scope?",
+          options: [
+            { id: "narrow", label: "Narrow" },
+            { id: "narrow", label: "Also narrow" },
+          ],
+        },
+      ],
+    });
+
+    expect(duplicateOptionIds.success).toBe(false);
+    if (!duplicateOptionIds.success) {
+      expect(duplicateOptionIds.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          message: "Option ids must be unique within each question",
+          path: ["questions", 0, "options", 1, "id"],
+        }),
+      ]));
+    }
+
+    expect(sanitizeChatStructuredPayload({
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            question: "Which scope?",
+            options: [
+              { id: "narrow", label: "Narrow" },
+              { id: "narrow", label: "Also narrow" },
+            ],
+          },
+        ],
+      },
+      summary: "keep this",
+    })).toEqual({ summary: "keep this" });
+  });
 });
 
 describe("chat rich references", () => {
