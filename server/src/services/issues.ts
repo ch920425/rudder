@@ -24,6 +24,7 @@ import {
 import {
   extractAgentMentionIds,
   extractProjectMentionIds,
+  isUuidLike,
   type IssueSearchMatch,
   type ReorderIssue,
 } from "@rudderhq/shared";
@@ -1924,7 +1925,7 @@ export function issueService(db: Db) {
       let m: RegExpExecArray | null;
       while ((m = re.exec(body)) !== null) tokens.add(m[1].toLowerCase());
 
-      const explicitAgentMentionIds = extractAgentMentionIds(body);
+      const explicitAgentMentionIds = extractAgentMentionIds(body).filter(isUuidLike);
       if (tokens.size === 0 && explicitAgentMentionIds.length === 0) return [];
 
       const rows = await db.select({ id: agents.id, name: agents.name })
@@ -1967,17 +1968,20 @@ export function issueService(db: Db) {
       }
       if (mentionedIds.size === 0) return [];
 
+      const validMentionedIds = [...mentionedIds].filter(isUuidLike);
+      if (validMentionedIds.length === 0) return [];
+
       const rows = await db
         .select({ id: projects.id })
         .from(projects)
         .where(
           and(
             eq(projects.orgId, issue.orgId),
-            inArray(projects.id, [...mentionedIds]),
+            inArray(projects.id, validMentionedIds),
           ),
         );
       const valid = new Set(rows.map((row) => row.id));
-      return [...mentionedIds].filter((projectId) => valid.has(projectId));
+      return validMentionedIds.filter((projectId) => valid.has(projectId));
     },
 
     getAncestors: async (issueId: string) => {

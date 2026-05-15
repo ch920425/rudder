@@ -340,6 +340,39 @@ describe("issueService.list participantAgentId", () => {
     });
   });
 
+  it("ignores invalid project mention ids when resolving mentioned projects", async () => {
+    const orgId = randomUUID();
+    const projectId = randomUUID();
+    const issueId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Mention Org",
+      urlKey: deriveOrganizationUrlKey("Mention Org"),
+      issuePrefix: `M${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(projects).values({
+      id: projectId,
+      orgId,
+      name: "Mentioned Project",
+      status: "in_progress",
+    });
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Mention examples",
+      status: "todo",
+      priority: "medium",
+      description: [
+        "Inline example: `[@Project](project://id)`",
+        `Real mention: [@Mentioned](project://${projectId})`,
+      ].join("\n"),
+    });
+
+    await expect(svc.findMentionedProjectIds(issueId)).resolves.toEqual([projectId]);
+  });
+
   it("persists and filters reviewer principals", async () => {
     const orgId = randomUUID();
     const reviewerAgentId = randomUUID();
