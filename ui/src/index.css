@@ -52,8 +52,9 @@
   --desktop-content-surface-light: #f8f4ee;
   --desktop-content-surface-light-alt: #f8f4ee;
   --desktop-content-border-light: rgb(214 209 202 / 0.82);
-  --desktop-titlebar-top-gap: 0.875rem;
-  --desktop-sidebar-top-clearance: 2.5rem;
+  --desktop-titlebar-top-gap: 0.625rem;
+  --desktop-sidebar-top-clearance: 2.125rem;
+  --desktop-content-top-gap: 0.375rem;
   --desktop-traffic-lights-offset: 5.5rem;
   --radius: 0.95rem;
   --radius-sm: 0.55rem;

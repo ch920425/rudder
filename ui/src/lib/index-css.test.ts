@@ -66,4 +66,12 @@ describe("index.css motion rules", () => {
     expect(lightDesktopBackdrop).toContain("rgb(244 240 234 / 0.34)");
     expect(lightDesktopBackdrop).toContain("backdrop-filter: blur(38px) saturate(122%)");
   });
+
+  it("keeps the macOS desktop shell top chrome compact", () => {
+    const rootTokens = cssBlock(":root");
+
+    expect(rootTokens).toContain("--desktop-titlebar-top-gap: 0.625rem");
+    expect(rootTokens).toContain("--desktop-sidebar-top-clearance: 2.125rem");
+    expect(rootTokens).toContain("--desktop-content-top-gap: 0.375rem");
+  });
 });

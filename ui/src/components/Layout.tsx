@@ -652,7 +652,7 @@ export function Layout() {
   });
 
   const desktopContentShellInsetClass = macDesktopShell
-    ? "h-full flex-1 pl-2.5 pb-1 pr-1 pt-0.5 md:pl-3 md:pb-1.5 md:pr-1.5 md:pt-1"
+    ? "h-full flex-1 pl-2.5 pb-1 pr-1 pt-0.5 md:pl-3 md:pb-1.5 md:pr-1.5 md:pt-0.5"
     : "h-full flex-1 pl-0 pb-1 pr-1 pt-0.5 md:pb-1.5 md:pr-1.5 md:pt-1";
   function closeSettingsModal() {
     clearStoredSettingsOverlayBackgroundPath();
@@ -798,7 +798,7 @@ export function Layout() {
             isMobile ? "w-full" : desktopContentShellInsetClass,
           )}
         >
-          {!isMobile && macDesktopShell ? <div className="desktop-window-drag h-3 shrink-0" /> : null}
+          {!isMobile && macDesktopShell ? <div className="desktop-window-drag h-[var(--desktop-content-top-gap)] shrink-0" /> : null}
           {showDesktopSettingsModal ? (
             <DesktopSettingsModalFrame onClose={closeSettingsModal}>
               {hasUnknownOrganizationPrefix ? (
@@ -829,7 +829,7 @@ export function Layout() {
               ) : null}
               <div className={cn(isMobile ? "block" : "flex min-h-0 min-w-0 flex-1")}>
                 {showDesktopWorkspaceShell ? (
-                  <div className="flex min-h-0 min-w-0 flex-1 px-[3px] pb-[3px] pt-[2px] md:px-1 md:pb-1 md:pt-[3px]">
+                  <div className="flex min-h-0 min-w-0 flex-1 px-[3px] pb-[3px] pt-[1px] md:px-1 md:pb-1 md:pt-0.5">
                     {showIntegratedShellSidebar ? (
                       <>
                         <div
