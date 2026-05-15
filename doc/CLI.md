@@ -184,6 +184,7 @@ pnpm rudder agent config list --org-id <org-id>
 pnpm rudder agent config get <agent-id-or-shortname> [--org-id <org-id>]
 pnpm rudder agent icons
 pnpm rudder agent hire --org-id <org-id> --payload '{"role":"cto","title":"Chief Technology Officer","icon":"crown","agentRuntimeType":"codex_local","agentRuntimeConfig":{"cwd":"/abs/path"}}'
+pnpm rudder agent skills create [agent-id] --name "Skill name" [--slug short-name] [--description "..."] [--markdown-file ./SKILL.md] [--enable]
 pnpm rudder agent skills enable <agent-id> <selection-ref...>
 pnpm rudder agent skills sync <agent-id> --desired-skills "<csv>"
 pnpm rudder agent local-cli <agent-id-or-shortname> --org-id <org-id>
@@ -191,6 +192,8 @@ pnpm rudder agent local-cli <agent-id-or-shortname> --org-id <org-id>
 
 `agent config index`, `agent config doc`, and `agent icons` print plain-text reference docs by default.
 Pass `--json` if you want the raw text wrapped as a JSON string.
+
+`agent skills create` creates an agent-private skill under `AGENT_HOME/skills` for the target agent. When `[agent-id]` is omitted it defaults to `RUDDER_AGENT_ID`. Pass `--enable` to add the new private skill to the agent's enabled skill set for future runs.
 
 `agent skills enable` is additive and preserves existing enabled skills.
 `agent skills sync` replaces the full optional enabled-skill set.

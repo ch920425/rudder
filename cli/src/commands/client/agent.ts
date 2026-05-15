@@ -1,8 +1,10 @@
 import { Command } from "commander";
 import {
+  organizationSkillCreateSchema,
   createAgentHireSchema,
   type Agent,
   type AgentDetail,
+  type AgentSkillEntry,
   type AgentSkillSnapshot,
   type Approval,
 } from "@rudderhq/shared";
@@ -67,6 +69,15 @@ interface AgentSkillSyncOptions extends BaseClientOptions {
 }
 
 interface AgentSkillEnableOptions extends BaseClientOptions {}
+
+interface AgentSkillCreateOptions extends BaseClientOptions {
+  name: string;
+  slug?: string;
+  description?: string;
+  markdown?: string;
+  markdownFile?: string;
+  enable?: boolean;
+}
 
 interface AgentConfigurationRow {
   id: string;
@@ -451,6 +462,76 @@ export function registerAgentCommands(program: Command): void {
   );
 
   const skills = agent.command("skills").description("Agent skill selection operations");
+
+  addCommonClientOptions(
+    skills
+      .command("create")
+      .description(getAgentCliCapabilityById("agent.skills.create").description)
+      .argument("[agent-id]", "Agent ID; defaults to RUDDER_AGENT_ID")
+      .requiredOption("--name <name>", "Skill display name")
+      .option("--slug <slug>", "Skill short name")
+      .option("--description <text>", "Skill description")
+      .option("--markdown <markdown>", "Full SKILL.md content")
+      .option("--markdown-file <path>", "Read full SKILL.md content from a local file")
+      .option("--enable", "Enable the created private skill for future runs")
+      .action(async (agentIdArg: string | undefined, opts: AgentSkillCreateOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const agentId = agentIdArg?.trim() || ctx.agentId;
+          if (!agentId) {
+            throw new Error("Agent ID is required. Pass [agent-id] or set RUDDER_AGENT_ID.");
+          }
+          if (opts.markdown && opts.markdownFile) {
+            throw new Error("Pass only one of --markdown or --markdown-file.");
+          }
+
+          const markdown = opts.markdownFile
+            ? await fs.readFile(path.resolve(opts.markdownFile), "utf8")
+            : opts.markdown;
+          const payload = organizationSkillCreateSchema.parse({
+            name: opts.name,
+            slug: opts.slug?.trim() || null,
+            description: opts.description?.trim() || null,
+            markdown: markdown ?? null,
+          });
+          const created = await ctx.api.post<AgentSkillEntry>(
+            `/api/agents/${encodeURIComponent(agentId)}/skills/private`,
+            payload,
+          );
+          if (!created) {
+            throw new Error("Failed to create agent skill");
+          }
+          let enabledSnapshot: AgentSkillSnapshot | null = null;
+          if (opts.enable) {
+            enabledSnapshot = await ctx.api.post<AgentSkillSnapshot>(
+              `/api/agents/${encodeURIComponent(agentId)}/skills/enable`,
+              { skills: [created.selectionKey] },
+            );
+          }
+
+          const result = { created, enabledSnapshot };
+          if (ctx.json) {
+            printOutput(result, { json: true });
+            return;
+          }
+
+          console.log(
+            formatInlineRecord({
+              key: created.key,
+              selectionKey: created.selectionKey,
+              sourceClass: created.sourceClass,
+              sourcePath: created.sourcePath,
+              enabled: Boolean(enabledSnapshot?.desiredSkills.includes(created.selectionKey)),
+              detail: opts.enable
+                ? "Created and enabled. Future runs will load this skill."
+                : "Created, not enabled. Future runs will not load it until enabled.",
+            }),
+          );
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
 
   addCommonClientOptions(
     skills

@@ -4,6 +4,14 @@ Use this reference when a board user, CEO, or manager asks you to discover, impo
 
 This workflow is now **CLI-first** for the bundled `rudder` skill.
 
+For a skill that belongs only to the running agent, do not use organization import or scan commands. Use:
+
+```bash
+rudder agent skills create "$RUDDER_AGENT_ID" --name "<name>" --description "<description>" --enable --json
+```
+
+Agent-private skill creation writes under `AGENT_HOME/skills` and does not require organization skill mutation permission.
+
 ## Canonical Model
 
 1. import or scan the skill into the organization library

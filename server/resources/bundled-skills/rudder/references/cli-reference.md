@@ -16,6 +16,7 @@ Stable CLI contract for agents using the bundled `rudder` skill. Prefer these co
 | `rudder agent me` | Show the authenticated agent identity, budget, and chain of command. | no | no | no | no |
 | `rudder agent inbox` | List the compact assignee and reviewer work inbox for the authenticated agent. | no | no | no | no |
 | `rudder agent capabilities` | List the stable Rudder agent command contract. | no | no | no | no |
+| `rudder agent skills create [agent-id] --name <name> [--enable]` | Create an agent-private skill package under AGENT_HOME/skills. | yes | no | no | attached when available |
 | `rudder agent skills enable <agent-id> <selection-ref...>` | Add skill selections to an agent without replacing existing enabled skills. | yes | no | no | attached when available |
 | `rudder agent skills sync <agent-id>` | Sync the desired enabled skill set for an agent. | yes | no | no | attached when available |
 | `rudder issue get <issue>` | Read a full issue by UUID or identifier. | no | no | no | no |

@@ -21,6 +21,7 @@ import {
 } from "@rudderhq/db";
 import type {
   AgentDetail,
+  AgentSkillEntry,
   AgentSkillSnapshot,
   Approval,
   ApprovalComment,
@@ -961,6 +962,32 @@ describe("agent CLI e2e", () => {
       },
     );
     expect(scan.imported).toHaveLength(1);
+
+    const privateSkill = await runCliJson<{
+      created: AgentSkillEntry;
+      enabledSnapshot: AgentSkillSnapshot | null;
+    }>(
+      [
+        "agent",
+        "skills",
+        "create",
+        "--name",
+        "CLI Private Skill",
+        "--slug",
+        "cli-private-skill",
+        "--description",
+        "Private skill created by the agent CLI e2e regression.",
+        "--enable",
+      ],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+    expect(privateSkill.created.selectionKey).toBe("agent:cli-private-skill");
+    expect(privateSkill.created.sourceClass).toBe("agent_home");
+    expect(privateSkill.enabledSnapshot?.desiredSkills).toContain(privateSkill.created.selectionKey);
 
     const skills = await runCliJson<OrganizationSkillListItem[]>(["skill", "list"], {
       apiBase,

@@ -92,6 +92,18 @@ const AGENT_CLI_CAPABILITIES: AgentCliCapability[] = [
     attachesRunIdWhenAvailable: false,
   },
   {
+    id: "agent.skills.create",
+    command: "rudder agent skills create [agent-id] --name <name> [--enable]",
+    category: "agent",
+    description: "Create an agent-private skill package under AGENT_HOME/skills.",
+    mutating: true,
+    contract: "agent-v1",
+    requiresOrgId: false,
+    requiresAgentId: false,
+    requiresRunId: false,
+    attachesRunIdWhenAvailable: true,
+  },
+  {
     id: "agent.skills.enable",
     command: "rudder agent skills enable <agent-id> <selection-ref...>",
     category: "agent",
