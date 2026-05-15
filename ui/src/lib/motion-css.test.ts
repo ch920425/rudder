@@ -11,6 +11,7 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain('.motion-org-edge[data-active="true"]');
     expect(motionCss).toContain(".motion-chat-options-pop");
     expect(motionCss).toContain(".motion-chat-composer-menu-pop");
+    expect(motionCss).toContain(".motion-chat-empty-heading");
     expect(motionCss).toContain(".motion-organization-menu-pop");
     expect(motionCss).toContain(".motion-disclosure-enter");
     expect(motionCss).toContain(".motion-rail-active-indicator");
@@ -34,6 +35,12 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain("[data-chat-composer-menu-item]");
     expect(motionCss).toContain("clip-path: inset(18% 12% 0 12% round var(--radius-lg))");
     expect(motionCss).toContain("transform-origin: bottom center");
+  });
+
+  it("defines an enter animation for draft chat heading changes", () => {
+    expect(motionCss).toContain(".motion-chat-empty-heading");
+    expect(motionCss).toContain("@keyframes rudder-chat-empty-heading-enter");
+    expect(motionCss).toContain("filter: blur(3px)");
   });
 
   it("defines sliding active indicators for navigation surfaces", () => {

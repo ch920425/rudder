@@ -14,6 +14,7 @@ import {
   buildDraftChatContextLinks,
   canContinueInterruptedChatMessage,
   canRetryFailedChatMessage,
+  chatEmptyStateHeading,
   computeDisplayedChatMessages,
   draftIssueContextLabel,
   askUserRequestFromMessage,
@@ -190,6 +191,33 @@ describe("draft issue chat context", () => {
       { entityType: "project", entityId: "project-1" },
     ]);
     expect(draftIssueContextLabel({ identifier: null, title: "Untitled fix" })).toBe("Untitled fix");
+  });
+});
+
+describe("chat empty state heading", () => {
+  const t = (
+    key: "chat.emptyState.heading" | "chat.emptyState.headingNamed" | "chat.emptyState.headingProject",
+    params?: Record<string, string>,
+  ) => {
+    if (key === "chat.emptyState.headingProject") return `What should we build in ${params?.project}?`;
+    if (key === "chat.emptyState.headingNamed") return `What can I help with, ${params?.name}?`;
+    return "What can I help with?";
+  };
+
+  it("uses the selected project name on a draft chat", () => {
+    expect(chatEmptyStateHeading({
+      activeProjectName: "Rudder Desktop",
+      userNickname: "Zeeland",
+      t,
+    })).toBe("What should we build in Rudder Desktop?");
+  });
+
+  it("keeps the current personalized heading without a selected project", () => {
+    expect(chatEmptyStateHeading({
+      activeProjectName: null,
+      userNickname: "Zeeland",
+      t,
+    })).toBe("What can I help with, Zeeland?");
   });
 });
 

@@ -296,6 +296,29 @@ function projectDisplayName(project: Project | null | undefined) {
   return project?.name?.trim() || "Unknown project";
 }
 
+export function chatEmptyStateHeading({
+  activeProjectName,
+  userNickname,
+  t,
+}: {
+  activeProjectName?: string | null;
+  userNickname?: string | null;
+  t: (
+    key: "chat.emptyState.heading" | "chat.emptyState.headingNamed" | "chat.emptyState.headingProject",
+    params?: Record<string, string>,
+  ) => string;
+}) {
+  const projectName = activeProjectName?.trim() ?? "";
+  if (projectName) {
+    return t("chat.emptyState.headingProject", { project: projectName });
+  }
+
+  const nickname = userNickname?.trim() ?? "";
+  return nickname
+    ? t("chat.emptyState.headingNamed", { name: nickname })
+    : t("chat.emptyState.heading");
+}
+
 function projectContextSwatchStyle(color: string | null | undefined): CSSProperties {
   return projectColorCssVars(color);
 }
@@ -3905,9 +3928,13 @@ function ChatWorkspace() {
   );
 
   const userNickname = profileQuery.data?.nickname.trim() ?? "";
-  const emptyStateHeading = userNickname
-    ? t("chat.emptyState.headingNamed", { name: userNickname })
-    : t("chat.emptyState.heading");
+  const emptyStateProjectName = activeProject ? projectDisplayName(activeProject) : null;
+  const emptyStateHeading = chatEmptyStateHeading({
+    activeProjectName: emptyStateProjectName,
+    userNickname,
+    t,
+  });
+  const emptyStateHeadingKey = emptyStateProjectName ? `project:${activeProject?.id}:${emptyStateProjectName}` : "no-project";
   const composerPlaceholder = activePlanMode
     ? t("chat.composer.planModePlaceholder")
     : draftIssueContext
@@ -4649,7 +4676,10 @@ function ChatWorkspace() {
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-8">
               <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center">
                 <div className="mb-5 w-full max-w-3xl px-1 text-center">
-                  <h1 className="text-[clamp(1.6rem,2.0vw,2.3rem)] leading-[1.1] tracking-[-0.035em] text-foreground">
+                  <h1
+                    key={emptyStateHeadingKey}
+                    className="motion-chat-empty-heading text-[2rem] leading-[1.1] tracking-normal text-foreground md:text-[2.3rem]"
+                  >
                     {emptyStateHeading}
                   </h1>
                 </div>

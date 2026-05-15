@@ -39,6 +39,7 @@ export const zhCN: Messages = {
   "common.cancel": "取消",
   "chat.emptyState.heading": "想聊点什么？",
   "chat.emptyState.headingNamed": "想聊点什么，{{name}}？",
+  "chat.emptyState.headingProject": "我们要在 {{project}} 里做什么？",
   "chat.composer.placeholder": "尽管问",
   "chat.composer.issuePlaceholder": "询问 {{issue}}",
   "chat.composer.planModePlaceholder": "询问后续调整",

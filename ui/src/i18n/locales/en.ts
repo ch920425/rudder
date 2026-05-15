@@ -37,6 +37,7 @@ export const en = {
   "common.cancel": "Cancel",
   "chat.emptyState.heading": "What can I help with?",
   "chat.emptyState.headingNamed": "What can I help with, {{name}}?",
+  "chat.emptyState.headingProject": "What should we build in {{project}}?",
   "chat.composer.placeholder": "Ask anything",
   "chat.composer.issuePlaceholder": "Ask about {{issue}}",
   "chat.composer.planModePlaceholder": "Ask for follow-up changes",
