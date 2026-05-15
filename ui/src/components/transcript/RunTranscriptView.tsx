@@ -3,6 +3,7 @@ import type { TranscriptEntry } from "../../agent-runtimes";
 import { MarkdownBody, type MarkdownLinkClickHandler } from "../MarkdownBody";
 import { cn, formatTokens } from "../../lib/utils";
 import { readDesktopShell } from "../../lib/desktop-shell";
+import { stripBenignStderr } from "../../lib/benign-stderr";
 import { useOptionalToast } from "../../context/ToastContext";
 import {
   Boxes,
@@ -347,7 +348,7 @@ function filterRenderableTranscriptEntries(
       keptLines.push(line);
     }
 
-    const text = keptLines.join("\n").trim();
+    const text = stripBenignStderr(keptLines.join("\n"));
     if (text) result.push({ ...entry, text });
   }
 

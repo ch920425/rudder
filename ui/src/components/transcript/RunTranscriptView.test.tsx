@@ -236,6 +236,36 @@ describe("RunTranscriptView", () => {
     expect(html).toContain("Continuing after runtime noise.");
   });
 
+  it("does not render benign Codex model refresh timeout stderr in nice or raw mode", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "stderr",
+        ts: "2026-05-15T06:57:31.977Z",
+        text: [
+          "2026-05-15T06:57:31.977213Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit",
+          "2026-05-15T06:57:34.139709Z ERROR codex_memories_write::phase2: Phase 2 no changes",
+          "2026-05-15T06:57:44.058316Z ERROR codex_core::models_manager::manager: failed to refresh available models: timeout waiting for child process to exit",
+        ].join("\n"),
+      },
+    ];
+
+    const niceHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView entries={entries} />
+      </ThemeProvider>,
+    );
+    const rawHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView entries={entries} mode="raw" />
+      </ThemeProvider>,
+    );
+
+    expect(niceHtml).not.toContain("failed to refresh available models");
+    expect(rawHtml).not.toContain("failed to refresh available models");
+    expect(niceHtml).toContain("Phase 2 no changes");
+    expect(rawHtml).toContain("Phase 2 no changes");
+  });
+
   it("collapses long stderr by default while keeping a short summary visible", () => {
     const longError = [
       "Error: provider returned a long diagnostic",

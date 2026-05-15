@@ -41,7 +41,7 @@ import { retryHeartbeatRun } from "../lib/heartbeat-retry";
 import { queryKeys } from "../lib/queryKeys";
 import { findOrganizationByPrefix } from "../lib/organization-routes";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
-import { shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
+import { getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { PageTabBar } from "../components/PageTabBar";
@@ -4124,6 +4124,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
     () => Array.from(new Set((touchedIssues ?? []).map((issue) => issue.issueId))),
     [touchedIssues],
   );
+  const stderrExcerptDisplayText = getRunStderrExcerptDisplayText(run);
 
   const clearSessionsForTouchedIssues = useMutation({
     mutationFn: async () => {
@@ -4490,7 +4491,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
       {shouldShowRunStderrExcerpt(run) && (
         <div className="space-y-1">
           <span className="text-xs font-medium text-red-600 dark:text-red-400">stderr</span>
-          <pre data-testid="run-stderr-excerpt" className="min-w-0 max-w-full bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap break-words">{run.stderrExcerpt}</pre>
+          <pre data-testid="run-stderr-excerpt" className="min-w-0 max-w-full bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap break-words">{stderrExcerptDisplayText}</pre>
         </div>
       )}
 
@@ -4949,6 +4950,7 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
     queryKey: queryKeys.instance.generalSettings,
     queryFn: () => instanceSettingsApi.getGeneral(),
   }).data?.censorUsernameInLogs === true;
+  const stderrExcerptDisplayText = getRunStderrExcerptDisplayText(run);
 
   const adapterInvokePayload = useMemo(() => {
     const evt = events.find((e) => e.eventType === "adapter.invoke");
@@ -5287,11 +5289,11 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
               {redactPathText(run.error, censorUsernameInLogs)}
             </div>
           )}
-          {run.stderrExcerpt && run.stderrExcerpt.trim() && (
+          {stderrExcerptDisplayText && (
             <div>
               <div className="text-xs text-red-700 dark:text-red-300 mb-1">stderr excerpt</div>
               <pre className="min-w-0 max-w-full bg-red-50 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap break-words text-red-800 dark:text-red-100">
-                {redactPathText(run.stderrExcerpt, censorUsernameInLogs)}
+                {redactPathText(stderrExcerptDisplayText, censorUsernameInLogs)}
               </pre>
             </div>
           )}
