@@ -12,6 +12,7 @@ export default defineConfig({
       "ui",
       "cli",
       "desktop",
+      "scripts",
     ],
   },
 });

@@ -82,24 +82,6 @@ export function compareRudderVersions(a: string, b: string): number {
   return comparePrereleaseIdentifiers(parsedA.prerelease, parsedB.prerelease);
 }
 
-function compareRudderVersionsForChannel(a: string, b: string, channel: DesktopUpdateChannel): number {
-  if (channel !== "canary") return compareRudderVersions(a, b);
-
-  const parsedA = parseVersion(a);
-  const parsedB = parseVersion(b);
-  if (!parsedA || !parsedB) return compareRudderVersions(a, b);
-
-  if (parsedA.major !== parsedB.major) return parsedA.major - parsedB.major;
-  if (parsedA.minor !== parsedB.minor) return parsedA.minor - parsedB.minor;
-  if (parsedA.patch !== parsedB.patch) return parsedA.patch - parsedB.patch;
-
-  const aIsCanary = parsedA.prerelease?.startsWith("canary.") ?? false;
-  const bIsCanary = parsedB.prerelease?.startsWith("canary.") ?? false;
-  if (aIsCanary !== bIsCanary) return aIsCanary ? 1 : -1;
-
-  return compareRudderVersions(a, b);
-}
-
 export function resolveUpdateChannel(currentVersion: string): DesktopUpdateChannel {
   const parsed = parseVersion(currentVersion);
   return parsed?.prerelease?.startsWith("canary.") ? "canary" : "stable";
@@ -144,7 +126,7 @@ export function chooseLatestRelease(
     const version = normalizeReleaseDisplayVersion(release.tag_name, channel);
     if (!version) continue;
 
-    if (!latest || compareRudderVersionsForChannel(version, latest.version, channel) > 0) {
+    if (!latest || compareRudderVersions(version, latest.version) > 0) {
       latest = {
         version,
         releaseUrl: release.html_url,
@@ -241,9 +223,7 @@ export async function checkForRudderDesktopUpdates(
     }
 
     return {
-      status: compareRudderVersionsForChannel(latest.version, currentVersion, channel) > 0
-        ? "update-available"
-        : "up-to-date",
+      status: compareRudderVersions(latest.version, currentVersion) > 0 ? "update-available" : "up-to-date",
       channel,
       currentVersion,
       latestVersion: latest.version,

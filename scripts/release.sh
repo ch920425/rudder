@@ -158,6 +158,7 @@ DIST_TAG="latest"
 
 if [ "$channel" = "canary" ]; then
   require_on_main_branch
+  require_unreleased_canary_base "$TARGET_STABLE_VERSION" "$PUBLISH_REMOTE" "${PUBLIC_PACKAGE_NAMES[@]}"
   TARGET_PUBLISH_VERSION="$(next_canary_version "$TARGET_STABLE_VERSION" "${PUBLIC_PACKAGE_NAMES[@]}")"
   DIST_TAG="canary"
   tag_name="$(canary_tag_name "$TARGET_PUBLISH_VERSION")"

@@ -62,17 +62,6 @@ describe("desktop update checks", () => {
     });
   });
 
-  it("prefers same-base canaries over stable releases when canary is selected", () => {
-    expect(chooseLatestRelease([
-      { tag_name: "v0.2.2", prerelease: false, html_url: "stable" },
-      { tag_name: "canary/v0.2.2-canary.3", prerelease: true, html_url: "canary-old" },
-      { tag_name: "canary/v0.2.2-canary.14", prerelease: true, html_url: "canary-new" },
-    ], "canary")).toEqual({
-      version: "0.2.2-canary.14",
-      releaseUrl: "canary-new",
-    });
-  });
-
   it("defaults update checks to stable even when the running version is canary", async () => {
     const result = await checkForRudderDesktopUpdates({
       currentVersion: "0.1.0-canary.14",
@@ -108,25 +97,6 @@ describe("desktop update checks", () => {
     expect(result.channel).toBe("canary");
     expect(result.latestVersion).toBe("0.2.1");
     expect(result.releaseUrl).toBe("stable");
-  });
-
-  it("reports same-base canary updates as newer than stable when canary is selected", async () => {
-    const result = await checkForRudderDesktopUpdates({
-      currentVersion: "0.2.2",
-      appName: "Rudder",
-      repo: "example/rudder",
-      releasesUrl: "https://example.test/releases",
-      channel: "canary",
-      fetchImpl: async () => new Response(JSON.stringify([
-        { tag_name: "v0.2.2", prerelease: false, html_url: "stable" },
-        { tag_name: "canary/v0.2.2-canary.7", prerelease: true, html_url: "canary" },
-      ])),
-    });
-
-    expect(result.status).toBe("update-available");
-    expect(result.channel).toBe("canary");
-    expect(result.latestVersion).toBe("0.2.2-canary.7");
-    expect(result.releaseUrl).toBe("canary");
   });
 
   it("falls back to the releases page when the GitHub API is rate-limited", async () => {
