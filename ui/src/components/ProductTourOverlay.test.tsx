@@ -10,6 +10,23 @@ import { ProductTourOverlay, hasCompletedProductTour } from "./ProductTourOverla
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const closeProductTour = vi.hoisted(() => vi.fn());
+let storageState: Record<string, string> = {};
+
+function installLocalStorageMock() {
+  storageState = {};
+  vi.stubGlobal("localStorage", {
+    getItem: vi.fn((key: string) => storageState[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      storageState[key] = String(value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete storageState[key];
+    }),
+    clear: vi.fn(() => {
+      storageState = {};
+    }),
+  });
+}
 
 vi.mock("@/context/DialogContext", () => ({
   useDialog: () => ({
@@ -59,6 +76,7 @@ afterEach(() => {
   document.body.innerHTML = "";
   window.localStorage.clear();
   closeProductTour.mockReset();
+  vi.unstubAllGlobals();
 });
 
 function click(element: Element) {
@@ -66,6 +84,8 @@ function click(element: Element) {
 }
 
 function renderOverlay() {
+  installLocalStorageMock();
+
   const target = document.createElement("button");
   target.dataset.tourTarget = "primary-rail";
   document.body.appendChild(target);
