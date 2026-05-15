@@ -272,6 +272,42 @@ function pendingIssueProposal(overrides: Partial<ChatMessage> = {}): ChatMessage
   });
 }
 
+function pendingAskUser(overrides: Partial<ChatMessage> = {}): ChatMessage {
+  return message({
+    id: "ask-user-1",
+    role: "assistant",
+    kind: "ask_user",
+    body: "I need one decision before continuing.",
+    structuredPayload: {
+      requestUserInput: {
+        questions: [
+          {
+            id: "scope",
+            header: "Scope",
+            question: "Which scope should the agent implement?",
+            options: [
+              {
+                id: "narrow",
+                label: "Narrow path",
+                description: "Smallest shippable path",
+                recommended: true,
+              },
+              {
+                id: "broad",
+                label: "Broad path",
+              },
+            ],
+            allowFreeform: true,
+          },
+        ],
+      },
+    },
+    createdAt: new Date("2026-05-12T09:03:00.000Z"),
+    updatedAt: new Date("2026-05-12T09:03:00.000Z"),
+    ...overrides,
+  });
+}
+
 function imageMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return message({
     id: "image-message-1",
@@ -422,6 +458,39 @@ describe("Chat attachment previews", () => {
     rerender();
 
     expect(document.body.querySelector("[data-testid='chat-image-preview-dialog']")).toBeNull();
+  });
+});
+
+describe("Chat ask_user panel", () => {
+  it("hides the bottom composer while input is pending and restores it after an answer", () => {
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({ id: "user-before-ask", body: "Please help scope this." }),
+        pendingAskUser(),
+      ],
+    };
+
+    const { container, rerender } = renderChat();
+
+    expect(container.querySelector("[data-testid='chat-ask-user-panel']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='chat-composer-toolbar']")).toBeNull();
+    expect(container.textContent).not.toContain("You can still type in the composer below.");
+
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({ id: "user-before-ask", body: "Please help scope this." }),
+        pendingAskUser(),
+        message({
+          id: "user-answer",
+          body: "Answering the requested input:\n\n- Scope\n  Answer: Narrow path",
+          createdAt: new Date("2026-05-12T09:04:00.000Z"),
+        }),
+      ],
+    };
+    rerender();
+
+    expect(container.querySelector("[data-testid='chat-ask-user-panel']")).toBeNull();
+    expect(container.querySelector("[data-testid='chat-composer-toolbar']")).not.toBeNull();
   });
 });
 

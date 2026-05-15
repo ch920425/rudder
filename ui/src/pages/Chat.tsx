@@ -1558,7 +1558,7 @@ function AskUserPanel({
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-foreground">Choose an answer to continue</div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            The assistant is waiting on this decision. You can still type in the composer below.
+            The assistant is waiting on this decision.
           </div>
         </div>
       </div>
@@ -3354,6 +3354,11 @@ function ChatWorkspace() {
   const lastMarkedReadKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!pendingAskUserRequest) return;
+    closeComposerContextMenus();
+  }, [closeComposerContextMenus, pendingAskUserRequest]);
+
+  useEffect(() => {
     const chatId = selectedConversation?.id ?? null;
     if (!chatId || showMessagesLoading) return;
     if (initialScrolledConversationRef.current === chatId) return;
@@ -3769,8 +3774,6 @@ function ChatWorkspace() {
     ? t("chat.composer.planModePlaceholder")
     : draftIssueContext
       ? t("chat.composer.issuePlaceholder", { issue: draftIssueContextLabel(draftIssueContext) })
-      : pendingAskUserRequest
-        ? "Answer the request above or add context here..."
     : t("chat.composer.placeholder");
   const expandedPromptGroup = EMPTY_STATE_PROMPT_GROUPS.find((group) => group.label === expandedEmptyStatePrompt) ?? null;
   const emptyStatePromptOptionsId = "chat-empty-state-prompt-options";
@@ -4490,8 +4493,9 @@ function ChatWorkspace() {
                           });
                         }}
                       />
-                    ) : null}
-                    {renderComposer(false)}
+                    ) : (
+                      renderComposer(false)
+                    )}
                   </div>
                 )}
               </div>
