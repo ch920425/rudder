@@ -117,6 +117,25 @@ describe("DesktopUpdateStatusCard", () => {
     expect(document.body.textContent).toContain("Verifying checksum");
   });
 
+  it("shows a single starting status with an immediate progress rail", async () => {
+    renderHarness({
+      updateId: "update-starting",
+      version: "0.2.2",
+      phase: "starting",
+      message: "Starting update to v0.2.2.",
+      at: new Date().toISOString(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("Updating to v0.2.2");
+    expect(bodyText.match(/Starting update/g)?.length).toBe(1);
+    expect(document.body.querySelectorAll('[role="progressbar"]').length).toBe(1);
+  });
+
   it("shows the final restart action after the update package is ready", async () => {
     const harness = renderHarness({
       updateId: "update-3",

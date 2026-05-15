@@ -48,13 +48,18 @@ export function DesktopUpdateStatusCard() {
   const tone = phaseTone(currentProgress.phase);
   const transferred = formatBytes(currentProgress.transferredBytes);
   const total = formatBytes(currentProgress.totalBytes);
-  const progressLabel = currentProgress.percent != null
-    ? `${currentProgress.percent}%`
+  const measuredPercent = typeof currentProgress.percent === "number"
+    ? Math.max(0, Math.min(100, currentProgress.percent))
+    : null;
+  const hasMeasuredProgress = measuredPercent !== null;
+  const progressLabel = measuredPercent !== null
+    ? `${measuredPercent}%`
     : transferred
       ? total
         ? `${transferred} / ${total}`
         : transferred
-      : t(PHASE_LABEL_KEYS[currentProgress.phase]);
+      : null;
+  const showIndeterminateProgress = tone === "active" && !hasMeasuredProgress;
 
   async function retryUpdate() {
     const desktopShell = readDesktopShell();
@@ -107,20 +112,36 @@ export function DesktopUpdateStatusCard() {
                     ? t("about.updates.progress.readyTitle")
                     : t("about.updates.progress.title", { version: currentProgress.version.startsWith("v") ? currentProgress.version : `v${currentProgress.version}` })}
               </p>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressLabel}</span>
+              {progressLabel ? (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressLabel}</span>
+              ) : null}
             </div>
             <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
               {currentProgress.error ?? t(PHASE_LABEL_KEYS[currentProgress.phase])}
             </p>
-            {currentProgress.percent != null ? (
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+            {hasMeasuredProgress ? (
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={measuredPercent}
+              >
                 <div
                   className={cn(
                     "h-full rounded-full bg-emerald-700 transition-[width] duration-300",
                     tone === "failed" && "bg-destructive",
                   )}
-                  style={{ width: `${Math.max(0, Math.min(100, currentProgress.percent))}%` }}
+                  style={{ width: `${measuredPercent}%` }}
                 />
+              </div>
+            ) : showIndeterminateProgress ? (
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label={t(PHASE_LABEL_KEYS[currentProgress.phase])}
+              >
+                <div className="h-full w-2/5 rounded-full bg-emerald-700/70 animate-pulse" />
               </div>
             ) : null}
             {currentProgress.phase === "ready_to_install" ? (

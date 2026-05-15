@@ -1790,7 +1790,7 @@ function installQuitExceptionGuard(): void {
   });
 }
 
-async function finalizeQuit(): Promise<void> {
+async function finalizeQuit(options: { forceExit?: boolean } = {}): Promise<void> {
   if (quitting) return;
   quitting = true;
   quitRequested = true;
@@ -1801,6 +1801,10 @@ async function finalizeQuit(): Promise<void> {
   } finally {
     residentTray?.destroy();
     residentTray = null;
+    if (options.forceExit) {
+      app.exit(0);
+      return;
+    }
     app.quit();
   }
 }
@@ -1876,7 +1880,7 @@ async function handleUpdateQuitRequest(responsePath: string): Promise<void> {
     }
 
     writeUpdateQuitResponse(responsePath, { ok: true, status: "quitting" });
-    await finalizeQuit();
+    await finalizeQuit({ forceExit: true });
   } catch (error) {
     writeUpdateQuitResponse(responsePath, {
       ok: false,
