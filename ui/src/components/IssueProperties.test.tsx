@@ -257,4 +257,54 @@ describe("IssueProperties", () => {
     expect(container.textContent).toContain("RUD-2");
     expect(container.querySelector('a[href="/issues/RUD-2"]')).toBeTruthy();
   });
+
+  it("opens the sub-issue composer in a modal from the properties row", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const createSubIssue = vi.fn().mockResolvedValue(undefined);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <IssueProperties
+          issue={baseIssue}
+          onUpdate={vi.fn()}
+          childIssues={[]}
+          onCreateSubIssue={createSubIssue}
+        />,
+      );
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Create sub-issue"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain("Create sub-issue");
+
+    const input = document.body.querySelector<HTMLInputElement>("#sub-issue-title-issue-1");
+    expect(input).toBeTruthy();
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+        input,
+        "Split implementation work",
+      );
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      input!.closest("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(createSubIssue).toHaveBeenCalledWith("Split implementation work");
+  });
 });

@@ -25,6 +25,14 @@ import { formatDate, formatDateTime, cn, projectUrl } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { User, Hexagon, ArrowUpRight, Tag, Plus, AlertTriangle, ListTree } from "lucide-react";
 import { AgentIcon } from "./AgentIconPicker";
 
@@ -234,6 +242,17 @@ export function IssueProperties({
     ? orderedProjects.find((project) => project.id === issue.projectId) ?? null
     : null;
   const visibleChildIssues = useMemo(() => (childIssues ?? []).slice(0, 5), [childIssues]);
+  const openSubIssueComposer = () => {
+    if (!onCreateSubIssue || isCreatingSubIssue) return;
+    setSubIssueError(null);
+    setSubIssueComposerOpen(true);
+  };
+  const closeSubIssueComposer = () => {
+    if (isCreatingSubIssue) return;
+    setSubIssueComposerOpen(false);
+    setSubIssueTitle("");
+    setSubIssueError(null);
+  };
   const projectLink = (id: string | null) => {
     if (!id) return null;
     const project = projects?.find((p) => p.id === id) ?? null;
@@ -612,6 +631,7 @@ export function IssueProperties({
   );
 
   return (
+    <>
     <div className="space-y-4">
       <div className="space-y-1">
         <PropertyRow label="Status">
@@ -711,18 +731,23 @@ export function IssueProperties({
             <div className="flex items-center gap-3">
               <span className="w-20 shrink-0 text-xs text-muted-foreground">Sub-issues</span>
               <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
-                  {childIssues.length}
-                </span>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-accent/50 disabled:pointer-events-none"
+                  onClick={openSubIssueComposer}
+                  disabled={!onCreateSubIssue || isCreatingSubIssue}
+                  aria-label="Create sub-issue"
+                >
+                  <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
+                    {childIssues.length}
+                  </span>
+                </button>
                 {onCreateSubIssue ? (
                   <button
                     type="button"
                     className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                    onClick={() => {
-                      setSubIssueError(null);
-                      setSubIssueComposerOpen((current) => !current);
-                    }}
+                    onClick={openSubIssueComposer}
                     disabled={isCreatingSubIssue}
                   >
                     <Plus className="h-3 w-3" />
@@ -733,41 +758,19 @@ export function IssueProperties({
             </div>
 
             <div className={cn("mt-1.5 min-w-0 space-y-1", inline ? "ml-0" : "ml-[5.75rem]")}>
-              {subIssueComposerOpen && onCreateSubIssue ? (
-                <form className="space-y-1" onSubmit={submitSubIssue}>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      value={subIssueTitle}
-                      onChange={(event) => setSubIssueTitle(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          setSubIssueTitle("");
-                          setSubIssueError(null);
-                          setSubIssueComposerOpen(false);
-                        }
-                      }}
-                      placeholder="Sub-issue title"
-                      autoFocus
-                      disabled={isCreatingSubIssue}
-                      className="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs outline-none placeholder:text-muted-foreground/60 focus:border-ring"
-                    />
-                    <button
-                      type="submit"
-                      className="h-7 rounded border border-border px-2 text-xs transition-colors hover:bg-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!subIssueTitle.trim() || isCreatingSubIssue}
-                    >
-                      Create
-                    </button>
-                  </div>
-                  {subIssueError ? (
-                    <p className="text-[11px] text-destructive">{subIssueError}</p>
-                  ) : null}
-                </form>
-              ) : null}
-
               {visibleChildIssues.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No sub-issues.</p>
+                onCreateSubIssue ? (
+                  <button
+                    type="button"
+                    className="w-full rounded px-1 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                    onClick={openSubIssueComposer}
+                    disabled={isCreatingSubIssue}
+                  >
+                    No sub-issues.
+                  </button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No sub-issues.</p>
+                )
               ) : (
                 visibleChildIssues.map((child) => {
                   const childPathId = child.identifier ?? child.id;
@@ -848,5 +851,63 @@ export function IssueProperties({
         </PropertyRow>
       </div>
     </div>
+    {onCreateSubIssue ? (
+      <Dialog
+        open={subIssueComposerOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            openSubIssueComposer();
+          } else {
+            closeSubIssueComposer();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form className="space-y-4" onSubmit={submitSubIssue}>
+            <DialogHeader>
+              <DialogTitle className="text-base">Create sub-issue</DialogTitle>
+              <DialogDescription>
+                Add a child issue under {issue.identifier ?? issue.title}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor={`sub-issue-title-${issue.id}`}>
+                Title
+              </label>
+              <input
+                id={`sub-issue-title-${issue.id}`}
+                value={subIssueTitle}
+                onChange={(event) => setSubIssueTitle(event.target.value)}
+                placeholder="Sub-issue title"
+                autoFocus
+                disabled={isCreatingSubIssue}
+                className="h-9 w-full rounded border border-border bg-background px-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ring"
+              />
+              {subIssueError ? (
+                <p className="text-xs text-destructive">{subIssueError}</p>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <button
+                type="button"
+                className="h-8 rounded border border-border px-3 text-xs transition-colors hover:bg-accent/50 disabled:cursor-wait disabled:opacity-60"
+                onClick={closeSubIssueComposer}
+                disabled={isCreatingSubIssue}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-8 rounded bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!subIssueTitle.trim() || isCreatingSubIssue}
+              >
+                {isCreatingSubIssue ? "Creating..." : "Create"}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    ) : null}
+    </>
   );
 }
