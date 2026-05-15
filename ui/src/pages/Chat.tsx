@@ -4678,7 +4678,7 @@ function ChatWorkspace() {
                 <div className="mb-5 w-full max-w-3xl px-1 text-center">
                   <h1
                     key={emptyStateHeadingKey}
-                    className="motion-chat-empty-heading text-[2rem] leading-[1.1] tracking-normal text-foreground md:text-[2.3rem]"
+                    className="motion-chat-empty-heading max-w-full text-[2rem] leading-[1.1] tracking-normal text-foreground [overflow-wrap:anywhere] md:text-[2.3rem]"
                   >
                     {emptyStateHeading}
                   </h1>
