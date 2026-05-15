@@ -1,4 +1,5 @@
 import { access, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +26,7 @@ import {
   compareStableSemver,
   copyPortableAppBundle,
   downloadAsset,
+  downloadDesktopAssetWithCache,
   downloadChecksums,
   getCliUpdateNotice,
   isInstalledDesktopCurrent,
@@ -37,6 +39,7 @@ import {
   resolveDesktopAssetTarget,
   resolveDefaultDesktopInstallRoot,
   resolveDesktopAssetName,
+  resolveDesktopAssetCacheDir,
   resolveDesktopInstallPaths,
   resolveDesktopReleaseVersion,
   resolveDesktopReleaseTag,
@@ -76,6 +79,10 @@ function responseFromChunks(chunks: string[], headers: Record<string, string> = 
       },
     }),
   } as Response;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 describe("persistent CLI install helpers", () => {
@@ -665,6 +672,75 @@ describe("desktop start command helpers", () => {
     } finally {
       globalThis.fetch = originalFetch;
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses a checksum-matched cached desktop asset without downloading", async () => {
+    const homeDir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-asset-cache-hit-test."));
+    const originalFetch = globalThis.fetch;
+    const assetName = "Rudder-0.3.1-linux-x64.AppImage";
+    const assetBody = "cached-desktop-asset";
+    const checksum = sha256(assetBody);
+    const cacheDir = resolveDesktopAssetCacheDir(checksum, homeDir);
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(path.join(cacheDir, assetName), assetBody, "utf8");
+    globalThis.fetch = vi.fn(() => {
+      throw new Error("unexpected download");
+    }) as never;
+
+    try {
+      const result = await downloadDesktopAssetWithCache(
+        { name: assetName, browser_download_url: "https://example.test/asset" },
+        checksum,
+        { homeDir },
+      );
+
+      expect(result).toEqual({
+        path: path.join(cacheDir, assetName),
+        checksum,
+        cacheStatus: "hit",
+      });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("redownloads and replaces a cached desktop asset when the checksum is stale", async () => {
+    const homeDir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-asset-cache-miss-test."));
+    const outputDir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-asset-output-test."));
+    const originalFetch = globalThis.fetch;
+    const assetName = "Rudder-0.3.1-linux-x64.AppImage";
+    const assetBody = "fresh-desktop-asset";
+    const checksum = sha256(assetBody);
+    const cacheDir = resolveDesktopAssetCacheDir(checksum, homeDir);
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(path.join(cacheDir, assetName), "stale-desktop-asset", "utf8");
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      responseFromChunks([assetBody], {
+        "content-length": String(Buffer.byteLength(assetBody)),
+      }),
+    ) as never;
+
+    try {
+      const result = await downloadDesktopAssetWithCache(
+        { name: assetName, browser_download_url: "https://example.test/asset" },
+        checksum,
+        { homeDir, outputDir },
+      );
+
+      expect(result).toEqual({
+        path: path.join(cacheDir, assetName),
+        checksum,
+        cacheStatus: "miss",
+      });
+      expect(await readFile(result.path, "utf8")).toBe(assetBody);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(homeDir, { recursive: true, force: true });
+      await rm(outputDir, { recursive: true, force: true });
     }
   });
 

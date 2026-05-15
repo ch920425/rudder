@@ -227,6 +227,9 @@ falling back to the committed stable base version.
 Desktop artifacts are not published to npm. The CLI `start` command resolves
 the appropriate GitHub Release asset for the current platform, verifies
 `SHASUMS256.txt`, installs the app into a per-user location, and launches it.
+Downloaded Desktop assets are cached under `~/.rudder/desktop-assets/` by
+SHA-256 checksum so repeated installs or retries can reuse an already verified
+portable asset instead of downloading the full release again.
 The current Desktop channel is an unsigned portable alpha; signed/notarized
 installer distribution can be restored after Apple and Windows code signing are
 available.

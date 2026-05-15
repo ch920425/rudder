@@ -15,6 +15,7 @@ import {
   installPersistentCli,
   resolvePersistentCliInstallSpec,
 } from "../install.js";
+import { resolveRudderHomeDir } from "../config/home.js";
 import { ensureRuntimeInstalled, RuntimeInstallError } from "../runtime/install.js";
 import { createByteProgress, type ByteProgressReporter } from "../utils/progress.js";
 import { resolveCliVersion } from "../version.js";
@@ -109,6 +110,7 @@ const CLI_REGISTRY_LATEST_URL = "https://registry.npmjs.org/@rudderhq%2fcli/late
 const DESKTOP_APP_NAME = "Rudder";
 const DESKTOP_METADATA_FILE = ".rudder-desktop-install.json";
 const DESKTOP_CHECKSUM_ASSET_NAME = "SHASUMS256.txt";
+const DESKTOP_ASSET_CACHE_DIR = "desktop-assets";
 const GITHUB_ASSET_DOWNLOAD_ACCEPT = "application/octet-stream";
 
 function normalizeProgressTotal(totalBytes: number | null | undefined): number | null {
@@ -587,6 +589,65 @@ export async function downloadChecksums(
   }
   const checksumPath = await downloadAsset(checksumAsset, outputDir, progressFactory);
   return parseChecksumFile(readFileSync(checksumPath, "utf8"));
+}
+
+function normalizeDesktopAssetChecksum(checksum: string): string {
+  const normalized = checksum.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalized)) {
+    throw new Error("Desktop asset cache requires a SHA-256 checksum.");
+  }
+  return normalized;
+}
+
+export function resolveDesktopAssetCacheDir(
+  assetChecksum: string,
+  homeDir: string = resolveRudderHomeDir(),
+): string {
+  return path.join(homeDir, DESKTOP_ASSET_CACHE_DIR, normalizeDesktopAssetChecksum(assetChecksum));
+}
+
+export function resolveDesktopCachedAssetPath(
+  assetName: string,
+  assetChecksum: string,
+  homeDir: string = resolveRudderHomeDir(),
+): string {
+  return path.join(resolveDesktopAssetCacheDir(assetChecksum, homeDir), path.basename(assetName));
+}
+
+export async function downloadDesktopAssetWithCache(
+  asset: GithubReleaseAsset,
+  expectedChecksum: string,
+  options: {
+    homeDir?: string;
+    outputDir?: string;
+    progressFactory?: ProgressReporterFactory;
+  } = {},
+): Promise<{ path: string; checksum: string; cacheStatus: "hit" | "miss" }> {
+  const normalizedChecksum = normalizeDesktopAssetChecksum(expectedChecksum);
+  const cachePath = resolveDesktopCachedAssetPath(asset.name, normalizedChecksum, options.homeDir);
+
+  if (await pathExists(cachePath)) {
+    try {
+      const checksum = assertChecksumMatch(cachePath, normalizedChecksum);
+      return { path: cachePath, checksum, cacheStatus: "hit" };
+    } catch {
+      await rm(cachePath, { force: true });
+    }
+  }
+
+  const outputDir = options.outputDir ?? await mkdtemp(path.join(tmpdir(), "rudder-desktop-installer."));
+  const removeOutputDir = options.outputDir ? false : true;
+  try {
+    const downloadedPath = await downloadAsset(asset, outputDir, options.progressFactory);
+    const checksum = assertChecksumMatch(downloadedPath, normalizedChecksum);
+    await mkdir(path.dirname(cachePath), { recursive: true });
+    if (path.resolve(downloadedPath) !== path.resolve(cachePath)) {
+      await copyFile(downloadedPath, cachePath);
+    }
+    return { path: cachePath, checksum, cacheStatus: "miss" };
+  } finally {
+    if (removeOutputDir) await rm(outputDir, { recursive: true, force: true });
+  }
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -1144,11 +1205,24 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
         desktopProgressJson ? "preparing_restart" : null,
       );
     } else {
-      const installerPath = await downloadAsset(asset, outputDir, progressFactory);
+      const cachedAsset = await downloadDesktopAssetWithCache(asset, expectedChecksum, {
+        outputDir,
+        progressFactory,
+      });
+      if (cachedAsset.cacheStatus === "hit") {
+        p.log.success(`Desktop asset cache hit at ${pc.cyan(cachedAsset.path)}.`);
+        if (desktopProgressJson) {
+          writeDesktopProgress({
+            phase: "downloading_asset",
+            message: `Desktop asset cache hit for ${asset.name}.`,
+            percent: 100,
+          });
+        }
+      }
       const checksum = await runStartPhase(
         "Verifying Desktop checksum...",
-        `Verified ${pc.cyan(path.basename(installerPath))}.`,
-        () => assertChecksumMatch(installerPath, expectedChecksum),
+        `Verified ${pc.cyan(path.basename(cachedAsset.path))}.`,
+        () => assertChecksumMatch(cachedAsset.path, expectedChecksum),
         desktopProgressJson ? "verifying_checksum" : null,
       );
 
@@ -1174,7 +1248,7 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
       await runStartPhase(
         "Installing portable Desktop app...",
         `Installed Rudder Desktop to ${pc.cyan(installPaths.appPath)}.`,
-        () => installPortableDesktop(installerPath, installPaths, target),
+        () => installPortableDesktop(cachedAsset.path, installPaths, target),
         desktopProgressJson ? "preparing_restart" : null,
       );
       await runStartPhase(
