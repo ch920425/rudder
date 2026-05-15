@@ -625,16 +625,16 @@
     background: transparent;
   }
 
-  .command-palette-content {
-    left: 50vw;
+  [data-slot="dialog-content"].command-palette-content {
+    left: 50vw !important;
     transform-origin: center 42%;
     will-change: opacity, transform;
     backface-visibility: hidden;
   }
 
   @media (min-width: 768px) {
-    .command-palette-content {
-      top: 50vh;
+    [data-slot="dialog-content"].command-palette-content {
+      top: 50vh !important;
     }
   }
 
@@ -800,13 +800,13 @@
     backdrop-filter: blur(24px) saturate(118%);
   }
 
-  .glass-popover {
+  .glass-popover.glass-popover {
     background:
       linear-gradient(
         180deg,
-        color-mix(in oklab, var(--surface-overlay) 74%, transparent) 0%,
-        color-mix(in oklab, var(--surface-overlay) 58%, transparent) 100%
-      );
+        color-mix(in oklab, var(--surface-overlay) 54%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 42%, transparent) 100%
+      ) !important;
     border: 1px solid color-mix(in oklab, var(--border-base) 72%, transparent);
     box-shadow:
       0 28px 72px -36px rgb(0 0 0 / 0.42),
@@ -815,13 +815,13 @@
     backdrop-filter: blur(30px) saturate(132%);
   }
 
-  html.dark .glass-popover {
+  html.dark .glass-popover.glass-popover {
     background:
       linear-gradient(
         180deg,
-        color-mix(in oklab, var(--surface-overlay) 70%, transparent) 0%,
-        color-mix(in oklab, var(--surface-overlay) 54%, transparent) 100%
-      );
+        color-mix(in oklab, var(--surface-overlay) 62%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 48%, transparent) 100%
+      ) !important;
     border-color: color-mix(in oklab, var(--border-strong) 68%, transparent);
     box-shadow:
       0 30px 78px -34px rgb(0 0 0 / 0.64),

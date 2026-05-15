@@ -45,10 +45,18 @@ describe("index.css motion rules", () => {
   it("positions command palette against the viewport", () => {
     const commandPaletteContent = cssBlock(".command-palette-content");
     const commandPaletteDesktopPositioning =
-      indexCss.match(/@media \(min-width: 768px\) \{\s*\.command-palette-content \{[^}]+}/)?.[0] ?? "";
+      indexCss.match(/@media \(min-width: 768px\) \{\s*\[data-slot="dialog-content"\]\.command-palette-content \{[^}]+}/)?.[0] ?? "";
 
-    expect(commandPaletteContent).toContain("left: 50vw");
-    expect(commandPaletteDesktopPositioning).toContain("top: 50vh");
+    expect(commandPaletteContent).toContain("left: 50vw !important");
+    expect(commandPaletteDesktopPositioning).toContain("top: 50vh !important");
+  });
+
+  it("keeps glass popovers above utility backgrounds", () => {
+    const glassPopover = cssBlock(".glass-popover.glass-popover");
+
+    expect(glassPopover).toContain("background:");
+    expect(glassPopover).toContain("!important");
+    expect(glassPopover).toContain("backdrop-filter: blur(30px) saturate(132%)");
   });
 
   it("keeps the macOS desktop shell translucent in light mode", () => {
