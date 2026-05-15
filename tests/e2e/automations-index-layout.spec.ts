@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { E2E_BASE_URL } from "./support/e2e-env";
+import { E2E_BASE_URL, E2E_CODEX_STUB } from "./support/e2e-env";
 
 async function selectOrganization(page: Page, orgId: string) {
   await page.goto(E2E_BASE_URL);
@@ -117,6 +117,94 @@ test.describe("Automations index layout", () => {
 
     await page.screenshot({
       path: testInfo.outputPath("automations-composer-selectors.png"),
+      fullPage: true,
+    });
+  });
+
+  test("keeps composer mention menus bounded, scrollable, and keyboard selectable", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
+      data: {
+        name: `Automations-Mentions-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = (await orgRes.json()) as { id: string; issuePrefix: string };
+
+    const agentRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Mention Builder",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          command: E2E_CODEX_STUB,
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = (await agentRes.json()) as { id: string };
+
+    const skillSlugs = Array.from({ length: 10 }, (_, index) => `advisor-skill-${String(index).padStart(2, "0")}`);
+    for (const slug of skillSlugs) {
+      const skillRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/skills`, {
+        data: {
+          name: `Advisor Skill ${slug.slice(-2)}`,
+          slug,
+          markdown: `---\nname: ${slug}\ndescription: A long advisor skill description used to verify menu clipping and keyboard scrolling.\n---\n\n# ${slug}\n`,
+        },
+      });
+      expect(skillRes.ok()).toBe(true);
+    }
+
+    const syncRes = await page.request.post(`${E2E_BASE_URL}/api/agents/${agent.id}/skills/sync?orgId=${encodeURIComponent(organization.id)}`, {
+      data: {
+        desiredSkills: skillSlugs,
+      },
+    });
+    expect(syncRes.ok()).toBe(true);
+
+    await selectOrganization(page, organization.id);
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/automations`);
+
+    await page.getByTestId("workspace-main-header-actions").getByRole("button", { name: "Create automation" }).click();
+    await page.getByPlaceholder("Automation title").fill("Composer mention menu interaction");
+
+    const assigneePill = page.getByTestId("automation-composer-assignee-pill");
+    await assigneePill.locator(":scope > button").click();
+    await page.getByRole("button", { name: /Mention Builder/ }).click();
+
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await composer.fill("Use $advisor");
+
+    const mentionMenu = page.getByTestId("markdown-mention-menu");
+    await expect(mentionMenu).toBeVisible({ timeout: 15_000 });
+    await expect(mentionMenu).toHaveAttribute("role", "listbox");
+    await expect(mentionMenu).toHaveClass(/scrollbar-auto-hide/);
+
+    const menuBox = await mentionMenu.boundingBox();
+    expect(menuBox).not.toBeNull();
+    expect(menuBox!.width).toBeLessThanOrEqual(540);
+    expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(1440 - 12 + 1);
+
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+
+    const selectedOption = mentionMenu.locator('[aria-selected="true"]');
+    await expect(selectedOption).toContainText("advisor-skill-07");
+    await expect.poll(() => mentionMenu.evaluate((element) => Math.round(element.scrollTop))).toBeGreaterThan(0);
+
+    await page.keyboard.press("Enter");
+    await expect(composer.locator("[data-skill-token='true']")).toContainText("advisor-skill-07");
+
+    await page.screenshot({
+      path: testInfo.outputPath("automations-composer-mention-menu.png"),
       fullPage: true,
     });
   });

@@ -272,9 +272,9 @@ describe("MarkdownEditor", () => {
 
     expect(position).toMatchObject({
       left: 540,
+      width: 520,
       bottom: 84,
       maxHeight: 200,
-      maxWidth: 1256,
     });
     expect("top" in position).toBe(false);
   });
@@ -291,10 +291,10 @@ describe("MarkdownEditor", () => {
     );
 
     expect(position).toMatchObject({
-      left: 1088,
+      left: 748,
+      width: 520,
       top: 222,
       maxHeight: 200,
-      maxWidth: 1256,
     });
     expect("bottom" in position).toBe(false);
   });
@@ -555,6 +555,74 @@ describe("MarkdownEditor", () => {
     await chooseMentionOption("skill:memory");
 
     expect(onChange).toHaveBeenCalledWith("ask [memory](skill://memory) now");
+  });
+
+  it("supports keyboard selection and keeps the active mention option visible", async () => {
+    const restoreCaretRect = stubCaretRect();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      restoreCaretRect();
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="@rud now"
+          onChange={onChange}
+          mentions={[
+            {
+              id: "agent:agent-1",
+              name: "Rudder One",
+              kind: "agent",
+              agentId: "agent-1",
+              searchText: "rudder one rud",
+            },
+            {
+              id: "agent:agent-2",
+              name: "Rudder Two",
+              kind: "agent",
+              agentId: "agent-2",
+              searchText: "rudder two rud",
+            },
+          ]}
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    expect(editable).toBeTruthy();
+    await placeCaretAndOpenMentionMenu(editable!, "@rud".length);
+
+    const menu = document.body.querySelector('[data-testid="markdown-mention-menu"]');
+    expect(menu?.className).toContain("scrollbar-auto-hide");
+    expect(menu?.getAttribute("role")).toBe("listbox");
+
+    await act(async () => {
+      editable!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    });
+
+    const secondOption = document.body.querySelector('[data-testid="markdown-mention-option-agent:agent-2"]');
+    expect(secondOption?.getAttribute("aria-selected")).toBe("true");
+    expect(menu?.getAttribute("aria-activedescendant")).toBe("markdown-mention-option-agent:agent-2");
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    await act(async () => {
+      editable!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+
+    expect(onChange).toHaveBeenCalledWith("[Rudder Two](agent://agent-2) now");
   });
 
   it("keeps skill options out of @ mention results", async () => {

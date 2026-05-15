@@ -70,6 +70,7 @@ import {
   type AtomicInlineTokenElement,
 } from "../lib/inline-token-dom";
 import { $createSkillTokenNode, skillTokenPlugin } from "../lib/skill-token-node";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { cn } from "../lib/utils";
 
 /* ---- Mention types ---- */
@@ -330,6 +331,7 @@ interface MentionState {
 }
 
 const MENTION_MENU_MIN_WIDTH = 180;
+const MENTION_MENU_DEFAULT_WIDTH = 520;
 const MENTION_MENU_MAX_HEIGHT = 200;
 const MENTION_PANEL_MAX_HEIGHT = 360;
 const MENTION_MENU_VIEWPORT_PADDING = 12;
@@ -479,10 +481,11 @@ export function getMentionMenuPositionForViewport(
   viewportWidth: number,
   viewportHeight: number,
 ) {
-  const maxWidth = Math.max(
+  const availableWidth = Math.max(
     MENTION_MENU_MIN_WIDTH,
     viewportWidth - MENTION_MENU_VIEWPORT_PADDING * 2,
   );
+  const width = Math.min(MENTION_MENU_DEFAULT_WIDTH, availableWidth);
   const availableBelow = Math.max(
     0,
     viewportHeight - state.viewportBottom - MENTION_MENU_VIEWPORT_PADDING - MENTION_MENU_OFFSET,
@@ -502,23 +505,23 @@ export function getMentionMenuPositionForViewport(
   const left = clamp(
     state.viewportLeft,
     MENTION_MENU_VIEWPORT_PADDING,
-    viewportWidth - MENTION_MENU_VIEWPORT_PADDING - MENTION_MENU_MIN_WIDTH,
+    viewportWidth - MENTION_MENU_VIEWPORT_PADDING - width,
   );
 
   if (openUpward) {
     return {
       left,
+      width,
       bottom: viewportHeight - state.viewportTop + MENTION_MENU_OFFSET,
       maxHeight,
-      maxWidth,
     } as const;
   }
 
   return {
     left,
+    width,
     top: state.viewportBottom + MENTION_MENU_OFFSET,
     maxHeight,
-    maxWidth,
   } as const;
 }
 
@@ -810,6 +813,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   } | null>(null);
   const pendingMentionInputClearTimerRef = useRef<number | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionMenuElementRef = useRef<HTMLDivElement | null>(null);
+  const mentionMenuScrollbarRef = useScrollbarActivityRef();
+  const setMentionMenuElement = useCallback((element: HTMLDivElement | null) => {
+    mentionMenuElementRef.current = element;
+    mentionMenuScrollbarRef(element);
+  }, [mentionMenuScrollbarRef]);
   const mentionActive = mentionState !== null && mentions && mentions.length > 0;
   const mentionOptionByKey = useMemo(() => {
     const map = new Map<string, MentionOption>();
@@ -874,6 +883,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     }
     return groups;
   }, [filteredMentions]);
+
+  useEffect(() => {
+    if (!mentionActive || filteredMentions.length === 0) return;
+    const menu = mentionMenuElementRef.current;
+    if (!menu) return;
+    const option = menu.querySelector(`[data-mention-option-index="${mentionIndex}"]`);
+    if (!(option instanceof HTMLElement)) return;
+    if (typeof option.scrollIntoView !== "function") return;
+    option.scrollIntoView({ block: "nearest" });
+  }, [filteredMentions.length, mentionActive, mentionIndex]);
 
   const focusEditorAtEnd = useCallback(() => {
     ref.current?.focus(undefined, { defaultSelection: "rootEnd" });
@@ -1503,12 +1522,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       {mentionActive && filteredMentions.length > 0 && mentionMenuPosition && typeof document !== "undefined"
         ? createPortal(
             <div
+              ref={setMentionMenuElement}
               data-testid="markdown-mention-menu"
-              role={mentionMenuPlacement === "container" ? "menu" : undefined}
+              role={mentionMenuPlacement === "container" ? "menu" : "listbox"}
+              aria-activedescendant={`markdown-mention-option-${filteredMentions[mentionIndex]?.id ?? ""}`}
               className={cn(
                 mentionMenuPlacement === "container"
-                  ? "chat-composer-context-menu motion-chat-composer-menu-pop surface-overlay fixed z-50 overflow-y-auto rounded-[var(--radius-lg)] border p-1.5 text-foreground"
-                  : "fixed z-50 min-w-[180px] overflow-y-auto rounded-md border border-border bg-popover shadow-md",
+                  ? "chat-composer-context-menu motion-chat-composer-menu-pop surface-overlay scrollbar-auto-hide fixed z-50 overflow-y-auto overscroll-contain rounded-[var(--radius-lg)] border p-1.5 text-foreground"
+                  : "scrollbar-auto-hide fixed z-50 min-w-[180px] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover shadow-md",
               )}
               style={mentionMenuPosition}
             >
@@ -1530,10 +1551,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                       return (
                         <button
                           key={option.id}
+                          id={`markdown-mention-option-${option.id}`}
                           type="button"
                           data-testid={`markdown-mention-option-${option.id}`}
+                          data-mention-option-index={i}
                           data-chat-composer-menu-item={isContainerMenu ? true : undefined}
-                          role={isContainerMenu ? "menuitem" : undefined}
+                          role={isContainerMenu ? "menuitem" : "option"}
+                          aria-selected={isContainerMenu ? undefined : i === mentionIndex}
                           className={cn(
                             isContainerMenu
                               ? "chat-composer-menu-row"
