@@ -8,6 +8,7 @@ import { ThreeColumnContextSidebar } from "./ThreeColumnContextSidebar";
 import { WorkspaceBackupFilesSidebar } from "./WorkspaceBackupFilesSidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { CommandPalette } from "./CommandPalette";
+import { hasCompletedProductTour, hasPendingProductTour } from "./ProductTourOverlay";
 import { NewIssueDialog } from "./NewIssueDialog";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { NewGoalDialog } from "./NewGoalDialog";
@@ -215,7 +216,13 @@ export function Layout() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar();
-  const { openNewIssue, openOnboarding } = useDialog();
+  const {
+    openNewIssue,
+    openOnboarding,
+    onboardingOpen,
+    productTourOpen,
+    openProductTour,
+  } = useDialog();
   const { togglePanelVisible } = usePanel();
   const {
     organizations,
@@ -269,6 +276,7 @@ export function Layout() {
   );
   const isSettingsRoute = isInstanceSettingsRoute || isOrganizationSettingsRoute;
   const onboardingTriggered = useRef(false);
+  const productTourTriggered = useRef(false);
   const lastMainScrollTop = useRef(0);
   const [mobileNavVisible, setMobileNavVisible] = useState(true);
   const [contextColumnWidth, setContextColumnWidth] = useState<number>(() =>
@@ -338,6 +346,24 @@ export function Layout() {
       openOnboarding();
     }
   }, [organizations, organizationsLoading, openOnboarding, health?.deploymentMode]);
+
+  useEffect(() => {
+    if (productTourTriggered.current || productTourOpen || onboardingOpen) return;
+    if (organizationsLoading || organizations.length === 0) return;
+    if (isSettingsRoute || relativeBoardPath === "/onboarding") return;
+    if (hasCompletedProductTour() || !hasPendingProductTour()) return;
+
+    productTourTriggered.current = true;
+    openProductTour({ source: "auto" });
+  }, [
+    isSettingsRoute,
+    onboardingOpen,
+    openProductTour,
+    organizations.length,
+    organizationsLoading,
+    productTourOpen,
+    relativeBoardPath,
+  ]);
 
   useEffect(() => {
     if (!orgPrefix || organizationsLoading || organizations.length === 0) return;
@@ -822,6 +848,7 @@ export function Layout() {
                     ) : null}
                     <div
                       data-testid="workspace-main-card"
+                      data-tour-target="workspace-main"
                       className="workspace-main-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[5px]"
                     >
                       <div data-testid="workspace-main-header" className="shrink-0">
@@ -851,6 +878,7 @@ export function Layout() {
                 ) : (
                   <main
                     id="main-content"
+                    data-tour-target="workspace-main"
                     tabIndex={-1}
                     ref={mainScrollRef}
                     className={cn(

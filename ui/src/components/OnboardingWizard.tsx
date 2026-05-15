@@ -45,6 +45,7 @@ import {
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@rudderhq/agent-runtime-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@rudderhq/agent-runtime-gemini-local";
 import { resolveRouteOnboardingOptions } from "../lib/onboarding-route";
+import { markProductTourPending } from "./ProductTourOverlay";
 import { AsciiArtAnimation } from "./AsciiArtAnimation";
 import { OpenCodeLogoIcon } from "./OpenCodeLogoIcon";
 import {
@@ -811,6 +812,7 @@ export function OnboardingWizard() {
           );
         }
         setSelectedOrganizationId(createdCompanyId);
+        markProductTourPending();
         reset();
         closeOnboarding();
         navigate(
@@ -949,6 +951,7 @@ export function OnboardingWizard() {
         );
       }
       setSelectedOrganizationId(createdCompanyId);
+      markProductTourPending();
       reset();
       closeOnboarding();
       navigate(

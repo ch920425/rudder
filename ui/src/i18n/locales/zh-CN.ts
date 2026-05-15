@@ -469,6 +469,12 @@ export const zhCN: Messages = {
   "profile.toastSaved.title": "个人资料已保存",
   "profile.toastSaved.body": "你的操作员资料已更新。",
   "profile.toastSaveFailed.title": "保存个人资料失败",
+  "profile.productTour.title": "产品教程",
+  "profile.productTour.description": "重新播放 Rudder 工作台控件的简短遮罩教程。",
+  "profile.productTour.cardTitle": "Rudder 工作台导览",
+  "profile.productTour.cardDescription":
+    "依次展示主导航、任务创建、issue 跟踪、工作检查，以及以后从哪里重新进入教程。",
+  "profile.productTour.start": "开始教程",
   "profile.about.title": "关于你",
   "profile.about.description":
     "这里沿用类似 ChatGPT 的轻量个人上下文结构：一个偏好的称呼，加上一些可选的工作背景信息。",
@@ -488,6 +494,32 @@ export const zhCN: Messages = {
   "profile.import.copyFailed.body": "请手动选中提示词文本并复制。",
   "profile.save": "保存资料",
   "profile.saving": "保存中...",
+  "productTour.checklist.title": "完成首次工作闭环",
+  "productTour.checklist.workspace": "读懂控制台",
+  "productTour.checklist.create": "创建小任务",
+  "productTour.checklist.issues": "跟踪 issue 状态",
+  "productTour.checklist.inspect": "检查工作输出",
+  "productTour.checklist.settings": "再次找到教程",
+  "productTour.stepCounter": "{{current}} / {{total}}",
+  "productTour.step.workspace.title": "Rudder 是 agent work 的控制台",
+  "productTour.step.workspace.body":
+    "主导航把关键工作面放在一起：Messenger、Dashboard、Issues、Agents、Organization、Automations 和 Calendar。用它在行动、检查和 review 之间切换。",
+  "productTour.step.create.title": "从一个 agent 真能推进的小任务开始",
+  "productTour.step.create.body":
+    "创建菜单是新聊天、issue、agent 和 project 的入口。第一次闭环建议创建边界清楚、结果可 review 的小 issue。",
+  "productTour.step.issues.title": "Issue 是可执行的工作单元",
+  "productTour.step.issues.body":
+    "Issue 页面展示哪些工作在等待、执行、阻塞或完成。这里会把 agent work 从聊天内容变成可跟踪的状态。",
+  "productTour.step.inspect.title": "先检查工作，再审批或继续推进",
+  "productTour.step.inspect.body":
+    "主工作区会展示当前页面、详情、transcript、产出和审批入口。Rudder 应该让你清楚看到发生了什么，以及哪里需要你介入。",
+  "productTour.step.settings.title": "你可以从 Settings 重新播放教程",
+  "productTour.step.settings.body":
+    "第一次导览结束后，Rudder 会保持安静。以后想重新查看时，打开系统设置，再进入个人资料即可再次运行。",
+  "productTour.back": "上一步",
+  "productTour.next": "下一步",
+  "productTour.finish": "完成",
+  "productTour.skip": "跳过教程",
   "heartbeats.title": "心跳",
   "heartbeats.description": "查看所有组织的定时心跳配置。你可以在这里看到哪些已调度、哪些只是已配置，并直接按行启停心跳。",
   "heartbeats.loadLoading": "正在加载调度心跳...",

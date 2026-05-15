@@ -523,6 +523,13 @@ export const en = {
   "profile.toastSaved.title": "Profile saved",
   "profile.toastSaved.body": "Your operator profile has been updated.",
   "profile.toastSaveFailed.title": "Failed to save profile",
+  "profile.productTour.title": "Product tour",
+  "profile.productTour.description":
+    "Replay the short guided tour for the Rudder workspace controls.",
+  "profile.productTour.cardTitle": "Rudder workspace walkthrough",
+  "profile.productTour.cardDescription":
+    "Shows the primary rail, task creation, issue tracking, work inspection, and where to reopen this tour.",
+  "profile.productTour.start": "Start tour",
   "profile.about.title": "About you",
   "profile.about.description":
     "Use the same lightweight profile structure as ChatGPT-style personal context: a preferred nickname plus optional background about how you work.",
@@ -546,6 +553,32 @@ export const en = {
   "profile.import.copyFailed.body": "Select the prompt text and copy it manually.",
   "profile.save": "Save profile",
   "profile.saving": "Saving...",
+  "productTour.checklist.title": "Complete your first work loop",
+  "productTour.checklist.workspace": "Read the control plane",
+  "productTour.checklist.create": "Create a small task",
+  "productTour.checklist.issues": "Track issue state",
+  "productTour.checklist.inspect": "Inspect work output",
+  "productTour.checklist.settings": "Find the tour again",
+  "productTour.stepCounter": "{{current}} / {{total}}",
+  "productTour.step.workspace.title": "Rudder is the control plane for agent work",
+  "productTour.step.workspace.body":
+    "The rail keeps the main work surfaces close: Messenger, Dashboard, Issues, Agents, Organization, Automations, and Calendar. Use it to move between action, inspection, and review.",
+  "productTour.step.create.title": "Start with one task an agent can actually move",
+  "productTour.step.create.body":
+    "The create menu is where new chats, issues, agents, and projects begin. For the first loop, create a small issue with a clear boundary and a result you can review.",
+  "productTour.step.issues.title": "Issues are the executable units of work",
+  "productTour.step.issues.body":
+    "The Issue surface shows what is waiting, active, blocked, or done. This is where agent work becomes trackable instead of staying inside a chat thread.",
+  "productTour.step.inspect.title": "Inspect the work before you approve or continue",
+  "productTour.step.inspect.body":
+    "The main workspace shows the current page, detail views, transcripts, outputs, and approvals. Rudder should make it clear what happened and what needs your intervention.",
+  "productTour.step.settings.title": "You can replay this tour from Settings",
+  "productTour.step.settings.body":
+    "When the first walkthrough is finished, Rudder stays quiet. Open System settings, then Profile, whenever you want to run the tour again.",
+  "productTour.back": "Back",
+  "productTour.next": "Next",
+  "productTour.finish": "Finish",
+  "productTour.skip": "Skip tour",
   "heartbeats.title": "Heartbeats",
   "heartbeats.description":
     "Review timer heartbeat configuration across all organizations. Use this page to see what is scheduled, what is merely configured, and turn row-level heartbeats on or off directly.",

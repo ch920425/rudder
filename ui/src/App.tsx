@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DesktopSettingsModalFrame, Layout } from "./components/Layout";
 import { OnboardingWizard } from "./components/OnboardingWizard";
+import { ProductTourOverlay } from "./components/ProductTourOverlay";
 import { ToastViewport } from "./components/ToastViewport";
 import { DesktopUpdateStatusCard } from "./components/DesktopUpdateStatusCard";
 import { accessApi } from "./api/access";
@@ -584,6 +585,7 @@ export function App() {
         </Routes>
       ) : null}
       <OnboardingWizard />
+      <ProductTourOverlay />
       <ToastViewport />
       <DesktopUpdateStatusCard />
     </>

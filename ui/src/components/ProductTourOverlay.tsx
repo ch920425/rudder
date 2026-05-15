@@ -1,0 +1,309 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Circle, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useDialog } from "@/context/DialogContext";
+import { useI18n } from "@/context/I18nContext";
+import { cn } from "@/lib/utils";
+
+const PRODUCT_TOUR_STORAGE_KEY = "rudder.productTour.completed.v1";
+const PRODUCT_TOUR_PENDING_STORAGE_KEY = "rudder.productTour.pendingAfterSetup.v1";
+
+type ProductTourStep = {
+  id: string;
+  target: string;
+  checklistKey: string;
+  titleKey: Parameters<ReturnType<typeof useI18n>["t"]>[0];
+  bodyKey: Parameters<ReturnType<typeof useI18n>["t"]>[0];
+};
+
+const TOUR_STEPS: ProductTourStep[] = [
+  {
+    id: "workspace",
+    target: "[data-tour-target='primary-rail']",
+    checklistKey: "productTour.checklist.workspace",
+    titleKey: "productTour.step.workspace.title",
+    bodyKey: "productTour.step.workspace.body",
+  },
+  {
+    id: "create",
+    target: "[data-tour-target='create-menu']",
+    checklistKey: "productTour.checklist.create",
+    titleKey: "productTour.step.create.title",
+    bodyKey: "productTour.step.create.body",
+  },
+  {
+    id: "issues",
+    target: "[data-tour-target='issues-nav']",
+    checklistKey: "productTour.checklist.issues",
+    titleKey: "productTour.step.issues.title",
+    bodyKey: "productTour.step.issues.body",
+  },
+  {
+    id: "inspect",
+    target: "[data-tour-target='workspace-main']",
+    checklistKey: "productTour.checklist.inspect",
+    titleKey: "productTour.step.inspect.title",
+    bodyKey: "productTour.step.inspect.body",
+  },
+  {
+    id: "settings",
+    target: "[data-settings-trigger='true']",
+    checklistKey: "productTour.checklist.settings",
+    titleKey: "productTour.step.settings.title",
+    bodyKey: "productTour.step.settings.body",
+  },
+];
+
+type TargetRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export function hasCompletedProductTour() {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(PRODUCT_TOUR_STORAGE_KEY) === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function hasPendingProductTour() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PRODUCT_TOUR_PENDING_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function markProductTourPending() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PRODUCT_TOUR_PENDING_STORAGE_KEY, "true");
+  } catch {
+    // Ignore restricted storage environments.
+  }
+}
+
+function markProductTourComplete() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PRODUCT_TOUR_STORAGE_KEY, "true");
+    window.localStorage.removeItem(PRODUCT_TOUR_PENDING_STORAGE_KEY);
+  } catch {
+    // Ignore restricted storage environments.
+  }
+}
+
+function getViewportFallbackRect(): TargetRect {
+  const width = Math.min(520, Math.max(260, window.innerWidth * 0.48));
+  const height = Math.min(220, Math.max(130, window.innerHeight * 0.26));
+  return {
+    left: Math.round((window.innerWidth - width) / 2),
+    top: Math.round((window.innerHeight - height) / 2),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function resolveTargetRect(selector: string): TargetRect {
+  const target = document.querySelector<HTMLElement>(selector);
+  if (!target) return getViewportFallbackRect();
+  const rect = target.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return getViewportFallbackRect();
+  const padding = 6;
+  return {
+    left: Math.max(8, Math.round(rect.left - padding)),
+    top: Math.max(8, Math.round(rect.top - padding)),
+    width: Math.round(rect.width + padding * 2),
+    height: Math.round(rect.height + padding * 2),
+  };
+}
+
+function getCalloutPosition(rect: TargetRect) {
+  const width = Math.min(360, Math.max(292, window.innerWidth - 32));
+  const gap = 16;
+  const fitsRight = rect.left + rect.width + gap + width <= window.innerWidth - 16;
+  const fitsLeft = rect.left - gap - width >= 16;
+  const left = fitsRight
+    ? rect.left + rect.width + gap
+    : fitsLeft
+      ? rect.left - gap - width
+      : Math.max(16, Math.min(window.innerWidth - width - 16, rect.left));
+  const top = Math.max(16, Math.min(window.innerHeight - 250, rect.top));
+  return {
+    width,
+    left,
+    top,
+  };
+}
+
+export function ProductTourOverlay() {
+  const { t } = useI18n();
+  const { productTourOpen, closeProductTour } = useDialog();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const activeStep = TOUR_STEPS[stepIndex] ?? TOUR_STEPS[0]!;
+  const isLastStep = stepIndex === TOUR_STEPS.length - 1;
+
+  const refreshTarget = useCallback(() => {
+    setTargetRect(resolveTargetRect(activeStep.target));
+  }, [activeStep.target]);
+
+  useEffect(() => {
+    if (!productTourOpen) return;
+    setStepIndex(0);
+  }, [productTourOpen]);
+
+  useEffect(() => {
+    if (!productTourOpen) return;
+    refreshTarget();
+    const raf = window.requestAnimationFrame(refreshTarget);
+    window.addEventListener("resize", refreshTarget);
+    window.addEventListener("scroll", refreshTarget, true);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", refreshTarget);
+      window.removeEventListener("scroll", refreshTarget, true);
+    };
+  }, [productTourOpen, refreshTarget]);
+
+  useEffect(() => {
+    if (!productTourOpen) return;
+    dialogRef.current?.focus();
+  }, [productTourOpen, stepIndex]);
+
+  const calloutPosition = useMemo(
+    () => (targetRect ? getCalloutPosition(targetRect) : null),
+    [targetRect],
+  );
+
+  const dismiss = useCallback(() => {
+    markProductTourComplete();
+    closeProductTour();
+  }, [closeProductTour]);
+
+  if (!productTourOpen || !targetRect || !calloutPosition) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-tour-title"
+      tabIndex={-1}
+      className="fixed inset-0 z-[90] outline-none"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          dismiss();
+        }
+      }}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed rounded-[10px] border-2 border-[color:color-mix(in_oklab,var(--accent-base)_72%,white)] shadow-[0_0_0_9999px_rgb(18_17_15/0.68),0_0_0_5px_color-mix(in_oklab,var(--accent-base)_18%,transparent)]"
+        style={{
+          left: targetRect.left,
+          top: targetRect.top,
+          width: targetRect.width,
+          height: targetRect.height,
+        }}
+      />
+
+      <aside className="fixed left-5 top-5 hidden w-[220px] rounded-[var(--radius-md)] border border-[color:color-mix(in_oklab,var(--border-strong)_72%,transparent)] bg-popover/98 p-3 text-popover-foreground shadow-[var(--shadow-lg)] backdrop-blur md:block">
+        <div className="mb-2 text-[13px] font-semibold text-foreground">{t("productTour.checklist.title")}</div>
+        <div className="space-y-0.5">
+          {TOUR_STEPS.map((step, index) => (
+            <div
+              key={step.id}
+              className={cn(
+                "grid min-h-8 grid-cols-[18px_minmax(0,1fr)] items-center gap-2 border-t border-[color:color-mix(in_oklab,var(--border-soft)_76%,transparent)] py-1.5 text-[12px]",
+                index === 0 && "border-t-0",
+                index === stepIndex ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {index < stepIndex ? (
+                <Check className="h-3.5 w-3.5 rounded-full bg-[color:var(--accent-base)] p-0.5 text-primary-foreground" />
+              ) : (
+                <Circle className={cn("h-3.5 w-3.5", index === stepIndex && "text-[color:var(--accent-strong)]")} />
+              )}
+              <span>{t(step.checklistKey as ProductTourStep["titleKey"])}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <section
+        className="fixed rounded-[var(--radius-md)] border border-[color:color-mix(in_oklab,var(--border-strong)_74%,transparent)] bg-popover/98 p-3.5 text-popover-foreground shadow-[var(--shadow-lg)] backdrop-blur"
+        style={{
+          left: calloutPosition.left,
+          top: calloutPosition.top,
+          width: calloutPosition.width,
+        }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-1 text-[11px] text-muted-foreground">
+              {t("productTour.stepCounter", { current: stepIndex + 1, total: TOUR_STEPS.length })}
+            </div>
+            <h2 id="product-tour-title" className="text-[15px] font-semibold leading-5 text-foreground">
+              {t(activeStep.titleKey)}
+            </h2>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="-mr-1 -mt-1 text-muted-foreground"
+            onClick={dismiss}
+            aria-label={t("productTour.skip")}
+            title={t("productTour.skip")}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">{t(activeStep.bodyKey)}</p>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={stepIndex === 0}
+            onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            {t("productTour.back")}
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={dismiss}>
+              {t("productTour.skip")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8"
+              onClick={() => {
+                if (isLastStep) {
+                  dismiss();
+                  return;
+                }
+                setStepIndex((current) => Math.min(TOUR_STEPS.length - 1, current + 1));
+              }}
+            >
+              {isLastStep ? t("productTour.finish") : t("productTour.next")}
+              {isLastStep ? <Check className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

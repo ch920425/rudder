@@ -81,6 +81,7 @@ function RailNavItem({
   to,
   label,
   icon: Icon,
+  tourTarget,
   badge,
   badgeTone = "default",
   badgeTestId,
@@ -90,6 +91,7 @@ function RailNavItem({
   to: string;
   label: string;
   icon: typeof Inbox;
+  tourTarget?: string;
   badge?: number;
   badgeTone?: "default" | "danger";
   badgeTestId?: string;
@@ -100,6 +102,7 @@ function RailNavItem({
     <NavLink
       to={to}
       aria-current={active ? "page" : undefined}
+      data-tour-target={tourTarget}
       onDoubleClick={onDoubleClick}
       className={({ isActive }) =>
         cn(
@@ -312,6 +315,7 @@ export function PrimaryRail({
   return (
     <aside
       data-testid="primary-rail"
+      data-tour-target="primary-rail"
       className={cn(
         "my-2 flex h-[calc(100%-1rem)] shrink-0 flex-col items-center py-1.5 text-[color:color-mix(in_oklab,var(--foreground)_78%,white)]",
         isDesktopShell ? "ml-3 mr-1 w-[40px]" : "ml-2 mr-3 px-5 w-[50px]",
@@ -337,6 +341,7 @@ export function PrimaryRail({
               variant="ghost"
               size="icon-sm"
               className={railUtilityButtonClass}
+              data-tour-target="create-menu"
               title={t("common.create")}
               aria-label={t("common.create")}
             >
@@ -387,6 +392,7 @@ export function PrimaryRail({
             to={item.to}
             label={item.label}
             icon={item.icon}
+            tourTarget={item.key === "issues" ? "issues-nav" : undefined}
             badge={item.badge}
             badgeTone={item.badgeTone}
             badgeTestId={item.badgeTestId}
