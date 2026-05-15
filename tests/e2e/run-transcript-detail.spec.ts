@@ -248,6 +248,74 @@ test.describe("Run transcript detail", () => {
     });
   });
 
+  test("only promotes stderr excerpts for failure-status run detail pages", async ({ page }) => {
+    const organization = await createOrganization(page, `Run-Detail-Stderr-Status-${Date.now()}`);
+
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Stderr Status Tester",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+          command: E2E_CODEX_STUB,
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json() as { id: string };
+
+    const timedOutRunId = randomUUID();
+    const succeededRunId = randomUUID();
+    const stderrExcerpt = "WARN rmcp::transport::worker: worker quit with fatal transport channel closed";
+    await e2eDb.insert(heartbeatRuns).values([
+      {
+        id: timedOutRunId,
+        orgId: organization.id,
+        agentId: agent.id,
+        invocationSource: "scheduled",
+        triggerDetail: "Scheduled heartbeat",
+        status: "timed_out",
+        startedAt: new Date("2026-05-14T09:33:42.000Z"),
+        finishedAt: new Date("2026-05-14T09:34:42.000Z"),
+        error: "Runtime timed out",
+        errorCode: "runtime_timed_out",
+        stderrExcerpt,
+        createdAt: new Date("2026-05-14T09:33:42.000Z"),
+        updatedAt: new Date("2026-05-14T09:34:42.000Z"),
+      },
+      {
+        id: succeededRunId,
+        orgId: organization.id,
+        agentId: agent.id,
+        invocationSource: "scheduled",
+        triggerDetail: "Scheduled heartbeat",
+        status: "succeeded",
+        startedAt: new Date("2026-05-14T10:33:42.000Z"),
+        finishedAt: new Date("2026-05-14T10:33:43.000Z"),
+        error: null,
+        errorCode: null,
+        stderrExcerpt,
+        createdAt: new Date("2026-05-14T10:33:42.000Z"),
+        updatedAt: new Date("2026-05-14T10:33:43.000Z"),
+      },
+    ]);
+
+    await page.addInitScript((orgId: string) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/agents/${agent.id}/runs/${timedOutRunId}`, { waitUntil: "domcontentloaded" });
+    const timedOutDetailPane = page.getByTestId("agent-runs-detail-pane");
+    await expect(timedOutDetailPane.getByTestId("run-summary-card").getByText("timed out", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(timedOutDetailPane.getByTestId("run-stderr-excerpt")).toBeVisible();
+
+    await page.goto(`/agents/${agent.id}/runs/${succeededRunId}`, { waitUntil: "domcontentloaded" });
+    const succeededDetailPane = page.getByTestId("agent-runs-detail-pane");
+    await expect(succeededDetailPane.getByTestId("run-summary-card").getByText("succeeded", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(succeededDetailPane.getByTestId("run-stderr-excerpt")).toHaveCount(0);
+  });
+
   test("copies the full run id from the runs list without navigating away", async ({ page, baseURL }) => {
     const organization = await createOrganization(page, `Run-Copy-${Date.now()}`);
 
