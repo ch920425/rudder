@@ -139,6 +139,13 @@ Rudder business data lives under the shared Rudder home:
 
 Electron `userData` now stores only desktop-shell preferences such as window state. It is not the source of truth for Rudder config, database, or storage.
 
+Published CLI and Desktop starts install the server runtime into a versioned
+cache under `~/.rudder/runtimes/<version>`. Rudder automatically prunes old
+runtime cache entries after runtime preparation while protecting the requested
+version, a recent previous version, the latest stable/canary entries, and
+versions referenced by live local-runtime descriptors. This cache is
+reconstructable from npm and is separate from instance data.
+
 ## Runtime coordination
 
 Desktop does not blindly start a second local server for the same instance.

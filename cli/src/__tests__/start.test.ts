@@ -49,6 +49,8 @@ import {
 } from "../commands/start.js";
 import {
   ensureRuntimeInstalled,
+  pruneRuntimeCache,
+  readRuntimeInstallMetadata,
   resolveRuntimeCacheDir,
   RUNTIME_METADATA_FILE,
   type RuntimeInstallError,
@@ -63,6 +65,35 @@ const npmInstallSpawnOptions = {
   stdio: ["inherit", "pipe", "pipe"],
   ...(process.platform === "win32" ? { shell: true, windowsHide: true } : {}),
 };
+
+async function writeRuntimeCacheEntry(
+  homeDir: string,
+  version: string,
+  options: { installedAt: string; lastUsedAt?: string; payload?: string } = { installedAt: "2026-01-01T00:00:00.000Z" },
+): Promise<string> {
+  const cacheDir = resolveRuntimeCacheDir(version, homeDir);
+  const packageDir = path.join(cacheDir, "node_modules", "@rudderhq", "server");
+  await mkdir(packageDir, { recursive: true });
+  await writeFile(path.join(cacheDir, "package.json"), JSON.stringify({ private: true }), "utf8");
+  await writeFile(
+    path.join(cacheDir, RUNTIME_METADATA_FILE),
+    JSON.stringify({
+      version: 1,
+      packageName: "@rudderhq/server",
+      packageVersion: version,
+      installedAt: options.installedAt,
+      ...(options.lastUsedAt ? { lastUsedAt: options.lastUsedAt } : {}),
+    }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(packageDir, "package.json"),
+    JSON.stringify({ name: "@rudderhq/server", version }),
+    "utf8",
+  );
+  await writeFile(path.join(cacheDir, "payload.txt"), options.payload ?? version, "utf8");
+  return cacheDir;
+}
 
 function responseFromChunks(chunks: string[], headers: Record<string, string> = {}): Response {
   return {
@@ -884,6 +915,10 @@ describe("runtime install helpers", () => {
         packageSpec: "@rudderhq/server@1.2.3",
       });
       expect(spawnSyncImpl).not.toHaveBeenCalled();
+      await expect(readRuntimeInstallMetadata(cacheDir)).resolves.toMatchObject({
+        packageVersion: "1.2.3",
+        lastUsedAt: expect.any(String),
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -901,6 +936,144 @@ describe("runtime install helpers", () => {
         output: "registry unavailable",
         command: expect.stringContaining("npm install --prefix"),
       } satisfies Partial<RuntimeInstallError>);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("prunes older canary runtime caches while retaining current, latest stable, and previous entries", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-runtime-prune-test."));
+    try {
+      const canary1 = await writeRuntimeCacheEntry(root, "1.0.0-canary.1", {
+        installedAt: "2026-01-01T00:00:00.000Z",
+        lastUsedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const canary2 = await writeRuntimeCacheEntry(root, "1.0.0-canary.2", {
+        installedAt: "2026-01-02T00:00:00.000Z",
+        lastUsedAt: "2026-01-02T00:00:00.000Z",
+      });
+      const previousCanary = await writeRuntimeCacheEntry(root, "1.0.0-canary.3", {
+        installedAt: "2026-01-03T00:00:00.000Z",
+        lastUsedAt: "2026-01-03T00:00:00.000Z",
+      });
+      const stable = await writeRuntimeCacheEntry(root, "1.0.0", {
+        installedAt: "2026-01-04T00:00:00.000Z",
+        lastUsedAt: "2026-01-04T00:00:00.000Z",
+      });
+      const current = await writeRuntimeCacheEntry(root, "1.0.1-canary.1", {
+        installedAt: "2026-01-05T00:00:00.000Z",
+        lastUsedAt: "2026-01-05T00:00:00.000Z",
+      });
+
+      const result = await pruneRuntimeCache({
+        homeDir: root,
+        requestedVersion: "1.0.1-canary.1",
+        now: new Date("2026-01-06T00:00:00.000Z"),
+        maxEntries: 3,
+        maxAgeMs: 365 * 24 * 60 * 60 * 1000,
+        maxTotalBytes: Number.POSITIVE_INFINITY,
+        keepPreviousEntries: 1,
+      });
+
+      expect(result.deleted.map((entry) => entry.packageVersion).sort()).toEqual([
+        "1.0.0-canary.1",
+        "1.0.0-canary.2",
+      ]);
+      await expect(access(canary1)).rejects.toThrow();
+      await expect(access(canary2)).rejects.toThrow();
+      await expect(access(previousCanary)).resolves.toBeUndefined();
+      await expect(access(stable)).resolves.toBeUndefined();
+      await expect(access(current)).resolves.toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("protects runtime versions referenced by live instance descriptors", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-runtime-active-test."));
+    try {
+      const active = await writeRuntimeCacheEntry(root, "0.9.0", {
+        installedAt: "2026-01-01T00:00:00.000Z",
+        lastUsedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const stale = await writeRuntimeCacheEntry(root, "1.0.0", {
+        installedAt: "2026-01-02T00:00:00.000Z",
+        lastUsedAt: "2026-01-02T00:00:00.000Z",
+      });
+      const current = await writeRuntimeCacheEntry(root, "1.0.1", {
+        installedAt: "2026-01-03T00:00:00.000Z",
+        lastUsedAt: "2026-01-03T00:00:00.000Z",
+      });
+      const descriptorDir = path.join(root, "instances", "default", "runtime");
+      await mkdir(descriptorDir, { recursive: true });
+      await writeFile(
+        path.join(descriptorDir, "server.json"),
+        JSON.stringify({
+          instanceId: "default",
+          localEnv: "prod_local",
+          pid: process.pid,
+          listenPort: 3100,
+          apiUrl: "http://127.0.0.1:3100",
+          version: "0.9.0",
+          ownerKind: "desktop",
+          startedAt: "2026-01-01T00:00:00.000Z",
+        }),
+        "utf8",
+      );
+
+      const result = await pruneRuntimeCache({
+        homeDir: root,
+        requestedVersion: "1.0.1",
+        now: new Date("2026-01-04T00:00:00.000Z"),
+        maxEntries: 1,
+        maxAgeMs: 0,
+        maxTotalBytes: 1,
+        keepPreviousEntries: 0,
+      });
+
+      expect(result.protectedVersions).toEqual(expect.arrayContaining(["0.9.0", "1.0.1"]));
+      expect(result.deleted.map((entry) => entry.packageVersion)).toContain("1.0.0");
+      await expect(access(active)).resolves.toBeUndefined();
+      await expect(access(stale)).rejects.toThrow();
+      await expect(access(current)).resolves.toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the total size cap to continue deleting unprotected runtime caches", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-runtime-size-test."));
+    try {
+      const oldStable = await writeRuntimeCacheEntry(root, "1.0.0", {
+        installedAt: "2026-01-01T00:00:00.000Z",
+        lastUsedAt: "2026-01-01T00:00:00.000Z",
+        payload: "x".repeat(100),
+      });
+      const middleStable = await writeRuntimeCacheEntry(root, "1.0.1", {
+        installedAt: "2026-01-02T00:00:00.000Z",
+        lastUsedAt: "2026-01-02T00:00:00.000Z",
+        payload: "x".repeat(100),
+      });
+      const current = await writeRuntimeCacheEntry(root, "1.0.2", {
+        installedAt: "2026-01-03T00:00:00.000Z",
+        lastUsedAt: "2026-01-03T00:00:00.000Z",
+        payload: "x".repeat(100),
+      });
+
+      const result = await pruneRuntimeCache({
+        homeDir: root,
+        requestedVersion: "1.0.2",
+        now: new Date("2026-01-04T00:00:00.000Z"),
+        maxEntries: 10,
+        maxAgeMs: 365 * 24 * 60 * 60 * 1000,
+        maxTotalBytes: 1,
+        keepPreviousEntries: 0,
+      });
+
+      expect(result.deleted.map((entry) => entry.packageVersion).sort()).toEqual(["1.0.0", "1.0.1"]);
+      await expect(access(oldStable)).rejects.toThrow();
+      await expect(access(middleStable)).rejects.toThrow();
+      await expect(access(current)).resolves.toBeUndefined();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
