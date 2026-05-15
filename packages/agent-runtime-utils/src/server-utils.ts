@@ -1594,24 +1594,6 @@ async function runCredentialShimAuthCheck(input: {
   });
 }
 
-async function credentialBridgeSatisfied(input: {
-  operatorHome: string;
-  targetHome: string;
-  entries: readonly string[];
-}): Promise<boolean> {
-  for (const entry of input.entries) {
-    const source = path.join(input.operatorHome, entry);
-    const target = path.join(input.targetHome, entry);
-    if (!(await localCliPathExists(source)) || !(await localCliPathExists(target))) continue;
-    const [sourceRealpath, targetRealpath] = await Promise.all([
-      fs.realpath(source).catch(() => null),
-      fs.realpath(target).catch(() => null),
-    ]);
-    if (sourceRealpath && targetRealpath && sourceRealpath === targetRealpath) return true;
-  }
-  return false;
-}
-
 async function shouldPrepareOperatorHomeShim(input: {
   command: LocalCliCredentialShimCommand;
   targetCommand: string;
@@ -1628,13 +1610,6 @@ async function shouldPrepareOperatorHomeShim(input: {
       input.command.credentialEntries.map((entry) => localCliPathExists(path.join(input.operatorHome, entry))),
     );
     if (!hasOperatorCredentialEntry.some(Boolean)) return false;
-    if (await credentialBridgeSatisfied({
-      operatorHome: input.operatorHome,
-      targetHome: input.targetHome,
-      entries: input.command.credentialEntries,
-    })) {
-      return false;
-    }
   }
 
   const managedHomeWorks = await runCredentialShimAuthCheck({
