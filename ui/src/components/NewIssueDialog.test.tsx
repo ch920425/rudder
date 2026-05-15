@@ -3,11 +3,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NewIssueDefaults } from "@/context/DialogContext";
 import { NewIssueDialog } from "./NewIssueDialog";
 
 let capturedMentions: Array<Record<string, unknown>> = [];
 const dialogState = vi.hoisted(() => ({
-  newIssueDefaults: { assigneeAgentId: "agent-1" } as Record<string, string>,
+  newIssueDefaults: { assigneeAgentId: "agent-1" } as NewIssueDefaults,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -318,5 +319,32 @@ describe("NewIssueDialog", () => {
     expect(html).toContain("New sub-issue");
     expect(html).toContain("Create sub-issue");
     expect(html).not.toContain(">New issue<");
+  });
+
+  it("renders parent issue context when parent defaults include an issue snapshot", () => {
+    dialogState.newIssueDefaults = {
+      parentId: "issue-1",
+      parentIssue: {
+        id: "issue-1",
+        identifier: "ZST-123",
+        title: "Implement issue hierarchy",
+      },
+    };
+
+    const html = renderToStaticMarkup(<NewIssueDialog />);
+
+    expect(html).toContain("Parent");
+    expect(html).toContain("ZST-123");
+    expect(html).toContain("Implement issue hierarchy");
+    expect(html).toContain('data-slot="new-issue-parent-context"');
+  });
+
+  it("falls back to the parent id prefix when only parentId is provided", () => {
+    dialogState.newIssueDefaults = { parentId: "12345678-90ab-cdef-1234-567890abcdef" };
+
+    const html = renderToStaticMarkup(<NewIssueDialog />);
+
+    expect(html).toContain("Parent");
+    expect(html).toContain("12345678");
   });
 });

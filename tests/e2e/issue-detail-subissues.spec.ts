@@ -3,6 +3,64 @@ import { expect, test } from "@playwright/test";
 const ORG_NAME = `Issue-Detail-Subissues-${Date.now()}`;
 
 test.describe("Issue detail sub-issues", () => {
+  test("shows parent context in the global new sub-issue dialog from properties add", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `${ORG_NAME}-Parent-Context` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const parentTitle =
+      "Investigate a very long parent issue title that should truncate cleanly in the sub issue modal";
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: parentTitle,
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json();
+    const issueRef = issue.identifier ?? issue.id;
+
+    await page.goto(`/issues/${issueRef}`);
+    await page.getByRole("button", { name: "Properties" }).click();
+
+    const propertiesDialog = page.getByRole("dialog", { name: "Properties" });
+    await expect(propertiesDialog.getByText("Sub-issues", { exact: true })).toBeVisible();
+    await propertiesDialog.getByRole("button", { name: "Add" }).click();
+
+    const newIssueDialog = page.getByRole("dialog").filter({ hasText: "New sub-issue" });
+    await expect(newIssueDialog.getByText("New sub-issue", { exact: true })).toBeVisible();
+    await expect(newIssueDialog.getByText("Parent", { exact: true })).toBeVisible();
+    await expect(newIssueDialog.getByText(issueRef, { exact: true })).toBeVisible();
+    await expect(newIssueDialog.getByText(parentTitle, { exact: true })).toBeVisible();
+    await expect(newIssueDialog.getByRole("button", { name: "Create sub-issue" })).toBeVisible();
+
+    const parentContextLayout = await newIssueDialog.locator('[data-slot="new-issue-parent-context"]').evaluate((node) => {
+      const title = node.querySelector<HTMLElement>(".min-w-0.flex-1.truncate");
+      const identifier = node.querySelector<HTMLElement>(".font-mono");
+
+      return {
+        rowClientWidth: node.clientWidth,
+        rowScrollWidth: node.scrollWidth,
+        identifierWhiteSpace: identifier ? window.getComputedStyle(identifier).whiteSpace : null,
+        titleOverflowX: title ? window.getComputedStyle(title).overflowX : null,
+        titleTextOverflow: title ? window.getComputedStyle(title).textOverflow : null,
+        titleWhiteSpace: title ? window.getComputedStyle(title).whiteSpace : null,
+      };
+    });
+
+    expect(parentContextLayout.rowScrollWidth).toBeLessThanOrEqual(parentContextLayout.rowClientWidth);
+    expect(parentContextLayout.identifierWhiteSpace).toBe("nowrap");
+    expect(parentContextLayout.titleOverflowX).toBe("hidden");
+    expect(parentContextLayout.titleTextOverflow).toBe("ellipsis");
+    expect(parentContextLayout.titleWhiteSpace).toBe("nowrap");
+  });
+
   test("renders sub-issues inline above documents and creates child issues in place", async ({ page }) => {
     await page.goto("/");
 

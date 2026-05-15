@@ -14,6 +14,11 @@ import { Label } from "@/components/ui/label";
 export interface NewIssueDefaults {
   draftId?: string;
   parentId?: string;
+  parentIssue?: {
+    id: string;
+    identifier?: string | null;
+    title?: string | null;
+  };
   status?: string;
   priority?: string;
   projectId?: string;

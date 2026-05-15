@@ -296,6 +296,11 @@ describe("IssueProperties", () => {
 
     expect(openNewIssue).toHaveBeenCalledWith({
       parentId: "issue-1",
+      parentIssue: {
+        id: "issue-1",
+        identifier: "RUD-1",
+        title: "Issue with long assignee",
+      },
       projectId: "project-1",
     });
   });

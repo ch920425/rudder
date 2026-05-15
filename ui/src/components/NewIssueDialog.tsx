@@ -69,6 +69,7 @@ import {
   Paperclip,
   X,
   Plus,
+  ListTree,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { extractProviderIdWithFallback } from "../lib/model-utils";
@@ -1039,6 +1040,13 @@ export function NewIssueDialog() {
     createIssue.error instanceof Error ? createIssue.error.message : "Failed to create issue. Try again.";
   const isCreatingOrRedirecting = createIssue.isPending || Boolean(redirectingIssueRef);
   const isSubIssueDraft = Boolean(newIssueDefaults.parentId);
+  const parentIssueSnapshot = newIssueDefaults.parentIssue;
+  const parentIssueRef =
+    parentIssueSnapshot?.identifier?.trim()
+    || parentIssueSnapshot?.id?.slice(0, 8)
+    || newIssueDefaults.parentId?.slice(0, 8)
+    || null;
+  const parentIssueTitle = parentIssueSnapshot?.title?.trim() || null;
   const stagedDocuments = stagedFiles.filter((file) => file.kind === "document");
   const stagedAttachments = stagedFiles.filter((file) => file.kind === "attachment");
 
@@ -1202,6 +1210,23 @@ export function NewIssueDialog() {
             </Button>
           </div>
         </div>
+
+        {isSubIssueDraft ? (
+          <div data-slot="new-issue-parent-context" className="border-b border-border/60 px-4 py-2.5 shrink-0">
+            <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+              <ListTree className="h-3.5 w-3.5 shrink-0" />
+              <span className="shrink-0 font-medium">Parent</span>
+              {parentIssueRef ? (
+                <span className="w-20 shrink-0 truncate whitespace-nowrap rounded-sm border border-border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px] leading-none text-foreground">
+                  {parentIssueRef}
+                </span>
+              ) : null}
+              {parentIssueTitle ? (
+                <span className="min-w-0 flex-1 truncate text-foreground/80">{parentIssueTitle}</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {/* Title */}
         <div className="px-4 pt-4 pb-2 shrink-0">

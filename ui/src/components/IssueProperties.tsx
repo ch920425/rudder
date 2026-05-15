@@ -232,6 +232,11 @@ export function IssueProperties({
   const openSubIssueComposer = () => {
     openNewIssue({
       parentId: issue.id,
+      parentIssue: {
+        id: issue.id,
+        identifier: issue.identifier,
+        title: issue.title,
+      },
       ...(issue.projectId ? { projectId: issue.projectId } : {}),
     });
   };
