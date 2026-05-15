@@ -763,6 +763,7 @@ describe("RunTranscriptView", () => {
     );
 
     expect(html).toContain("Agent memory updated");
+    expect(html).not.toContain(">Updated<");
     expect(html).toContain("Agent updated stable memory instructions.");
     expect(html).toContain("Stable instructions");
     expect(html).toContain("Effective next run");
@@ -791,7 +792,7 @@ describe("RunTranscriptView", () => {
 
     expect(html).toContain("Memory update failed");
     expect(html).toContain("Daily note");
-    expect(html).toContain("Failed");
+    expect(html).not.toContain(">Failed<");
     expect(html).toContain("permission denied");
     expect(html).toContain("$AGENT_HOME/memory/2026-03-12.md");
     expect(html).toContain("Raw event");

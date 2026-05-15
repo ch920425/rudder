@@ -3015,11 +3015,10 @@ function TranscriptMemoryUpdateRow({
   const compact = density === "compact";
   const isError = block.status === "error";
   const title = isError ? "Memory update failed" : "Agent memory updated";
-  const statusLabel = isError ? "Failed" : "Updated";
   const scopeLabel = formatMemoryScopeLabel(block.scope);
   const agentLabel = block.agentName ?? "Agent";
   const expandedState = open ? "expanded" : "collapsed";
-  const ariaLabel = `${title}, ${statusLabel}, ${agentLabel}, ${scopeLabel}, ${expandedState}`;
+  const ariaLabel = `${title}, ${agentLabel}, ${scopeLabel}, ${expandedState}`;
   const paths = block.changes.map((change) => change.path);
   const tags = [agentLabel, scopeLabel, block.effect];
 
@@ -3060,12 +3059,6 @@ function TranscriptMemoryUpdateRow({
               isError ? "text-red-700 dark:text-red-300" : "text-foreground/80",
             )}>
               {title}
-            </span>
-            <span className={cn(
-              "text-[10px] font-medium",
-              isError ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300",
-            )}>
-              {statusLabel}
             </span>
             <span className="hidden text-[10px] font-medium tabular-nums text-muted-foreground sm:inline">
               {formatTranscriptTimestamp(block.ts)}
