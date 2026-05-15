@@ -415,6 +415,8 @@ export const COMMENT_MENTION_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 {{context.issueDocumentsPrompt}}
 
 **Comment:**
+From: {{comment.authorLabel}} ({{comment.authorKind}})
+
 {{comment.body}}
 
 Please review the comment above and respond or take action as appropriate.`;
@@ -435,6 +437,8 @@ export const ISSUE_COMMENTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 {{context.issueDocumentsPrompt}}
 
 **Latest Comment:**
+From: {{comment.authorLabel}} ({{comment.authorKind}})
+
 {{comment.body}}
 
 Review the new comment and continue the issue from the current state. Respond or take action as needed.`;
@@ -455,6 +459,8 @@ export const ISSUE_CHANGES_REQUESTED_PROMPT_TEMPLATE = `You are agent {{agent.id
 {{context.issueDocumentsPrompt}}
 
 **Reviewer Comment:**
+From: {{comment.authorLabel}} ({{comment.authorKind}})
+
 {{comment.body}}
 
 Review the requested changes and continue the issue from the current state. Address the reviewer feedback before handing it back for review.`;
@@ -535,13 +541,13 @@ Before changing the issue, inspect the current issue state and any side effects 
  *   Includes issue title/id/status/priority/description so the agent can start immediately.
  * - comment.mention:
  *   "You were mentioned in a comment ..."
- *   Includes issue summary plus mention comment body so the agent can respond without extra fetches.
+ *   Includes issue summary plus mention comment author/body so the agent can respond without extra fetches.
  * - issue_changes_requested:
  *   "A reviewer requested changes on an issue you own ..."
- *   Includes issue summary plus reviewer comment body so the assignee can act on feedback immediately.
+ *   Includes issue summary plus reviewer attribution/comment body so the assignee can act on feedback immediately.
  * - issue_commented:
  *   "There is a new comment on an issue you own ..."
- *   Includes issue summary plus the newest comment body so the assignee can continue immediately.
+ *   Includes issue summary plus the newest comment author/body so the assignee can continue immediately.
  * - recovery:
  *   "This is a recovery run, not a fresh task ..."
  *   Includes original run id, failure metadata, and a continue-preferred instruction to

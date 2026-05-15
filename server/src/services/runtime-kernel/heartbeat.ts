@@ -25,6 +25,7 @@ import {
   agentTaskSessions,
   agentWakeupRequests,
   activityLog,
+  authUsers,
   heartbeatRunEvents,
   heartbeatRuns,
   issueComments,
@@ -1047,6 +1048,30 @@ function mergeCoalescedContextSnapshot(
   return merged;
 }
 
+function issueCommentAuthorKind(comment: {
+  authorAgentId?: string | null;
+  authorUserId?: string | null;
+}) {
+  if (comment.authorAgentId) return "agent";
+  if (comment.authorUserId) return "user";
+  return "system";
+}
+
+function issueCommentAuthorLabel(comment: {
+  authorAgentId?: string | null;
+  authorUserId?: string | null;
+  authorAgentName?: string | null;
+  authorUserName?: string | null;
+}) {
+  if (comment.authorAgentId) {
+    return comment.authorAgentName?.trim() || `Agent ${comment.authorAgentId.slice(0, 8)}`;
+  }
+  if (comment.authorUserId) {
+    return comment.authorUserName?.trim() || `User ${comment.authorUserId.slice(0, 8)}`;
+  }
+  return "System";
+}
+
 function buildDeferredWakePayload(
   payload: Record<string, unknown> | null,
   contextSnapshot: Record<string, unknown>,
@@ -1100,7 +1125,10 @@ async function hydrateWakeContextSnapshot(
     !!commentId &&
     (
       !readNonEmptyString(commentContext.id) ||
-      !readNonEmptyString(commentContext.body)
+      !readNonEmptyString(commentContext.body) ||
+      !readNonEmptyString(commentContext.authorKind) ||
+      !readNonEmptyString(commentContext.authorLabel) ||
+      !readNonEmptyString(commentContext.createdAt)
     );
 
   if (!needsIssueContext && !needsProjectId && !needsCommentContext) return;
@@ -1145,8 +1173,13 @@ async function hydrateWakeContextSnapshot(
         body: issueComments.body,
         authorAgentId: issueComments.authorAgentId,
         authorUserId: issueComments.authorUserId,
+        authorAgentName: agents.name,
+        authorUserName: authUsers.name,
+        createdAt: issueComments.createdAt,
       })
       .from(issueComments)
+      .leftJoin(agents, eq(issueComments.authorAgentId, agents.id))
+      .leftJoin(authUsers, eq(issueComments.authorUserId, authUsers.id))
       .where(and(...commentConditions))
       .then((rows) => rows[0] ?? null);
 
@@ -1157,6 +1190,9 @@ async function hydrateWakeContextSnapshot(
         body: readNonEmptyString(commentContext.body) ?? commentRow.body,
         authorAgentId: "authorAgentId" in commentContext ? commentContext.authorAgentId : commentRow.authorAgentId,
         authorUserId: "authorUserId" in commentContext ? commentContext.authorUserId : commentRow.authorUserId,
+        authorKind: readNonEmptyString(commentContext.authorKind) ?? issueCommentAuthorKind(commentRow),
+        authorLabel: readNonEmptyString(commentContext.authorLabel) ?? issueCommentAuthorLabel(commentRow),
+        createdAt: readNonEmptyString(commentContext.createdAt) ?? commentRow.createdAt.toISOString(),
       };
     }
   }

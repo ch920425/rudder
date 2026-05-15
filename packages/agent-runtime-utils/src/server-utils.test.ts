@@ -272,6 +272,8 @@ describe("selectPromptTemplate", () => {
       },
       comment: {
         id: "comment-4",
+        authorKind: "agent",
+        authorLabel: "Riley Reviewer",
         body: "Please add coverage for the todo return path.",
       },
     };
@@ -286,8 +288,51 @@ describe("selectPromptTemplate", () => {
 
     expect(rendered).toContain("A reviewer requested changes on an issue you own.");
     expect(rendered).toContain("Fix reviewer feedback");
+    expect(rendered).toContain("From: Riley Reviewer (agent)");
     expect(rendered).toContain("Please add coverage for the todo return path.");
     expect(rendered).not.toContain("You have been assigned to work on an issue.");
+  });
+
+  it("renders comment attribution for assignee and mention wake prompts", () => {
+    const issue = {
+      id: "issue-5",
+      title: "Clarify comment ownership",
+      status: "todo",
+      priority: "medium",
+      description: "Make comment-triggered runs show who commented.",
+    };
+    const comment = {
+      id: "comment-5",
+      authorKind: "user",
+      authorLabel: "Alex Operator",
+      body: "@builder please use the compact interaction pattern.",
+    };
+
+    const assigneePrompt = renderTemplate(
+      selectPromptTemplate(undefined, { wakeReason: "issue_commented", issue, comment }),
+      {
+        agent: { id: "agent-6", name: "Builder" },
+        context: { wakeReason: "issue_commented", issue, comment },
+        issue,
+        comment,
+      },
+    );
+    const mentionPrompt = renderTemplate(
+      selectPromptTemplate(undefined, { wakeReason: "issue_comment_mentioned", issue, comment }),
+      {
+        agent: { id: "agent-7", name: "Mentioned Builder" },
+        context: { wakeReason: "issue_comment_mentioned", issue, comment },
+        issue,
+        comment,
+      },
+    );
+
+    expect(assigneePrompt).toContain("There is a new comment on an issue you own.");
+    expect(assigneePrompt).toContain("From: Alex Operator (user)");
+    expect(assigneePrompt).toContain("@builder please use the compact interaction pattern.");
+    expect(mentionPrompt).toContain("You were mentioned in a comment and your attention is needed.");
+    expect(mentionPrompt).toContain("From: Alex Operator (user)");
+    expect(mentionPrompt).toContain("@builder please use the compact interaction pattern.");
   });
 });
 
