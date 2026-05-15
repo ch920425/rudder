@@ -60,4 +60,66 @@ test.describe("Cost trend chart", () => {
     await expect(chart.getByText("Estimated spend", { exact: true })).toBeVisible();
     await expect(chart.getByText("$5.79")).toBeVisible();
   });
+
+  test("loads month-to-date costs when token aggregates exceed the Postgres int4 range", async ({ page }) => {
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Cost-Overflow-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    const projectRes = await page.request.post(`/api/orgs/${organization.id}/projects`, {
+      data: {
+        name: "large-token-project",
+        status: "in_progress",
+      },
+    });
+    expect(projectRes.ok()).toBe(true);
+    const project = await projectRes.json() as { id: string; name: string };
+
+    const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Large Token Agent",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+        },
+      },
+    });
+    expect(agentRes.ok()).toBe(true);
+    const agent = await agentRes.json() as { id: string };
+
+    for (const costCents of [101, 202, 303]) {
+      const eventRes = await page.request.post(`/api/orgs/${organization.id}/cost-events`, {
+        data: {
+          agentId: agent.id,
+          projectId: project.id,
+          provider: "openai",
+          biller: "openai",
+          billingType: "metered_api",
+          model: "gpt-5.4",
+          inputTokens: 900_000_000,
+          cachedInputTokens: 0,
+          outputTokens: 1_000,
+          costCents,
+          occurredAt: daysAgoUtc(0),
+        },
+      });
+      expect(eventRes.ok()).toBe(true);
+    }
+
+    await page.addInitScript((orgId: string) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/${organization.issuePrefix}/costs`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByText("Internal server error")).toHaveCount(0);
+    await expect(page.getByTestId("cost-trend-chart")).toBeVisible();
+    await expect(page.getByText("2.7B tokens across request-scoped events", { exact: true })).toBeVisible();
+    await expect(page.getByText("large-token-project", { exact: true })).toBeVisible();
+  });
 });

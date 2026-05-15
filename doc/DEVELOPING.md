@@ -244,6 +244,14 @@ an explicit override.
 Playwright E2E runs also isolate themselves under `CODEX_THREAD_ID` when Codex provides it. For manual
 parallel E2E runs, set `RUDDER_E2E_RUN_ID=<unique-name>` to get a distinct home directory and port pair.
 
+E2E tests should prove that the workflow survives realistic operating conditions, not only that the
+smallest happy-path fixture renders. When a workflow depends on database aggregation, date ranges,
+organization boundaries, permission checks, persisted state, async runtime state, or external process
+results, include representative corner cases in the E2E suite. If a production failure was caused by
+scale, boundary values, or a partial dependency failure, add a production-shaped regression case for
+that failure mode. Use lower-level tests only when the E2E version would be too expensive or
+impossible, and document that tradeoff in the hand-off.
+
 Useful variants:
 
 ```sh

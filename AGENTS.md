@@ -174,6 +174,10 @@ New plan docs should start with the standard YAML frontmatter described in `doc/
 Any shipped feature or user-visible workflow change must add or update automated E2E coverage for the path being introduced or changed.
 If no suitable E2E suite exists yet for that area, create it as part of the feature work.
 Do not treat unit, integration, or smoke coverage as a substitute unless the user explicitly approves that exception.
+E2E coverage must exercise the real user-visible workflow plus the highest-risk corner cases for that workflow.
+Do not stop at a happy-path fixture when the behavior depends on data volume, date windows, permissions, organization boundaries, persistence, async runtime state, database aggregation, or external-process results.
+Include at least one representative edge case or production-shaped failure mode whenever that is where the implementation is likely to break.
+If a corner case is too expensive or impossible to cover in E2E, document why and add the closest lower-level regression test instead.
 
 ## 6. Database Change Workflow
 
