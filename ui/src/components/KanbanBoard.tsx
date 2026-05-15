@@ -168,6 +168,7 @@ interface KanbanBoardProps {
   displayProperties?: IssueDisplayProperty[];
   sortState?: IssueSortState;
   liveIssueIds?: Set<string>;
+  issueLinkState?: unknown;
   projects?: ProjectOption[];
   onCreateIssue?: (status: string) => void;
   onOpenIssue?: (issue: Issue) => void;
@@ -260,6 +261,7 @@ function KanbanColumn({
   currentUserId,
   displayProperties = DEFAULT_ISSUE_DISPLAY_PROPERTIES,
   liveIssueIds,
+  issueLinkState,
   recentlyDroppedIssueIds,
   projects,
   onCreateIssue,
@@ -271,6 +273,7 @@ function KanbanColumn({
   currentUserId?: string | null;
   displayProperties?: IssueDisplayProperty[];
   liveIssueIds?: Set<string>;
+  issueLinkState?: unknown;
   recentlyDroppedIssueIds?: Set<string>;
   projects?: ProjectOption[];
   onCreateIssue?: (status: string) => void;
@@ -319,6 +322,7 @@ function KanbanColumn({
               currentUserId={currentUserId}
               displayProperties={displayProperties}
               isLive={liveIssueIds?.has(issue.id)}
+              issueLinkState={issueLinkState}
               justDropped={recentlyDroppedIssueIds?.has(issue.id)}
               projects={projects}
               onOpenIssue={onOpenIssue}
@@ -372,6 +376,7 @@ function KanbanCard({
   currentUserId,
   displayProperties = DEFAULT_ISSUE_DISPLAY_PROPERTIES,
   isLive,
+  issueLinkState,
   isOverlay,
   justDropped,
   projects,
@@ -382,6 +387,7 @@ function KanbanCard({
   currentUserId?: string | null;
   displayProperties?: IssueDisplayProperty[];
   isLive?: boolean;
+  issueLinkState?: unknown;
   isOverlay?: boolean;
   justDropped?: boolean;
   projects?: ProjectOption[];
@@ -459,6 +465,7 @@ function KanbanCard({
     >
       <Link
         to={`/issues/${issue.identifier ?? issue.id}`}
+        state={issueLinkState}
         className="block min-w-0 no-underline text-inherit"
         onClick={(e) => {
           if (isDragging) {
@@ -549,6 +556,7 @@ export function KanbanBoard({
   displayProperties,
   sortState,
   liveIssueIds,
+  issueLinkState,
   projects,
   onCreateIssue,
   onOpenIssue,
@@ -731,6 +739,7 @@ export function KanbanBoard({
                 currentUserId={currentUserId}
                 displayProperties={displayProperties}
                 liveIssueIds={liveIssueIds}
+                issueLinkState={issueLinkState}
                 recentlyDroppedIssueIds={recentlyDroppedIssueIds}
                 projects={projects}
                 onCreateIssue={onCreateIssue}

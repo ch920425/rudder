@@ -906,6 +906,7 @@ export function IssuesList({
             displayProperties={viewState.displayProperties}
             sortState={{ sortField: viewState.sortField, sortDir: viewState.sortDir }}
             liveIssueIds={liveIssueIds}
+            issueLinkState={issueLinkState}
             projects={projects}
             onCreateIssue={(status) => openNewIssue({ ...contextNewIssueDefaults, status })}
             onOpenIssue={onOpenIssue}

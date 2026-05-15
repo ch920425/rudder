@@ -19,6 +19,7 @@ import { DevRestartBanner } from "./DevRestartBanner";
 import { useDialog } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
 import { useOrganization } from "../context/OrganizationContext";
+import { NavigationBackProvider } from "../context/NavigationBackContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useOrganizationPageMemory } from "../hooks/useOrganizationPageMemory";
@@ -623,8 +624,12 @@ export function Layout() {
   }, [location, navigationType]);
 
   const navigateBack = useCallback(() => {
-    if (inAppBackStackRef.current.length < 2) return false;
-    navigate(-1);
+    const stack = inAppBackStackRef.current;
+    if (stack.length < 2) return false;
+    const previousPath = stack[stack.length - 2];
+    if (!previousPath) return false;
+    stack.pop();
+    navigate(previousPath);
     return true;
   }, [navigate]);
 
@@ -677,6 +682,7 @@ export function Layout() {
   }, [contextColumnWidth, isMobile, workspaceColumnFamily]);
 
   return (
+    <NavigationBackProvider navigateBack={navigateBack}>
     <div
       className={cn(
         "app-shell-backdrop text-foreground pt-[env(safe-area-inset-top)]",
@@ -910,5 +916,6 @@ export function Layout() {
       <NewAgentDialog />
       </CalendarWorkspaceProvider>
     </div>
+    </NavigationBackProvider>
   );
 }

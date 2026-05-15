@@ -11,6 +11,7 @@ import { authApi } from "../api/auth";
 import { pluginsApi } from "../api/plugins";
 import { organizationSkillsApi } from "../api/organizationSkills";
 import { projectsApi } from "../api/projects";
+import { useNavigationBack } from "../context/NavigationBackContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useToast } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -713,6 +714,12 @@ function shouldHandleDocumentFocusEscape(event: KeyboardEvent) {
   return true;
 }
 
+function hasBrowserBackStackEntry() {
+  if (typeof window === "undefined") return false;
+  const index = (window.history.state as { idx?: unknown } | null)?.idx;
+  return typeof index === "number" && index > 0;
+}
+
 function ActorIdentity({
   evt,
   agentMap,
@@ -876,6 +883,7 @@ export function IssueDetail() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const navigateBack = useNavigationBack();
   const { pushToast } = useToast();
   const operatorDisplayName = useOperatorDisplayName();
   const [headerMoreOpen, setHeaderMoreOpen] = useState(false);
@@ -1572,12 +1580,17 @@ export function IssueDetail() {
       }
       if (!shouldHandleIssueDetailEscape(event)) return;
       event.preventDefault();
+      if (navigateBack?.()) return;
+      if (hasBrowserBackStackEntry()) {
+        navigate(-1);
+        return;
+      }
       navigate(sourceBreadcrumb.href);
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [closeDocumentFocus, documentFocusState, navigate, sourceBreadcrumb.href]);
+  }, [closeDocumentFocus, documentFocusState, navigate, navigateBack, sourceBreadcrumb.href]);
 
   useEffect(() => {
     if (!issue?.id) return;
