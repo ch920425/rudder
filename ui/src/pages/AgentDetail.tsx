@@ -41,6 +41,7 @@ import { retryHeartbeatRun } from "../lib/heartbeat-retry";
 import { queryKeys } from "../lib/queryKeys";
 import { findOrganizationByPrefix } from "../lib/organization-routes";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
+import { shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { PageTabBar } from "../components/PageTabBar";
@@ -4486,7 +4487,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
       )}
 
       {/* stderr excerpt for failed runs */}
-      {run.stderrExcerpt && (
+      {shouldShowRunStderrExcerpt(run) && (
         <div className="space-y-1">
           <span className="text-xs font-medium text-red-600 dark:text-red-400">stderr</span>
           <pre data-testid="run-stderr-excerpt" className="min-w-0 max-w-full bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap break-words">{run.stderrExcerpt}</pre>
