@@ -2273,8 +2273,6 @@ export function IssueDetail() {
                 onUpdate={(data) => updateIssue.mutate(data)}
                 inline
                 childIssues={orderedChildIssues}
-                onCreateSubIssue={(title) => createSubIssue.mutateAsync(title)}
-                isCreatingSubIssue={createSubIssue.isPending}
               />
               <IssueCostSummaryPanel summary={issueCostSummary} />
             </div>
@@ -2303,8 +2301,6 @@ export function IssueDetail() {
               issue={issue}
               onUpdate={(data) => updateIssue.mutate(data)}
               childIssues={orderedChildIssues}
-              onCreateSubIssue={(title) => createSubIssue.mutateAsync(title)}
-              isCreatingSubIssue={createSubIssue.isPending}
             />
           </section>
           <IssueCostSummaryPanel summary={issueCostSummary} />

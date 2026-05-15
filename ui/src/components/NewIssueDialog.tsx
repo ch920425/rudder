@@ -1038,6 +1038,7 @@ export function NewIssueDialog() {
   const createIssueErrorMessage =
     createIssue.error instanceof Error ? createIssue.error.message : "Failed to create issue. Try again.";
   const isCreatingOrRedirecting = createIssue.isPending || Boolean(redirectingIssueRef);
+  const isSubIssueDraft = Boolean(newIssueDefaults.parentId);
   const stagedDocuments = stagedFiles.filter((file) => file.kind === "document");
   const stagedAttachments = stagedFiles.filter((file) => file.kind === "attachment");
 
@@ -1178,7 +1179,7 @@ export function NewIssueDialog() {
               </PopoverContent>
             </Popover>
             <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>New issue</span>
+            <span>{isSubIssueDraft ? "New sub-issue" : "New issue"}</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -1765,7 +1766,7 @@ export function NewIssueDialog() {
               ) : createIssue.isPending ? (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Creating issue...
+                  {isSubIssueDraft ? "Creating sub-issue..." : "Creating issue..."}
                 </span>
               ) : createIssue.isError ? (
                 <span className="text-xs text-destructive">{createIssueErrorMessage}</span>
@@ -1784,7 +1785,15 @@ export function NewIssueDialog() {
                 ) : createIssue.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                <span>{redirectingIssueRef ? "Opening..." : createIssue.isPending ? "Creating..." : "Create Issue"}</span>
+                <span>
+                  {redirectingIssueRef
+                    ? "Opening..."
+                    : createIssue.isPending
+                      ? "Creating..."
+                      : isSubIssueDraft
+                        ? "Create sub-issue"
+                        : "Create Issue"}
+                </span>
               </span>
             </Button>
           </div>

@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { findIssueLabelExactMatch, normalizeIssueLabelName, pickIssueLabelColor } from "@/lib/issue-labels";
 import { Link } from "@/lib/router";
 import type { Agent, Issue } from "@rudderhq/shared";
@@ -7,6 +7,7 @@ import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
+import { useDialog } from "../context/DialogContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { agentTitleBadgeLabel, formatChatAgentLabel } from "../lib/agent-labels";
 import { projectColorBackgroundStyle } from "../lib/project-colors";
@@ -25,14 +26,6 @@ import { formatDate, formatDateTime, cn, projectUrl } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { User, Hexagon, ArrowUpRight, Tag, Plus, AlertTriangle, ListTree } from "lucide-react";
 import { AgentIcon } from "./AgentIconPicker";
 
@@ -56,8 +49,6 @@ interface IssuePropertiesProps {
   onUpdate: (data: Record<string, unknown>) => void;
   inline?: boolean;
   childIssues?: Issue[];
-  onCreateSubIssue?: (title: string) => Promise<unknown> | unknown;
-  isCreatingSubIssue?: boolean;
 }
 
 function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -156,10 +147,9 @@ export function IssueProperties({
   onUpdate,
   inline,
   childIssues,
-  onCreateSubIssue,
-  isCreatingSubIssue = false,
 }: IssuePropertiesProps) {
   const { selectedOrganizationId } = useOrganization();
+  const { openNewIssue } = useDialog();
   const queryClient = useQueryClient();
   const orgId = issue.orgId ?? selectedOrganizationId;
   const [assigneeOpen, setAssigneeOpen] = useState(false);
@@ -170,9 +160,6 @@ export function IssueProperties({
   const [projectSearch, setProjectSearch] = useState("");
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
-  const [subIssueComposerOpen, setSubIssueComposerOpen] = useState(false);
-  const [subIssueTitle, setSubIssueTitle] = useState("");
-  const [subIssueError, setSubIssueError] = useState<string | null>(null);
   const assigneeScrollRef = useScrollbarActivityRef();
   const reviewerScrollRef = useScrollbarActivityRef();
 
@@ -243,15 +230,10 @@ export function IssueProperties({
     : null;
   const visibleChildIssues = useMemo(() => (childIssues ?? []).slice(0, 5), [childIssues]);
   const openSubIssueComposer = () => {
-    if (!onCreateSubIssue || isCreatingSubIssue) return;
-    setSubIssueError(null);
-    setSubIssueComposerOpen(true);
-  };
-  const closeSubIssueComposer = () => {
-    if (isCreatingSubIssue) return;
-    setSubIssueComposerOpen(false);
-    setSubIssueTitle("");
-    setSubIssueError(null);
+    openNewIssue({
+      parentId: issue.id,
+      ...(issue.projectId ? { projectId: issue.projectId } : {}),
+    });
   };
   const projectLink = (id: string | null) => {
     if (!id) return null;
@@ -558,21 +540,6 @@ export function IssueProperties({
     </>
   );
 
-  const submitSubIssue = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const nextTitle = subIssueTitle.trim();
-    if (!nextTitle || !onCreateSubIssue || isCreatingSubIssue) return;
-
-    try {
-      setSubIssueError(null);
-      await onCreateSubIssue(nextTitle);
-      setSubIssueTitle("");
-      setSubIssueComposerOpen(false);
-    } catch (err) {
-      setSubIssueError(err instanceof Error ? err.message : "Failed to create sub-issue");
-    }
-  };
-
   const projectContent = (
     <>
       <input
@@ -631,7 +598,6 @@ export function IssueProperties({
   );
 
   return (
-    <>
     <div className="space-y-4">
       <div className="space-y-1">
         <PropertyRow label="Status">
@@ -735,7 +701,6 @@ export function IssueProperties({
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-accent/50 disabled:pointer-events-none"
                   onClick={openSubIssueComposer}
-                  disabled={!onCreateSubIssue || isCreatingSubIssue}
                   aria-label="Create sub-issue"
                 >
                   <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -743,34 +708,26 @@ export function IssueProperties({
                     {childIssues.length}
                   </span>
                 </button>
-                {onCreateSubIssue ? (
-                  <button
-                    type="button"
-                    className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                    onClick={openSubIssueComposer}
-                    disabled={isCreatingSubIssue}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="ml-auto inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  onClick={openSubIssueComposer}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </button>
               </div>
             </div>
 
             <div className={cn("mt-1.5 min-w-0 space-y-1", inline ? "ml-0" : "ml-[5.75rem]")}>
               {visibleChildIssues.length === 0 ? (
-                onCreateSubIssue ? (
-                  <button
-                    type="button"
-                    className="w-full rounded px-1 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                    onClick={openSubIssueComposer}
-                    disabled={isCreatingSubIssue}
-                  >
-                    No sub-issues.
-                  </button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">No sub-issues.</p>
-                )
+                <button
+                  type="button"
+                  className="w-full rounded px-1 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  onClick={openSubIssueComposer}
+                >
+                  No sub-issues.
+                </button>
               ) : (
                 visibleChildIssues.map((child) => {
                   const childPathId = child.identifier ?? child.id;
@@ -851,63 +808,5 @@ export function IssueProperties({
         </PropertyRow>
       </div>
     </div>
-    {onCreateSubIssue ? (
-      <Dialog
-        open={subIssueComposerOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            openSubIssueComposer();
-          } else {
-            closeSubIssueComposer();
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <form className="space-y-4" onSubmit={submitSubIssue}>
-            <DialogHeader>
-              <DialogTitle className="text-base">Create sub-issue</DialogTitle>
-              <DialogDescription>
-                Add a child issue under {issue.identifier ?? issue.title}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground" htmlFor={`sub-issue-title-${issue.id}`}>
-                Title
-              </label>
-              <input
-                id={`sub-issue-title-${issue.id}`}
-                value={subIssueTitle}
-                onChange={(event) => setSubIssueTitle(event.target.value)}
-                placeholder="Sub-issue title"
-                autoFocus
-                disabled={isCreatingSubIssue}
-                className="h-9 w-full rounded border border-border bg-background px-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ring"
-              />
-              {subIssueError ? (
-                <p className="text-xs text-destructive">{subIssueError}</p>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <button
-                type="button"
-                className="h-8 rounded border border-border px-3 text-xs transition-colors hover:bg-accent/50 disabled:cursor-wait disabled:opacity-60"
-                onClick={closeSubIssueComposer}
-                disabled={isCreatingSubIssue}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="h-8 rounded bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!subIssueTitle.trim() || isCreatingSubIssue}
-              >
-                {isCreatingSubIssue ? "Creating..." : "Create"}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    ) : null}
-    </>
   );
 }

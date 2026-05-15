@@ -10,6 +10,8 @@ import { IssueProperties } from "./IssueProperties";
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+const openNewIssue = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "auth") {
@@ -56,6 +58,12 @@ vi.mock("../context/OrganizationContext", () => ({
   }),
 }));
 
+vi.mock("../context/DialogContext", () => ({
+  useDialog: () => ({
+    openNewIssue,
+  }),
+}));
+
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: import("react").ReactNode }) => (
     <a href={to} {...props}>{children}</a>
@@ -66,6 +74,7 @@ let cleanupFn: (() => void) | null = null;
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  openNewIssue.mockReset();
 });
 
 afterEach(() => {
@@ -244,7 +253,6 @@ describe("IssueProperties", () => {
           issue={parentedIssue}
           onUpdate={vi.fn()}
           childIssues={[childIssue]}
-          onCreateSubIssue={vi.fn()}
         />,
       );
     });
@@ -258,11 +266,10 @@ describe("IssueProperties", () => {
     expect(container.querySelector('a[href="/issues/RUD-2"]')).toBeTruthy();
   });
 
-  it("opens the sub-issue composer in a modal from the properties row", async () => {
+  it("opens the shared new issue dialog with parent defaults from the properties row", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    const createSubIssue = vi.fn().mockResolvedValue(undefined);
 
     cleanupFn = () => {
       act(() => {
@@ -274,10 +281,9 @@ describe("IssueProperties", () => {
     act(() => {
       root.render(
         <IssueProperties
-          issue={baseIssue}
+          issue={{ ...baseIssue, projectId: "project-1" }}
           onUpdate={vi.fn()}
           childIssues={[]}
-          onCreateSubIssue={createSubIssue}
         />,
       );
     });
@@ -288,23 +294,9 @@ describe("IssueProperties", () => {
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(document.body.textContent).toContain("Create sub-issue");
-
-    const input = document.body.querySelector<HTMLInputElement>("#sub-issue-title-issue-1");
-    expect(input).toBeTruthy();
-
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-        input,
-        "Split implementation work",
-      );
-      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(openNewIssue).toHaveBeenCalledWith({
+      parentId: "issue-1",
+      projectId: "project-1",
     });
-
-    await act(async () => {
-      input!.closest("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    });
-
-    expect(createSubIssue).toHaveBeenCalledWith("Split implementation work");
   });
 });

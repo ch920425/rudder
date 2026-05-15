@@ -2,10 +2,13 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NewIssueDialog } from "./NewIssueDialog";
 
 let capturedMentions: Array<Record<string, unknown>> = [];
+const dialogState = vi.hoisted(() => ({
+  newIssueDefaults: { assigneeAgentId: "agent-1" } as Record<string, string>,
+}));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
@@ -109,7 +112,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/context/DialogContext", () => ({
   useDialog: () => ({
     newIssueOpen: true,
-    newIssueDefaults: { assigneeAgentId: "agent-1" },
+    newIssueDefaults: dialogState.newIssueDefaults,
     closeNewIssue: vi.fn(),
   }),
 }));
@@ -248,6 +251,10 @@ vi.mock("../api/assets", () => ({
 }));
 
 describe("NewIssueDialog", () => {
+  beforeEach(() => {
+    dialogState.newIssueDefaults = { assigneeAgentId: "agent-1" };
+  });
+
   it("renders the label picker content in the new issue dialog", () => {
     const html = renderToStaticMarkup(<NewIssueDialog />);
 
@@ -301,5 +308,15 @@ describe("NewIssueDialog", () => {
 
     expect(html).not.toContain("Execution workspace");
     expect(html).not.toContain("Reuse existing workspace");
+  });
+
+  it("labels the shared dialog as a sub-issue composer when parent defaults are present", () => {
+    dialogState.newIssueDefaults = { parentId: "issue-1", projectId: "project-1" };
+
+    const html = renderToStaticMarkup(<NewIssueDialog />);
+
+    expect(html).toContain("New sub-issue");
+    expect(html).toContain("Create sub-issue");
+    expect(html).not.toContain(">New issue<");
   });
 });
