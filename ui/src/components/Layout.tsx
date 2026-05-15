@@ -113,6 +113,12 @@ function getLocationPath(location: { pathname: string; search: string; hash: str
   return `${location.pathname}${location.search}${location.hash}`;
 }
 
+function hasBrowserBackStackEntry() {
+  if (typeof window === "undefined") return false;
+  const index = (window.history.state as { idx?: unknown } | null)?.idx;
+  return typeof index === "number" && index > 0;
+}
+
 export function DesktopSettingsModalFrame({
   children,
   onClose,
@@ -625,7 +631,11 @@ export function Layout() {
 
   const navigateBack = useCallback(() => {
     const stack = inAppBackStackRef.current;
-    if (stack.length < 2) return false;
+    if (stack.length < 2) {
+      if (!hasBrowserBackStackEntry()) return false;
+      navigate(-1);
+      return true;
+    }
     const previousPath = stack[stack.length - 2];
     if (!previousPath) return false;
     stack.pop();

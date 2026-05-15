@@ -43,6 +43,7 @@ import {
   resolveMessengerRoute,
   useMessengerModel,
 } from "@/hooks/useMessenger";
+import { createIssueDetailLocationState } from "@/lib/issueDetailBreadcrumb";
 import { queryKeys } from "@/lib/queryKeys";
 import { toOrganizationRelativePath } from "@/lib/organization-routes";
 import { getRememberedMessengerPath, rememberMessengerPath, resolveRememberedMessengerEntry } from "@/lib/messenger-memory";
@@ -433,6 +434,7 @@ function MessengerIssueCard({
   orgId: string;
 }) {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { pushToast } = useToast();
   const [quickCommentOpen, setQuickCommentOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -447,6 +449,7 @@ function MessengerIssueCard({
   const sourceCommentBadge = sourceCommentBody ? sourceCommentLabel(item) : null;
   const sourceCommentAuthorLabel = item.sourceCommentAuthorLabel?.trim() || null;
   const IssueActivityIcon = sourceCommentBody ? MessageSquare : CircleCheckBig;
+  const sourceHref = toOrganizationRelativePath(`${location.pathname}${location.search}${location.hash}`);
 
   const invalidateIssueViews = async () => {
     await Promise.all([
@@ -502,7 +505,12 @@ function MessengerIssueCard({
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild size="sm" variant="outline">
-                <Link to={issueOpenHref(item)}>Open issue</Link>
+                <Link
+                  to={issueOpenHref(item)}
+                  state={createIssueDetailLocationState("Messenger", sourceHref)}
+                >
+                  Open issue
+                </Link>
               </Button>
               <Button
                 size="sm"
