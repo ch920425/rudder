@@ -113,11 +113,12 @@ test.describe("Automation detail layout", () => {
     expect(patchResponse.ok()).toBe(true);
     await expect(page.getByText("In sync")).toBeVisible({ timeout: 10_000 });
 
-    page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("Delete");
-      await dialog.dismiss();
-    });
     await deleteButton.click();
+    const deleteDialog = page.getByRole("dialog", { name: /Delete/ });
+    await expect(deleteDialog).toBeVisible();
+    await expect(deleteDialog).toContainText("It will be archived and stop new runs.");
+    await deleteDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(deleteDialog).toBeHidden();
 
     const viewport = page.viewportSize();
     const shellBox = await shell.boundingBox();

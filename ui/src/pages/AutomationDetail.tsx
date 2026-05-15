@@ -41,6 +41,7 @@ import { InlineEntitySelector, type InlineEntityOption } from "../components/Inl
 import { MarkdownEditor, type MarkdownEditorRef } from "../components/MarkdownEditor";
 import { ScheduleEditor, describeSchedule } from "../components/ScheduleEditor";
 import { getRecentAssigneeIds, sortAgentsByRecency, trackRecentAssignee } from "../lib/recent-assignees";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { useDialog } from "../context/DialogContext";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -130,11 +131,38 @@ function summarizeTrigger(trigger: Pick<AutomationTrigger, "kind" | "cronExpress
   return trigger.label?.trim() || trigger.kind;
 }
 
+function automationRiskLabel(input: {
+  status: string;
+  triggerCount: number;
+  hasAssignee: boolean;
+  hasLiveRun: boolean;
+  latestRunStatus?: string | null;
+}): string {
+  if (input.status === "archived") return "Archived";
+  if (input.triggerCount === 0) return "No trigger";
+  if (!input.hasAssignee) return "No owner";
+  if (input.latestRunStatus === "failed") return "Last failed";
+  if (input.hasLiveRun) return "Active run";
+  return "Normal";
+}
+
+function automationNextActionLabel(input: {
+  status: string;
+  triggerCount: number;
+  hasLiveRun: boolean;
+}): string {
+  if (input.status === "archived") return "Restore";
+  if (input.triggerCount === 0) return "Add trigger";
+  if (input.status !== "active") return "Enable";
+  if (input.hasLiveRun) return "Monitor run";
+  return "Run now";
+}
+
 function SidebarSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
-      <div className="space-y-3">{children}</div>
+    <section className="space-y-2.5">
+      <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
+      <div className="space-y-2.5">{children}</div>
     </section>
   );
 }
@@ -147,7 +175,7 @@ function SidebarRow({
   children: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3 text-sm">
+    <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <div className="min-w-0 text-right text-foreground">{children}</div>
     </div>
@@ -176,10 +204,10 @@ function OverviewMetaPill({
 }) {
   return (
     <div
-      className={`inline-flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-sm text-foreground ${className ?? ""}`}
+      className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border/60 bg-background/50 px-2 py-1.5 text-xs text-foreground ${className ?? ""}`}
     >
       {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-muted-foreground">{label}</span>
       <span className="truncate">{value}</span>
     </div>
   );
@@ -276,13 +304,13 @@ function TriggerEditor({
   }, [canAutosaveTrigger, draft, isTriggerDirty, onSave, trigger]);
 
   return (
-    <div className="space-y-3 rounded-md border border-border/70 p-3">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-3 border-y border-border/70 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           {trigger.kind === "schedule" ? <Clock3 className="h-3.5 w-3.5" /> : trigger.kind === "webhook" ? <Webhook className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
           {triggerLabel}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Badge variant="outline" className={syncClassName}>
             {syncLabel}
           </Badge>
@@ -315,7 +343,7 @@ function TriggerEditor({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-[minmax(160px,0.45fr)_minmax(0,1fr)]">
         <div className="space-y-1.5">
           <Label className="text-xs">Label</Label>
           <Input
@@ -324,7 +352,7 @@ function TriggerEditor({
           />
         </div>
         {trigger.kind === "schedule" && (
-          <div className="md:col-span-2 space-y-1.5">
+          <div className="space-y-1.5">
             <Label className="text-xs">Schedule</Label>
             <ScheduleEditor
               value={draft.cronExpression}
@@ -407,6 +435,7 @@ export function AutomationDetail() {
   const descriptionEditorRef = useRef<MarkdownEditorRef>(null);
   const assigneeSelectorRef = useRef<HTMLButtonElement | null>(null);
   const projectSelectorRef = useRef<HTMLButtonElement | null>(null);
+  const sidebarScrollRef = useScrollbarActivityRef("rudder:automation-detail-sidebar");
   const copiedSecretResetRef = useRef<number | null>(null);
   const [secretMessage, setSecretMessage] = useState<SecretMessage | null>(null);
   const [copiedSecretField, setCopiedSecretField] = useState<"url" | "secret" | null>(null);
@@ -988,11 +1017,23 @@ export function AutomationDetail() {
   const latestRun = automationRuns?.[0] ?? automation.recentRuns[0] ?? null;
   const activeIssueLabel = automation.activeIssue?.identifier ?? automation.activeIssue?.id.slice(0, 8) ?? null;
   const canCreateTrigger = newTrigger.kind !== "schedule" || newTrigger.cronExpression.trim().length > 0;
+  const riskLabel = automationRiskLabel({
+    status: automation.status,
+    triggerCount: automation.triggers.length,
+    hasAssignee: Boolean(editDraft.assigneeAgentId),
+    hasLiveRun,
+    latestRunStatus: latestRun?.status,
+  });
+  const nextActionLabel = automationNextActionLabel({
+    status: automation.status,
+    triggerCount: automation.triggers.length,
+    hasLiveRun,
+  });
 
   return (
     <div className="pb-8" data-testid="automation-detail-shell">
       {secretMessage && (
-        <div className="relative mb-5 max-w-3xl rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 pr-12 text-sm lg:ml-10 xl:ml-20">
+        <div className="relative mb-4 rounded-md border border-blue-500/30 bg-blue-500/5 p-4 pr-12 text-sm">
           <div className="mb-3">
             <p className="font-medium">{secretMessage.title}</p>
             <p className="text-xs text-muted-foreground">Save this now. Rudder will not show the secret value again.</p>
@@ -1028,12 +1069,12 @@ export function AutomationDetail() {
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-        <main className="min-w-0 space-y-8 pt-4 lg:pl-10 xl:pl-20">
-          <section className="max-w-3xl space-y-4">
+      <div className="grid gap-6 px-4 pt-3 sm:px-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="min-w-0 space-y-6">
+          <section className="max-w-none space-y-3">
             <textarea
               ref={titleInputRef}
-              className="min-h-[40px] w-full resize-none overflow-hidden bg-transparent text-[1.8rem] font-semibold leading-tight outline-none placeholder:text-muted-foreground/50"
+              className="min-h-[34px] w-full resize-none overflow-hidden bg-transparent text-[1.45rem] font-semibold leading-tight outline-none placeholder:text-muted-foreground/50 sm:text-[1.6rem]"
               placeholder="Automation title"
               rows={1}
               value={editDraft.title}
@@ -1064,9 +1105,9 @@ export function AutomationDetail() {
 
             <div
               data-testid="automation-overview-strip"
-              className="grid gap-3 rounded-md border border-border/70 bg-muted/15 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              className="grid gap-3 border-y border-border/60 bg-transparent py-2.5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center"
             >
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className={automationBadgeClassName}>
                   <span className={automationLabelClassName}>{automationLabel}</span>
                 </Badge>
@@ -1085,6 +1126,16 @@ export function AutomationDetail() {
                   value={formatAutomationTimestamp(nextTrigger?.nextRunAt, "-")}
                   icon={<Repeat className="h-3.5 w-3.5" />}
                 />
+                <div className="hidden sm:contents">
+                  <OverviewMetaPill
+                    label="Action"
+                    value={nextActionLabel}
+                  />
+                  <OverviewMetaPill
+                    label="Risk"
+                    value={riskLabel}
+                  />
+                </div>
                 {automation.activeIssue && activeIssueLabel ? (
                   <OverviewMetaPill
                     label="Issue"
@@ -1109,7 +1160,7 @@ export function AutomationDetail() {
                   noneLabel="No assignee"
                   searchPlaceholder="Search assignees..."
                   emptyMessage="No assignees found."
-                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/70 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60"
+                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/60 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60 md:max-w-[260px]"
                   onChange={(assigneeAgentId) => {
                     if (assigneeAgentId) trackRecentAssignee(assigneeAgentId);
                     setEditDraft((current) => ({ ...current, assigneeAgentId }));
@@ -1159,7 +1210,7 @@ export function AutomationDetail() {
                   noneLabel="No project"
                   searchPlaceholder="Search projects..."
                   emptyMessage="No projects found."
-                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/70 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60"
+                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/60 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60 md:max-w-[220px]"
                   onChange={(projectId) => setEditDraft((current) => ({ ...current, projectId }))}
                   onConfirm={() => descriptionEditorRef.current?.focus()}
                   renderTriggerValue={(option) =>
@@ -1202,27 +1253,32 @@ export function AutomationDetail() {
               placeholder="Add instructions..."
               bordered={false}
               className="bg-transparent"
-              contentClassName="min-h-[200px] text-[15px] leading-7 text-foreground/90"
+              contentClassName="min-h-[56px] text-[15px] leading-7 text-foreground/90 md:min-h-[112px]"
             />
           </section>
 
-          <section className="max-w-3xl space-y-4 border-t border-border/70 pt-5">
+          <section className="max-w-none space-y-3 border-t border-border/70 pt-4">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-sm font-medium">Triggers</h2>
             </div>
             <div
               data-testid="automation-add-trigger-card"
-              className="space-y-3 rounded-md border border-border/70 bg-muted/20 p-3"
+              className="space-y-3 rounded-md border border-border/70 bg-background/35 p-3"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                   Add at least one trigger so the automation has a clear way to start work.
                 </p>
                 <Badge variant="outline" className="text-muted-foreground">
                   Triggers autosave after edits
                 </Badge>
+                <div className="sm:hidden">
+                  <Button size="sm" onClick={() => createTrigger.mutate()} disabled={createTrigger.isPending || !canCreateTrigger}>
+                    {createTrigger.isPending ? "Adding..." : "Add trigger"}
+                  </Button>
+                </div>
               </div>
-              <div className="grid gap-3 lg:grid-cols-[150px_minmax(0,1fr)]">
+              <div className="grid gap-3 lg:grid-cols-[150px_minmax(0,1fr)_auto] lg:items-start">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Kind</Label>
                   <Select value={newTrigger.kind} onValueChange={(kind) => setNewTrigger((current) => ({ ...current, kind }))}>
@@ -1269,11 +1325,11 @@ export function AutomationDetail() {
                     </div>
                   </>
                 )}
-              </div>
-              <div className="flex justify-end">
-                <Button size="sm" onClick={() => createTrigger.mutate()} disabled={createTrigger.isPending || !canCreateTrigger}>
-                  {createTrigger.isPending ? "Adding..." : "Add trigger"}
-                </Button>
+                <div className="hidden sm:contents">
+                  <Button className="justify-self-end lg:self-end" size="sm" onClick={() => createTrigger.mutate()} disabled={createTrigger.isPending || !canCreateTrigger}>
+                    {createTrigger.isPending ? "Adding..." : "Add trigger"}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1310,7 +1366,7 @@ export function AutomationDetail() {
             </div>
           </section>
 
-          <section className="max-w-3xl space-y-3 border-t border-border/70 pt-5">
+          <section className="max-w-none space-y-3 border-t border-border/70 pt-4">
             <h2 className="text-sm font-medium">Activity</h2>
             {(activity ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground">No activity yet.</p>
@@ -1349,7 +1405,7 @@ export function AutomationDetail() {
           </section>
         </main>
 
-        <aside className="space-y-8 border-t border-border/70 pt-5 lg:sticky lg:top-24 lg:self-start lg:border-l lg:border-t-0 lg:pl-7 lg:pr-2 lg:pt-8">
+        <aside ref={sidebarScrollRef} className="scrollbar-auto-hide space-y-6 border-t border-border/70 pt-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-5 lg:pr-1 lg:pt-1">
           <SidebarSection title="Run status">
             <SidebarRow label="Next run">
               <span className="truncate">{formatAutomationTimestamp(nextTrigger?.nextRunAt, "-")}</span>
@@ -1359,6 +1415,9 @@ export function AutomationDetail() {
             </SidebarRow>
             <SidebarRow label="Edits">
               <span className={editSyncClassName}>{editSyncLabel}</span>
+            </SidebarRow>
+            <SidebarRow label="Risk">
+              <span className="truncate">{riskLabel}</span>
             </SidebarRow>
             {hasLiveRun ? (
               <SidebarRow label="Run">

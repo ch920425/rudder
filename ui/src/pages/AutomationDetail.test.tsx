@@ -401,6 +401,10 @@ describe("AutomationDetail", () => {
     expect(container.textContent).toContain("Next run");
     expect(container.textContent).toContain("Last ran");
     expect(container.textContent).toContain("In sync");
+    expect(container.textContent).toContain("Action");
+    expect(container.textContent).toContain("Risk");
+    expect(container.textContent).toContain("Monitor run");
+    expect(container.textContent).toContain("Active run");
     expect(container.textContent).toContain("Repeats");
     expect(container.textContent).toContain("Issue");
     expect(container.textContent).not.toContain("Details");
