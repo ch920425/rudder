@@ -9,6 +9,7 @@ import {
   ChatSystemMessageBody,
   INTERRUPTED_CHAT_CONTINUATION_PROMPT,
   ProposalCard,
+  askUserAnswerFromMessage,
   assistantStateLabel,
   buildDraftChatContextLinks,
   canContinueInterruptedChatMessage,
@@ -23,6 +24,7 @@ import {
   isChatProjectSelectionLocked,
   isAskUserMessageAnswered,
   isUserVisibleIncomingChatMessage,
+  parseAskUserAnswerMessage,
   resolveDraftIssueContext,
   scrollChatMessagesToBottom,
   statusChipClassName,
@@ -455,15 +457,49 @@ describe("ask_user chat messages", () => {
 
   it("formats selected and freeform answers as a normal user message", () => {
     const request = askUserPayload.requestUserInput;
-
-    expect(formatAskUserAnswerMessage(request, {
+    const body = formatAskUserAnswerMessage(request, {
       scope: { kind: "freeform", text: "Ship the narrow path, but leave extension points obvious." },
-    })).toBe([
+    });
+
+    expect(body).toBe([
       "Answering the requested input:",
       "",
       "- Scope",
       "  Answer: Ship the narrow path, but leave extension points obvious.",
     ].join("\n"));
+    expect(parseAskUserAnswerMessage(request, body)).toEqual([
+      {
+        questionId: "scope",
+        title: "Scope",
+        answer: "Ship the narrow path, but leave extension points obvious.",
+      },
+    ]);
+  });
+
+  it("matches a structured ask_user answer to the preceding request", () => {
+    const ask = message({
+      id: "ask-1",
+      role: "assistant",
+      kind: "ask_user",
+      body: "Need scope.",
+      structuredPayload: askUserPayload,
+      createdAt: new Date("2026-05-07T00:00:01.000Z"),
+    });
+    const answer = message({
+      id: "answer-1",
+      role: "user",
+      kind: "message",
+      body: "Answering the requested input:\n\n- Scope\n  Answer: Narrow path",
+      createdAt: new Date("2026-05-07T00:00:02.000Z"),
+    });
+
+    expect(askUserAnswerFromMessage(answer, [ask, answer])).toEqual([
+      {
+        questionId: "scope",
+        title: "Scope",
+        answer: "Narrow path",
+      },
+    ]);
   });
 });
 

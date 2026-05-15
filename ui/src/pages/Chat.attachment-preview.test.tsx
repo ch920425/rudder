@@ -474,6 +474,8 @@ describe("Chat ask_user panel", () => {
 
     expect(container.querySelector("[data-testid='chat-ask-user-panel']")).not.toBeNull();
     expect(container.querySelector("[data-testid='chat-composer-toolbar']")).toBeNull();
+    expect(container.textContent).not.toContain("Choose an answer to continue");
+    expect(container.textContent).not.toContain("The assistant is waiting on this decision.");
     expect(container.textContent).not.toContain("You can still type in the composer below.");
 
     mockState.messagesByChatId = {
@@ -490,6 +492,9 @@ describe("Chat ask_user panel", () => {
     rerender();
 
     expect(container.querySelector("[data-testid='chat-ask-user-panel']")).toBeNull();
+    expect(container.querySelector("[data-testid='chat-ask-user-answer']")).not.toBeNull();
+    expect(container.textContent).toContain("Answered");
+    expect(container.textContent).not.toContain("Answering the requested input:");
     expect(container.querySelector("[data-testid='chat-composer-toolbar']")).not.toBeNull();
   });
 });

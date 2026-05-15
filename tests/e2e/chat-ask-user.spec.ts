@@ -98,13 +98,19 @@ test("ask_user focuses the answer panel until the user responds", async ({ page 
 
   const panel = page.getByTestId("chat-ask-user-panel");
   await expect(panel).toBeVisible({ timeout: 15_000 });
-  await expect(panel).toContainText("Choose an answer to continue");
+  await expect(panel).not.toContainText("Choose an answer to continue");
+  await expect(panel).not.toContainText("The assistant is waiting on this decision.");
   await expect(page.locator(".chat-composer")).toHaveCount(0);
 
   await panel.getByRole("button", { name: /Narrow path/ }).click();
   await panel.getByRole("button", { name: "Submit answer" }).click();
 
   await expect(page.getByTestId("chat-ask-user-panel")).toHaveCount(0, { timeout: 15_000 });
+  const answer = page.getByTestId("chat-ask-user-answer").last();
+  await expect(answer).toContainText("Answered");
+  await expect(answer).toContainText("Scope");
+  await expect(answer).toContainText("Narrow path");
+  await expect(page.getByText("Answering the requested input:")).toHaveCount(0);
   await expect(page.getByTestId("chat-ask-user-history").last()).toContainText("Answered");
   await expect(page.locator(".chat-composer").last()).toBeVisible();
   await expect(page.getByText("Continuing with the narrow path.")).toBeVisible();

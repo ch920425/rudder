@@ -1047,11 +1047,19 @@ function askUserQuestionTitle(question: ChatAskUserQuestion) {
   return question.header?.trim() || question.question;
 }
 
+type AskUserAnswerRecord = Array<{
+  questionId: string;
+  title: string;
+  answer: string;
+}>;
+
+const ASK_USER_ANSWER_PREFIX = "Answering the requested input:";
+
 export function formatAskUserAnswerMessage(
   request: ChatAskUserRequest,
   answers: Record<string, { kind: "option"; label: string } | { kind: "freeform"; text: string }>,
 ) {
-  const lines = ["Answering the requested input:"];
+  const lines = [ASK_USER_ANSWER_PREFIX];
   for (const question of request.questions) {
     const answer = answers[question.id];
     if (!answer) continue;
@@ -1061,6 +1069,84 @@ export function formatAskUserAnswerMessage(
     lines.push(`  Answer: ${answer.kind === "freeform" ? answer.text : answer.label}`);
   }
   return lines.join("\n");
+}
+
+export function parseAskUserAnswerMessage(
+  request: ChatAskUserRequest,
+  body: string,
+): AskUserAnswerRecord | null {
+  const lines = body.replace(/\r\n/g, "\n").trim().split("\n");
+  if (lines[0]?.trim() !== ASK_USER_ANSWER_PREFIX) return null;
+
+  const answers: AskUserAnswerRecord = [];
+  const usedQuestionIds = new Set<string>();
+  let currentTitle: string | null = null;
+  let currentAnswerLines: string[] = [];
+
+  const flush = () => {
+    if (!currentTitle) return;
+    const answer = currentAnswerLines.join("\n").trim();
+    if (!answer) {
+      currentTitle = null;
+      currentAnswerLines = [];
+      return;
+    }
+    const question = request.questions.find((candidate) =>
+      !usedQuestionIds.has(candidate.id)
+      && askUserQuestionTitle(candidate) === currentTitle
+    );
+    if (question) {
+      usedQuestionIds.add(question.id);
+      answers.push({
+        questionId: question.id,
+        title: askUserQuestionTitle(question),
+        answer,
+      });
+    }
+    currentTitle = null;
+    currentAnswerLines = [];
+  };
+
+  for (const line of lines.slice(1)) {
+    const titleMatch = /^-\s+(.+?)\s*$/.exec(line);
+    if (titleMatch) {
+      flush();
+      currentTitle = titleMatch[1] ?? "";
+      currentAnswerLines = [];
+      continue;
+    }
+
+    if (!currentTitle && line.trim().length === 0) continue;
+
+    const answerMatch = /^\s+Answer:\s?(.*)$/.exec(line);
+    if (answerMatch && currentTitle) {
+      currentAnswerLines.push(answerMatch[1] ?? "");
+      continue;
+    }
+
+    if (currentTitle && currentAnswerLines.length > 0) {
+      currentAnswerLines.push(line.trimStart());
+    }
+  }
+  flush();
+
+  return answers.length > 0 ? answers : null;
+}
+
+export function askUserAnswerFromMessage(message: ChatMessage, messages: ChatMessage[]) {
+  if (message.role !== "user" || message.kind !== "message" || message.supersededAt) return null;
+  const targetIndex = messages.findIndex((candidate) => candidate.id === message.id);
+  if (targetIndex < 0) return null;
+
+  for (let index = targetIndex - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (!candidate || candidate.supersededAt) continue;
+    if (candidate.role === "user") return null;
+    const request = askUserRequestFromMessage(candidate);
+    if (request) return parseAskUserAnswerMessage(request, message.body);
+  }
+
+  return null;
 }
 
 
@@ -1508,6 +1594,35 @@ function AskUserHistoryRecord({
   );
 }
 
+function AskUserAnswerBubble({
+  answer,
+}: {
+  answer: AskUserAnswerRecord;
+}) {
+  return (
+    <div
+      data-testid="chat-ask-user-answer"
+      className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]"
+      aria-label="Answered requested input"
+    >
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <CheckCircle2 className="h-4 w-4 text-[color:var(--accent-strong)]" aria-hidden />
+        <span>Answered</span>
+      </div>
+      <div className="mt-2 space-y-2">
+        {answer.map((entry) => (
+          <div key={entry.questionId} className="min-w-0">
+            <div className="text-xs font-medium text-muted-foreground">{entry.title}</div>
+            <div className="mt-0.5 whitespace-pre-wrap text-[15px] leading-6 text-foreground">
+              {entry.answer}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AskUserPanel({
   message,
   request,
@@ -1551,19 +1666,7 @@ function AskUserPanel({
       data-testid="chat-ask-user-panel"
       className="rounded-[var(--radius-lg)] border border-[color:color-mix(in_oklab,var(--accent-base)_35%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent-soft)_28%,var(--surface-elevated))] p-3 shadow-[var(--shadow-sm)]"
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[color:var(--accent-base)] text-primary-foreground">
-          <ListChecks className="h-4 w-4" aria-hidden />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-foreground">Choose an answer to continue</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            The assistant is waiting on this decision.
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 space-y-3">
+      <div className="space-y-3">
         {request.questions.map((question, index) => {
           const selected = selectedByQuestionId[question.id] ?? "";
           const allowFreeform = question.allowFreeform !== false;
@@ -1697,6 +1800,7 @@ function ChatMessageItem({
   turnBranchControls,
   skillReferences,
   answered,
+  askUserAnswer,
 }: {
   conversation: ChatConversation;
   message: ChatMessage;
@@ -1716,6 +1820,7 @@ function ChatMessageItem({
   onMarkdownLinkClick?: MarkdownLinkClickHandler;
   skillReferences: MarkdownSkillReferencePreview[];
   answered?: boolean;
+  askUserAnswer?: AskUserAnswerRecord | null;
   turnBranchControls?: {
     current: number;
     total: number;
@@ -1852,21 +1957,32 @@ function ChatMessageItem({
   return (
     <div className="flex justify-end transition-all duration-200">
       <div className="group flex max-w-[82%] flex-col items-end text-left">
-        <div
-          data-testid="chat-user-message-bubble"
-          className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]"
-        >
-          <div className="text-[15px] leading-7">
-            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
-              {message.body}
-            </MarkdownBody>
+        {askUserAnswer ? (
+          <AskUserAnswerBubble answer={askUserAnswer} />
+        ) : (
+          <div
+            data-testid="chat-user-message-bubble"
+            className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]"
+          >
+            <div className="text-[15px] leading-7">
+              <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+                {message.body}
+              </MarkdownBody>
+            </div>
+            <ChatAttachmentList
+              attachments={message.attachments}
+              onOpenImage={onOpenImage}
+              onOpenFile={onOpenFile}
+            />
           </div>
+        )}
+        {askUserAnswer && message.attachments.length > 0 ? (
           <ChatAttachmentList
             attachments={message.attachments}
             onOpenImage={onOpenImage}
             onOpenFile={onOpenFile}
           />
-        </div>
+        ) : null}
         <div
           data-testid="chat-user-message-toolbar"
           className={cn(
@@ -1933,6 +2049,7 @@ function OptimisticUserDraftItem({
   onEditDraftOnly,
   skillReferences,
   onMarkdownLinkClick,
+  askUserAnswer,
 }: {
   body: string;
   createdAt: Date;
@@ -1940,17 +2057,22 @@ function OptimisticUserDraftItem({
   onEditDraftOnly: (text: string) => void;
   skillReferences: MarkdownSkillReferencePreview[];
   onMarkdownLinkClick?: MarkdownLinkClickHandler;
+  askUserAnswer?: AskUserAnswerRecord | null;
 }) {
   return (
     <div className="flex justify-end transition-all duration-200">
       <div className="group flex max-w-[82%] flex-col items-end text-left">
-        <div className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]">
-          <div className="text-[15px] leading-7">
-            <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
-              {body}
-            </MarkdownBody>
+        {askUserAnswer ? (
+          <AskUserAnswerBubble answer={askUserAnswer} />
+        ) : (
+          <div className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]">
+            <div className="text-[15px] leading-7">
+              <MarkdownBody skillReferences={skillReferences} onLinkClick={onMarkdownLinkClick}>
+                {body}
+              </MarkdownBody>
+            </div>
           </div>
-        </div>
+        )}
         <div
           className={cn(
             "mt-1 flex h-7 items-center justify-end gap-1 text-muted-foreground",
@@ -4436,6 +4558,7 @@ function ChatWorkspace() {
                                   turnBranchControls={turnBranchControlsFor(message)}
                                   skillReferences={chatSkillReferences}
                                   answered={isAskUserMessageAnswered(message, visibleMessages)}
+                                  askUserAnswer={askUserAnswerFromMessage(message, visibleMessages)}
                                 />
                               </Fragment>
                             );
@@ -4450,6 +4573,11 @@ function ChatWorkspace() {
                                   onEditDraftOnly={editDraftOnly}
                                   skillReferences={chatSkillReferences}
                                   onMarkdownLinkClick={handleChatMarkdownLinkClick}
+                                  askUserAnswer={
+                                    pendingAskUserRequest
+                                      ? parseAskUserAnswerMessage(pendingAskUserRequest, activeStream.userBody)
+                                      : null
+                                  }
                                 />
                               ) : null}
                               <StreamTranscriptItem
