@@ -3979,6 +3979,7 @@ function ChatWorkspace() {
           mentionMenuAnchorRef={composerSurfaceRef}
           mentionMenuPlacement="container"
           submitShortcut="enter"
+          plainText
           className="rounded-[var(--radius-md)] bg-transparent"
           contentClassName="min-h-[88px] bg-transparent text-[15px] leading-7 text-foreground"
           bordered={false}

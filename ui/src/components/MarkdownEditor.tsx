@@ -28,7 +28,9 @@ import {
   thematicBreakPlugin,
   type Translation,
   type RealmPlugin,
+  type MdastImportVisitor,
   realmPlugin,
+  addImportVisitor$,
   createRootEditorSubscription$,
 } from "@mdxeditor/editor";
 import { Boxes } from "lucide-react";
@@ -38,6 +40,7 @@ import { translateLegacyString } from "@/i18n/legacyPhrases";
 import { ImagePreviewDialog, type ImagePreviewState } from "@/components/ImagePreviewDialog";
 import { AgentIcon } from "./AgentIconPicker";
 import {
+  $createParagraphNode,
   $createRangeSelection,
   $createTextNode,
   $getRoot,
@@ -66,6 +69,7 @@ import {
 } from "../lib/skill-reference";
 import {
   findAdjacentAtomicInlineTokenElement,
+  readAtomicInlineTokenElement,
   removeAtomicInlineTokenFromMarkdown,
   type AtomicInlineTokenElement,
 } from "../lib/inline-token-dom";
@@ -121,6 +125,8 @@ interface MarkdownEditorProps {
   /** Called according to submitShortcut. */
   onSubmit?: () => void;
   submitShortcut?: "mod-enter" | "enter";
+  /** Composer mode that preserves normal Markdown syntax as literal text. */
+  plainText?: boolean;
 }
 
 export interface MarkdownEditorRef {
@@ -140,6 +146,115 @@ function isSafeMarkdownLinkUrl(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed) return true;
   return !/^(javascript|data|vbscript):/i.test(trimmed);
+}
+
+function normalizePlainTextComposerMarkdown(value: string) {
+  return value.replace(/\\([\\`*_[\]{}()#+\-.!|>])/g, "$1");
+}
+
+function findCanonicalReferenceCandidates(markdown: string) {
+  return Array.from(markdown.matchAll(/\[([^\]\n]+)\]\(([^)\n]+)\)/g));
+}
+
+function hasCanonicalRudderReference(markdown: string) {
+  return findCanonicalReferenceCandidates(markdown).some((match) => {
+    const label = match[1] ?? "";
+    const href = match[2] ?? "";
+    return Boolean(parseMentionChipHref(href) || parseSkillReference(href, label));
+  });
+}
+
+function getMdastSourceSlice(node: unknown, markdown: string) {
+  const positioned = node as {
+    position?: {
+      start?: { offset?: number };
+      end?: { offset?: number };
+    };
+  };
+  const start = positioned.position?.start?.offset;
+  const end = positioned.position?.end?.offset;
+  if (typeof start !== "number" || typeof end !== "number" || start < 0 || end < start) {
+    return null;
+  }
+  return markdown.slice(start, end);
+}
+
+function getMdastLinkLabel(node: unknown) {
+  const link = node as { children?: Array<{ type?: string; value?: string }> };
+  return (link.children ?? [])
+    .map((child) => (child.type === "text" ? child.value ?? "" : ""))
+    .join("")
+    .trim();
+}
+
+function appendPlainTextMarkdownNode(lexicalParent: LexicalNode, text: string) {
+  const textNode = $createTextNode(text);
+  if ($isElementNode(lexicalParent) && lexicalParent.getType() !== "root") {
+    lexicalParent.append(textNode);
+    return;
+  }
+
+  const paragraph = $createParagraphNode();
+  paragraph.append(textNode);
+  if ($isElementNode(lexicalParent)) {
+    lexicalParent.append(paragraph);
+  }
+}
+
+function plainTextMarkdownImportPlugin(getMarkdown: () => string): RealmPlugin {
+  const plainTextVisitor: MdastImportVisitor<any> = {
+    priority: 90,
+    testNode(node) {
+      const type = (node as { type?: string }).type;
+      if (type === "link") {
+        const href = (node as { url?: string }).url ?? "";
+        const label = getMdastLinkLabel(node);
+        if (parseMentionChipHref(href) || parseSkillReference(href, label)) {
+          return false;
+        }
+      }
+      return type === "strong"
+        || type === "emphasis"
+        || type === "delete"
+        || type === "inlineCode"
+        || type === "link"
+        || type === "image"
+        || type === "heading"
+        || type === "list"
+        || type === "listItem"
+        || type === "blockquote"
+        || type === "code"
+        || type === "thematicBreak"
+        || type === "table"
+        || type === "tableRow"
+        || type === "tableCell";
+    },
+    visitNode({ mdastNode, lexicalParent }) {
+      const source = getMdastSourceSlice(mdastNode, getMarkdown());
+      if (source === null) return;
+      appendPlainTextMarkdownNode(lexicalParent as LexicalNode, source);
+    },
+  };
+
+  return realmPlugin({
+    init(realm) {
+      realm.pub(addImportVisitor$, plainTextVisitor);
+    },
+  })();
+}
+
+function canonicalMarkdownFromFragment(fragment: DocumentFragment) {
+  const read = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+    if (node instanceof HTMLBRElement) return "\n";
+    if (node instanceof HTMLElement) {
+      const token = readAtomicInlineTokenElement(node);
+      if (token) return `[${token.label}](${token.href})`;
+    }
+    return Array.from(node.childNodes).map(read).join("");
+  };
+
+  return Array.from(fragment.childNodes).map(read).join("");
 }
 
 function getLastCaretTarget(node: Node): CaretTarget {
@@ -859,6 +974,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   mentionMenuPlacement = "caret",
   onSubmit,
   submitShortcut = "mod-enter",
+  plainText = false,
 }: MarkdownEditorProps, forwardedRef) {
   const { locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1055,6 +1171,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     };
 
     latestValueRef.current = next;
+    if (plainText && caretOffset !== null) {
+      const insertionOffset = Math.min(caretOffset, next.length);
+      pendingMentionInputRef.current = {
+        markdownOffset: insertionOffset,
+        visibleOffset: insertionOffset,
+      };
+      clearPendingMentionInputSoon();
+    }
     ref.current?.setMarkdown(next);
     onChange(next);
     restoreCaret();
@@ -1063,7 +1187,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       requestAnimationFrame(restoreCaret);
     });
     return true;
-  }, [focusEditorAtEnd, onChange]);
+  }, [clearPendingMentionInputSoon, focusEditorAtEnd, onChange, plainText]);
 
   const removeAdjacentAtomicToken = useCallback((direction: "backward" | "forward") => {
     const selection = window.getSelection();
@@ -1124,28 +1248,36 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       rootEditorCapturePlugin((editor) => {
         lexicalEditorRef.current = editor;
       }),
-      headingsPlugin(),
-      listsPlugin(),
-      quotePlugin(),
-      tablePlugin(),
-      linkPlugin({ validateUrl: isSafeMarkdownLinkUrl }),
-      linkDialogPlugin({ showLinkTitleField: false }),
+      ...(plainText
+        ? [plainTextMarkdownImportPlugin(() => latestValueRef.current)]
+        : [
+            headingsPlugin(),
+            listsPlugin(),
+            quotePlugin(),
+            tablePlugin(),
+            linkPlugin({ validateUrl: isSafeMarkdownLinkUrl }),
+            linkDialogPlugin({ showLinkTitleField: false }),
+          ]),
       mentionTokenPlugin(),
       skillTokenPlugin(),
       mentionDeletionPlugin(),
-      thematicBreakPlugin(),
-      codeBlockPlugin({
-        defaultCodeBlockLanguage: "txt",
-        codeBlockEditorDescriptors: [FALLBACK_CODE_BLOCK_DESCRIPTOR],
-      }),
-      codeMirrorPlugin({ codeBlockLanguages: CODE_BLOCK_LANGUAGES }),
-      markdownShortcutPlugin(),
+      ...(plainText
+        ? []
+        : [
+            thematicBreakPlugin(),
+            codeBlockPlugin({
+              defaultCodeBlockLanguage: "txt",
+              codeBlockEditorDescriptors: [FALLBACK_CODE_BLOCK_DESCRIPTOR],
+            }),
+            codeMirrorPlugin({ codeBlockLanguages: CODE_BLOCK_LANGUAGES }),
+            markdownShortcutPlugin(),
+          ]),
     ];
     if (imageHandler) {
       all.push(imagePlugin({ imageUploadHandler: imageHandler, EditImageToolbar: EmptyImageToolbar }));
     }
     return all;
-  }, [focusEditorAtEnd, hasImageUpload]);
+  }, [focusEditorAtEnd, hasImageUpload, plainText]);
 
   useEffect(() => {
     if (value !== latestValueRef.current) {
@@ -1153,6 +1285,26 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       latestValueRef.current = value;
     }
   }, [value]);
+
+  useEffect(() => {
+    if (!plainText) return;
+
+    const handleCopy = (event: ClipboardEvent) => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+      const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+      if (!(editable instanceof HTMLElement)) return;
+      if (!editable.contains(selection.anchorNode) || !editable.contains(selection.focusNode)) return;
+
+      const canonicalText = canonicalMarkdownFromFragment(selection.getRangeAt(0).cloneContents());
+      if (!canonicalText) return;
+      event.clipboardData?.setData("text/plain", canonicalText);
+      event.preventDefault();
+    };
+
+    document.addEventListener("copy", handleCopy, true);
+    return () => document.removeEventListener("copy", handleCopy, true);
+  }, [plainText]);
 
   const decorateInlineTokens = useCallback(() => {
     const editable = containerRef.current?.querySelector('[contenteditable="true"]');
@@ -1419,6 +1571,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         className,
       )}
       onKeyDownCapture={(e) => {
+        if (plainText && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
+          const selection = window.getSelection();
+          const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+          if (
+            selection
+            && selection.rangeCount > 0
+            && !selection.isCollapsed
+            && editable instanceof HTMLElement
+            && editable.contains(selection.anchorNode)
+            && editable.contains(selection.focusNode)
+          ) {
+            const canonicalText = canonicalMarkdownFromFragment(selection.getRangeAt(0).cloneContents());
+            if (canonicalText) {
+              e.preventDefault();
+              e.stopPropagation();
+              void navigator.clipboard?.writeText(canonicalText);
+              return;
+            }
+          }
+        }
+
         const hasPlainTextKey =
           e.key.length === 1
           && !e.altKey
@@ -1539,6 +1712,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       onClickCapture={(event) => {
         stopAtomicInlineTokenEvent(event);
       }}
+      onCopyCapture={(event) => {
+        if (!plainText) return;
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+        const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+        if (!(editable instanceof HTMLElement)) return;
+        if (!editable.contains(selection.anchorNode) || !editable.contains(selection.focusNode)) return;
+
+        const canonicalText = canonicalMarkdownFromFragment(selection.getRangeAt(0).cloneContents());
+        if (!canonicalText) return;
+        event.clipboardData.setData("text/plain", canonicalText);
+        event.preventDefault();
+      }}
       onDoubleClickCapture={(event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
@@ -1576,8 +1762,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         markdown={value}
         placeholder={translatedPlaceholder}
         onChange={(next) => {
-          latestValueRef.current = next;
-          onChange(next);
+          const normalizedNext = plainText ? normalizePlainTextComposerMarkdown(next) : next;
+          latestValueRef.current = normalizedNext;
+          onChange(normalizedNext);
+          if (plainText && normalizedNext !== next && hasCanonicalRudderReference(normalizedNext)) {
+            requestAnimationFrame(() => {
+              ref.current?.setMarkdown(normalizedNext);
+            });
+          }
         }}
         onBlur={() => onBlur?.()}
         className={cn("rudder-mdxeditor", !bordered && "rudder-mdxeditor--borderless")}
