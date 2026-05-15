@@ -1055,6 +1055,14 @@ type AskUserAnswerRecord = Array<{
 
 const ASK_USER_ANSWER_PREFIX = "Answering the requested input:";
 
+function formatAskUserAnswerLines(answer: string) {
+  const [firstLine = "", ...continuationLines] = answer.replace(/\r\n/g, "\n").split("\n");
+  return [
+    `  Answer: ${firstLine}`,
+    ...continuationLines.map((line) => `    ${line}`),
+  ];
+}
+
 export function formatAskUserAnswerMessage(
   request: ChatAskUserRequest,
   answers: Record<string, { kind: "option"; label: string } | { kind: "freeform"; text: string }>,
@@ -1066,7 +1074,7 @@ export function formatAskUserAnswerMessage(
     const title = askUserQuestionTitle(question);
     lines.push("");
     lines.push(`- ${title}`);
-    lines.push(`  Answer: ${answer.kind === "freeform" ? answer.text : answer.label}`);
+    lines.push(...formatAskUserAnswerLines(answer.kind === "freeform" ? answer.text : answer.label));
   }
   return lines.join("\n");
 }
@@ -1083,6 +1091,12 @@ export function parseAskUserAnswerMessage(
   let currentTitle: string | null = null;
   let currentAnswerLines: string[] = [];
 
+  const questionForTitle = (title: string) =>
+    request.questions.find((candidate) =>
+      !usedQuestionIds.has(candidate.id)
+      && askUserQuestionTitle(candidate) === title
+    );
+
   const flush = () => {
     if (!currentTitle) return;
     const answer = currentAnswerLines.join("\n").trim();
@@ -1091,10 +1105,7 @@ export function parseAskUserAnswerMessage(
       currentAnswerLines = [];
       return;
     }
-    const question = request.questions.find((candidate) =>
-      !usedQuestionIds.has(candidate.id)
-      && askUserQuestionTitle(candidate) === currentTitle
-    );
+    const question = questionForTitle(currentTitle);
     if (question) {
       usedQuestionIds.add(question.id);
       answers.push({
@@ -1110,8 +1121,13 @@ export function parseAskUserAnswerMessage(
   for (const line of lines.slice(1)) {
     const titleMatch = /^-\s+(.+?)\s*$/.exec(line);
     if (titleMatch) {
+      const nextTitle = titleMatch[1] ?? "";
+      if (currentTitle && currentAnswerLines.length > 0 && !questionForTitle(nextTitle)) {
+        currentAnswerLines.push(line);
+        continue;
+      }
       flush();
-      currentTitle = titleMatch[1] ?? "";
+      currentTitle = nextTitle;
       currentAnswerLines = [];
       continue;
     }

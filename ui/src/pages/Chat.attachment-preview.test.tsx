@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ChatConversation, ChatMessage, Project } from "@rudderhq/shared";
+import type { ChatStreamDraft } from "@/context/ChatGenerationContext";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { Chat } from "./Chat";
@@ -26,6 +27,7 @@ const mockState = vi.hoisted(() => ({
   navigate: vi.fn(),
   pushToast: vi.fn(),
   setBreadcrumbs: vi.fn(),
+  streamDrafts: {} as Record<string, ChatStreamDraft>,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -119,7 +121,7 @@ vi.mock("@/context/ChatGenerationContext", () => ({
     setChatSendInFlight: vi.fn(),
     setStreamAbortController: vi.fn(),
     setStreamDraftForChat: vi.fn(),
-    streamDrafts: {},
+    streamDrafts: mockState.streamDrafts,
   }),
 }));
 
@@ -406,6 +408,7 @@ beforeEach(() => {
   mockState.navigate.mockReset();
   mockState.pushToast.mockReset();
   mockState.setBreadcrumbs.mockReset();
+  mockState.streamDrafts = {};
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 0;
@@ -462,6 +465,15 @@ describe("Chat attachment previews", () => {
 });
 
 describe("Chat ask_user panel", () => {
+  const multilineFreeformAnswer = [
+    "Answering the requested input:",
+    "",
+    "- Scope",
+    "  Answer: Use the narrow path",
+    "    - keep API extensible",
+    "    - defer broad UI",
+  ].join("\n");
+
   it("hides the bottom composer while input is pending and restores it after an answer", () => {
     mockState.messagesByChatId = {
       "chat-1": [
@@ -496,6 +508,62 @@ describe("Chat ask_user panel", () => {
     expect(container.textContent).toContain("Answered");
     expect(container.textContent).not.toContain("Answering the requested input:");
     expect(container.querySelector("[data-testid='chat-composer-toolbar']")).not.toBeNull();
+  });
+
+  it("renders persisted multiline Other answers without dropping bullet lines", () => {
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({ id: "user-before-ask", body: "Please help scope this." }),
+        pendingAskUser(),
+        message({
+          id: "user-answer",
+          body: multilineFreeformAnswer,
+          createdAt: new Date("2026-05-12T09:04:00.000Z"),
+        }),
+      ],
+    };
+
+    const { container } = renderChat();
+
+    const answer = container.querySelector("[data-testid='chat-ask-user-answer']");
+    expect(answer).not.toBeNull();
+    expect(answer?.textContent).toContain("Use the narrow path");
+    expect(answer?.textContent).toContain("- keep API extensible");
+    expect(answer?.textContent).toContain("- defer broad UI");
+    expect(container.textContent).not.toContain("Answering the requested input:");
+  });
+
+  it("renders optimistic multiline Other answers without dropping bullet lines", () => {
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({ id: "user-before-ask", body: "Please help scope this." }),
+        pendingAskUser(),
+      ],
+    };
+    mockState.streamDrafts = {
+      "chat-1": {
+        chatId: "chat-1",
+        userBody: multilineFreeformAnswer,
+        userCreatedAt: new Date("2026-05-12T09:04:00.000Z"),
+        userMessageId: null,
+        chatTurnId: "turn-ask-user",
+        editedFromCreatedAt: null,
+        body: "",
+        state: "streaming",
+        createdAt: new Date("2026-05-12T09:04:01.000Z"),
+        transcript: [],
+        replyingAgentId: "agent-1",
+      },
+    };
+
+    const { container } = renderChat();
+
+    const answer = container.querySelector("[data-testid='chat-ask-user-answer']");
+    expect(answer).not.toBeNull();
+    expect(answer?.textContent).toContain("Use the narrow path");
+    expect(answer?.textContent).toContain("- keep API extensible");
+    expect(answer?.textContent).toContain("- defer broad UI");
+    expect(container.textContent).not.toContain("Answering the requested input:");
   });
 });
 

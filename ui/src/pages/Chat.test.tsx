@@ -458,20 +458,57 @@ describe("ask_user chat messages", () => {
   it("formats selected and freeform answers as a normal user message", () => {
     const request = askUserPayload.requestUserInput;
     const body = formatAskUserAnswerMessage(request, {
-      scope: { kind: "freeform", text: "Ship the narrow path, but leave extension points obvious." },
+      scope: {
+        kind: "freeform",
+        text: [
+          "Use the narrow path",
+          "- keep API extensible",
+          "- defer broad UI",
+        ].join("\n"),
+      },
     });
 
     expect(body).toBe([
       "Answering the requested input:",
       "",
       "- Scope",
-      "  Answer: Ship the narrow path, but leave extension points obvious.",
+      "  Answer: Use the narrow path",
+      "    - keep API extensible",
+      "    - defer broad UI",
     ].join("\n"));
     expect(parseAskUserAnswerMessage(request, body)).toEqual([
       {
         questionId: "scope",
         title: "Scope",
-        answer: "Ship the narrow path, but leave extension points obvious.",
+        answer: [
+          "Use the narrow path",
+          "- keep API extensible",
+          "- defer broad UI",
+        ].join("\n"),
+      },
+    ]);
+  });
+
+  it("parses legacy multiline freeform bullets without treating them as question titles", () => {
+    const request = askUserPayload.requestUserInput;
+    const body = [
+      "Answering the requested input:",
+      "",
+      "- Scope",
+      "  Answer: Use the narrow path",
+      "- keep API extensible",
+      "- defer broad UI",
+    ].join("\n");
+
+    expect(parseAskUserAnswerMessage(request, body)).toEqual([
+      {
+        questionId: "scope",
+        title: "Scope",
+        answer: [
+          "Use the narrow path",
+          "- keep API extensible",
+          "- defer broad UI",
+        ].join("\n"),
       },
     ]);
   });
