@@ -257,6 +257,13 @@ describe("heartbeat managed workspace preflight", () => {
       .then((rows) => rows[0] ?? null);
   }
 
+  async function getRunEvents(runId: string) {
+    return db
+      .select()
+      .from(heartbeatRunEvents)
+      .where(eq(heartbeatRunEvents.runId, runId));
+  }
+
   it("fails before adapter execution and records a workspace preflight event", async () => {
     const { agentId } = await seedAgentFixture();
     mockPreflight.fail = true;
@@ -269,17 +276,19 @@ describe("heartbeat managed workspace preflight", () => {
     });
 
     expect(run?.id).toBeTruthy();
-    await waitForCondition(async () => (await getRun(run!.id))?.status === "failed");
+    await waitForCondition(async () => {
+      const failedRun = await getRun(run!.id);
+      if (failedRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "runtime.workspace_preflight_failed");
+    });
 
     const failedRun = await getRun(run!.id);
     expect(failedRun).toEqual(expect.objectContaining({
       status: "failed",
       errorCode: "workspace_permission_repair_needed",
     }));
-    const events = await db
-      .select()
-      .from(heartbeatRunEvents)
-      .where(eq(heartbeatRunEvents.runId, run!.id));
+    const events = await getRunEvents(run!.id);
     expect(events).toEqual([
       expect.objectContaining({
         eventType: "runtime.workspace_preflight_failed",
