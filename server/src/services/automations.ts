@@ -585,7 +585,7 @@ export function automationService(db: Db, deps: { heartbeat?: IssueAssignmentWak
 
         try {
           createdIssue = await issueSvc.create(input.automation.orgId, {
-            projectId: input.automation.projectId,
+            projectId: input.automation.projectId ?? null,
             goalId: input.automation.goalId,
             parentId: input.automation.parentIssueId,
             title: input.automation.title,
@@ -734,7 +734,7 @@ export function automationService(db: Db, deps: { heartbeat?: IssueAssignmentWak
       const row = await getAutomationById(id);
       if (!row) return null;
       const [project, assignee, parentIssue, triggers, recentRuns, activeIssue] = await Promise.all([
-        db.select().from(projects).where(eq(projects.id, row.projectId)).then((rows) => rows[0] ?? null),
+        row.projectId ? db.select().from(projects).where(eq(projects.id, row.projectId)).then((rows) => rows[0] ?? null) : null,
         db.select().from(agents).where(eq(agents.id, row.assigneeAgentId)).then((rows) => rows[0] ?? null),
         row.parentIssueId ? issueSvc.getById(row.parentIssueId) : null,
         db.select().from(automationTriggers).where(eq(automationTriggers.automationId, row.id)).orderBy(asc(automationTriggers.createdAt)),
@@ -820,7 +820,7 @@ export function automationService(db: Db, deps: { heartbeat?: IssueAssignmentWak
     },
 
     create: async (orgId: string, input: CreateAutomation, actor: Actor): Promise<Automation> => {
-      await assertProject(orgId, input.projectId);
+      if (input.projectId) await assertProject(orgId, input.projectId);
       await assertAssignableAgent(orgId, input.assigneeAgentId);
       if (input.goalId) await assertGoal(orgId, input.goalId);
       if (input.parentIssueId) await assertParentIssue(orgId, input.parentIssueId);
@@ -828,7 +828,7 @@ export function automationService(db: Db, deps: { heartbeat?: IssueAssignmentWak
         .insert(automations)
         .values({
           orgId,
-          projectId: input.projectId,
+          projectId: input.projectId ?? null,
           goalId: input.goalId ?? null,
           parentIssueId: input.parentIssueId ?? null,
           title: input.title,
@@ -850,9 +850,9 @@ export function automationService(db: Db, deps: { heartbeat?: IssueAssignmentWak
     update: async (id: string, patch: UpdateAutomation, actor: Actor): Promise<Automation | null> => {
       const existing = await getAutomationById(id);
       if (!existing) return null;
-      const nextProjectId = patch.projectId ?? existing.projectId;
+      const nextProjectId = patch.projectId === undefined ? existing.projectId : patch.projectId;
       const nextAssigneeAgentId = patch.assigneeAgentId ?? existing.assigneeAgentId;
-      if (patch.projectId) await assertProject(existing.orgId, nextProjectId);
+      if (nextProjectId) await assertProject(existing.orgId, nextProjectId);
       if (patch.assigneeAgentId) await assertAssignableAgent(existing.orgId, nextAssigneeAgentId);
       if (patch.goalId) await assertGoal(existing.orgId, patch.goalId);
       if (patch.parentIssueId) await assertParentIssue(existing.orgId, patch.parentIssueId);

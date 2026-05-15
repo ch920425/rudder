@@ -498,7 +498,7 @@ export function AutomationDetail() {
         ? {
             title: automation.title,
             description: automation.description ?? "",
-            projectId: automation.projectId,
+            projectId: automation.projectId ?? "",
             assigneeAgentId: automation.assigneeAgentId,
             priority: automation.priority,
             concurrencyPolicy: automation.concurrencyPolicy,
@@ -521,14 +521,13 @@ export function AutomationDetail() {
   }, [editDraft, automationDefaults]);
   const canAutoSaveAutomation = Boolean(
     editDraft.title.trim() &&
-    editDraft.projectId &&
     editDraft.assigneeAgentId,
   );
   const editDraftKey = useMemo(
     () => JSON.stringify({
       title: editDraft.title,
       description: editDraft.description.trim() || null,
-      projectId: editDraft.projectId,
+      projectId: editDraft.projectId || null,
       assigneeAgentId: editDraft.assigneeAgentId,
       priority: editDraft.priority,
       concurrencyPolicy: editDraft.concurrencyPolicy,
@@ -584,6 +583,7 @@ export function AutomationDetail() {
     mutationFn: (draft: typeof editDraft) => {
       return automationsApi.update(automationId!, {
         ...draft,
+        projectId: draft.projectId || null,
         description: draft.description.trim() || null,
       });
     },

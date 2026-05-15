@@ -154,6 +154,7 @@ export function Automations() {
     mutationFn: () =>
       automationsApi.create(selectedOrganizationId!, {
         ...draft,
+        projectId: draft.projectId || null,
         description: draft.description.trim() || null,
       }),
     onSuccess: async (automation) => {
@@ -274,7 +275,7 @@ export function Automations() {
     }),
     [agents, issues, projects, skillMentionOptions],
   );
-  const isDraftReady = Boolean(draft.title.trim() && draft.projectId && draft.assigneeAgentId);
+  const isDraftReady = Boolean(draft.title.trim() && draft.assigneeAgentId);
 
   if (!selectedOrganizationId) {
     return <EmptyState icon={Repeat} message="Select an organization to view automations." />;

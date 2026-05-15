@@ -3300,7 +3300,7 @@ export function organizationPortabilityService(db: Db, storage?: StorageService)
     for (const automation of selectedAutomationRows) {
       assertNotAborted();
       const taskSlug = taskSlugByAutomationId.get(automation.id)!;
-      const projectSlug = projectSlugById.get(automation.projectId) ?? null;
+      const projectSlug = automation.projectId ? (projectSlugById.get(automation.projectId) ?? null) : null;
       const taskPath = `tasks/${taskSlug}/TASK.md`;
       const assigneeSlug = idToSlug.get(automation.assigneeAgentId) ?? null;
       files[taskPath] = buildMarkdown(
@@ -4301,8 +4301,8 @@ export function organizationPortabilityService(db: Db, storage?: StorageService)
           }
         }
         if (manifestIssue.recurring) {
-          if (!projectId || !assigneeAgentId) {
-            throw unprocessable(`Recurring task ${manifestIssue.slug} is missing the project or assignee required to create an automation.`);
+          if (!assigneeAgentId) {
+            throw unprocessable(`Recurring task ${manifestIssue.slug} is missing the assignee required to create an automation.`);
           }
           const resolvedAutomation = resolvePortableAutomationDefinition(manifestIssue, parsed?.frontmatter.schedule);
           if (resolvedAutomation.errors.length > 0) {

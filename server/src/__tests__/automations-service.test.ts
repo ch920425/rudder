@@ -312,6 +312,39 @@ describe("automation service live-execution coalescing", () => {
     ]);
   });
 
+  it("creates and runs automations without a project", async () => {
+    const { agentId, orgId, svc } = await seedFixture();
+    const automation = await svc.create(
+      orgId,
+      {
+        projectId: null,
+        goalId: null,
+        parentIssueId: null,
+        title: "Inbox sweep",
+        description: "Review projectless intake.",
+        assigneeAgentId: agentId,
+        priority: "medium",
+        status: "active",
+        concurrencyPolicy: "coalesce_if_active",
+        catchUpPolicy: "skip_missed",
+      },
+      {},
+    );
+
+    expect(automation.projectId).toBeNull();
+
+    const run = await svc.runAutomation(automation.id, { source: "manual" });
+    expect(run.status).toBe("issue_created");
+    expect(run.linkedIssueId).toBeTruthy();
+
+    const linkedIssue = await db
+      .select({ projectId: issues.projectId })
+      .from(issues)
+      .where(eq(issues.id, run.linkedIssueId!))
+      .then((rows) => rows[0] ?? null);
+    expect(linkedIssue?.projectId).toBeNull();
+  });
+
   it("waits for the assignee wakeup to be queued before returning the automation run", async () => {
     let wakeupResolved = false;
     const { automation, svc } = await seedFixture({

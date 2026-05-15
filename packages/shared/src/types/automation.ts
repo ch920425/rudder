@@ -28,7 +28,7 @@ export interface AutomationIssueSummary {
 export interface Automation {
   id: string;
   orgId: string;
-  projectId: string;
+  projectId: string | null;
   goalId: string | null;
   parentIssueId: string | null;
   title: string;

@@ -268,4 +268,33 @@ describe("automation routes", () => {
       userId: "board-user",
     });
   });
+
+  it("allows automation creation without a project", async () => {
+    mockAccessService.canUser.mockResolvedValue(true);
+    const app = await createApp({
+      type: "board",
+      userId: "board-user",
+      source: "session",
+      isInstanceAdmin: false,
+      orgIds: [orgId],
+    });
+
+    const res = await request(app)
+      .post(`/api/orgs/${orgId}/automations`)
+      .send({
+        projectId: null,
+        title: "Inbox sweep",
+        assigneeAgentId: agentId,
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockAutomationService.create).toHaveBeenCalledWith(orgId, expect.objectContaining({
+      projectId: null,
+      title: "Inbox sweep",
+      assigneeAgentId: agentId,
+    }), {
+      agentId: null,
+      userId: "board-user",
+    });
+  });
 });

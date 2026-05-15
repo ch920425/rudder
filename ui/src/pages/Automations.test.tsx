@@ -251,6 +251,31 @@ function renderPage() {
   return container;
 }
 
+function renderHeaderActions() {
+  const headerContainer = document.createElement("div");
+  document.body.appendChild(headerContainer);
+  const headerRoot = createRoot(headerContainer);
+  cleanupFn = ((previousCleanup) => () => {
+    act(() => {
+      headerRoot.unmount();
+    });
+    headerContainer.remove();
+    previousCleanup?.();
+  })(cleanupFn);
+
+  act(() => {
+    headerRoot.render(mockSetHeaderActions.mock.calls.at(-1)?.[0]);
+  });
+
+  return headerContainer;
+}
+
+function setTextareaValue(textarea: HTMLTextAreaElement, value: string) {
+  const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  valueSetter?.call(textarea, value);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("Automations", () => {
   it("renders last run as a fixed timestamp without the run status caption", async () => {
     const container = renderPage();
@@ -270,20 +295,7 @@ describe("Automations", () => {
       await Promise.resolve();
     });
 
-    const headerContainer = document.createElement("div");
-    document.body.appendChild(headerContainer);
-    const headerRoot = createRoot(headerContainer);
-    cleanupFn = ((previousCleanup) => () => {
-      act(() => {
-        headerRoot.unmount();
-      });
-      headerContainer.remove();
-      previousCleanup?.();
-    })(cleanupFn);
-
-    act(() => {
-      headerRoot.render(mockSetHeaderActions.mock.calls.at(-1)?.[0]);
-    });
+    const headerContainer = renderHeaderActions();
     await act(async () => {
       headerContainer.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -304,5 +316,36 @@ describe("Automations", () => {
 
     const selectedMentionIds = markdownEditorProps.at(-1)?.mentions?.map((mention) => mention.id) ?? [];
     expect(selectedMentionIds).toContain("skill:agent:build-advisor");
+  });
+
+  it("allows creating an automation without selecting a project", async () => {
+    renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const headerContainer = renderHeaderActions();
+    await act(async () => {
+      headerContainer.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const titleInput = document.querySelector('textarea[placeholder="Automation title"]') as HTMLTextAreaElement | null;
+    expect(titleInput).toBeTruthy();
+
+    await act(async () => {
+      setTextareaValue(titleInput!, "帮我 flomo 打 tag");
+    });
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent === "Assignee")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const createButton = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create") && button.textContent !== "Create automation") as HTMLButtonElement | undefined;
+    expect(createButton).toBeTruthy();
+    expect(createButton?.disabled).toBe(false);
   });
 });
