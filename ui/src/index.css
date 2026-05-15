@@ -334,6 +334,17 @@
     background: var(--background);
   }
 
+  html.desktop-shell-macos .app-shell-backdrop {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(250 248 245 / 0.46) 0%,
+        rgb(244 240 234 / 0.34) 100%
+      );
+    -webkit-backdrop-filter: blur(38px) saturate(122%);
+    backdrop-filter: blur(38px) saturate(122%);
+  }
+
   html.dark.desktop-shell-macos .app-shell-backdrop {
     background:
       linear-gradient(

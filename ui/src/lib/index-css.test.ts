@@ -50,4 +50,12 @@ describe("index.css motion rules", () => {
     expect(commandPaletteContent).toContain("left: 50vw");
     expect(commandPaletteDesktopPositioning).toContain("top: 50vh");
   });
+
+  it("keeps the macOS desktop shell translucent in light mode", () => {
+    const lightDesktopBackdrop = cssBlock("html.desktop-shell-macos .app-shell-backdrop");
+
+    expect(lightDesktopBackdrop).toContain("rgb(250 248 245 / 0.46)");
+    expect(lightDesktopBackdrop).toContain("rgb(244 240 234 / 0.34)");
+    expect(lightDesktopBackdrop).toContain("backdrop-filter: blur(38px) saturate(122%)");
+  });
 });
