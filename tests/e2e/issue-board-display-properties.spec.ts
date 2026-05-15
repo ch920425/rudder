@@ -94,10 +94,11 @@ test.describe("Issue board display properties", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText(project.name);
     await expect(card).toContainText(label.name);
-    await expect(card).toContainText("Assignee");
     await expect(card).toContainText(assignee.name);
     await expect(card).toContainText("Reviewer");
     await expect(card).toContainText(reviewer.name);
+    await expect(card.locator('[data-slot="kanban-card-primary-assignee"] [data-slot="kanban-card-assignee"]')).toHaveAttribute("title", new RegExp(`^Assignee: ${assignee.name}`));
+    await expect(card.locator('[data-slot="kanban-card-metadata"] [data-slot="kanban-card-reviewer"]')).toHaveAttribute("title", new RegExp(`^Reviewer: ${reviewer.name}`));
     await expect(card).toContainText("Created");
     await expect(card).not.toContainText("Updated");
     if (issue.identifier) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "@/lib/router";
 import {
   DndContext,
@@ -26,9 +26,10 @@ import { cn } from "@/lib/utils";
 import { formatChatAgentLabel } from "@/lib/agent-labels";
 import { formatAssigneeUserLabel } from "@/lib/assignees";
 import { sortIssues, type IssueSortState } from "@/lib/issue-sort";
+import { formatPriorityLabel } from "@/lib/priorities";
 import { IssueLabelChip } from "./IssueLabelChip";
 import { timeAgo } from "@/lib/timeAgo";
-import { CalendarClock, FolderKanban, Plus, User, UserCheck } from "lucide-react";
+import { CalendarClock, FolderKanban, Plus, Tags, User, UserCheck } from "lucide-react";
 import type { AgentRole, Issue, IssueStatus, ReorderIssue } from "@rudderhq/shared";
 
 const boardStatuses: IssueStatus[] = [
@@ -205,12 +206,14 @@ function KanbanPersonMeta({
   userId,
   fallbackId,
   currentUserId,
+  showRole = true,
 }: {
   relationship: "assignee" | "reviewer";
   agent?: Agent | null;
   userId?: string | null;
   fallbackId?: string | null;
   currentUserId?: string | null;
+  showRole?: boolean;
 }) {
   const roleLabel = relationship === "assignee" ? "Assignee" : "Reviewer";
   const displayName = agent
@@ -231,12 +234,14 @@ function KanbanPersonMeta({
       title={`${roleLabel}: ${displayName}`}
       className="inline-flex min-w-0 items-center gap-1.5 rounded-sm bg-muted/35 px-1.5 py-1 text-muted-foreground ring-1 ring-border/35"
     >
-      <span
-        data-slot="kanban-card-person-role"
-        className="shrink-0 text-[10px] font-medium leading-none text-muted-foreground/75"
-      >
-        {roleLabel}
-      </span>
+      {showRole ? (
+        <span
+          data-slot="kanban-card-person-role"
+          className="shrink-0 text-[10px] font-medium leading-none text-muted-foreground/75"
+        >
+          {roleLabel}
+        </span>
+      ) : null}
       {agent ? (
         <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs">
           <AgentIcon icon={agent.icon} role={agent.role} className="h-3 w-3 shrink-0" />
@@ -249,6 +254,26 @@ function KanbanPersonMeta({
         </span>
       )}
     </span>
+  );
+}
+
+function KanbanMetadataRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div data-slot="kanban-card-metadata-row" className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2 text-xs">
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground/75">
+        <span className="shrink-0 text-muted-foreground/70">{icon}</span>
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="min-w-0 text-right text-muted-foreground">{children}</span>
+    </div>
   );
 }
 
@@ -433,6 +458,7 @@ function KanbanCard({
       userId={issue.assigneeUserId}
       fallbackId={!agent && issue.assigneeAgentId ? issue.assigneeAgentId : null}
       currentUserId={currentUserId}
+      showRole={false}
     />
   ) : null;
   const reviewerMeta = showReviewer ? (
@@ -442,9 +468,11 @@ function KanbanCard({
       userId={issue.reviewerUserId}
       fallbackId={!reviewerAgent && issue.reviewerAgentId ? issue.reviewerAgentId : null}
       currentUserId={currentUserId}
+      showRole={false}
     />
   ) : null;
-  const hasPeopleMeta = Boolean(assigneeMeta || reviewerMeta);
+  const hasPrimaryMeta = showPriority;
+  const hasSecondaryMeta = Boolean(reviewerMeta || showProject || showLabels || showUpdated || showCreated);
 
   return (
     <div
@@ -475,70 +503,78 @@ function KanbanCard({
           onOpenIssue?.(issue);
         }}
       >
-        {(showIdentifier || isLive) ? (
-          <div className="flex items-start gap-1.5 mb-1.5">
-            {showIdentifier ? (
-              <span className="text-xs text-muted-foreground font-mono shrink-0">
-                {issue.identifier ?? issue.id.slice(0, 8)}
+        <div data-slot="kanban-card-primary" className="space-y-2">
+          {(showIdentifier || isLive || assigneeMeta) ? (
+            <div className="flex min-w-0 items-start gap-2">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                {showIdentifier ? (
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {issue.identifier ?? issue.id.slice(0, 8)}
+                  </span>
+                ) : null}
+                {isLive && (
+                  <span className="motion-live-dot relative flex h-2 w-2 shrink-0 text-blue-500">
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                  </span>
+                )}
               </span>
-            ) : null}
-            {isLive && (
-              <span className="motion-live-dot relative flex h-2 w-2 shrink-0 mt-0.5 text-blue-500">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-              </span>
-            )}
-          </div>
-        ) : null}
-        <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
-        {(showPriority || hasPeopleMeta) && (
-          <div data-slot="kanban-card-metadata" className="flex min-w-0 items-start gap-1.5 overflow-hidden">
-            {showPriority ? (
-              <span className="shrink-0 pt-1">
-                <PriorityIcon priority={issue.priority} />
-              </span>
-            ) : null}
-            {hasPeopleMeta ? (
-              <span
-                data-slot="kanban-card-people"
-                className="grid min-w-0 flex-1 gap-1.5 [grid-template-columns:repeat(auto-fit,minmax(6rem,1fr))]"
-              >
-                {assigneeMeta}
-                {reviewerMeta}
-              </span>
-            ) : null}
-          </div>
-        )}
-        {showLabels ? (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {(issue.labels ?? []).slice(0, 3).map((label) => (
-              <IssueLabelChip key={label.id} label={label} />
-            ))}
-            {(issue.labels ?? []).length > 3 ? (
-              <span className="text-[10px] text-muted-foreground">
-                +{(issue.labels ?? []).length - 3}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-        {(showProject || showUpdated || showCreated) ? (
-          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {assigneeMeta ? (
+                <span data-slot="kanban-card-primary-assignee" className="min-w-0 max-w-[8.5rem] shrink">
+                  {assigneeMeta}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="line-clamp-2 text-sm leading-snug">{issue.title}</p>
+          {hasPrimaryMeta ? (
+            <div data-slot="kanban-card-primary-metadata" className="flex min-w-0 items-center gap-2 overflow-hidden">
+              {showPriority ? (
+                <span
+                  className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+                  title={`Priority: ${formatPriorityLabel(issue.priority)}`}
+                >
+                  <PriorityIcon priority={issue.priority} />
+                  <span className="truncate">{formatPriorityLabel(issue.priority)}</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {hasSecondaryMeta ? (
+          <div data-slot="kanban-card-metadata" className="mt-2 space-y-1.5 border-t border-[color:var(--border-soft)] pt-2">
             {showProject ? (
-              <span className="flex min-w-0 items-center gap-1.5">
-                <FolderKanban className="h-3 w-3 shrink-0" />
-                <span className="truncate">{projectName}</span>
-              </span>
+              <KanbanMetadataRow icon={<FolderKanban className="h-3 w-3" />} label="Project">
+                <span className="block truncate">{projectName}</span>
+              </KanbanMetadataRow>
+            ) : null}
+            {reviewerMeta ? (
+              <KanbanMetadataRow icon={<UserCheck className="h-3 w-3" />} label="Reviewer">
+                <span className="inline-flex min-w-0 justify-end">{reviewerMeta}</span>
+              </KanbanMetadataRow>
+            ) : null}
+            {showLabels ? (
+              <KanbanMetadataRow icon={<Tags className="h-3 w-3" />} label="Labels">
+                <span className="flex min-w-0 flex-wrap justify-end gap-1">
+                  {(issue.labels ?? []).slice(0, 3).map((label) => (
+                    <IssueLabelChip key={label.id} label={label} />
+                  ))}
+                  {(issue.labels ?? []).length > 3 ? (
+                    <span className="text-[10px] text-muted-foreground">
+                      +{(issue.labels ?? []).length - 3}
+                    </span>
+                  ) : null}
+                </span>
+              </KanbanMetadataRow>
             ) : null}
             {showUpdated ? (
-              <span className="flex items-center gap-1.5">
-                <CalendarClock className="h-3 w-3 shrink-0" />
-                <span>Updated {timeAgo(issue.updatedAt)}</span>
-              </span>
+              <KanbanMetadataRow icon={<CalendarClock className="h-3 w-3" />} label="Updated">
+                {timeAgo(issue.updatedAt)}
+              </KanbanMetadataRow>
             ) : null}
             {showCreated ? (
-              <span className="flex items-center gap-1.5">
-                <CalendarClock className="h-3 w-3 shrink-0" />
-                <span>Created {timeAgo(issue.createdAt)}</span>
-              </span>
+              <KanbanMetadataRow icon={<CalendarClock className="h-3 w-3" />} label="Created">
+                {timeAgo(issue.createdAt)}
+              </KanbanMetadataRow>
             ) : null}
           </div>
         ) : null}

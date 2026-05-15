@@ -150,31 +150,55 @@ describe("KanbanBoard", () => {
     expect(onOpenIssue).toHaveBeenCalledWith(issue);
   });
 
-  it("labels assignee and reviewer metadata when both render on a board card", () => {
+  it("separates primary assignee and secondary reviewer project label metadata on a board card", () => {
     const container = render(
       <KanbanBoard
         issues={[{
           ...issue,
+          projectId: "project-1",
           assigneeAgentId: null,
           assigneeUserId: "user-1",
           reviewerUserId: "user-1",
+          labels: [
+            {
+              id: "label-1",
+              orgId: "org-1",
+              name: "UI",
+              color: "#06b6d4",
+              createdAt: new Date("2026-04-19T08:00:00.000Z"),
+              updatedAt: new Date("2026-04-19T08:00:00.000Z"),
+            },
+          ],
         }]}
         currentUserId="user-1"
+        projects={[{ id: "project-1", name: "Rudder dev" }]}
         onUpdateIssue={() => undefined}
       />,
     );
 
     const card = container.querySelector('[data-testid="kanban-card-RUD-1"]');
-    const people = card?.querySelector('[data-slot="kanban-card-people"]');
+    const primary = card?.querySelector('[data-slot="kanban-card-primary"]');
+    const primaryAssignee = card?.querySelector('[data-slot="kanban-card-primary-assignee"]');
+    const metadata = card?.querySelector('[data-slot="kanban-card-metadata"]');
+    const rows = Array.from(card?.querySelectorAll('[data-slot="kanban-card-metadata-row"]') ?? []);
     const assignee = card?.querySelector('[data-slot="kanban-card-assignee"]');
     const reviewer = card?.querySelector('[data-slot="kanban-card-reviewer"]');
 
-    expect(people?.className).toContain("grid");
-    expect(people?.className).toContain("minmax(6rem,1fr)");
-    expect(assignee?.textContent).toContain("Assignee");
+    expect(assignee).not.toBeNull();
+    expect(reviewer).not.toBeNull();
+    expect(primary?.textContent).toContain("RUD-1");
+    expect(primaryAssignee?.contains(assignee!)).toBe(true);
+    expect(metadata?.contains(reviewer!)).toBe(true);
+    expect(rows.map((row) => row.textContent)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("ProjectRudder dev"),
+        expect.stringContaining("ReviewerMe"),
+        expect.stringContaining("LabelsUI"),
+      ]),
+    );
     expect(assignee?.textContent).toContain("Me");
+    expect(assignee?.textContent).not.toContain("Assignee");
     expect(assignee?.getAttribute("title")).toBe("Assignee: Me");
-    expect(reviewer?.textContent).toContain("Reviewer");
     expect(reviewer?.textContent).toContain("Me");
     expect(reviewer?.getAttribute("title")).toBe("Reviewer: Me");
   });
