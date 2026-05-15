@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette } from "./CommandPalette";
 
@@ -59,8 +59,20 @@ vi.mock("./AgentAvatar", () => ({
 }));
 
 vi.mock("@/components/ui/command", () => ({
-  CommandDialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div role="dialog">{children}</div> : null,
+  CommandDialog: ({
+    open,
+    children,
+    contentStyle,
+  }: {
+    open: boolean;
+    children: ReactNode;
+    contentStyle?: CSSProperties;
+  }) =>
+    open ? (
+      <div role="dialog" style={contentStyle}>
+        {children}
+      </div>
+    ) : null,
   CommandInput: ({
     placeholder,
     value,
@@ -128,6 +140,10 @@ describe("CommandPalette", () => {
 
     const input = container.querySelector("input");
     expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects...");
+
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog?.style.left).toBe("50vw");
+    expect(dialog?.style.top).toBe("50vh");
   });
 
   it("shows chat search results and navigates to the selected conversation", () => {

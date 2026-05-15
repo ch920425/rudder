@@ -644,11 +644,15 @@
   }
 
   .command-palette-content[data-state="open"] {
-    animation: command-palette-enter 120ms cubic-bezier(0.2, 0, 0, 1) both !important;
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    animation: none !important;
   }
 
   .command-palette-content[data-state="closed"] {
-    animation: command-palette-exit 80ms cubic-bezier(0.4, 0, 1, 1) both !important;
+    opacity: 0 !important;
+    transform: translateY(-3px) !important;
+    animation: none !important;
   }
 
   .rail-create-menu-content {
@@ -661,28 +665,6 @@
 
   .rail-create-menu-content[data-state="closed"] {
     animation: rail-create-menu-close 95ms ease-in;
-  }
-
-  @keyframes command-palette-enter {
-    0% {
-      opacity: 0;
-      transform: translate(-50%, calc(-50% - 4px));
-    }
-    100% {
-      opacity: 1;
-      transform: translate(-50%, -50%);
-    }
-  }
-
-  @keyframes command-palette-exit {
-    from {
-      opacity: 1;
-      transform: translate(-50%, -50%);
-    }
-    to {
-      opacity: 0;
-      transform: translate(-50%, calc(-50% - 3px));
-    }
   }
 
   @keyframes rail-create-menu-pop {
@@ -716,44 +698,10 @@
     }
   }
 
-  @media (max-width: 767.98px) {
-    .command-palette-content[data-state="open"] {
-      animation-name: command-palette-enter-mobile;
-    }
-
-    .command-palette-content[data-state="closed"] {
-      animation-name: command-palette-exit-mobile;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .command-palette-content[data-state="open"],
-    .command-palette-content[data-state="closed"],
     .rail-create-menu-content[data-state="open"],
     .rail-create-menu-content[data-state="closed"] {
       animation: none;
-    }
-  }
-
-  @keyframes command-palette-enter-mobile {
-    0% {
-      opacity: 0;
-      transform: translate(-50%, -0.25rem);
-    }
-    100% {
-      opacity: 1;
-      transform: translate(-50%, 0);
-    }
-  }
-
-  @keyframes command-palette-exit-mobile {
-    from {
-      opacity: 1;
-      transform: translate(-50%, 0);
-    }
-    to {
-      opacity: 0;
-      transform: translate(-50%, -0.25rem);
     }
   }
 
@@ -805,23 +753,24 @@
     background:
       linear-gradient(
         180deg,
-        color-mix(in oklab, var(--surface-overlay) 54%, transparent) 0%,
-        color-mix(in oklab, var(--surface-overlay) 42%, transparent) 100%
+        color-mix(in oklab, var(--surface-overlay) 38%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 28%, transparent) 100%
       ) !important;
-    border: 1px solid color-mix(in oklab, var(--border-base) 72%, transparent);
+    border: 1px solid color-mix(in oklab, var(--border-base) 62%, transparent);
     box-shadow:
-      0 28px 72px -36px rgb(0 0 0 / 0.42),
-      inset 0 1px 0 rgb(255 255 255 / 0.18);
-    -webkit-backdrop-filter: blur(30px) saturate(132%);
-    backdrop-filter: blur(30px) saturate(132%);
+      0 30px 80px -38px rgb(0 0 0 / 0.46),
+      inset 0 1px 0 rgb(255 255 255 / 0.26),
+      inset 0 0 0 1px rgb(255 255 255 / 0.08);
+    -webkit-backdrop-filter: blur(34px) saturate(150%);
+    backdrop-filter: blur(34px) saturate(150%);
   }
 
   html.dark .glass-popover.glass-popover {
     background:
       linear-gradient(
         180deg,
-        color-mix(in oklab, var(--surface-overlay) 62%, transparent) 0%,
-        color-mix(in oklab, var(--surface-overlay) 48%, transparent) 100%
+        color-mix(in oklab, var(--surface-overlay) 54%, transparent) 0%,
+        color-mix(in oklab, var(--surface-overlay) 38%, transparent) 100%
       ) !important;
     border-color: color-mix(in oklab, var(--border-strong) 68%, transparent);
     box-shadow:
@@ -830,20 +779,24 @@
   }
 
   .command-palette-glass [data-slot="command"] {
-    background: transparent;
+    background: transparent !important;
+  }
+
+  .command-palette-glass [data-slot="command-list"] {
+    background: transparent !important;
   }
 
   .command-palette-glass [data-slot="command-input-wrapper"] {
-    background: color-mix(in oklab, var(--surface-overlay) 34%, transparent);
+    background: color-mix(in oklab, var(--surface-overlay) 22%, transparent);
     border-bottom-color: color-mix(in oklab, var(--border-base) 56%, transparent);
   }
 
   .command-palette-glass [data-slot="command-separator"] {
-    background: color-mix(in oklab, var(--border-base) 44%, transparent);
+    background: color-mix(in oklab, var(--border-base) 44%, transparent) !important;
   }
 
   .command-palette-glass [data-selected="true"] {
-    background: color-mix(in oklab, var(--surface-active) 70%, transparent);
+    background: color-mix(in oklab, var(--surface-active) 70%, transparent) !important;
   }
 
   .surface-active {

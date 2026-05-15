@@ -127,7 +127,9 @@ export function CommandPalette() {
     <CommandDialog open={open} onOpenChange={(v) => {
         setOpen(v);
         if (v && isMobile) setSidebarOpen(false);
-      }} className={launchSource === "primary-rail"
+      }}
+      contentStyle={isMobile ? undefined : { left: "50vw", top: "50vh" }}
+      className={launchSource === "primary-rail"
         ? "command-palette-content command-palette-content--from-rail glass-popover command-palette-glass sm:max-w-2xl"
         : "command-palette-content glass-popover command-palette-glass sm:max-w-2xl"
       }>

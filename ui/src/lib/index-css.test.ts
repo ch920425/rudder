@@ -22,8 +22,9 @@ function cssBlock(selector: string) {
 }
 
 describe("index.css motion rules", () => {
-  it("keeps command palette entry animation on compositor-friendly properties", () => {
+  it("keeps command palette visible and avoids duplicate centering transforms", () => {
     const commandPaletteContent = cssBlock(".command-palette-content");
+    const commandPaletteOpen = cssBlock('.command-palette-content[data-state="open"]');
     const desktopEnter = cssBlock("@keyframes command-palette-enter");
     const desktopExit = cssBlock("@keyframes command-palette-exit");
     const mobileEnter = cssBlock("@keyframes command-palette-enter-mobile");
@@ -37,9 +38,12 @@ describe("index.css motion rules", () => {
     ].join("\n");
 
     expect(commandPaletteContent).toContain("will-change: opacity, transform");
+    expect(commandPaletteOpen).toContain("opacity: 1 !important");
+    expect(commandPaletteOpen).toContain("animation: none !important");
     expect(commandPaletteMotion).not.toContain("filter:");
     expect(commandPaletteMotion).not.toContain("backdrop-filter");
     expect(commandPaletteMotion).not.toContain("scale(");
+    expect(commandPaletteMotion).not.toContain("translate(-50%");
   });
 
   it("positions command palette against the viewport", () => {
@@ -56,7 +60,7 @@ describe("index.css motion rules", () => {
 
     expect(glassPopover).toContain("background:");
     expect(glassPopover).toContain("!important");
-    expect(glassPopover).toContain("backdrop-filter: blur(30px) saturate(132%)");
+    expect(glassPopover).toContain("backdrop-filter: blur(34px) saturate(150%)");
   });
 
   it("keeps the macOS desktop shell translucent in light mode", () => {
