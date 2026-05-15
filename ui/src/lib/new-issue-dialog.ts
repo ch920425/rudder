@@ -5,6 +5,7 @@ export const LEGACY_ISSUE_DRAFT_STORAGE_KEY = "rudder:issue-draft";
 export const ISSUE_AUTOSAVE_STORAGE_KEY = "rudder:issue-autosave";
 export const ISSUE_DRAFTS_STORAGE_KEY = "rudder:issue-drafts";
 export const ISSUE_DRAFT_CHANGED_EVENT = "rudder:issue-draft-changed";
+export const NEW_ISSUE_PREFERENCES_STORAGE_KEY = "rudder:new-issue-preferences";
 
 export interface IssueDraft {
   orgId?: string | null;
@@ -40,6 +41,13 @@ export interface IssueDraftSummary {
 export interface SavedIssueDraft extends IssueDraft {
   id: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewIssuePreferences {
+  assigneeValue: string;
+  reviewerValue: string;
+  projectId: string;
   updatedAt: string;
 }
 
@@ -149,6 +157,53 @@ export function clearIssueAutosave() {
   storage?.removeItem(ISSUE_AUTOSAVE_STORAGE_KEY);
   storage?.removeItem(LEGACY_ISSUE_DRAFT_STORAGE_KEY);
   emitIssueDraftChanged();
+}
+
+function readAllNewIssuePreferences(): Record<string, NewIssuePreferences> {
+  try {
+    const raw = issueDraftStorage()?.getItem(NEW_ISSUE_PREFERENCES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const preferences: Record<string, NewIssuePreferences> = {};
+    for (const [orgId, value] of Object.entries(parsed)) {
+      if (!orgId || !value || typeof value !== "object" || Array.isArray(value)) continue;
+      const record = value as Partial<NewIssuePreferences>;
+      preferences[orgId] = {
+        assigneeValue: safeTrim(record.assigneeValue),
+        reviewerValue: safeTrim(record.reviewerValue),
+        projectId: safeTrim(record.projectId),
+        updatedAt: safeTrim(record.updatedAt) || new Date(0).toISOString(),
+      };
+    }
+    return preferences;
+  } catch {
+    return {};
+  }
+}
+
+export function readNewIssuePreferences(orgId?: string | null): NewIssuePreferences | null {
+  if (!orgId) return null;
+  return readAllNewIssuePreferences()[orgId] ?? null;
+}
+
+export function saveNewIssuePreferences(
+  orgId: string | null | undefined,
+  values: Pick<NewIssuePreferences, "assigneeValue" | "reviewerValue" | "projectId">,
+) {
+  if (!orgId) return;
+  const storage = issueDraftStorage();
+  if (!storage) return;
+  const next = {
+    ...readAllNewIssuePreferences(),
+    [orgId]: {
+      assigneeValue: safeTrim(values.assigneeValue),
+      reviewerValue: safeTrim(values.reviewerValue),
+      projectId: safeTrim(values.projectId),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  storage.setItem(NEW_ISSUE_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
 }
 
 function readAllIssueDrafts(): SavedIssueDraft[] {

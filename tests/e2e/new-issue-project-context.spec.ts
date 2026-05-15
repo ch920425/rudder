@@ -76,6 +76,104 @@ test.describe("New issue project context", () => {
     await expect(dialog.getByRole("button", { name: project.name })).toBeVisible();
   });
 
+  test("remembers new issue assignee, project, and reviewer while project context wins", async ({ page }) => {
+    const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
+      data: {
+        name: `New-Issue-Memory-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    const assigneeRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Implementation Bot",
+        role: "engineer",
+        title: "Engineer",
+      },
+    });
+    expect(assigneeRes.ok()).toBe(true);
+    const assignee = await assigneeRes.json() as { id: string; name: string };
+
+    const reviewerRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Review Bot",
+        role: "cto",
+        title: "Chief Technology Officer",
+      },
+    });
+    expect(reviewerRes.ok()).toBe(true);
+    const reviewer = await reviewerRes.json() as { id: string; name: string };
+
+    const rememberedProjectRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/projects`, {
+      data: {
+        name: "Remembered Project",
+        status: "planned",
+      },
+    });
+    expect(rememberedProjectRes.ok()).toBe(true);
+    const rememberedProject = await rememberedProjectRes.json() as { id: string; name: string };
+
+    const sidebarProjectRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/projects`, {
+      data: {
+        name: "Sidebar Project",
+        status: "planned",
+      },
+    });
+    expect(sidebarProjectRes.ok()).toBe(true);
+    const sidebarProject = await sidebarProjectRes.json() as { id: string; name: string };
+
+    await page.goto(E2E_BASE_URL);
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues`);
+    await page.getByTestId("workspace-main-header").getByRole("button", { name: "Create Issue" }).click();
+
+    const firstDialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
+    await expect(firstDialog).toBeVisible();
+    await firstDialog.getByPlaceholder("Issue title").fill(`Remember metadata ${Date.now()}`);
+    await firstDialog.getByRole("button", { name: "No assignee" }).click();
+    await firstDialog.getByPlaceholder("Search assignees...").fill(assignee.name);
+    await firstDialog.getByPlaceholder("Search assignees...").press("Enter");
+    await firstDialog.getByRole("button", { name: "No project" }).first().click();
+    await firstDialog.getByPlaceholder("Search projects...").fill(rememberedProject.name);
+    await firstDialog.getByPlaceholder("Search projects...").press("Enter");
+    await firstDialog.getByRole("button", { name: "No reviewer" }).click();
+    await firstDialog.getByPlaceholder("Search reviewers...").fill(reviewer.name);
+    await firstDialog.getByPlaceholder("Search reviewers...").press("Enter");
+
+    const createResponse = page.waitForResponse((response) =>
+      response.request().method() === "POST"
+      && response.url().endsWith(`/api/orgs/${organization.id}/issues`)
+      && response.ok(),
+    );
+    await firstDialog.getByRole("button", { name: "Create Issue" }).click();
+    await createResponse;
+    await expect(firstDialog).toHaveCount(0);
+
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues`);
+    await page.getByTestId("workspace-main-header").getByRole("button", { name: "Create Issue" }).click();
+
+    const rememberedDialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
+    await expect(rememberedDialog).toBeVisible();
+    await expect(rememberedDialog.getByRole("button", { name: assignee.name })).toBeVisible();
+    await expect(rememberedDialog.getByRole("button", { name: rememberedProject.name })).toBeVisible();
+    await expect(rememberedDialog.getByRole("button", { name: reviewer.name })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(rememberedDialog).toHaveCount(0);
+
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/issues?projectId=${sidebarProject.id}`);
+    await page.getByTestId("workspace-main-header").getByRole("button", { name: "Create Issue" }).click();
+
+    const projectContextDialog = page.locator('[data-slot="dialog-content"]').filter({ has: page.getByText("New issue") }).first();
+    await expect(projectContextDialog).toBeVisible();
+    await expect(projectContextDialog.getByRole("button", { name: assignee.name })).toBeVisible();
+    await expect(projectContextDialog.getByRole("button", { name: sidebarProject.name })).toBeVisible();
+    await expect(projectContextDialog.getByRole("button", { name: reviewer.name })).toBeVisible();
+  });
+
   test("prefills project and lane status when creating from a project-scoped board column", async ({ page }) => {
     const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
       data: {

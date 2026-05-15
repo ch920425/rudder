@@ -20,9 +20,11 @@ import {
   deleteIssueDraft,
   hasMeaningfulIssueDraft,
   readIssueAutosave,
+  readNewIssuePreferences,
   readSavedIssueDraft,
   resolveDefaultNewIssueProjectId,
   resolveDraftBackedNewIssueValues,
+  saveNewIssuePreferences,
   saveIssueAutosave,
   type IssueDraft,
   updateIssueDraft,
@@ -482,6 +484,11 @@ export function NewIssueDialog() {
       queryClient.setQueryData(queryKeys.issues.detail(issue.identifier ?? issue.id), issue);
       queryClient.setQueryData(queryKeys.issues.detail(issue.id), issue);
       clearPendingDraftSave();
+      saveNewIssuePreferences(orgId, {
+        assigneeValue,
+        reviewerValue,
+        projectId,
+      });
       const issueRef = issue.identifier ?? issue.id;
       const issueDetailHref = buildCreatedIssueDetailHref({ issue, orgId, organizations });
       const sourceHref = buildIssueDetailSourceHref(openContextLocationRef.current);
@@ -607,6 +614,19 @@ export function NewIssueDialog() {
       search: openContextLocation.search,
       projects: orderedProjects,
     });
+    const rememberedPreferences = readNewIssuePreferences(selectedOrganizationId);
+    const rememberedProjectId = rememberedPreferences?.projectId
+      && orderedProjects.some((project) => project.id === rememberedPreferences.projectId)
+      ? rememberedPreferences.projectId
+      : "";
+    const preferredProjectId = defaultProjectId || rememberedProjectId;
+    const explicitAssigneeValue = assigneeValueFromSelection(newIssueDefaults);
+    const explicitReviewerValue = assigneeValueFromSelection({
+      assigneeAgentId: newIssueDefaults.reviewerAgentId,
+      assigneeUserId: newIssueDefaults.reviewerUserId,
+    });
+    const preferredAssigneeValue = explicitAssigneeValue || rememberedPreferences?.assigneeValue || "";
+    const preferredReviewerValue = explicitReviewerValue || rememberedPreferences?.reviewerValue || "";
 
     const savedDraft = readSavedIssueDraft(requestedSavedIssueDraftId, selectedOrganizationId);
     const draft = savedDraft ?? (requestedSavedIssueDraftId ? null : readIssueAutosave(selectedOrganizationId));
@@ -620,11 +640,8 @@ export function NewIssueDialog() {
         defaults: {},
         draft: savedDraft,
         defaultProjectId,
-        defaultAssigneeValue: assigneeValueFromSelection(newIssueDefaults),
-        defaultReviewerValue: assigneeValueFromSelection({
-          assigneeAgentId: newIssueDefaults.reviewerAgentId,
-          assigneeUserId: newIssueDefaults.reviewerUserId,
-        }),
+        defaultAssigneeValue: explicitAssigneeValue,
+        defaultReviewerValue: explicitReviewerValue,
       });
       const restoredProjectId = restoredValues.projectId;
       const restoredProject = orderedProjects.find((project) => project.id === restoredProjectId);
@@ -648,14 +665,11 @@ export function NewIssueDialog() {
       setPriority(newIssueDefaults.priority ?? "");
       setSelectedLabelIds(newIssueDefaults.labelIds ?? []);
       setLabelSearch("");
-      const defaultProject = orderedProjects.find((project) => project.id === defaultProjectId);
-      setProjectId(defaultProjectId);
+      const defaultProject = orderedProjects.find((project) => project.id === preferredProjectId);
+      setProjectId(preferredProjectId);
       setProjectWorkspaceId(defaultProjectWorkspaceIdForProject(defaultProject));
-      setAssigneeValue(assigneeValueFromSelection(newIssueDefaults));
-      setReviewerValue(assigneeValueFromSelection({
-        assigneeAgentId: newIssueDefaults.reviewerAgentId,
-        assigneeUserId: newIssueDefaults.reviewerUserId,
-      }));
+      setAssigneeValue(preferredAssigneeValue);
+      setReviewerValue(preferredReviewerValue);
       setAssigneeModelOverride("");
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
@@ -664,11 +678,8 @@ export function NewIssueDialog() {
         defaults: newIssueDefaults,
         draft,
         defaultProjectId,
-        defaultAssigneeValue: assigneeValueFromSelection(newIssueDefaults),
-        defaultReviewerValue: assigneeValueFromSelection({
-          assigneeAgentId: newIssueDefaults.reviewerAgentId,
-          assigneeUserId: newIssueDefaults.reviewerUserId,
-        }),
+        defaultAssigneeValue: explicitAssigneeValue,
+        defaultReviewerValue: explicitReviewerValue,
       });
       const restoredProjectId = restoredValues.projectId;
       const restoredProject = orderedProjects.find((project) => project.id === restoredProjectId);
@@ -686,20 +697,17 @@ export function NewIssueDialog() {
       setAssigneeThinkingEffort(draft.assigneeThinkingEffort ?? "");
       setAssigneeChrome(draft.assigneeChrome ?? false);
     } else {
-      const defaultProject = orderedProjects.find((project) => project.id === defaultProjectId);
+      const defaultProject = orderedProjects.find((project) => project.id === preferredProjectId);
       setTitle("");
       setDescription("");
       setStatus(newIssueDefaults.status ?? "todo");
       setPriority(newIssueDefaults.priority ?? "");
       setSelectedLabelIds(newIssueDefaults.labelIds ?? []);
       setLabelSearch("");
-      setProjectId(defaultProjectId);
+      setProjectId(preferredProjectId);
       setProjectWorkspaceId(defaultProjectWorkspaceIdForProject(defaultProject));
-      setAssigneeValue(assigneeValueFromSelection(newIssueDefaults));
-      setReviewerValue(assigneeValueFromSelection({
-        assigneeAgentId: newIssueDefaults.reviewerAgentId,
-        assigneeUserId: newIssueDefaults.reviewerUserId,
-      }));
+      setAssigneeValue(preferredAssigneeValue);
+      setReviewerValue(preferredReviewerValue);
       setAssigneeModelOverride("");
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);

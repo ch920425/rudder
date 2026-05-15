@@ -6,11 +6,14 @@ import {
   hasMeaningfulIssueDraft,
   ISSUE_AUTOSAVE_STORAGE_KEY,
   ISSUE_DRAFTS_STORAGE_KEY,
+  NEW_ISSUE_PREFERENCES_STORAGE_KEY,
   listIssueDrafts,
   readIssueAutosave,
+  readNewIssuePreferences,
   readSavedIssueDraft,
   resolveDraftBackedNewIssueValues,
   resolveDefaultNewIssueProjectId,
+  saveNewIssuePreferences,
   saveIssueAutosave,
   summarizeIssueDrafts,
   updateIssueDraft,
@@ -301,5 +304,53 @@ describe("issue autosave and draft persistence", () => {
 
     expect(readIssueAutosave("org-1")).toBeNull();
     expect(listIssueDrafts("org-1")).toHaveLength(1);
+  });
+});
+
+describe("new issue preferences", () => {
+  it("remembers last selected metadata per organization without creating a draft", () => {
+    saveNewIssuePreferences("org-1", {
+      assigneeValue: "agent:agent-1",
+      reviewerValue: "agent:reviewer-1",
+      projectId: "project-1",
+    });
+    saveNewIssuePreferences("org-2", {
+      assigneeValue: "user:user-2",
+      reviewerValue: "",
+      projectId: "project-2",
+    });
+
+    expect(localStorage.getItem(NEW_ISSUE_PREFERENCES_STORAGE_KEY)).toContain("agent:agent-1");
+    expect(readNewIssuePreferences("org-1")).toMatchObject({
+      assigneeValue: "agent:agent-1",
+      reviewerValue: "agent:reviewer-1",
+      projectId: "project-1",
+    });
+    expect(readNewIssuePreferences("org-2")).toMatchObject({
+      assigneeValue: "user:user-2",
+      reviewerValue: "",
+      projectId: "project-2",
+    });
+    expect(listIssueDrafts("org-1")).toEqual([]);
+    expect(readIssueAutosave("org-1")).toBeNull();
+  });
+
+  it("persists an explicit empty selection so users can clear remembered fields", () => {
+    saveNewIssuePreferences("org-1", {
+      assigneeValue: "agent:agent-1",
+      reviewerValue: "agent:reviewer-1",
+      projectId: "project-1",
+    });
+    saveNewIssuePreferences("org-1", {
+      assigneeValue: "",
+      reviewerValue: "",
+      projectId: "",
+    });
+
+    expect(readNewIssuePreferences("org-1")).toMatchObject({
+      assigneeValue: "",
+      reviewerValue: "",
+      projectId: "",
+    });
   });
 });
