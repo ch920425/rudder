@@ -50,6 +50,7 @@ test("issue comment composer uses the chat-style mention panel without exposing 
     },
   });
   expect(relatedIssueRes.ok()).toBe(true);
+  const relatedIssue = await relatedIssueRes.json() as { id: string };
 
   await page.goto("/");
   await page.evaluate((orgId) => {
@@ -78,6 +79,11 @@ test("issue comment composer uses the chat-style mention panel without exposing 
   expect(composerBox).not.toBeNull();
   expect(menuBox).not.toBeNull();
   expect(menuBox!.width).toBeGreaterThan(composerBox!.width - 8);
+
+  await page.getByTestId(`markdown-mention-option-issue:${relatedIssue.id}`).click();
+  await page.keyboard.type(" mouse");
+  await expect(composer.locator("[data-mention-kind='issue']").first()).toContainText("Related mention target");
+  await expect(composer).toContainText("Related mention target mouse");
 
   await composer.press("ControlOrMeta+A");
   await page.keyboard.type("before  after");

@@ -206,11 +206,26 @@ function placeCaretAtVisibleTextOffset(editable: HTMLElement, offset: number) {
   const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
   let remaining = Math.max(0, offset);
   let lastTextNode: Text | null = null;
+  let lastAtomicToken: HTMLElement | null = null;
 
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     lastTextNode = node;
     const length = node.textContent?.length ?? 0;
+    const atomicToken = closestAtomicInlineToken(node);
+    if (atomicToken) {
+      lastAtomicToken = atomicToken;
+      if (remaining <= length) {
+        const range = document.createRange();
+        range.setStartAfter(atomicToken);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      remaining -= length;
+      continue;
+    }
     if (remaining <= length) {
       const range = document.createRange();
       range.setStart(node, remaining);
@@ -223,7 +238,9 @@ function placeCaretAtVisibleTextOffset(editable: HTMLElement, offset: number) {
   }
 
   const range = document.createRange();
-  if (lastTextNode) {
+  if (lastAtomicToken && lastTextNode && lastAtomicToken.contains(lastTextNode)) {
+    range.setStartAfter(lastAtomicToken);
+  } else if (lastTextNode) {
     range.setStart(lastTextNode, lastTextNode.textContent?.length ?? 0);
   } else {
     range.setStart(editable, editable.childNodes.length);
@@ -1282,10 +1299,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                         option.agentId ?? option.id.replace(/^agent:/, ""),
                         option.agentIcon ?? null,
                       );
-                return Array.from(editable.querySelectorAll("a"))
-                  .filter((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
+                return Array.from(editable.querySelectorAll("a, [data-mention-href]"))
+                  .filter((node): node is HTMLElement => node instanceof HTMLElement)
                   .filter((link) => {
-                    const href = link.getAttribute("href") ?? "";
+                    const href = link.dataset.mentionHref ?? link.getAttribute("href") ?? "";
                     return href === mentionHref && stripMentionChipLabelPrefix(link.textContent ?? "") === option.name;
                   });
               })();
@@ -1315,11 +1332,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
             placeCaretAtVisibleTextOffset(currentEditable, caretOffset);
           };
 
-          if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+          restoreFallbackCaretAfterMention();
           requestAnimationFrame(() => {
-            if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+            restoreFallbackCaretAfterMention();
             requestAnimationFrame(() => {
-              if (!didReplaceInLexical) restoreFallbackCaretAfterMention();
+              restoreFallbackCaretAfterMention();
             });
           });
         });

@@ -157,12 +157,27 @@ vi.mock("@mdxeditor/editor", async () => {
 
     const imageMatch = markdown.match(/!\[([^\]]*)\]\(([^)]+)\)/);
     const linkMatch = markdown.match(/\[([^\]]+)\]\(([^)]+)\)/);
+    const mentionLinkMatch = linkMatch && /^(agent|project|issue):\/\//.test(linkMatch[2])
+      ? linkMatch
+      : null;
 
     return (
       <div className={props.className}>
         <div contentEditable className={props.contentEditableClassName} onBlur={props.onBlur}>
           {imageMatch ? (
             <img src={imageMatch[2]} alt={imageMatch[1]} />
+          ) : mentionLinkMatch ? (
+            <>
+              {markdown.slice(0, mentionLinkMatch.index)}
+              <span
+                contentEditable={false}
+                data-mention-href={mentionLinkMatch[2]}
+                data-mention-kind={mentionLinkMatch[2].split("://")[0]}
+              >
+                {mentionLinkMatch[1]}
+              </span>
+              {markdown.slice((mentionLinkMatch.index ?? 0) + mentionLinkMatch[0].length)}
+            </>
           ) : linkMatch ? (
             <>
               {markdown.slice(0, linkMatch.index)}
