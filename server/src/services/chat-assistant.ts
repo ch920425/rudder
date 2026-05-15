@@ -24,6 +24,7 @@ import { agentService } from "./agents.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import type { StorageService } from "../storage/types.js";
 import { executeAdapterWithModelFallbacks } from "./runtime-kernel/model-fallback.js";
+import { preflightManagedAgentWorkspace } from "./managed-workspace-preflight.js";
 
 const CHAT_UNSUPPORTED_ADAPTER_TYPES = new Set<AgentRuntimeType>(["process", "http"]);
 const CHAT_RESULT_SENTINEL_PREFIX = "__RUDDER_RESULT_";
@@ -101,6 +102,10 @@ export class ChatAssistantStreamError extends Error {
 function safeTrim(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function summarizeBody(value: string, maxChars = 160) {
@@ -1284,6 +1289,13 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
     let parser = adapter.parseStdoutLine;
     let stdoutLineBuffer = "";
     const { rudderWorkspace, rudderWorkspaces, rudderRuntimeServiceIntents, rudderScene } = sceneContext;
+    await preflightManagedAgentWorkspace({
+      agentHome: asString(rudderWorkspace.agentHome),
+      instructionsDir: asString(rudderWorkspace.instructionsDir),
+      memoryDir: asString(rudderWorkspace.memoryDir),
+      lifeDir: asString(rudderWorkspace.lifeDir),
+      skillsDir: asString(rudderWorkspace.agentSkillsDir),
+    });
     const preparedAttachments = await prepareChatAttachmentReferences({
       runtimeType: runtimeAgentType,
       messages: input.messages,

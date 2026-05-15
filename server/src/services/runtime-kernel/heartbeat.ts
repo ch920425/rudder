@@ -85,6 +85,10 @@ import { executionWorkspaceService } from "../execution-workspaces.js";
 import { buildObservedRunLangfuseScores } from "../run-intelligence.js";
 import { workspaceOperationService } from "../workspace-operations.js";
 import {
+  isWorkspacePermissionPreflightError,
+  preflightManagedAgentWorkspace,
+} from "../managed-workspace-preflight.js";
+import {
   buildExecutionWorkspaceAdapterConfig,
   issueExecutionWorkspaceModeForPersistedWorkspace,
   parseIssueExecutionWorkspaceSettings,
@@ -3819,6 +3823,14 @@ export function heartbeatService(db: Db) {
     let stdoutExcerpt = "";
     let stderrExcerpt = "";
     try {
+      await preflightManagedAgentWorkspace({
+        agentHome: readNonEmptyString(runtimeSceneContext.rudderWorkspace.agentHome) ?? "",
+        instructionsDir: readNonEmptyString(runtimeSceneContext.rudderWorkspace.instructionsDir) ?? "",
+        memoryDir: readNonEmptyString(runtimeSceneContext.rudderWorkspace.memoryDir) ?? "",
+        lifeDir: readNonEmptyString(runtimeSceneContext.rudderWorkspace.lifeDir) ?? "",
+        skillsDir: readNonEmptyString(runtimeSceneContext.rudderWorkspace.agentSkillsDir) ?? "",
+      });
+
       const startedAt = run.startedAt ?? new Date();
       const runningWithSession = await db
         .update(heartbeatRuns)
@@ -4276,6 +4288,7 @@ export function heartbeatService(db: Db) {
       }
       await finalizeAgentStatus(agent.id, outcome);
     } catch (err) {
+      const isWorkspacePreflightFailure = isWorkspacePermissionPreflightError(err);
       const message = redactCurrentUserText(
         err instanceof Error ? err.message : "Unknown adapter failure",
         await getCurrentUserRedactionOptions(),
@@ -4302,7 +4315,7 @@ export function heartbeatService(db: Db) {
 
       const failedRun = await setRunStatus(run.id, "failed", {
         error: message,
-        errorCode: "adapter_failed",
+        errorCode: isWorkspacePreflightFailure ? err.errorCode : "adapter_failed",
         finishedAt: new Date(),
         stdoutExcerpt,
         stderrExcerpt,
@@ -4317,33 +4330,43 @@ export function heartbeatService(db: Db) {
 
       if (failedRun) {
         await appendRunEvent(failedRun, seq++, {
-          eventType: "error",
+          eventType: isWorkspacePreflightFailure ? "runtime.workspace_preflight_failed" : "error",
           stream: "system",
           level: "error",
           message,
+          ...(isWorkspacePreflightFailure
+            ? {
+                payload: {
+                  errorCode: err.errorCode,
+                  failure: err.failure,
+                },
+              }
+            : {}),
         });
         await releaseIssueExecutionAndPromote(failedRun);
 
-        await updateRuntimeState(agent, failedRun, {
-          exitCode: null,
-          signal: null,
-          timedOut: false,
-          errorMessage: message,
-        }, {
-          legacySessionId: runtimeForAdapter.sessionId,
-        });
-
-        if (taskKey && (previousSessionParams || previousSessionDisplayId || taskSession)) {
-          await upsertTaskSession({
-            orgId: agent.orgId,
-            agentId: agent.id,
-            agentRuntimeType: agent.agentRuntimeType,
-            taskKey,
-            sessionParamsJson: previousSessionParams,
-            sessionDisplayId: previousSessionDisplayId,
-            lastRunId: failedRun.id,
-            lastError: message,
+        if (!isWorkspacePreflightFailure) {
+          await updateRuntimeState(agent, failedRun, {
+            exitCode: null,
+            signal: null,
+            timedOut: false,
+            errorMessage: message,
+          }, {
+            legacySessionId: runtimeForAdapter.sessionId,
           });
+
+          if (taskKey && (previousSessionParams || previousSessionDisplayId || taskSession)) {
+            await upsertTaskSession({
+              orgId: agent.orgId,
+              agentId: agent.id,
+              agentRuntimeType: agent.agentRuntimeType,
+              taskKey,
+              sessionParamsJson: previousSessionParams,
+              sessionDisplayId: previousSessionDisplayId,
+              lastRunId: failedRun.id,
+              lastError: message,
+            });
+          }
         }
         await emitHeartbeatLiveEval(failedRun.id);
       }

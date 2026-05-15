@@ -446,6 +446,7 @@ export function agentRunContextService(db: Db) {
       agentRoot: agentWorkspace.root,
       instructionsDir: agentWorkspace.instructionsDir,
       memoryDir: agentWorkspace.memoryDir,
+      lifeDir: agentWorkspace.lifeDir,
       agentSkillsDir: agentWorkspace.skillsDir,
       orgWorkspaceRoot: organizationWorkspace.root,
       orgAgentsDir: organizationWorkspace.agentsDir,

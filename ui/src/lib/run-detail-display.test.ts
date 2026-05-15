@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "./run-detail-display";
+import { getRunFailureDisplay, getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "./run-detail-display";
 
 describe("shouldShowRunStderrExcerpt", () => {
   it("does not promote stderr excerpts for successful runs", () => {
@@ -47,5 +47,20 @@ describe("shouldShowRunStderrExcerpt", () => {
       status: "failed",
       stderrExcerpt: "2026-05-15T06:57:31.977213Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit",
     })).toBe(false);
+  });
+});
+
+describe("getRunFailureDisplay", () => {
+  it("labels workspace permission preflight failures separately from agent failures", () => {
+    expect(getRunFailureDisplay({
+      error: "Rudder workspace permission repair needed: managed life path is not writable: /tmp/agent/life (EACCES).",
+      errorCode: "workspace_permission_repair_needed",
+    })).toEqual({
+      title: "Workspace permission repair needed",
+      body: "Rudder workspace permission repair needed: managed life path is not writable: /tmp/agent/life (EACCES).",
+      code: "workspace_permission_repair_needed",
+      actionLabel: "Open system permissions",
+      actionPath: "/instance/settings/notifications",
+    });
   });
 });

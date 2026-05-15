@@ -41,7 +41,7 @@ import { retryHeartbeatRun } from "../lib/heartbeat-retry";
 import { queryKeys } from "../lib/queryKeys";
 import { findOrganizationByPrefix } from "../lib/organization-routes";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
-import { getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
+import { getRunFailureDisplay, getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { DashboardDateRangeControl, type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { PageTabBar } from "../components/PageTabBar";
@@ -1755,9 +1755,12 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
   const runReason = describeRunReason(run);
   const durationLabel = formatRunDurationLabel(run, now) ?? relativeTime(run.createdAt);
   const timingTitle = formatRunTimingTitle(run);
+  const failureDisplay = getRunFailureDisplay(run);
   const summary = run.resultJson
     ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
-    : run.error ?? "";
+    : failureDisplay
+      ? `${failureDisplay.title}: ${failureDisplay.body}`
+      : "";
 
   return (
     <div className="space-y-3">
@@ -4125,6 +4128,7 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
     [touchedIssues],
   );
   const stderrExcerptDisplayText = getRunStderrExcerptDisplayText(run);
+  const failureDisplay = getRunFailureDisplay(run);
 
   const clearSessionsForTouchedIssues = useMutation({
     mutationFn: async () => {
@@ -4260,10 +4264,18 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
                 )}
               </div>
             )}
-            {run.error && (
+            {failureDisplay && (
               <div className="text-xs">
-                <span className="text-red-600 dark:text-red-400">{run.error}</span>
-                {run.errorCode && <span className="text-muted-foreground ml-1">({run.errorCode})</span>}
+                <div className="font-medium text-red-600 dark:text-red-400">{failureDisplay.title}</div>
+                <span className="text-red-600 dark:text-red-400">{failureDisplay.body}</span>
+                {failureDisplay.code && <span className="text-muted-foreground ml-1">({failureDisplay.code})</span>}
+                {failureDisplay.actionPath && failureDisplay.actionLabel && (
+                  <div className="mt-1">
+                    <Link to={failureDisplay.actionPath} className="text-xs font-medium text-red-700 underline dark:text-red-300">
+                      {failureDisplay.actionLabel}
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
             {run.errorCode === "claude_auth_required" && agentRuntimeType === "claude_local" && (
@@ -4529,6 +4541,7 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
   const [isStreamingConnected, setIsStreamingConnected] = useState(false);
   const [transcriptMode, setTranscriptMode] = useState<TranscriptMode>("nice");
   const [activeDetailTab, setActiveDetailTab] = useState<RunDetailTab>("transcript");
+  const failureDisplay = getRunFailureDisplay(run);
   const [transcriptModalOpen, setTranscriptModalOpen] = useState(false);
   const [transcriptDialogMotion, setTranscriptDialogMotion] = useState({
     fromX: "0px",
@@ -5283,10 +5296,17 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
       {(run.status === "failed" || run.status === "timed_out") && (
         <div className="rounded-lg border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-950/20 p-3 space-y-2">
           <div className="text-xs font-medium text-red-700 dark:text-red-300">Failure details</div>
-          {run.error && (
+          {failureDisplay && (
             <div className="text-xs text-red-600 dark:text-red-200">
-              <span className="text-red-700 dark:text-red-300">Error: </span>
-              {redactPathText(run.error, censorUsernameInLogs)}
+              <span className="text-red-700 dark:text-red-300">{failureDisplay.title}: </span>
+              {redactPathText(failureDisplay.body, censorUsernameInLogs)}
+              {failureDisplay.actionPath && failureDisplay.actionLabel && (
+                <div className="mt-1">
+                  <Link to={failureDisplay.actionPath} className="text-xs font-medium text-red-700 underline dark:text-red-300">
+                    {failureDisplay.actionLabel}
+                  </Link>
+                </div>
+              )}
             </div>
           )}
           {stderrExcerptDisplayText && (

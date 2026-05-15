@@ -8,6 +8,7 @@ import {
   ensureOrganizationWorkspaceLayout,
   pruneOrphanedOrganizationStorage,
   resolveAgentInstructionsDir,
+  resolveAgentLifeDir,
   resolveAgentMemoryDir,
   resolveAgentSkillsDir,
   resolveDefaultAgentWorkspaceDir,
@@ -71,6 +72,7 @@ describe("home paths", () => {
       root: resolveDefaultAgentWorkspaceDir(orgId, workspaceKey),
       instructionsDir: resolveAgentInstructionsDir(orgId, workspaceKey),
       memoryDir: resolveAgentMemoryDir(orgId, workspaceKey),
+      lifeDir: resolveAgentLifeDir(orgId, workspaceKey),
       skillsDir: resolveAgentSkillsDir(orgId, workspaceKey),
     });
 
@@ -81,6 +83,7 @@ describe("home paths", () => {
     await expect(fs.stat(resolveDefaultAgentWorkspaceDir(orgId, workspaceKey))).resolves.toBeDefined();
     await expect(fs.stat(resolveAgentInstructionsDir(orgId, workspaceKey))).resolves.toBeDefined();
     await expect(fs.stat(resolveAgentMemoryDir(orgId, workspaceKey))).resolves.toBeDefined();
+    await expect(fs.stat(resolveAgentLifeDir(orgId, workspaceKey))).resolves.toBeDefined();
     await expect(fs.stat(resolveAgentSkillsDir(orgId, workspaceKey))).resolves.toBeDefined();
   });
 

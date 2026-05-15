@@ -100,6 +100,10 @@ export function resolveAgentMemoryDir(orgId: string, agent: string | AgentWorksp
   return path.resolve(resolveDefaultAgentWorkspaceDir(orgId, agent), "memory");
 }
 
+export function resolveAgentLifeDir(orgId: string, agent: string | AgentWorkspaceLocator): string {
+  return path.resolve(resolveDefaultAgentWorkspaceDir(orgId, agent), "life");
+}
+
 export function resolveAgentSkillsDir(orgId: string, agent: string | AgentWorkspaceLocator): string {
   return path.resolve(resolveDefaultAgentWorkspaceDir(orgId, agent), "skills");
 }
@@ -162,6 +166,7 @@ export async function ensureAgentWorkspaceLayout(agent: {
   root: string;
   instructionsDir: string;
   memoryDir: string;
+  lifeDir: string;
   skillsDir: string;
 }> {
   await ensureOrganizationWorkspaceLayout(agent.orgId);
@@ -170,11 +175,13 @@ export async function ensureAgentWorkspaceLayout(agent: {
   const root = resolveDefaultAgentWorkspaceDir(agent.orgId, workspaceKey);
   const instructionsDir = resolveAgentInstructionsDir(agent.orgId, workspaceKey);
   const memoryDir = resolveAgentMemoryDir(agent.orgId, workspaceKey);
+  const lifeDir = resolveAgentLifeDir(agent.orgId, workspaceKey);
   const skillsDir = resolveAgentSkillsDir(agent.orgId, workspaceKey);
   await fs.mkdir(root, { recursive: true });
   await Promise.all([
     fs.mkdir(instructionsDir, { recursive: true }),
     fs.mkdir(memoryDir, { recursive: true }),
+    fs.mkdir(lifeDir, { recursive: true }),
     fs.mkdir(skillsDir, { recursive: true }),
   ]);
 
@@ -182,6 +189,7 @@ export async function ensureAgentWorkspaceLayout(agent: {
     root,
     instructionsDir,
     memoryDir,
+    lifeDir,
     skillsDir,
   };
 }
