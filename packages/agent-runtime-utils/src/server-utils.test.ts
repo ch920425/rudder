@@ -785,7 +785,76 @@ describe("ensureLocalCliCredentialShimsInPath", () => {
       });
 
       expect(env.HOME).toBe(targetHome);
-      expect(env.PATH?.split(":")[0]).toBe(path.join(targetHome, ".rudder", "local-cli-shims"));
+      expect(env.PATH?.split(path.delimiter)[0]).toBe(path.join(targetHome, ".rudder", "local-cli-shims"));
+
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn("gh", [], { env });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`gh shim exited ${code}`));
+        });
+      });
+
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        home: string;
+        userProfile: string;
+      };
+      expect(capture.home).toBe(operatorHome);
+      expect(capture.userProfile).toBe(operatorHome);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("shims commands when bridged credential files exist but managed HOME auth still fails", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-local-cli-shims-bridged-auth-fail-"));
+    const operatorHome = path.join(root, "operator-home");
+    const targetHome = path.join(root, "agent-home");
+    const operatorGh = path.join(operatorHome, ".config", "gh");
+    const targetGh = path.join(targetHome, ".config", "gh");
+    const binDir = path.join(root, "bin");
+    const capturePath = path.join(root, "capture.json");
+    const fakeGh = path.join(binDir, "gh");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(operatorGh, { recursive: true });
+    await fs.mkdir(path.dirname(targetGh), { recursive: true });
+    await fs.writeFile(path.join(operatorGh, "hosts.yml"), "github.com:\n  oauth_token: keyring-backed\n", "utf8");
+    await fs.symlink(operatorGh, targetGh);
+    await fs.writeFile(
+      fakeGh,
+      [
+        "#!/bin/sh",
+        "if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then",
+        `  test "$HOME" = ${JSON.stringify(operatorHome)}`,
+        "  exit $?",
+        "fi",
+        `printf '{"home":"%s","userProfile":"%s"}\\n' "$HOME" "$USERPROFILE" > ${JSON.stringify(capturePath)}`,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.chmod(fakeGh, 0o755);
+
+    try {
+      expect(await fs.realpath(targetGh)).toBe(await fs.realpath(operatorGh));
+
+      const env = await ensureLocalCliCredentialShimsInPath({
+        operatorHome,
+        targetHome,
+        env: {
+          HOME: targetHome,
+          PATH: binDir,
+        },
+        commands: [{
+          command: "gh",
+          authCheckArgs: ["auth", "status"],
+          credentialEntries: [".config/gh"],
+        }],
+      });
+
+      expect(env.HOME).toBe(targetHome);
+      expect(env.PATH?.split(path.delimiter)[0]).toBe(path.join(targetHome, ".rudder", "local-cli-shims"));
 
       await new Promise<void>((resolve, reject) => {
         const child = spawn("gh", [], { env });
