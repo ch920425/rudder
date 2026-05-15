@@ -1011,7 +1011,7 @@ describe("codex execute", () => {
     }
   });
 
-  it("strips inherited Codex MCP server and plugin tables from the managed config", async () => {
+  it("strips inherited Codex notify hooks, MCP server, and plugin tables from the managed config", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-strip-managed-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "codex");
@@ -1025,6 +1025,7 @@ describe("codex execute", () => {
     await fs.writeFile(
       path.join(sharedCodexHome, "config.toml"),
       [
+        'notify = ["legacy_notify"]',
         'model = "codex-mini-latest"',
         "",
         "[features]",
@@ -1096,6 +1097,7 @@ describe("codex execute", () => {
       expect(managedConfigContents).toContain("enabled = false");
       expect(managedConfigContents).toContain("[features]");
       expect(managedConfigContents).toContain("plugins = false");
+      expect(managedConfigContents).not.toContain("notify =");
       expect(managedConfigContents).not.toContain("plugins = true");
       expect(managedConfigContents).not.toContain("[mcp_servers.linear]");
       expect(managedConfigContents).not.toContain('[plugins."linear@openai-curated"]');
@@ -1103,6 +1105,12 @@ describe("codex execute", () => {
         expect.objectContaining({
           stream: "stdout",
           chunk: expect.stringContaining("Removed 2 inherited Codex plugin/MCP configuration tables"),
+        }),
+      );
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          stream: "stdout",
+          chunk: expect.stringContaining("Removed 1 inherited Codex notify hook"),
         }),
       );
     } finally {
