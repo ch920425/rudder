@@ -16,6 +16,7 @@ import { useOrganization } from "../context/OrganizationContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useI18n } from "../context/I18nContext";
 import { useToast } from "../context/ToastContext";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { MarkdownBody } from "../components/MarkdownBody";
@@ -463,7 +464,7 @@ function AddSkillDialog({
   );
 }
 
-function SkillList({
+export function SkillList({
   skills,
   selectedSkillId,
   skillFilter,
@@ -474,6 +475,7 @@ function SkillList({
   skillFilter: string;
   onSelectSkill: (skillId: string) => void;
 }) {
+  const listScrollRef = useScrollbarActivityRef("rudder:organization-skills:list");
   const filteredSkills = skills.filter((skill) => {
     const haystack = `${skill.name} ${skill.description ?? ""} ${skill.key} ${skill.slug} ${skill.sourceLabel ?? ""}`.toLowerCase();
     return haystack.includes(skillFilter.toLowerCase());
@@ -488,7 +490,11 @@ function SkillList({
   }
 
   return (
-    <div className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto">
+    <div
+      ref={listScrollRef}
+      data-testid="organization-skills-list-scroll"
+      className="scrollbar-auto-hide h-full min-h-0 overflow-y-auto"
+    >
       {filteredSkills.map((skill) => {
         const source = sourceMeta(skill.sourceBadge, skill.sourceLabel);
         const SourceIcon = source.icon;
@@ -600,6 +606,8 @@ function SkillPane({
   onToggleDir: (path: string) => void;
   onSelectPath: (path: string) => void;
 }) {
+  const fileTreeScrollRef = useScrollbarActivityRef("rudder:organization-skills:file-tree");
+  const fileBodyScrollRef = useScrollbarActivityRef("rudder:organization-skills:file-body");
   const { pushToast } = useToast();
 
   if (!detail) {
@@ -824,7 +832,11 @@ function SkillPane({
           <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Files
           </div>
-          <div className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto">
+          <div
+            ref={fileTreeScrollRef}
+            data-testid="organization-skills-file-tree-scroll"
+            className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto"
+          >
             {treeNodes.length === 0 ? (
               <div className="px-3 py-3 text-sm text-muted-foreground">No files available.</div>
             ) : (
@@ -840,7 +852,11 @@ function SkillPane({
           </div>
         </aside>
 
-        <div className="scrollbar-auto-hide min-h-0 min-w-0 overflow-y-auto px-5 py-5">
+        <div
+          ref={fileBodyScrollRef}
+          data-testid="organization-skills-file-body-scroll"
+          className="scrollbar-auto-hide min-h-0 min-w-0 overflow-y-auto px-5 py-5"
+        >
           {fileLoading ? (
             <PageSkeleton variant="detail" />
           ) : !file ? (
