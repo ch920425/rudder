@@ -35,7 +35,7 @@ describe("resolveDarwinAppBundleIconPath", () => {
 });
 
 describe("readWorkspaceLaunchTargetIconDataUrl", () => {
-  it("prefers the native file icon before falling back to bundle resources", async () => {
+  it("uses bundle resources for macOS app icons without calling the native file icon API", async () => {
     const getFileIcon = vi.fn(async () => image("data:image/png;base64,file"));
     const createImageFromPath = vi.fn(() => image("data:image/png;base64,bundle"));
 
@@ -48,9 +48,31 @@ describe("readWorkspaceLaunchTargetIconDataUrl", () => {
       platform: "darwin",
       getFileIcon,
       createImageFromPath,
+      resolveBundleIconPath: async () => "/Applications/Visual Studio Code.app/Contents/Resources/Code.icns",
+    })).resolves.toBe("data:image/png;base64,bundle");
+
+    expect(getFileIcon).not.toHaveBeenCalled();
+    expect(createImageFromPath).toHaveBeenCalledWith(
+      "/Applications/Visual Studio Code.app/Contents/Resources/Code.icns",
+    );
+  });
+
+  it("falls back to the native file icon API for non-app targets", async () => {
+    const getFileIcon = vi.fn(async () => image("data:image/png;base64,file"));
+    const createImageFromPath = vi.fn(() => image("data:image/png;base64,bundle"));
+
+    await expect(readWorkspaceLaunchTargetIconDataUrl({
+      id: "vscode",
+      label: "VS Code",
+      kind: "ide",
+      iconPath: "/usr/local/bin/code",
+    }, {
+      platform: "darwin",
+      getFileIcon,
+      createImageFromPath,
     })).resolves.toBe("data:image/png;base64,file");
 
-    expect(getFileIcon).toHaveBeenCalledWith("/Applications/Visual Studio Code.app", { size: "large" });
+    expect(getFileIcon).toHaveBeenCalledWith("/usr/local/bin/code", { size: "large" });
     expect(createImageFromPath).not.toHaveBeenCalled();
   });
 
@@ -69,5 +91,7 @@ describe("readWorkspaceLaunchTargetIconDataUrl", () => {
       createImageFromPath,
       resolveBundleIconPath: async () => "/System/Applications/Utilities/Terminal.app/Contents/Resources/Terminal.icns",
     })).resolves.toBe("data:image/png;base64,bundle");
+
+    expect(getFileIcon).not.toHaveBeenCalled();
   });
 });
