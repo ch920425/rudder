@@ -24,6 +24,10 @@ async function apiPost<T>(page: Page, path: string, data: Record<string, unknown
   ) as Promise<T>;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 test.describe("Issue board display properties", () => {
   test("toggles board card metadata independently from filters", async ({ page }) => {
     await page.goto("/");
@@ -58,7 +62,7 @@ test.describe("Issue board display properties", () => {
       page,
       `/api/orgs/${organization.id}/agents`,
       {
-        name: "Review Bot",
+        name: "Tobias (Chief Executive Officer with a long review title)",
         role: "qa",
       },
     );
@@ -66,7 +70,7 @@ test.describe("Issue board display properties", () => {
       page,
       `/api/orgs/${organization.id}/agents`,
       {
-        name: "Build Bot",
+        name: "Ulysses (Chief Operating Officer with a long execution title)",
         role: "engineer",
       },
     );
@@ -97,8 +101,16 @@ test.describe("Issue board display properties", () => {
     await expect(card).toContainText(assignee.name);
     await expect(card).toContainText("Reviewer");
     await expect(card).toContainText(reviewer.name);
-    await expect(card.locator('[data-slot="kanban-card-primary-assignee"] [data-slot="kanban-card-assignee"]')).toHaveAttribute("title", new RegExp(`^Assignee: ${assignee.name}`));
-    await expect(card.locator('[data-slot="kanban-card-metadata"] [data-slot="kanban-card-reviewer"]')).toHaveAttribute("title", new RegExp(`^Reviewer: ${reviewer.name}`));
+    await expect(card.locator('[data-slot="kanban-card-primary-assignee"] [data-slot="kanban-card-assignee"]')).toHaveAttribute("title", new RegExp(`^Assignee: ${escapeRegExp(assignee.name)}`));
+    await expect(card.locator('[data-slot="kanban-card-metadata"] [data-slot="kanban-card-reviewer"]')).toHaveAttribute("title", new RegExp(`^Reviewer: ${escapeRegExp(reviewer.name)}`));
+    const cardBox = await card.boundingBox();
+    const assigneeBox = await card.locator('[data-slot="kanban-card-primary-assignee"]').boundingBox();
+    const reviewerBox = await card.locator('[data-slot="kanban-card-metadata"] [data-slot="kanban-card-reviewer"]').boundingBox();
+    expect(cardBox).not.toBeNull();
+    expect(assigneeBox).not.toBeNull();
+    expect(reviewerBox).not.toBeNull();
+    expect(assigneeBox!.x + assigneeBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+    expect(reviewerBox!.x + reviewerBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
     await expect(card).toContainText("Created");
     await expect(card).not.toContainText("Updated");
     if (issue.identifier) {

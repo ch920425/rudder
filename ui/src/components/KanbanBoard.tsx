@@ -232,7 +232,7 @@ function KanbanPersonMeta({
     <span
       data-slot={`kanban-card-${relationship}`}
       title={`${roleLabel}: ${displayName}`}
-      className="inline-flex min-w-0 items-center gap-1.5 rounded-sm bg-muted/35 px-1.5 py-1 text-muted-foreground ring-1 ring-border/35"
+      className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-sm bg-muted/35 px-1.5 py-1 text-muted-foreground ring-1 ring-border/35"
     >
       {showRole ? (
         <span
@@ -243,12 +243,12 @@ function KanbanPersonMeta({
         </span>
       ) : null}
       {agent ? (
-        <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs">
+        <span className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1 text-xs">
           <AgentIcon icon={agent.icon} role={agent.role} className="h-3 w-3 shrink-0" />
           <span className="truncate">{displayName}</span>
         </span>
       ) : (
-        <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-xs">
+        <span className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1 text-xs">
           <Icon className="h-3 w-3 shrink-0" />
           <span className={cn("truncate", fallbackId && "font-mono")}>{displayName}</span>
         </span>
@@ -272,7 +272,7 @@ function KanbanMetadataRow({
         <span className="shrink-0 text-muted-foreground/70">{icon}</span>
         <span className="truncate">{label}</span>
       </span>
-      <span className="min-w-0 text-right text-muted-foreground">{children}</span>
+      <span className="min-w-0 overflow-hidden text-right text-muted-foreground">{children}</span>
     </div>
   );
 }
@@ -519,7 +519,7 @@ function KanbanCard({
                 )}
               </span>
               {assigneeMeta ? (
-                <span data-slot="kanban-card-primary-assignee" className="min-w-0 max-w-[8.5rem] shrink">
+                <span data-slot="kanban-card-primary-assignee" className="min-w-0 max-w-[8.5rem] shrink overflow-hidden">
                   {assigneeMeta}
                 </span>
               ) : null}
@@ -549,7 +549,7 @@ function KanbanCard({
             ) : null}
             {reviewerMeta ? (
               <KanbanMetadataRow icon={<UserCheck className="h-3 w-3" />} label="Reviewer">
-                <span className="inline-flex min-w-0 justify-end">{reviewerMeta}</span>
+                <span className="flex min-w-0 max-w-full justify-end overflow-hidden">{reviewerMeta}</span>
               </KanbanMetadataRow>
             ) : null}
             {showLabels ? (
