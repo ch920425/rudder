@@ -52,6 +52,18 @@ const WORKSPACE_LAUNCH_TARGET_IDS = [
   "finder",
 ] as const satisfies readonly DesktopWorkspaceLaunchTarget["id"][];
 const WORKSPACE_IMAGE_FILE_EXTENSIONS = new Set([".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
+const WORKSPACE_LAUNCH_TARGET_FALLBACKS: Partial<Record<DesktopWorkspaceLaunchTarget["id"], {
+  label: string;
+  className: string;
+}>> = {
+  cursor: { label: "C", className: "bg-[#111827] text-white" },
+  vscode: { label: "VS", className: "bg-[#0078d4] text-white" },
+  windsurf: { label: "W", className: "bg-[#14b8a6] text-white" },
+  zed: { label: "Z", className: "bg-[#171717] text-white" },
+  webstorm: { label: "WS", className: "bg-[#ec4899] text-white" },
+  intellij: { label: "IJ", className: "bg-[#f97316] text-white" },
+  xcode: { label: "XC", className: "bg-[#147efb] text-white" },
+};
 
 function isWorkspaceLaunchTargetId(value: string | null): value is DesktopWorkspaceLaunchTarget["id"] {
   return WORKSPACE_LAUNCH_TARGET_IDS.includes(value as DesktopWorkspaceLaunchTarget["id"]);
@@ -94,6 +106,25 @@ export function WorkspaceLaunchTargetIcon({
           className="h-full w-full object-contain drop-shadow-[0_0_1px_rgba(0,0,0,0.35)]"
           onError={() => setImageFailed(true)}
         />
+      </span>
+    );
+  }
+
+  const appSpecificFallback = WORKSPACE_LAUNCH_TARGET_FALLBACKS[target.id];
+  if (appSpecificFallback) {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-[color:var(--border-base)] text-[8px] font-semibold leading-none",
+          appSpecificFallback.className,
+          className,
+        )}
+        data-workspace-launch-target-icon={target.id}
+        data-fallback-icon="true"
+        data-app-specific-fallback="true"
+      >
+        {appSpecificFallback.label}
       </span>
     );
   }

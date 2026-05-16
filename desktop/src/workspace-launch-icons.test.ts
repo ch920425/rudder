@@ -35,7 +35,7 @@ describe("resolveDarwinAppBundleIconPath", () => {
 });
 
 describe("readWorkspaceLaunchTargetIconDataUrl", () => {
-  it("uses bundle resources for macOS app icons without calling the native file icon API", async () => {
+  it("uses the native file icon API first for macOS app icons", async () => {
     const getFileIcon = vi.fn(async () => image("data:image/png;base64,file"));
     const createImageFromPath = vi.fn(() => image("data:image/png;base64,bundle"));
 
@@ -49,12 +49,10 @@ describe("readWorkspaceLaunchTargetIconDataUrl", () => {
       getFileIcon,
       createImageFromPath,
       resolveBundleIconPath: async () => "/Applications/Visual Studio Code.app/Contents/Resources/Code.icns",
-    })).resolves.toBe("data:image/png;base64,bundle");
+    })).resolves.toBe("data:image/png;base64,file");
 
-    expect(getFileIcon).not.toHaveBeenCalled();
-    expect(createImageFromPath).toHaveBeenCalledWith(
-      "/Applications/Visual Studio Code.app/Contents/Resources/Code.icns",
-    );
+    expect(getFileIcon).toHaveBeenCalledWith("/Applications/Visual Studio Code.app", { size: "large" });
+    expect(createImageFromPath).not.toHaveBeenCalled();
   });
 
   it("falls back to the native file icon API for non-app targets", async () => {
@@ -76,7 +74,7 @@ describe("readWorkspaceLaunchTargetIconDataUrl", () => {
     expect(createImageFromPath).not.toHaveBeenCalled();
   });
 
-  it("falls back to bundle icons when the native file icon is unavailable", async () => {
+  it("falls back to bundle icons when the native macOS app file icon is unavailable", async () => {
     const getFileIcon = vi.fn(async () => image("", true));
     const createImageFromPath = vi.fn(() => image("data:image/png;base64,bundle"));
 
@@ -92,6 +90,9 @@ describe("readWorkspaceLaunchTargetIconDataUrl", () => {
       resolveBundleIconPath: async () => "/System/Applications/Utilities/Terminal.app/Contents/Resources/Terminal.icns",
     })).resolves.toBe("data:image/png;base64,bundle");
 
-    expect(getFileIcon).not.toHaveBeenCalled();
+    expect(getFileIcon).toHaveBeenCalledWith("/System/Applications/Utilities/Terminal.app", { size: "large" });
+    expect(createImageFromPath).toHaveBeenCalledWith(
+      "/System/Applications/Utilities/Terminal.app/Contents/Resources/Terminal.icns",
+    );
   });
 });

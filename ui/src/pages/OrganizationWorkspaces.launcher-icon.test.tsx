@@ -73,4 +73,38 @@ describe("WorkspaceLaunchTargetIcon", () => {
 
     unmount();
   });
+
+  it("uses app-specific fallbacks instead of the shared generic code glyph for VS Code and Xcode", () => {
+    const vscode = renderIcon(
+      <WorkspaceLaunchTargetIcon
+        target={{
+          id: "vscode",
+          label: "VS Code",
+          kind: "ide",
+        }}
+      />,
+    );
+    const xcode = renderIcon(
+      <WorkspaceLaunchTargetIcon
+        target={{
+          id: "xcode",
+          label: "Xcode",
+          kind: "ide",
+        }}
+      />,
+    );
+
+    const vscodeFallback = vscode.container.querySelector("[data-workspace-launch-target-icon='vscode']");
+    const xcodeFallback = xcode.container.querySelector("[data-workspace-launch-target-icon='xcode']");
+    expect(vscodeFallback?.getAttribute("data-app-specific-fallback")).toBe("true");
+    expect(xcodeFallback?.getAttribute("data-app-specific-fallback")).toBe("true");
+    expect(vscodeFallback?.textContent).toBe("VS");
+    expect(xcodeFallback?.textContent).toBe("XC");
+    expect(vscodeFallback?.className).not.toBe(xcodeFallback?.className);
+    expect(vscode.container.querySelector("svg")).toBeNull();
+    expect(xcode.container.querySelector("svg")).toBeNull();
+
+    vscode.unmount();
+    xcode.unmount();
+  });
 });
