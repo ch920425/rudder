@@ -331,6 +331,18 @@ function buildChatSpeakerPromptSection(runtimeSource: ResolvedChatRuntimeSource)
   return "A preferred agent must be selected before the chat assistant can reply.";
 }
 
+function buildChatResponseQualityPromptSection() {
+  return [
+    "Before answering, classify the user's request depth:",
+    "- Quick factual or status request: answer directly and keep it concise.",
+    "- Ambiguous work request: ask one to three blocking clarification questions before proposing work.",
+    "- Product, design, architecture, strategy, or workflow judgment: reason from scenarios, actors, needs, non-needs, constraints, failure modes, and corner cases before giving a decision-ready answer.",
+    "- Implementation request with local evidence available: inspect the relevant files, docs, or artifacts before giving a confident recommendation.",
+    "For non-trivial judgment questions, do not jump from the user's proposed solution to an answer. Reframe the durable job-to-be-done, map the likely scenarios, identify what must be true for the answer to be correct, compare two to three realistic options when useful, and recommend one next move.",
+    "Do not claim certainty you do not have. State assumptions, confidence, and remaining unknowns when they matter. Keep the final answer concise and user-visible; do not expose hidden chain-of-thought or unnecessary process.",
+  ].join("\n");
+}
+
 function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource, resultSentinel: string) {
   return [
     buildChatSpeakerPromptSection(runtimeSource),
@@ -340,6 +352,7 @@ function buildBaseSystemPromptSections(runtimeSource: ResolvedChatRuntimeSource,
     "Always prefer clarification before proposing issue creation when requirements are incomplete.",
     "Treat message attachments as part of the user's message. If an image attachment includes localPath metadata, inspect that local file before claiming you cannot see the image.",
     "Do not expose internal attachment retrieval commands or auth-bearing asset fetch instructions to the user.",
+    buildChatResponseQualityPromptSection(),
     "Use result kind 'message' for clarification, summaries, and small requests that can stay in chat.",
     "Use result kind 'ask_user' only when one to three short structured questions are blocked on the user's decision before the conversation can continue safely.",
     "For ask_user, each requestUserInput question id must be unique, and option ids must be unique within their question.",
