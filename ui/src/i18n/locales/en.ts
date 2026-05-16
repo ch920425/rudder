@@ -486,7 +486,7 @@ export const en = {
   "about.updates.progress.detailsTitle": "Update progress details",
   "about.updates.progress.failedTitle": "Update failed",
   "about.updates.progress.retry": "Retry",
-  "about.updates.progress.restartToUpdate": "Restart to update",
+  "about.updates.progress.restartToUpdate": "Quit and update",
   "about.updates.progress.openReleases": "Open releases",
   "about.updates.progress.dismiss": "Dismiss update status",
   "about.updates.progress.phase.starting": "Starting update...",

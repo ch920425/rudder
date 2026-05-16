@@ -152,7 +152,7 @@ describe("DesktopUpdateStatusCard", () => {
 
     expect(document.body.textContent).toContain("Update ready");
     const action = Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent === "Restart to update");
+      .find((button) => button.textContent === "Quit and update");
     expect(action).toBeTruthy();
 
     act(() => {

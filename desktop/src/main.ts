@@ -217,6 +217,7 @@ const DESKTOP_GITHUB_REPO = "Undertone0809/rudder";
 const DESKTOP_RELEASES_URL = `https://github.com/${DESKTOP_GITHUB_REPO}/releases`;
 const DESKTOP_FEEDBACK_EMAIL = "zeeland4work@gmail.com";
 const DESKTOP_UPDATE_QUIT_ARG = "--rudder-update-quit";
+const DESKTOP_UPDATE_QUIT_AFTER_APPLY_DELAY_MS = 50;
 const INSTANCE_SETTINGS_GENERAL_PATH = "/instance/settings/general";
 
 const LOCAL_ENV_PROFILES: Record<LocalEnvProfile["name"], LocalEnvProfile> = {
@@ -644,11 +645,20 @@ async function applyUpdate(updateId: string | null | undefined): Promise<Desktop
   }
 
   try {
-    session.stdin.write("apply\n");
-    updateDesktopUpdateProgress(normalizedUpdateId, session.version, {
-      phase: "preparing_restart",
-      message: "Applying Desktop update...",
+    await new Promise<void>((resolve, reject) => {
+      session.stdin.write("apply\n", (error?: Error | null) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
     });
+    updateDesktopUpdateProgress(normalizedUpdateId, session.version, {
+      phase: "closing",
+      message: "Rudder is closing to apply the Desktop update...",
+    });
+    scheduleQuitForAppliedUpdate();
     return {
       status: "started",
       updateId: normalizedUpdateId,
@@ -660,6 +670,16 @@ async function applyUpdate(updateId: string | null | undefined): Promise<Desktop
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function scheduleQuitForAppliedUpdate(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+
+  setTimeout(() => {
+    void finalizeQuit({ forceExit: true });
+  }, DESKTOP_UPDATE_QUIT_AFTER_APPLY_DELAY_MS);
 }
 
 function normalizeBooleanEnvFlag(value: string | null | undefined): boolean | null {
