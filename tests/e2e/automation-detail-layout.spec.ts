@@ -99,8 +99,8 @@ test.describe("Automation detail layout", () => {
     await expect(page.getByText(/Automatic triggers/)).toHaveCount(0);
     await expect(page.getByText(/Changes save automatically/)).toHaveCount(0);
     await expect(page.getByText("Configuration")).toBeVisible();
-    await expect(page.getByText("Output mode")).toBeVisible();
-    await expect(page.getByText("Create issue")).toBeVisible();
+    await expect(page.getByText("Run output")).toBeVisible();
+    await expect(page.getByText("Track as issue")).toBeVisible();
     await expect(page.getByText("Run status")).toBeVisible();
     await expect(page.getByText("Details")).toHaveCount(0);
     await expect(addTriggerCard.getByRole("button", { name: "Add trigger" })).toBeVisible();

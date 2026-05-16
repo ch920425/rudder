@@ -26,7 +26,7 @@ test.describe("Automations index layout", () => {
 
     const headerActions = page.getByTestId("workspace-main-header-actions");
     const createButton = headerActions.getByRole("button", { name: "Create automation" });
-    const emptyState = page.getByText("No autopilots yet");
+    const emptyState = page.getByText("No automations yet");
     const templateGrid = page.getByTestId("automation-template-grid");
 
     await expect(headerActions).toBeVisible();
@@ -49,8 +49,8 @@ test.describe("Automations index layout", () => {
     expect(createButtonBox!.y + createButtonBox!.height).toBeLessThan(emptyStateBox!.y);
 
     await createButton.click();
-    await expect(page.getByPlaceholder("Autopilot name")).toBeVisible();
-    await expect(page.getByText("Output mode")).toBeVisible();
+    await expect(page.getByPlaceholder("Automation name")).toBeVisible();
+    await expect(page.getByText("Run output")).toBeVisible();
     await expect(page.getByText("Every day at 09:00")).toBeVisible();
 
     await page.screenshot({
@@ -102,7 +102,7 @@ test.describe("Automations index layout", () => {
 
     const createButton = page.getByTestId("workspace-main-header-actions").getByRole("button", { name: "Create automation" });
     await createButton.click();
-    await page.getByPlaceholder("Autopilot name").fill("Composer selector interaction");
+    await page.getByPlaceholder("Automation name").fill("Composer selector interaction");
 
     const assigneePill = page.getByTestId("automation-composer-assignee-pill");
     const projectPill = page.getByTestId("automation-composer-project-pill");
@@ -127,7 +127,7 @@ test.describe("Automations index layout", () => {
     });
   });
 
-  test("prefills the creation workbench from a use-case template", async ({ page }, testInfo) => {
+  test("prefills the automation composer from a use-case template", async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
     const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
@@ -143,14 +143,15 @@ test.describe("Automations index layout", () => {
 
     await page.getByRole("button", { name: /Bug triage/ }).click();
 
-    await expect(page.getByPlaceholder("Autopilot name")).toHaveValue("Bug triage");
+    await expect(page.getByPlaceholder("Automation name")).toHaveValue("Bug triage");
     await expect(page.locator(".rudder-mdxeditor-content").first()).toContainText("List all open issues labeled bug");
     await expect(page.getByText("Weekdays at 09:00")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Create issue/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Create autopilot/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Track as issue/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Send to chat/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Create automation/ })).toBeDisabled();
 
     await page.screenshot({
-      path: testInfo.outputPath("automations-template-workbench.png"),
+      path: testInfo.outputPath("automations-template-composer.png"),
       fullPage: true,
     });
   });
@@ -203,7 +204,7 @@ test.describe("Automations index layout", () => {
     await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/automations`);
 
     await page.getByTestId("workspace-main-header-actions").getByRole("button", { name: "Create automation" }).click();
-    await page.getByPlaceholder("Autopilot name").fill("Composer mention menu interaction");
+    await page.getByPlaceholder("Automation name").fill("Composer mention menu interaction");
 
     const assigneePill = page.getByTestId("automation-composer-assignee-pill");
     await assigneePill.locator(":scope > button").click();

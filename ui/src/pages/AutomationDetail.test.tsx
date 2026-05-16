@@ -399,8 +399,8 @@ describe("AutomationDetail", () => {
 
     expect(container.textContent).toContain("Configuration");
     expect(container.textContent).toContain("Agent");
-    expect(container.textContent).toContain("Output mode");
-    expect(container.textContent).toContain("Create issue");
+    expect(container.textContent).toContain("Run output");
+    expect(container.textContent).toContain("Track as issue");
     expect(container.textContent).toContain("Schedule");
     expect(container.textContent).toContain("Project");
     expect(container.textContent).toContain("Run status");
