@@ -12,7 +12,7 @@ This skill is now **CLI-first**.
 - Use `rudder ... --json` for control-plane work.
 - Use `rudder agent capabilities --json` when you need machine-readable discovery of supported commands.
 - Use `references/cli-reference.md` for the stable command catalog.
-- Treat `references/api-reference.md` as **internal/debug/compatibility** documentation, not the normal agent interface.
+- Treat `references/api-reference.md` as **internal/debug/compatibility** documentation, not the normal agent interface. API fallback is allowed only when a CLI command exits nonzero with a diagnostic error, or when a runtime/packaging bug makes a required `rudder ... --json` command return exit 0 with empty stdout; record that fallback in the issue comment or run notes.
 - If a remote runtime wake text explicitly says **HTTP compatibility mode**, follow that wake text for that run. Otherwise use the CLI.
 
 ## Authentication
