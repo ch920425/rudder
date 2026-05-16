@@ -75,7 +75,8 @@ export interface DesktopInstallMetadata {
 }
 
 type UpdateQuitResponse =
-  | { ok: true; status: "quitting" | "not_running" }
+  | { ok: true; status: "quitting"; pid?: number }
+  | { ok: true; status: "not_running" }
   | { ok: false; status: "active_runs"; totalRuns: number }
   | { ok: false; status: "failed"; message: string };
 
@@ -825,6 +826,34 @@ async function requestDesktopQuit(executablePath: string, target: DesktopAssetTa
   }
 }
 
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+    return code === "EPERM";
+  }
+}
+
+function readUpdateQuitPid(response: UpdateQuitResponse | null): number | null {
+  if (!response?.ok || response.status !== "quitting") return null;
+  return typeof response.pid === "number" && Number.isInteger(response.pid) && response.pid > 0
+    ? response.pid
+    : null;
+}
+
+export async function waitForProcessExit(pid: number, timeoutMs = 20_000, intervalMs = 250): Promise<boolean> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!processExists(pid)) return true;
+    await delay(intervalMs);
+  }
+  return !processExists(pid);
+}
+
 async function removePathWithRetry(targetPath: string, attempts = 5): Promise<boolean> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -858,7 +887,17 @@ async function prepareForDesktopReplace(
         `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}. Stop active work, then rerun start.`,
       );
     }
-    await delay(1_000);
+    const quitPid = readUpdateQuitPid(quitResponse);
+    if (quitPid) {
+      p.log.info(`Waiting for existing Rudder Desktop process ${quitPid} to exit before replacing it.`);
+      if (!(await waitForProcessExit(quitPid))) {
+        p.log.warn(`Rudder Desktop process ${quitPid} did not exit in time; attempting force-quit fallback.`);
+        forceQuitDesktopProcesses(target);
+        await delay(1_000);
+      }
+    } else {
+      await delay(1_000);
+    }
   } else if (!isRunningInsideDesktopExecutable()) {
     forceQuitDesktopProcesses(target);
   }

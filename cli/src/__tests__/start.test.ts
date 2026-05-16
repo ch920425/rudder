@@ -1,5 +1,6 @@
 import { access, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,7 @@ import {
   selectChecksumAsset,
   selectDesktopAsset,
   startCommand,
+  waitForProcessExit,
 } from "../commands/start.js";
 import {
   ensureRuntimeInstalled,
@@ -856,6 +858,20 @@ describe("desktop start command helpers", () => {
       command: "taskkill.exe",
       args: ["/IM", "Rudder.exe", "/T", "/F"],
     });
+  });
+
+  it("waits for an existing Desktop process to exit before replacement", async () => {
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 25)"], { stdio: "ignore" });
+    try {
+      expect(child.pid).toBeGreaterThan(0);
+      await expect(waitForProcessExit(child.pid!, 1_000, 10)).resolves.toBe(true);
+    } finally {
+      if (!child.killed) child.kill();
+    }
+  });
+
+  it("stops waiting when the Desktop process does not exit in time", async () => {
+    await expect(waitForProcessExit(process.pid, 20, 5)).resolves.toBe(false);
   });
 
   it("builds Linux desktop entries for the AppImage", () => {

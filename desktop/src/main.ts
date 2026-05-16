@@ -1881,6 +1881,12 @@ function writeUpdateQuitResponse(responsePath: string, payload: unknown): void {
   fs.writeFileSync(responsePath, `${JSON.stringify(payload)}\n`, "utf8");
 }
 
+function hideWindowForUpdateQuit(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+}
+
 async function handleUpdateQuitRequest(responsePath: string): Promise<void> {
   try {
     let activeRuns: ActiveRunSummary = { totalRuns: 0, organizations: [] };
@@ -1899,7 +1905,8 @@ async function handleUpdateQuitRequest(responsePath: string): Promise<void> {
       return;
     }
 
-    writeUpdateQuitResponse(responsePath, { ok: true, status: "quitting" });
+    hideWindowForUpdateQuit();
+    writeUpdateQuitResponse(responsePath, { ok: true, status: "quitting", pid: process.pid });
     await finalizeQuit({ forceExit: true });
   } catch (error) {
     writeUpdateQuitResponse(responsePath, {
