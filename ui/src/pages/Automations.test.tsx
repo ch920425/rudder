@@ -308,7 +308,7 @@ function setTextareaValue(textarea: HTMLTextAreaElement, value: string) {
 }
 
 describe("Automations", () => {
-  it("renders use-case templates in the empty state and prefills the workbench", async () => {
+  it("renders use-case templates in the empty state and prefills the automation composer", async () => {
     automationListState.items = [];
     const container = renderPage();
 
@@ -316,7 +316,7 @@ describe("Automations", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("No autopilots yet");
+    expect(container.textContent).toContain("No automations yet");
     expect(container.textContent).toContain("Bug triage");
     expect(container.textContent).toContain("Weekly progress report");
     expect(container.querySelector('[data-testid="automation-template-grid"]')).toBeTruthy();
@@ -328,14 +328,15 @@ describe("Automations", () => {
       await Promise.resolve();
     });
 
-    const titleInput = document.querySelector('textarea[placeholder="Autopilot name"]') as HTMLTextAreaElement | null;
+    const titleInput = document.querySelector('textarea[placeholder="Automation name"]') as HTMLTextAreaElement | null;
     const runbookInput = document.querySelector('textarea[aria-label="Instructions"]') as HTMLTextAreaElement | null;
     const scheduleInput = document.querySelector('input[aria-label="Schedule"]') as HTMLInputElement | null;
     expect(titleInput?.value).toBe("Bug triage");
     expect(runbookInput?.value).toContain("List all open issues labeled bug");
     expect(scheduleInput?.value).toBe("0 9 * * 1-5");
-    expect(document.body.textContent).toContain("Output mode");
-    expect(document.body.textContent).toContain("Create autopilot");
+    expect(document.body.textContent).toContain("Run output");
+    expect(document.body.textContent).toContain("Send to chat");
+    expect(document.body.textContent).toContain("Create automation");
   });
 
   it("renders last run as a fixed timestamp without the run status caption", async () => {
@@ -391,7 +392,7 @@ describe("Automations", () => {
       headerContainer.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const titleInput = document.querySelector('textarea[placeholder="Autopilot name"]') as HTMLTextAreaElement | null;
+    const titleInput = document.querySelector('textarea[placeholder="Automation name"]') as HTMLTextAreaElement | null;
     expect(titleInput).toBeTruthy();
 
     await act(async () => {
@@ -405,7 +406,8 @@ describe("Automations", () => {
     });
 
     const createButton = Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("Create") && button.textContent !== "Create automation") as HTMLButtonElement | undefined;
+      .filter((button) => button.textContent?.includes("Create automation"))
+      .at(-1) as HTMLButtonElement | undefined;
     expect(createButton).toBeTruthy();
     expect(createButton?.disabled).toBe(false);
   });

@@ -76,7 +76,7 @@ const catchUpPolicyDescriptions: Record<string, string> = {
   enqueue_missed_with_cap: "Catch up missed schedule windows in capped batches after recovery.",
 };
 
-type AutomationOutputMode = "create_issue" | "run_only";
+type AutomationOutputMode = "create_issue" | "send_to_chat";
 
 type AutomationTemplate = {
   id: string;
@@ -488,7 +488,7 @@ export function Automations() {
           className="max-h-[88vh] gap-0 overflow-hidden rounded-lg border-border/70 p-0 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:max-w-[min(1180px,calc(100vw-2rem))]"
         >
           <div className="flex min-h-0 flex-col">
-            <DialogTitle className="sr-only">New autopilot</DialogTitle>
+            <DialogTitle className="sr-only">New automation</DialogTitle>
             <DialogDescription className="sr-only">
               Create a recurring automation by writing a runbook and choosing an agent and schedule.
             </DialogDescription>
@@ -497,9 +497,9 @@ export function Automations() {
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   <Zap className="h-4 w-4" />
                 </span>
-                <span className="shrink-0 font-medium">New autopilot</span>
+                <span className="shrink-0 font-medium">New automation</span>
                 <span className="hidden text-muted-foreground sm:inline">·</span>
-                <span className="hidden truncate text-muted-foreground sm:inline">A recurring AI task</span>
+                <span className="hidden truncate text-muted-foreground sm:inline">Recurring board work</span>
                 {selectedOrganization?.name ? (
                   <>
                     <ArrowRight className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground/70 sm:block" />
@@ -530,7 +530,7 @@ export function Automations() {
                 <textarea
                   ref={titleInputRef}
                   className="min-h-[44px] w-full resize-none overflow-hidden bg-transparent text-[2rem] font-semibold leading-tight outline-none placeholder:text-muted-foreground/55 sm:text-[2.3rem]"
-                  placeholder="Autopilot name"
+                  placeholder="Automation name"
                   rows={1}
                   value={draft.title}
                   onChange={(event) => {
@@ -630,7 +630,7 @@ export function Automations() {
                 </section>
 
                 <section className="space-y-2.5">
-                  <h2 className="text-xs font-medium text-muted-foreground">Output mode</h2>
+                  <h2 className="text-xs font-medium text-muted-foreground">Run output</h2>
                   <div className="grid gap-2">
                     <button
                       type="button"
@@ -643,8 +643,8 @@ export function Automations() {
                     >
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium">Create issue</span>
-                        <span className="block truncate text-xs text-muted-foreground">Each run creates tracked work</span>
+                        <span className="block text-sm font-medium">Track as issue</span>
+                        <span className="block truncate text-xs text-muted-foreground">Each run opens board-tracked work</span>
                       </span>
                     </button>
                     <button
@@ -654,8 +654,8 @@ export function Automations() {
                     >
                       <Radio className="h-4 w-4 shrink-0" />
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium">Run only</span>
-                        <span className="block truncate text-xs">Silent runs are not available yet</span>
+                        <span className="block text-sm font-medium">Send to chat</span>
+                        <span className="block truncate text-xs">Chat delivery is not connected yet</span>
                       </span>
                     </button>
                   </div>
@@ -794,7 +794,7 @@ export function Automations() {
                 </Button>
                 <div className="flex flex-col items-end gap-2">
                   <Button size="sm" onClick={() => createAutomation.mutate()} disabled={createAutomation.isPending || !isDraftReady}>
-                    {createAutomation.isPending ? "Creating..." : "Create autopilot"}
+                    {createAutomation.isPending ? "Creating..." : "Create automation"}
                     <ArrowRight className="ml-1 h-3.5 w-3.5" />
                   </Button>
                   {createAutomation.isError ? (
@@ -823,7 +823,7 @@ export function Automations() {
             <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-md border border-border/70 bg-background/60 text-muted-foreground">
               <Zap className="h-6 w-6" />
             </div>
-            <h1 className="text-xl font-semibold">No autopilots yet</h1>
+            <h1 className="text-xl font-semibold">No automations yet</h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
               Schedule recurring work for your agents. Pick a use case or start from scratch.
             </p>
