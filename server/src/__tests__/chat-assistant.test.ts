@@ -390,6 +390,9 @@ describe("chatAssistantService operator profile prompt injection", () => {
     const prompt = mockAdapter.execute.mock.calls[0]?.[0]?.context?.chatPrompt as string;
     expect(prompt).toContain("Always reply in the same language as the user's most recent substantive message unless they explicitly ask for a different language.");
     expect(prompt).toContain("You are Chat Specialist, replying inside Rudder's chat scene.");
+    expect(prompt).toContain("Before answering, classify the user's request depth:");
+    expect(prompt).toContain("Product, design, architecture, strategy, or workflow judgment: reason from scenarios, actors, needs, non-needs, constraints, failure modes, and corner cases before giving a decision-ready answer.");
+    expect(prompt).toContain("Do not claim certainty you do not have. State assumptions, confidence, and remaining unknowns when they matter.");
     expect(prompt).toContain("Current board operator profile:");
     expect(prompt).toContain("- Preferred form of address: Zee");
     expect(prompt).toContain("- Background about the operator: Prefers concise, implementation-first responses.");
