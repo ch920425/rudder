@@ -803,6 +803,20 @@ describe("agent CLI e2e", () => {
       .where(eq(issueAttachments.issueId, imageIssueId));
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.usage).toBe("comment_inline");
+
+    const commentActivities = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.action, "issue.comment_added"));
+    const commentActivity = commentActivities.find((row) => row.details?.commentId === comment.id);
+    expect(commentActivity).toMatchObject({
+      actorType: "agent",
+      actorId: agentId,
+      agentId,
+      runId,
+      entityType: "issue",
+      entityId: imageIssueId,
+    });
   });
 
   it("uploads images for generic update comments", { timeout: 60_000 }, async () => {

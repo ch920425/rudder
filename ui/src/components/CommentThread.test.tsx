@@ -185,4 +185,28 @@ describe("CommentThread", () => {
     expect(html.indexOf("First activity")).toBeLessThan(html.indexOf("Middle comment."));
     expect(html.indexOf("Middle comment.")).toBeLessThan(html.indexOf("Last activity"));
   });
+
+  it("labels linked run transcript cards as execution output, not comments", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <CommentThread
+          comments={[]}
+          linkedRuns={[
+            {
+              runId: "55555555-5555-4555-8555-555555555555",
+              status: "completed",
+              agentId: "22222222-2222-4222-8222-222222222222",
+              createdAt: new Date("2026-05-07T00:02:00.000Z"),
+              startedAt: new Date("2026-05-07T00:02:00.000Z"),
+            },
+          ]}
+          onAdd={async () => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain("Execution output");
+    expect(html).toContain("Not an issue comment");
+    expect(html).toContain('aria-label="Execution output, not an issue comment"');
+  });
 });

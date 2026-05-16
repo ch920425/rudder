@@ -353,6 +353,9 @@ export function registerIssueCommands(program: Command): void {
             reopen: opts.reopen,
           });
           const comment = await ctx.api.post<IssueComment>(`/api/issues/${issueId}/comments`, payload);
+          if (!isIssueCommentResponse(comment)) {
+            throw new Error("Issue comment request completed without a persisted comment response");
+          }
           printOutput(comment, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
@@ -754,6 +757,17 @@ function parseReviewDecision(value: string): IssueReviewOptions["decision"] {
     return normalized;
   }
   throw new Error("Invalid review decision. Use approve, request_changes, needs_followup, or blocked.");
+}
+
+function isIssueCommentResponse(value: IssueComment | null): value is IssueComment {
+  return Boolean(
+    value &&
+      typeof value.id === "string" &&
+      value.id.trim().length > 0 &&
+      typeof value.issueId === "string" &&
+      value.issueId.trim().length > 0 &&
+      typeof value.body === "string",
+  );
 }
 
 function filterIssueRows(rows: Issue[], match: string | undefined): Issue[] {
