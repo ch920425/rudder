@@ -1105,7 +1105,7 @@ export function AutomationDetail() {
 
             <div
               data-testid="automation-overview-strip"
-              className="grid gap-3 border-y border-border/60 bg-transparent py-2.5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center"
+              className="border-y border-border/60 bg-transparent py-2.5"
             >
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className={automationBadgeClassName}>
@@ -1150,17 +1150,35 @@ export function AutomationDetail() {
                   />
                 ) : null}
               </div>
+            </div>
 
-              <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
+            <MarkdownEditor
+              ref={descriptionEditorRef}
+              value={editDraft.description}
+              onChange={(description) => setEditDraft((current) => ({ ...current, description }))}
+              mentions={mentionOptions}
+              placeholder="Add instructions..."
+              bordered
+              className="bg-background/40"
+              contentClassName="min-h-[240px] text-[15px] leading-7 text-foreground/90 md:min-h-[420px]"
+            />
+          </section>
+        </main>
+
+        <aside ref={sidebarScrollRef} className="scrollbar-auto-hide space-y-6 border-t border-border/70 pt-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-5 lg:pr-1 lg:pt-1">
+          <SidebarSection title="Configuration">
+            <div className="space-y-2.5">
+              <Label className="text-xs">Agent</Label>
+              <div data-testid="automation-detail-agent-control" className="rounded-md border border-border/80 bg-background/50">
                 <InlineEntitySelector
                   ref={assigneeSelectorRef}
                   value={editDraft.assigneeAgentId}
                   options={assigneeOptions}
-                  placeholder="Assignee"
-                  noneLabel="No assignee"
-                  searchPlaceholder="Search assignees..."
-                  emptyMessage="No assignees found."
-                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/60 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60 md:max-w-[260px]"
+                  placeholder="Select agent"
+                  noneLabel="No agent"
+                  searchPlaceholder="Search agents..."
+                  emptyMessage="No agents found."
+                  className="min-h-11 w-full justify-between border-0 bg-transparent px-3 py-2 text-sm font-medium shadow-none hover:bg-accent/50"
                   onChange={(assigneeAgentId) => {
                     if (assigneeAgentId) trackRecentAssignee(assigneeAgentId);
                     setEditDraft((current) => ({ ...current, assigneeAgentId }));
@@ -1186,7 +1204,7 @@ export function AutomationDetail() {
                       </SidebarSelectValue>
                     ) : (
                       <SidebarSelectValue>
-                        <span className="text-muted-foreground">Assignee</span>
+                        <span className="text-muted-foreground">Select agent</span>
                       </SidebarSelectValue>
                     )
                   }
@@ -1201,16 +1219,45 @@ export function AutomationDetail() {
                     );
                   }}
                 />
+              </div>
+            </div>
 
+            <div className="space-y-2.5">
+              <Label className="text-xs">Output mode</Label>
+              <div className="flex min-h-12 items-center gap-3 rounded-md border border-foreground/60 bg-accent/50 px-3 py-2 text-sm">
+                <Check className="h-4 w-4 shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-medium">Create issue</div>
+                  <div className="truncate text-xs text-muted-foreground">Each run creates tracked work</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <Label className="text-xs">Schedule</Label>
+              <div className="rounded-md border border-border/80 bg-background/50 px-3 py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate">{summarizeTrigger(nextTrigger)}</span>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Next: {formatAutomationTimestamp(nextTrigger?.nextRunAt, "-")}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <Label className="text-xs">Project</Label>
+              <div data-testid="automation-detail-project-control" className="rounded-md border border-border/80 bg-background/50">
                 <InlineEntitySelector
                   ref={projectSelectorRef}
                   value={editDraft.projectId}
                   options={projectOptions}
-                  placeholder="Project"
+                  placeholder="No project"
                   noneLabel="No project"
                   searchPlaceholder="Search projects..."
                   emptyMessage="No projects found."
-                  className="min-h-8 max-w-full justify-between border-border/80 bg-background/60 px-2.5 py-1.5 text-sm font-medium shadow-none hover:border-border hover:bg-accent/60 md:max-w-[220px]"
+                  className="min-h-10 w-full justify-between border-0 bg-transparent px-3 py-2 text-sm font-medium shadow-none hover:bg-accent/50"
                   onChange={(projectId) => setEditDraft((current) => ({ ...current, projectId }))}
                   onConfirm={() => descriptionEditorRef.current?.focus()}
                   renderTriggerValue={(option) =>
@@ -1224,7 +1271,7 @@ export function AutomationDetail() {
                       </SidebarSelectValue>
                     ) : (
                       <SidebarSelectValue>
-                        <span className="text-muted-foreground">Project</span>
+                        <span className="text-muted-foreground">No project</span>
                       </SidebarSelectValue>
                     )
                   }
@@ -1244,18 +1291,102 @@ export function AutomationDetail() {
                 />
               </div>
             </div>
+          </SidebarSection>
 
-            <MarkdownEditor
-              ref={descriptionEditorRef}
-              value={editDraft.description}
-              onChange={(description) => setEditDraft((current) => ({ ...current, description }))}
-              mentions={mentionOptions}
-              placeholder="Add instructions..."
-              bordered={false}
-              className="bg-transparent"
-              contentClassName="min-h-[56px] text-[15px] leading-7 text-foreground/90 md:min-h-[112px]"
-            />
-          </section>
+          <SidebarSection title="Run status">
+            <SidebarRow label="Last ran">
+              <span className="truncate">{latestRun ? timeAgo(latestRun.triggeredAt) : "-"}</span>
+            </SidebarRow>
+            <SidebarRow label="Edits">
+              <span className={editSyncClassName}>{editSyncLabel}</span>
+            </SidebarRow>
+            <SidebarRow label="Risk">
+              <span className="truncate">{riskLabel}</span>
+            </SidebarRow>
+            {hasLiveRun ? (
+              <SidebarRow label="Run">
+                <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                  In progress
+                </Badge>
+              </SidebarRow>
+            ) : null}
+          </SidebarSection>
+
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="border-t border-border/70 pt-5">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              Delivery rules
+              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label className="text-xs">Concurrency</Label>
+                <Select
+                  value={editDraft.concurrencyPolicy}
+                  onValueChange={(concurrencyPolicy) => setEditDraft((current) => ({ ...current, concurrencyPolicy }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {concurrencyPolicies.map((value) => (
+                      <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs leading-5 text-muted-foreground">{concurrencyPolicyDescriptions[editDraft.concurrencyPolicy]}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Catch-up</Label>
+                <Select
+                  value={editDraft.catchUpPolicy}
+                  onValueChange={(catchUpPolicy) => setEditDraft((current) => ({ ...current, catchUpPolicy }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {catchUpPolicies.map((value) => (
+                      <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs leading-5 text-muted-foreground">{catchUpPolicyDescriptions[editDraft.catchUpPolicy]}</p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <SidebarSection title="Previous runs">
+            {hasLiveRun && activeIssueId && automation ? (
+              <LiveRunWidget issueId={activeIssueId} orgId={automation.orgId} />
+            ) : null}
+            {(automationRuns ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No runs yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(automationRuns ?? []).slice(0, 5).map((run) => (
+                  <div key={run.id} className="space-y-1 rounded-md border border-border/70 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-foreground">{run.status.replaceAll("_", " ")}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(run.triggeredAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{run.source}</span>
+                      {run.linkedIssue ? (
+                        <Link to={`/issues/${run.linkedIssue.identifier ?? run.linkedIssue.id}`} className="truncate hover:underline">
+                          {run.linkedIssue.identifier ?? run.linkedIssue.id.slice(0, 8)}
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SidebarSection>
+        </aside>
+      </div>
+
+      <div className="grid gap-6 px-4 pt-5 sm:px-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="min-w-0 space-y-6">
 
           <section className="max-w-none space-y-3 border-t border-border/70 pt-4">
             <div className="flex items-center justify-between gap-4">
@@ -1405,100 +1536,6 @@ export function AutomationDetail() {
           </section>
         </main>
 
-        <aside ref={sidebarScrollRef} className="scrollbar-auto-hide space-y-6 border-t border-border/70 pt-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-5 lg:pr-1 lg:pt-1">
-          <SidebarSection title="Run status">
-            <SidebarRow label="Next run">
-              <span className="truncate">{formatAutomationTimestamp(nextTrigger?.nextRunAt, "-")}</span>
-            </SidebarRow>
-            <SidebarRow label="Last ran">
-              <span className="truncate">{latestRun ? timeAgo(latestRun.triggeredAt) : "-"}</span>
-            </SidebarRow>
-            <SidebarRow label="Edits">
-              <span className={editSyncClassName}>{editSyncLabel}</span>
-            </SidebarRow>
-            <SidebarRow label="Risk">
-              <span className="truncate">{riskLabel}</span>
-            </SidebarRow>
-            {hasLiveRun ? (
-              <SidebarRow label="Run">
-                <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                  In progress
-                </Badge>
-              </SidebarRow>
-            ) : null}
-          </SidebarSection>
-
-          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="border-t border-border/70 pt-5">
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Delivery rules
-              {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label className="text-xs">Concurrency</Label>
-                <Select
-                  value={editDraft.concurrencyPolicy}
-                  onValueChange={(concurrencyPolicy) => setEditDraft((current) => ({ ...current, concurrencyPolicy }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {concurrencyPolicies.map((value) => (
-                      <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs leading-5 text-muted-foreground">{concurrencyPolicyDescriptions[editDraft.concurrencyPolicy]}</p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Catch-up</Label>
-                <Select
-                  value={editDraft.catchUpPolicy}
-                  onValueChange={(catchUpPolicy) => setEditDraft((current) => ({ ...current, catchUpPolicy }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catchUpPolicies.map((value) => (
-                      <SelectItem key={value} value={value}>{value.replaceAll("_", " ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs leading-5 text-muted-foreground">{catchUpPolicyDescriptions[editDraft.catchUpPolicy]}</p>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <SidebarSection title="Previous runs">
-            {hasLiveRun && activeIssueId && automation ? (
-              <LiveRunWidget issueId={activeIssueId} orgId={automation.orgId} />
-            ) : null}
-            {(automationRuns ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No runs yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {(automationRuns ?? []).slice(0, 5).map((run) => (
-                  <div key={run.id} className="space-y-1 rounded-md border border-border/70 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-foreground">{run.status.replaceAll("_", " ")}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(run.triggeredAt)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{run.source}</span>
-                      {run.linkedIssue ? (
-                        <Link to={`/issues/${run.linkedIssue.identifier ?? run.linkedIssue.id}`} className="truncate hover:underline">
-                          {run.linkedIssue.identifier ?? run.linkedIssue.id.slice(0, 8)}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SidebarSection>
-        </aside>
       </div>
     </div>
   );

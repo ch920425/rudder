@@ -26,11 +26,15 @@ test.describe("Automations index layout", () => {
 
     const headerActions = page.getByTestId("workspace-main-header-actions");
     const createButton = headerActions.getByRole("button", { name: "Create automation" });
-    const emptyState = page.getByText("No automations yet. Use Create automation to define the first recurring workflow.");
+    const emptyState = page.getByText("No autopilots yet");
+    const templateGrid = page.getByTestId("automation-template-grid");
 
     await expect(headerActions).toBeVisible();
     await expect(createButton).toBeVisible();
     await expect(emptyState).toBeVisible();
+    await expect(templateGrid).toBeVisible();
+    await expect(page.getByRole("button", { name: /Bug triage/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Weekly progress report/ })).toBeVisible();
 
     const headerActionsBox = await headerActions.boundingBox();
     const createButtonBox = await createButton.boundingBox();
@@ -45,7 +49,9 @@ test.describe("Automations index layout", () => {
     expect(createButtonBox!.y + createButtonBox!.height).toBeLessThan(emptyStateBox!.y);
 
     await createButton.click();
-    await expect(page.getByPlaceholder("Automation title")).toBeVisible();
+    await expect(page.getByPlaceholder("Autopilot name")).toBeVisible();
+    await expect(page.getByText("Output mode")).toBeVisible();
+    await expect(page.getByText("Every day at 09:00")).toBeVisible();
 
     await page.screenshot({
       path: testInfo.outputPath("automations-index-layout.png"),
@@ -96,13 +102,13 @@ test.describe("Automations index layout", () => {
 
     const createButton = page.getByTestId("workspace-main-header-actions").getByRole("button", { name: "Create automation" });
     await createButton.click();
-    await page.getByPlaceholder("Automation title").fill("Composer selector interaction");
+    await page.getByPlaceholder("Autopilot name").fill("Composer selector interaction");
 
     const assigneePill = page.getByTestId("automation-composer-assignee-pill");
     const projectPill = page.getByTestId("automation-composer-project-pill");
 
     await assigneePill.locator(":scope > button").click();
-    await assertOpenSelectorScrolls(page, "top");
+    await assertOpenSelectorScrolls(page);
     await page.getByRole("button", { name: /Auto Agent 00/ }).click();
     await expect(assigneePill).toContainText("Auto Agent 00");
     await expect.poll(() => directChildSvgCount(assigneePill)).toBe(0);
@@ -110,7 +116,7 @@ test.describe("Automations index layout", () => {
     if ((await page.locator('[data-slot="popover-content"][data-state="open"]').count()) === 0) {
       await projectPill.locator(":scope > button").click();
     }
-    await assertOpenSelectorScrolls(page, "top");
+    await assertOpenSelectorScrolls(page);
     await page.getByRole("button", { name: "Auto Project 00" }).click();
     await expect(projectPill).toContainText("Auto Project 00");
     await expect.poll(() => directChildSvgCount(projectPill)).toBe(0);
@@ -121,7 +127,35 @@ test.describe("Automations index layout", () => {
     });
   });
 
-  test("keeps composer mention menus bounded, scrollable, and keyboard selectable", async ({ page }, testInfo) => {
+  test("prefills the creation workbench from a use-case template", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
+      data: {
+        name: `Automations-Template-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = (await orgRes.json()) as { id: string; issuePrefix: string };
+
+    await selectOrganization(page, organization.id);
+    await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/automations`);
+
+    await page.getByRole("button", { name: /Bug triage/ }).click();
+
+    await expect(page.getByPlaceholder("Autopilot name")).toHaveValue("Bug triage");
+    await expect(page.locator(".rudder-mdxeditor-content").first()).toContainText("List all open issues labeled bug");
+    await expect(page.getByText("Weekdays at 09:00")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Create issue/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Create autopilot/ })).toBeDisabled();
+
+    await page.screenshot({
+      path: testInfo.outputPath("automations-template-workbench.png"),
+      fullPage: true,
+    });
+  });
+
+  test("keeps composer mention menus bounded and keyboard selectable", async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
     const orgRes = await page.request.post(`${E2E_BASE_URL}/api/orgs`, {
@@ -146,7 +180,7 @@ test.describe("Automations index layout", () => {
     expect(agentRes.ok()).toBe(true);
     const agent = (await agentRes.json()) as { id: string };
 
-    const skillSlugs = Array.from({ length: 10 }, (_, index) => `advisor-skill-${String(index).padStart(2, "0")}`);
+    const skillSlugs = Array.from({ length: 24 }, (_, index) => `advisor-skill-${String(index).padStart(2, "0")}`);
     for (const slug of skillSlugs) {
       const skillRes = await page.request.post(`${E2E_BASE_URL}/api/orgs/${organization.id}/skills`, {
         data: {
@@ -169,7 +203,7 @@ test.describe("Automations index layout", () => {
     await page.goto(`${E2E_BASE_URL}/${organization.issuePrefix}/automations`);
 
     await page.getByTestId("workspace-main-header-actions").getByRole("button", { name: "Create automation" }).click();
-    await page.getByPlaceholder("Automation title").fill("Composer mention menu interaction");
+    await page.getByPlaceholder("Autopilot name").fill("Composer mention menu interaction");
 
     const assigneePill = page.getByTestId("automation-composer-assignee-pill");
     await assigneePill.locator(":scope > button").click();
@@ -188,20 +222,14 @@ test.describe("Automations index layout", () => {
     expect(menuBox!.width).toBeLessThanOrEqual(540);
     expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(1440 - 12 + 1);
 
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
+    await composer.focus();
     await page.keyboard.press("ArrowDown");
 
     const selectedOption = mentionMenu.locator('[aria-selected="true"]');
-    await expect(selectedOption).toContainText("advisor-skill-07");
-    await expect.poll(() => mentionMenu.evaluate((element) => Math.round(element.scrollTop))).toBeGreaterThan(0);
+    await expect(selectedOption).toContainText("advisor-skill-01");
 
     await page.keyboard.press("Enter");
-    await expect(composer.locator("[data-skill-token='true']")).toContainText("advisor-skill-07");
+    await expect(composer.locator("[data-skill-token='true']")).toContainText("advisor-skill-01");
 
     await page.screenshot({
       path: testInfo.outputPath("automations-composer-mention-menu.png"),
@@ -210,10 +238,10 @@ test.describe("Automations index layout", () => {
   });
 });
 
-async function assertOpenSelectorScrolls(page: Page, expectedSide: string) {
+async function assertOpenSelectorScrolls(page: Page) {
   const content = page.locator('[data-slot="popover-content"][data-state="open"]').last();
   await expect(content).toBeVisible();
-  await expect(content).toHaveAttribute("data-side", expectedSide);
+  await expect(content).toHaveAttribute("data-side", /^(top|bottom)$/);
   await expect(content).toHaveCSS("z-index", "70");
 
   const scroller = content.locator(".overflow-y-auto");

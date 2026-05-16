@@ -108,6 +108,8 @@ type DesktopUpdateProgressEvent = {
 const STABLE_SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const CANARY_SEMVER_RE = /^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$/;
 const CLI_REGISTRY_LATEST_URL = "https://registry.npmjs.org/@rudderhq%2fcli/latest";
+const LEGACY_UPDATE_QUIT_GRACE_MS = 10_000;
+const UPDATE_QUIT_FORCE_DELAY_MS = 1_000;
 const DESKTOP_APP_NAME = "Rudder";
 const DESKTOP_METADATA_FILE = ".rudder-desktop-install.json";
 const DESKTOP_CHECKSUM_ASSET_NAME = "SHASUMS256.txt";
@@ -845,6 +847,10 @@ function readUpdateQuitPid(response: UpdateQuitResponse | null): number | null {
     : null;
 }
 
+function isLegacyUnconfirmedUpdateQuit(response: UpdateQuitResponse | null): boolean {
+  return Boolean(response?.ok && response.status === "quitting" && !readUpdateQuitPid(response));
+}
+
 export async function waitForProcessExit(pid: number, timeoutMs = 20_000, intervalMs = 250): Promise<boolean> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -867,11 +873,18 @@ async function removePathWithRetry(targetPath: string, attempts = 5): Promise<bo
   return false;
 }
 
-async function prepareForDesktopReplace(
+export async function prepareForDesktopReplace(
   paths: DesktopInstallPaths,
   target: DesktopAssetTarget,
-  options: { waitForActiveRuns?: boolean; activeRunPollIntervalMs?: number } = {},
+  options: {
+    waitForActiveRuns?: boolean;
+    activeRunPollIntervalMs?: number;
+    legacyUpdateQuitGraceMs?: number;
+    updateQuitForceDelayMs?: number;
+    forceQuitDesktopProcesses?: (target: DesktopAssetTarget) => void;
+  } = {},
 ): Promise<void> {
+  const forceQuit = options.forceQuitDesktopProcesses ?? forceQuitDesktopProcesses;
   const hasManagedExecutable = await pathExists(paths.executablePath);
   if (hasManagedExecutable) {
     let quitResponse = await requestDesktopQuit(paths.executablePath, target);
@@ -892,21 +905,29 @@ async function prepareForDesktopReplace(
       p.log.info(`Waiting for existing Rudder Desktop process ${quitPid} to exit before replacing it.`);
       if (!(await waitForProcessExit(quitPid))) {
         p.log.warn(`Rudder Desktop process ${quitPid} did not exit in time; attempting force-quit fallback.`);
-        forceQuitDesktopProcesses(target);
-        await delay(1_000);
+        forceQuit(target);
+        await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
       }
+    } else if (isLegacyUnconfirmedUpdateQuit(quitResponse)) {
+      const graceMs = options.legacyUpdateQuitGraceMs ?? LEGACY_UPDATE_QUIT_GRACE_MS;
+      p.log.warn(
+        `Existing Rudder Desktop acknowledged update quit without a process id; waiting ${Math.ceil(graceMs / 1_000)}s before force-quit fallback.`,
+      );
+      await delay(graceMs);
+      forceQuit(target);
+      await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
     } else {
-      await delay(1_000);
+      await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
     }
   } else if (!isRunningInsideDesktopExecutable()) {
-    forceQuitDesktopProcesses(target);
+    forceQuit(target);
   }
 
   const replacePath = target.platform === "windows" ? paths.installRoot : paths.appPath;
   if (await removePathWithRetry(replacePath)) return;
 
-  forceQuitDesktopProcesses(target);
-  await delay(1_000);
+  forceQuit(target);
+  await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
   if (await removePathWithRetry(replacePath, 6)) return;
 
   throw new Error(`Failed to replace existing Rudder Desktop at ${replacePath}. Close Rudder and rerun start.`);

@@ -438,6 +438,16 @@ afterEach(() => {
 });
 
 describe("Chat attachment previews", () => {
+  it("does not over-cancel the workspace main padding on desktop", () => {
+    const { container } = renderChat();
+
+    const shell = container.querySelector(".chat-shell");
+    expect(shell?.className).toContain("md:-mx-3.5");
+    expect(shell?.className).toContain("lg:-mx-5");
+    expect(shell?.className).not.toContain("md:-mx-6");
+    expect(shell?.className).not.toContain("lg:-mx-7");
+  });
+
   it("opens message image previews while a pending proposal hides the composer and clears on conversation change", () => {
     const { container, rerender } = renderChat();
 

@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -34,6 +34,7 @@ import {
   isPersistentCliVersionCurrent,
   isSuccessfulRobocopyExitCode,
   parseChecksumFile,
+  prepareForDesktopReplace,
   resolveAssetChecksum,
   resolveCliInstallSpec,
   resolveCurrentCliVersion,
@@ -872,6 +873,59 @@ describe("desktop start command helpers", () => {
 
   it("stops waiting when the Desktop process does not exit in time", async () => {
     await expect(waitForProcessExit(process.pid, 20, 5)).resolves.toBe(false);
+  });
+
+  it("does not replace immediately when legacy Desktop confirms quit without a pid", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-legacy-quit-test."));
+    const installRoot = path.join(dir, "Rudder");
+    const executablePath = path.join(installRoot, "Rudder.exe");
+    await mkdir(installRoot, { recursive: true });
+    await writeFile(
+      executablePath,
+      [
+        "#!/usr/bin/env node",
+        'const fs = require("node:fs");',
+        `const prefix = ${JSON.stringify("--rudder-update-quit=")};`,
+        "const arg = process.argv.find((value) => value.startsWith(prefix));",
+        [
+          "if (arg) fs.writeFileSync(",
+          "arg.slice(prefix.length),",
+          "JSON.stringify({ ok: true, status: 'quitting' }) + '\\n',",
+          "'utf8'",
+          ");",
+        ].join(" "),
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(executablePath, 0o755);
+
+    try {
+      const forceQuitDesktopProcesses = vi.fn();
+      const replace = prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath: path.join(installRoot, "Rudder.app"),
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "windows", arch: "x64", extension: ".zip" },
+        {
+          legacyUpdateQuitGraceMs: 100,
+          updateQuitForceDelayMs: 0,
+          forceQuitDesktopProcesses,
+        },
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await expect(access(installRoot)).resolves.toBeUndefined();
+      expect(forceQuitDesktopProcesses).not.toHaveBeenCalled();
+
+      await replace;
+      expect(forceQuitDesktopProcesses).toHaveBeenCalledTimes(1);
+      await expect(access(installRoot)).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("builds Linux desktop entries for the AppImage", () => {
