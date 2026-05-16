@@ -1543,6 +1543,58 @@ describe("issue lifecycle routes", () => {
     expect(renderedPrompt).toContain("@worker please check this");
   });
 
+  it("records agent issue comments with the current run id", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: "in_progress",
+        checkoutRunId: RUN_ID,
+        executionRunId: RUN_ID,
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, RUN_ID)))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: "Close-out evidence." });
+
+    expect(res.status).toBe(201);
+    expect(mockHeartbeatService.reportRunActivity).toHaveBeenCalledWith(RUN_ID);
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "issue.comment_added",
+        entityId: "11111111-1111-4111-8111-111111111111",
+        agentId: ASSIGNEE_AGENT_ID,
+        runId: RUN_ID,
+        details: expect.objectContaining({
+          commentId: "comment-1",
+          bodySnippet: "Close-out evidence.",
+        }),
+      }),
+    );
+  });
+
+  it("rejects agent issue comments with invalid run context before persisting", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: "todo",
+      }),
+    );
+
+    const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, "chat-run-not-a-uuid")))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: "This should not persist." });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Run context is not valid for this issue" });
+    expect(mockIssueService.addComment).not.toHaveBeenCalled();
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "issue.comment_added" }),
+    );
+  });
+
   it("includes issue and comment context when assignee wakeup is queued from comment endpoint", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({

@@ -148,6 +148,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
     const runId = requireAgentRunId(req, res);
     if (!runId) return false;
+    if (!isUuidLike(runId)) {
+      res.status(403).json({ error: "Run context is not valid for this issue" });
+      return false;
+    }
     const ownership = await svc.assertCheckoutOwner(issue.id, actorAgentId, runId);
     if (ownership.adoptedFromRunId) {
       const actor = getActorInfo(req);
@@ -176,7 +180,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
     return typeof issueId === "string" && issueId.trim() ? issueId.trim() : null;
   }
 
-  async function resolveAgentCommitRunId(
+  async function resolveAgentIssueRunId(
     req: Request,
     res: Response,
     issue: {
@@ -1664,7 +1668,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
     if (!(await assertAgentRunCheckoutOwnership(req, res, issue))) return;
 
     const actor = getActorInfo(req);
-    const commitRun = await resolveAgentCommitRunId(req, res, issue);
+    const commitRun = await resolveAgentIssueRunId(req, res, issue);
     if (!commitRun.ok) return;
     const sha = req.body.sha.trim().toLowerCase();
     const subject = commitSubject(req.body.message);
@@ -1769,6 +1773,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
     assertCompanyAccess(req, issue.orgId);
     if (!(await assertAgentRunCheckoutOwnership(req, res, issue))) return;
+    const commentRun = await resolveAgentIssueRunId(req, res, issue);
+    if (!commentRun.ok) return;
 
     const actor = getActorInfo(req);
     const reopenRequested = req.body.reopen === true;
@@ -1859,9 +1865,9 @@ export function issueRoutes(db: Db, storage: StorageService) {
       userId: actor.actorType === "user" ? actor.actorId : undefined,
     });
 
-    if (actor.runId) {
-      await heartbeat.reportRunActivity(actor.runId).catch((err) =>
-        logger.warn({ err, runId: actor.runId }, "failed to clear detached run warning after issue comment"));
+    if (commentRun.runId) {
+      await heartbeat.reportRunActivity(commentRun.runId).catch((err) =>
+        logger.warn({ err, runId: commentRun.runId }, "failed to clear detached run warning after issue comment"));
     }
 
     await logActivity(db, {
@@ -1869,7 +1875,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
-      runId: actor.runId,
+      runId: commentRun.runId,
       action: "issue.comment_added",
       entityType: "issue",
       entityId: currentIssue.id,

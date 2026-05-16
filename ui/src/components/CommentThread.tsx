@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ChangeEvent, type Reac
 import { Link, useLocation } from "react-router-dom";
 import type { IssueComment, Agent } from "@rudderhq/shared";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, Paperclip } from "lucide-react";
+import { Check, Copy, Paperclip, TerminalSquare } from "lucide-react";
 import type { LiveRunForIssue } from "../api/heartbeats";
 import type { TranscriptEntry } from "../agent-runtimes";
 import { Identity } from "./Identity";
@@ -207,7 +207,11 @@ const TimelineList = memo(function TimelineList({
           const hasOutput = runHasOutput(run.runId);
           const passiveLabel = passiveFollowupLabel(run.contextSnapshot);
           return (
-            <div key={`run:${run.runId}`} className="overflow-hidden rounded-sm border border-border bg-accent/20 p-3">
+            <div
+              key={`run:${run.runId}`}
+              aria-label="Execution output, not an issue comment"
+              className="overflow-hidden rounded-sm border border-dashed border-border bg-muted/35 p-3"
+            >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <Link to={`/agents/${run.agentId}`} className="hover:underline">
                   <AgentIdentity
@@ -224,7 +228,13 @@ const TimelineList = memo(function TimelineList({
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Execution</span>
+                <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
+                  <TerminalSquare className="h-3.5 w-3.5" />
+                  Execution output
+                </span>
+                <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
+                  Not an issue comment
+                </span>
                 <Link
                   to={`/agents/${run.agentId}/runs/${run.runId}`}
                   className="inline-flex items-center rounded-md border border-border bg-accent/40 px-2 py-1 font-mono text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
