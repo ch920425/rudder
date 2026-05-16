@@ -12,6 +12,7 @@ import { Automations } from "./Automations";
 const mockNavigate = vi.fn();
 const mockSetHeaderActions = vi.fn();
 const markdownEditorProps = vi.hoisted(() => [] as Array<{ mentions?: Array<{ id: string; kind?: string; name: string }> }>);
+const automationListState = vi.hoisted(() => ({ items: [] as unknown[] }));
 
 const automation = {
   id: "auto-1",
@@ -56,7 +57,7 @@ const automation = {
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "automations") {
-      return { data: [automation], isLoading: false, error: null };
+      return { data: automationListState.items, isLoading: false, error: null };
     }
     if (queryKey[0] === "organization-skills") {
       return { data: [], isLoading: false, error: null };
@@ -170,12 +171,41 @@ vi.mock("../context/ToastContext", () => ({
 
 vi.mock("../components/MarkdownEditor", () => ({
   MarkdownEditor: forwardRef(function MockMarkdownEditor(
-    props: { mentions?: Array<{ id: string; kind?: string; name: string }> },
+    props: {
+      mentions?: Array<{ id: string; kind?: string; name: string }>;
+      value?: string;
+      onChange?: (value: string) => void;
+      placeholder?: string;
+    },
     _ref,
   ) {
     markdownEditorProps.push(props);
-    return <textarea aria-label="Instructions" />;
+    return (
+      <textarea
+        aria-label="Instructions"
+        value={props.value ?? ""}
+        placeholder={props.placeholder}
+        onChange={(event) => props.onChange?.(event.target.value)}
+      />
+    );
   }),
+}));
+
+vi.mock("../components/ScheduleEditor", () => ({
+  ScheduleEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+  }) => (
+    <input
+      aria-label="Schedule"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
+  describeSchedule: (value: string) => `Schedule ${value}`,
 }));
 
 vi.mock("../components/InlineEntitySelector", () => ({
@@ -209,6 +239,7 @@ vi.mock("../components/AgentIconPicker", () => ({
 let cleanupFn: (() => void) | null = null;
 
 beforeEach(() => {
+  automationListState.items = [automation];
   const storage = new Map<string, string>();
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -277,6 +308,36 @@ function setTextareaValue(textarea: HTMLTextAreaElement, value: string) {
 }
 
 describe("Automations", () => {
+  it("renders use-case templates in the empty state and prefills the workbench", async () => {
+    automationListState.items = [];
+    const container = renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("No autopilots yet");
+    expect(container.textContent).toContain("Bug triage");
+    expect(container.textContent).toContain("Weekly progress report");
+    expect(container.querySelector('[data-testid="automation-template-grid"]')).toBeTruthy();
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Bug triage"))
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const titleInput = document.querySelector('textarea[placeholder="Autopilot name"]') as HTMLTextAreaElement | null;
+    const runbookInput = document.querySelector('textarea[aria-label="Instructions"]') as HTMLTextAreaElement | null;
+    const scheduleInput = document.querySelector('input[aria-label="Schedule"]') as HTMLInputElement | null;
+    expect(titleInput?.value).toBe("Bug triage");
+    expect(runbookInput?.value).toContain("List all open issues labeled bug");
+    expect(scheduleInput?.value).toBe("0 9 * * 1-5");
+    expect(document.body.textContent).toContain("Output mode");
+    expect(document.body.textContent).toContain("Create autopilot");
+  });
+
   it("renders last run as a fixed timestamp without the run status caption", async () => {
     const container = renderPage();
 
@@ -309,7 +370,7 @@ describe("Automations", () => {
 
     await act(async () => {
       Array.from(document.body.querySelectorAll("button"))
-        .find((button) => button.textContent === "Assignee")
+        .find((button) => button.textContent?.includes("Select agent"))
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
@@ -330,7 +391,7 @@ describe("Automations", () => {
       headerContainer.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const titleInput = document.querySelector('textarea[placeholder="Automation title"]') as HTMLTextAreaElement | null;
+    const titleInput = document.querySelector('textarea[placeholder="Autopilot name"]') as HTMLTextAreaElement | null;
     expect(titleInput).toBeTruthy();
 
     await act(async () => {
@@ -338,7 +399,7 @@ describe("Automations", () => {
     });
     await act(async () => {
       Array.from(document.body.querySelectorAll("button"))
-        .find((button) => button.textContent === "Assignee")
+        .find((button) => button.textContent?.includes("Select agent"))
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });

@@ -64,7 +64,7 @@ async function createAutomationFixture(page: Page) {
 }
 
 test.describe("Automation detail layout", () => {
-  test("keeps page actions in the header and moves editing context into the overview strip", async ({ page }, testInfo) => {
+  test("keeps page actions in the header and moves editing context into the configuration rail", async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1200 });
     const { organization, automation } = await createAutomationFixture(page);
 
@@ -74,6 +74,8 @@ test.describe("Automation detail layout", () => {
     const headerActions = page.getByTestId("workspace-main-header-actions");
     const shell = page.getByTestId("automation-detail-shell");
     const overviewStrip = page.getByTestId("automation-overview-strip");
+    const agentControl = page.getByTestId("automation-detail-agent-control");
+    const projectControl = page.getByTestId("automation-detail-project-control");
     const addTriggerCard = page.getByTestId("automation-add-trigger-card");
     const triggersList = page.getByTestId("automation-triggers-list");
     const statusButton = headerActions.getByRole("button", { name: "Pause automation" });
@@ -83,6 +85,8 @@ test.describe("Automation detail layout", () => {
     await expect(headerActions).toBeVisible();
     await expect(shell).toBeVisible();
     await expect(overviewStrip).toBeVisible();
+    await expect(agentControl).toBeVisible();
+    await expect(projectControl).toBeVisible();
     await expect(addTriggerCard).toBeVisible();
     await expect(triggersList).toBeVisible();
     await expect(statusButton).toBeVisible();
@@ -94,14 +98,19 @@ test.describe("Automation detail layout", () => {
     await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
     await expect(page.getByText(/Automatic triggers/)).toHaveCount(0);
     await expect(page.getByText(/Changes save automatically/)).toHaveCount(0);
+    await expect(page.getByText("Configuration")).toBeVisible();
+    await expect(page.getByText("Output mode")).toBeVisible();
+    await expect(page.getByText("Create issue")).toBeVisible();
     await expect(page.getByText("Run status")).toBeVisible();
     await expect(page.getByText("Details")).toHaveCount(0);
     await expect(addTriggerCard.getByRole("button", { name: "Add trigger" })).toBeVisible();
 
-    const assigneeSelector = overviewStrip.getByRole("button", { name: /Automation Layout Agent/ });
-    const projectSelector = overviewStrip.getByRole("button", { name: /Onboarding/ });
-    await expect(assigneeSelector).toHaveCSS("border-top-width", "1px");
-    await expect(projectSelector).toHaveCSS("border-top-width", "1px");
+    const assigneeSelector = agentControl.getByRole("button", { name: /Automation Layout Agent/ });
+    const projectSelector = projectControl.getByRole("button", { name: /Onboarding/ });
+    await expect(agentControl).toHaveCSS("border-top-width", "1px");
+    await expect(projectControl).toHaveCSS("border-top-width", "1px");
+    await expect(assigneeSelector).toBeVisible();
+    await expect(projectSelector).toBeVisible();
 
     const titleInput = page.getByPlaceholder("Automation title");
     const patchPromise = page.waitForResponse((response) =>
