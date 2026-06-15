@@ -72,6 +72,7 @@ test.describe("Automation detail layout", () => {
     await page.goto(`/automations/${automation.id}?tab=triggers`);
 
     const headerActions = page.getByTestId("workspace-main-header-actions");
+    const detailBreadcrumb = page.getByTestId("primary-detail-breadcrumb");
     const shell = page.getByTestId("automation-detail-shell");
     const overviewStrip = page.getByTestId("automation-overview-strip");
     const configurationCard = page.getByTestId("automation-configuration-card");
@@ -86,6 +87,9 @@ test.describe("Automation detail layout", () => {
     const notifySwitch = configurationCard.getByRole("switch", { name: "Follow issues created by this automation" });
 
     await expect(headerActions).toBeVisible();
+    await expect(detailBreadcrumb).toBeVisible();
+    await expect(detailBreadcrumb.getByRole("link", { name: "Automations" })).toHaveAttribute("href", /\/automations$/);
+    await expect(detailBreadcrumb).toContainText("Every morning summarize onboarding blockers");
     await expect(shell).toBeVisible();
     await expect(overviewStrip).toBeVisible();
     await expect(configurationCard).toBeVisible();
