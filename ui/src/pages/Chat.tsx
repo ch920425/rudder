@@ -475,7 +475,13 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         title: "Failed to resolve lightweight change",
         body: error instanceof Error ? error.message : "Try again.",
         tone: "error", }); }, }); const stopStreaming = useCallback((chatId: string) => { stopRequestedChatIdsRef.current.add(chatId);
-    void chatsApi.stopMessageStream(chatId).catch((error) => {
+    void chatsApi.stopMessageStream(chatId).then(() => {
+      pushToast({
+        title: "Response stopped",
+        body: "Rudder interrupted the current reply.",
+        tone: "info",
+      });
+    }).catch((error) => {
       pushToast({
         title: "Failed to stop streaming",
         body: error instanceof Error ? error.message : "Try again.", tone: "error", }); }); abortChatStream(chatId); setStreamDraftForChat(chatId, (current) => (current ? { ...current, state: "stopped" } : current)); }, [abortChatStream, pushToast, setStreamDraftForChat]); const readComposerDraft = useCallback(

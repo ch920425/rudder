@@ -267,6 +267,7 @@ test.describe("Chat streaming", () => {
     await expect(page.getByText("Streaming reply", { exact: false })).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: "Stop streaming" }).click();
 
+    await expect(page.getByText("Response stopped")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /Worked for .*Stopped/ })).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(800);
     await page.reload();

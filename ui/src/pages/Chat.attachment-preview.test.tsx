@@ -34,10 +34,12 @@ const mockState = vi.hoisted(() => ({
   navigate: vi.fn(),
   pushToast: vi.fn(),
   queryKeys: [] as unknown[][],
+  sendInFlightByChatId: {} as Record<string, true>,
   sendMessageStream: vi.fn(),
   setQueriesData: vi.fn(),
   setQueryData: vi.fn(),
   setBreadcrumbs: vi.fn(),
+  stopMessageStream: vi.fn(),
   streamDrafts: {} as Record<string, ChatStreamDraft>,
 }));
 
@@ -147,7 +149,7 @@ vi.mock("@/context/I18nContext", () => ({
 vi.mock("@/context/ChatGenerationContext", () => ({
   useChatGenerations: () => ({
     abortChatStream: vi.fn(),
-    sendInFlightByChatId: {},
+    sendInFlightByChatId: mockState.sendInFlightByChatId,
     setChatSendInFlight: vi.fn(),
     setStreamAbortController: vi.fn(),
     setStreamDraftForChat: vi.fn(),
@@ -163,7 +165,7 @@ vi.mock("@/api/chats", () => ({
       ...mockState.conversations[0],
       ...patch,
     })),
-    stopMessageStream: vi.fn(async () => undefined),
+    stopMessageStream: mockState.stopMessageStream,
     sendMessageStream: mockState.sendMessageStream,
   },
 }));
@@ -501,6 +503,19 @@ async function clickEnabledButton(container: Element, label: string) {
   });
 }
 
+async function clickEnabledButtonByAriaLabel(container: Element, label: string) {
+  await act(async () => {
+    await Promise.resolve();
+  });
+  const button = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  expect(button).not.toBeNull();
+  expect(button?.disabled).toBe(false);
+  await act(async () => {
+    button?.click();
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   installLocalStorageMock();
   Object.defineProperty(URL, "createObjectURL", {
@@ -537,9 +552,12 @@ beforeEach(() => {
   mockState.navigate.mockReset();
   mockState.pushToast.mockReset();
   mockState.queryKeys = [];
+  mockState.sendInFlightByChatId = {};
   mockState.sendMessageStream.mockReset();
   mockState.setQueriesData.mockReset();
   mockState.setQueryData.mockReset();
+  mockState.stopMessageStream.mockReset();
+  mockState.stopMessageStream.mockResolvedValue(undefined);
   mockState.sendMessageStream.mockImplementation(async (chatId: string, body: string, options: {
     onEvent: (event: unknown) => void | Promise<void>;
   }) => {
@@ -685,6 +703,50 @@ describe("Chat route loading", () => {
     expect(container.querySelector("[data-testid='chat-composer-toolbar']")).toBeNull();
     expect(container.querySelector("[data-testid='chat-empty-state-tabs']")).toBeNull();
     expect(container.textContent).not.toContain("Scope a new feature");
+  });
+});
+
+describe("Chat streaming controls", () => {
+  it("notifies the operator after stopping an active response", async () => {
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({
+          id: "user-message-1",
+          body: "Please draft a plan.",
+          chatTurnId: "turn-1",
+        }),
+      ],
+    };
+    mockState.sendInFlightByChatId = { "chat-1": true };
+    mockState.streamDrafts = {
+      "chat-1": {
+        chatId: "chat-1",
+        userBody: "Please draft a plan.",
+        userCreatedAt: new Date("2026-05-12T09:04:00.000Z"),
+        userMessageId: "user-message-1",
+        chatTurnId: "turn-1",
+        editedFromCreatedAt: null,
+        body: "Working on it...",
+        state: "streaming",
+        createdAt: new Date("2026-05-12T09:04:01.000Z"),
+        transcript: [],
+        replyingAgentId: "agent-1",
+      },
+    };
+
+    const { container } = renderChat();
+
+    await clickEnabledButtonByAriaLabel(container, "Stop streaming");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockState.stopMessageStream).toHaveBeenCalledWith("chat-1");
+    expect(mockState.pushToast).toHaveBeenCalledWith({
+      title: "Response stopped",
+      body: "Rudder interrupted the current reply.",
+      tone: "info",
+    });
   });
 });
 
