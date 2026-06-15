@@ -23,14 +23,14 @@ const mockState = vi.hoisted(() => ({
   pathname: "/RUD/issues",
   search: "",
   relativePath: "/issues",
-  issues: [] as Array<{ id: string; identifier: string; title: string; status: string; projectId?: string | null }>,
+  issues: [] as Array<{ id: string; identifier: string | null; title: string; status: string; projectId?: string | null }>,
   follows: [] as Array<{
     id: string;
     orgId: string;
     issueId: string;
     userId: string;
     createdAt: string;
-    issue: { id: string; identifier: string; title: string; status: string };
+    issue: { id: string; identifier: string | null; title: string; status: string };
   }>,
   projects: [] as Array<{ id: string; name: string; archivedAt?: string | null; color?: string | null; urlKey?: string | null }>,
   linearContributions: [] as Array<{
@@ -598,6 +598,42 @@ describe("ThreeColumnContextSidebar issue draft recovery", () => {
     expect(statusSlot?.className).toContain("h-5");
     expect(textGroup?.className).toContain("items-center");
     expect(textGroup?.className).not.toContain("items-baseline");
+  });
+
+  it("renders recent issue refs completely instead of truncating the identifier column", () => {
+    const uuidOnlyIssueId = "a90e6442-e0b1-4d62-b81e-ceb0bd801928";
+    mockState.issues = [
+      {
+        id: "issue-1",
+        identifier: "ZST-588",
+        title: "Agent page add issue tab",
+        status: "done",
+      },
+      {
+        id: uuidOnlyIssueId,
+        identifier: null,
+        title: "Issue without generated identifier",
+        status: "todo",
+      },
+    ];
+    window.localStorage.setItem("rudder:recent-issues:org-1", JSON.stringify(["issue-1", uuidOnlyIssueId]));
+
+    renderSidebar();
+
+    const identifierRow = document.querySelector("[data-testid='issue-recent-row-issue-1']") as HTMLElement | null;
+    const uuidRow = document.querySelector(`[data-testid='issue-recent-row-${uuidOnlyIssueId}']`) as HTMLElement | null;
+    const identifierRef = Array.from(identifierRow?.querySelectorAll("span") ?? []).find(
+      (node) => node.textContent === "ZST-588",
+    );
+    const uuidRef = Array.from(uuidRow?.querySelectorAll("span") ?? []).find(
+      (node) => node.textContent === uuidOnlyIssueId,
+    );
+
+    expect(identifierRef).toBeTruthy();
+    expect(uuidRef).toBeTruthy();
+    expect(identifierRef?.className).toContain("shrink-0");
+    expect(identifierRef?.className).not.toContain("truncate");
+    expect(uuidRef?.className).not.toContain("truncate");
   });
 
   it("shows a hover pin control on recently viewed issue rows", async () => {
