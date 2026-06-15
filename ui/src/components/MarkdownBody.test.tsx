@@ -711,6 +711,7 @@ describe("MarkdownBody", () => {
     expect(html).toContain('href="/issues/issue-789"');
     expect(html).toContain('data-mention-kind="issue"');
     expect(html).toContain('data-mention-status="in_review"');
+    expect(html).not.toContain('title="Open PAP-123 auth flow"');
     expect(html).toContain("rudder-mention-chip--with-status-icon");
     expect(html).toContain('data-slot="issue-status-icon"');
     expect(html).toContain('data-status="in_review"');

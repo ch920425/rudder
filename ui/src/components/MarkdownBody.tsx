@@ -838,7 +838,6 @@ export function MarkdownBody({
         const mentionLink = (
           <a
             href={targetHref}
-            title={`Open ${mentionLabel}`}
             className={cn(
               "rudder-mention-chip",
               `rudder-mention-chip--${mention.kind}`,
