@@ -312,6 +312,10 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "",
   "- Never exfiltrate secrets or private data.",
   "- Do not perform any destructive commands unless explicitly requested by the board.",
+  "",
+  "## Other",
+  "- You can use `rudder` skill to see Agent best practise in Rudder. eg: update Agent profile, crud automation, manage library, project, org, curd agent run, chat, issue.",
+  "- Before taking action, deeply analyze and research the existing information to ensure you have comprehensive context information before proceeding with the next action. You have your own goal, memory, skills, automation, library, project, org, use these resources to make better decisions.",
 ].join("\n");
 
 export const RUDDER_AGENT_HEARTBEAT_INSTRUCTION = [
