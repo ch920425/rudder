@@ -115,6 +115,19 @@ describe("agent-v1 registry", () => {
     }
   });
 
+  it("exposes chat send as an agent-authored direct message capability", () => {
+    const manifest = buildAgentCliCapabilitiesManifest("agent-v1");
+    const chatSend = manifest.capabilities.find((entry) => entry.id === "chat.send");
+
+    expect(chatSend).toMatchObject({
+      command: "rudder chat send <chat-id> --body <text>",
+      description: "Send an agent-authored message directly to the operator in a chat.",
+      mutating: true,
+      requiresAgentId: true,
+      attachesRunIdWhenAvailable: true,
+    });
+  });
+
   it("keeps the CLI reference doc in sync with the registry", () => {
     const reference = fs.readFileSync(CLI_REFERENCE_PATH, "utf8");
     expect(reference).toBe(renderAgentCliReferenceMarkdown());

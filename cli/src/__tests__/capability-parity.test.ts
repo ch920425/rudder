@@ -515,6 +515,62 @@ describe("CLI automation/chat/runs parity", () => {
     });
   });
 
+  it("sends agent-authored chat messages with agent and run attribution headers", async () => {
+    process.env.RUDDER_AGENT_ID = "agent-1";
+    process.env.RUDDER_RUN_ID = "run-1";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      messages: [
+        {
+          id: "message-agent",
+          role: "assistant",
+          kind: "message",
+          status: "completed",
+          createdAt: "2026-06-11T00:00:00.000Z",
+          body: "hello",
+          replyingAgentId: "agent-1",
+        },
+      ],
+    }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const output = captureOutput();
+
+    await expect(runCli([
+      process.execPath,
+      "rudder",
+      "chat",
+      "send",
+      "chat-1",
+      "--body",
+      "hello",
+      "--api-base",
+      "http://localhost:3100",
+      "--api-key",
+      "token-1",
+      "--json",
+    ])).resolves.toBe(0);
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const requestedUrl = new URL(url);
+    expect(requestedUrl.pathname).toBe("/api/chats/chat-1/messages");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer token-1",
+      "content-type": "application/json",
+      "x-rudder-agent-id": "agent-1",
+      "x-rudder-run-id": "run-1",
+    });
+    expect(JSON.parse(String(init.body))).toEqual({ body: "hello" });
+    expect(JSON.parse(output.stdoutText())).toMatchObject({
+      messages: [
+        {
+          id: "message-agent",
+          role: "assistant",
+          replyingAgentId: "agent-1",
+        },
+      ],
+    });
+  });
+
   it("fails organization-scoped reads before making an API call when org id is missing", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

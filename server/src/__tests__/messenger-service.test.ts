@@ -971,6 +971,52 @@ describe("messengerService and issue follows", () => {
     expect(afterStatusOnlyUpdate?.needsAttention).toBe(false);
   });
 
+  it("surfaces agent-authored chat messages as unread incoming replies", async () => {
+    const orgId = randomUUID();
+    const conversationId = randomUUID();
+    const agentId = randomUUID();
+    const userId = "board-user-agent-direct-chat";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Agent Direct Chat Org",
+      urlKey: deriveOrganizationUrlKey("Agent Direct Chat Org"),
+      issuePrefix: `A${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Chat Runner",
+      role: "general",
+      status: "idle",
+    });
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Agent direct chat",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+
+    await chatSvc.markRead(conversationId, orgId, userId, new Date("2026-05-01T00:00:00.000Z"));
+    await chatSvc.addMessage(conversationId, {
+      orgId,
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Agent completed the requested handoff.",
+      replyingAgentId: agentId,
+    });
+
+    const [afterAgentMessage] = await chatSvc.list(orgId, { status: "active" }, userId);
+    expect(afterAgentMessage?.latestReplyPreview).toBe("Agent completed the requested handoff.");
+    expect(afterAgentMessage?.unreadCount).toBe(1);
+    expect(afterAgentMessage?.isUnread).toBe(true);
+    expect(afterAgentMessage?.needsAttention).toBe(true);
+  });
+
   it("hydrates deterministic latest user previews and user message counts", async () => {
     const orgId = randomUUID();
     const conversationId = randomUUID();

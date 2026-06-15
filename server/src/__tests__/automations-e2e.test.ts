@@ -247,6 +247,7 @@ describe("automation routes end-to-end", () => {
     vi.resetModules();
     mockServicesIndex();
     const { automationRoutes } = await import("../routes/automations.js");
+    const { chatRoutes } = await import("../routes/chats.js");
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -254,6 +255,7 @@ describe("automation routes end-to-end", () => {
       next();
     });
     app.use("/api", automationRoutes(db));
+    app.use("/api", chatRoutes(db, {} as any));
     app.use(errorHandler);
     return app;
   }
@@ -304,6 +306,84 @@ describe("automation routes end-to-end", () => {
 
     return { orgId, agentId, projectId, userId };
   }
+
+  it("persists agent chat sends as direct operator-facing messages without a user prompt turn", async () => {
+    const { orgId, agentId } = await seedFixture();
+    const conversationId = randomUUID();
+    const runId = randomUUID();
+    const app = await createApp({
+      type: "agent",
+      agentId,
+      orgId,
+      runId,
+    });
+
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Agent direct handoff",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: null,
+    });
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      orgId,
+      agentId,
+      invocationSource: "manual",
+      status: "running",
+    });
+
+    const res = await request(app)
+      .post(`/api/chats/${conversationId}/messages`)
+      .send({ body: "I finished the requested work and need your review." });
+
+    expect(res.status).toBe(201);
+    expect(res.body.messages).toHaveLength(1);
+    expect(res.body.messages[0]).toMatchObject({
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "I finished the requested work and need your review.",
+      replyingAgentId: agentId,
+    });
+
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.conversationId, conversationId))
+      .orderBy(asc(chatMessages.createdAt));
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      role: "assistant",
+      kind: "message",
+      body: "I finished the requested work and need your review.",
+      replyingAgentId: agentId,
+    });
+
+    const activities = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.entityId, conversationId));
+    expect(activities).toEqual([
+      expect.objectContaining({
+        orgId,
+        actorType: "agent",
+        actorId: agentId,
+        agentId,
+        runId,
+        action: "chat.message_added",
+        entityType: "chat",
+        entityId: conversationId,
+      }),
+    ]);
+    expect(activities[0]?.details).toMatchObject({
+      role: "assistant",
+      kind: "message",
+      replyingAgentId: agentId,
+      source: "agent_direct_message",
+    });
+  });
 
   it("supports creating, scheduling, and manually running an automation through the API", async () => {
     const { orgId, agentId, projectId, userId } = await seedFixture();

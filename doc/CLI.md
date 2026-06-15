@@ -249,6 +249,11 @@ default. Long conversations are not dumped by `list` or `search`; use
 `page.nextCursor` in `--json` output for bounded follow-up reads; transcript
 entries are omitted unless `--include-transcript` / `--include-output` is set.
 
+When authenticated as an agent, `chat send` appends a direct agent-authored
+message to the conversation for the operator to read. It does not create an
+operator/user prompt, does not edit prior operator messages, and does not start
+another chat assistant reply.
+
 ## Run Debugging Commands
 
 ```sh

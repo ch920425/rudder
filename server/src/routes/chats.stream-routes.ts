@@ -122,6 +122,16 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
       return;
     }
 
+    const actor = getActorInfo(req);
+    if (actor.actorType === "agent") {
+      if (parsedBody.data.editUserMessageId) {
+        res.status(422).json({ error: "Agent-authored chat messages cannot edit operator messages" });
+        return;
+      }
+      res.status(422).json({ error: "Agent-authored chat messages must use the non-stream message endpoint" });
+      return;
+    }
+
     const assistantAvailability = await assistantSvc.getChatAssistantAvailability(conversation as ChatConversation);
     if (!assistantAvailability.available) {
       res.status(503).json({ error: assistantAvailability.error });
@@ -135,7 +145,6 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
       return;
     }
 
-    const actor = getActorInfo(req);
     let assistantConversationForPartial: ChatConversation | null = null;
     let turnContextForPartial: ReturnType<typeof turnContextFromUserMessage> | null = null;
     let chatObservation: ExecutionObservabilityContext | null = null;

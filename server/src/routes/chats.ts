@@ -452,6 +452,44 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return userMessage as ChatMessage;
   }
 
+  async function addAgentAuthoredMessage(
+    conversation: ChatConversation,
+    body: string,
+    actor: ActorInfo,
+  ) {
+    if (!actor.agentId) {
+      throw forbidden("Agent authentication required");
+    }
+
+    const message = await svc.addMessage(conversation.id, {
+      orgId: conversation.orgId,
+      role: "assistant",
+      kind: "message",
+      body,
+      replyingAgentId: actor.agentId,
+    }) as ChatMessage;
+
+    await logActivity(db, {
+      orgId: conversation.orgId,
+      actorType: "agent",
+      actorId: actor.agentId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "chat.message_added",
+      entityType: "chat",
+      entityId: conversation.id,
+      details: {
+        messageId: message.id,
+        role: "assistant",
+        kind: "message",
+        replyingAgentId: actor.agentId,
+        source: "agent_direct_message",
+      },
+    });
+
+    return message;
+  }
+
   async function attachFilesToUserMessage(
     conversation: ChatConversation,
     messageId: string,
@@ -1248,6 +1286,17 @@ export function chatRoutes(db: Db, storage: StorageService) {
       return;
     }
 
+    const actor = getActorInfo(req);
+    if (actor.actorType === "agent") {
+      if (req.body.editUserMessageId) {
+        res.status(422).json({ error: "Agent-authored chat messages cannot edit operator messages" });
+        return;
+      }
+      const message = await addAgentAuthoredMessage(conversation as ChatConversation, req.body.body, actor);
+      res.status(201).json({ messages: [message] });
+      return;
+    }
+
     const assistantAvailability = await assistantSvc.getChatAssistantAvailability(conversation as ChatConversation);
     if (!assistantAvailability.available) {
       res.status(503).json({ error: assistantAvailability.error });
@@ -1260,7 +1309,6 @@ export function chatRoutes(db: Db, storage: StorageService) {
       return;
     }
 
-    const actor = getActorInfo(req);
     let chatObservation: ExecutionObservabilityContext | null = null;
     try {
       const userMessage = await addUserMessage(

@@ -557,6 +557,146 @@ describe("chat routes", () => {
     expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
   });
 
+  it("persists agent-authenticated chat sends as direct incoming agent messages", async () => {
+    const conversation = createConversation({
+      preferredAgentId: null,
+      chatRuntime: {
+        sourceType: "unconfigured",
+        sourceLabel: "Choose an agent",
+        runtimeAgentId: null,
+        agentRuntimeType: null,
+        model: null,
+        available: false,
+        error: "Choose a chat agent before sending messages.",
+      },
+    });
+    const agentMessage = {
+      ...createMessage("message-agent", "assistant", "message", "I finished the handoff."),
+      replyingAgentId: "agent-1",
+    };
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.addMessage.mockResolvedValueOnce(agentMessage);
+
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: "run-1",
+    }))
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "I finished the handoff." });
+
+    expect(res.status).toBe(201);
+    expect(res.body.messages).toEqual([
+      expect.objectContaining({
+        id: "message-agent",
+        role: "assistant",
+        kind: "message",
+        body: "I finished the handoff.",
+        replyingAgentId: "agent-1",
+      }),
+    ]);
+    expect(mockChatService.addMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.objectContaining({
+        orgId: "organization-1",
+        role: "assistant",
+        kind: "message",
+        body: "I finished the handoff.",
+        replyingAgentId: "agent-1",
+      }),
+    );
+    expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.getChatAssistantAvailability).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+    expect(hasActiveChatGeneration("chat-1")).toBe(false);
+    expect(mockLogActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorType: "agent",
+        actorId: "agent-1",
+        agentId: "agent-1",
+        runId: "run-1",
+        action: "chat.message_added",
+        entityType: "chat",
+        entityId: "chat-1",
+        details: expect.objectContaining({
+          messageId: "message-agent",
+          role: "assistant",
+          source: "agent_direct_message",
+        }),
+      }),
+    );
+  });
+
+  it("rejects agent-authenticated chat sends that try to edit operator messages", async () => {
+    const conversation = createConversation();
+    mockChatService.getById.mockResolvedValue(conversation);
+
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: "run-1",
+    }))
+      .post("/api/chats/chat-1/messages")
+      .send({
+        body: "Rewrite the operator prompt",
+        editUserMessageId: "10000000-0000-4000-8000-000000000099",
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Agent-authored chat messages cannot edit operator messages" });
+    expect(mockChatService.addMessage).not.toHaveBeenCalled();
+    expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+  });
+
+  it("rejects agent-authenticated streaming chat sends before assistant generation", async () => {
+    const conversation = createConversation();
+    mockChatService.getById.mockResolvedValue(conversation);
+
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: "run-1",
+    }))
+      .post("/api/chats/chat-1/messages/stream")
+      .send({ body: "I should be a direct message, not a user prompt." });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Agent-authored chat messages must use the non-stream message endpoint" });
+    expect(mockChatAssistantService.getChatAssistantAvailability).not.toHaveBeenCalled();
+    expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+    expect(hasActiveChatGeneration("chat-1")).toBe(false);
+  });
+
+  it("rejects agent-authenticated streaming chat edits before assistant generation", async () => {
+    const conversation = createConversation();
+    mockChatService.getById.mockResolvedValue(conversation);
+
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: "run-1",
+    }))
+      .post("/api/chats/chat-1/messages/stream")
+      .send({
+        body: "Rewrite the operator prompt through stream",
+        editUserMessageId: "10000000-0000-4000-8000-000000000099",
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Agent-authored chat messages cannot edit operator messages" });
+    expect(mockChatAssistantService.getChatAssistantAvailability).not.toHaveBeenCalled();
+    expect(mockChatService.addUserChatMessage).not.toHaveBeenCalled();
+    expect(mockChatAssistantService.streamChatAssistantReply).not.toHaveBeenCalled();
+    expect(hasActiveChatGeneration("chat-1")).toBe(false);
+  });
+
   it("marks stale streaming assistant messages interrupted when listing messages", async () => {
     const conversation = createConversation();
     const interruptedMessage = {
