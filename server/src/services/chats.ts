@@ -19,6 +19,7 @@ import { agentService } from "./agents.js";
 import { approvalService } from "./approvals.js";
 import { issueApprovalService } from "./issue-approvals.js";
 import { issueService } from "./issues.js";
+import { normalizeLocalLibraryPathMarkdown } from "./library-path-markdown.js";
 import { organizationService } from "./orgs.js";
 
 type ConversationRow = typeof chatConversations.$inferSelect;
@@ -1083,6 +1084,9 @@ export function chatService(db: Db) {
         turnVariant?: number;
       },
     ) {
+      const durableBody = input.role === "user"
+        ? input.body
+        : await normalizeLocalLibraryPathMarkdown(input.body, input.orgId);
       const [message] = await db
         .insert(chatMessages)
         .values({
@@ -1091,7 +1095,7 @@ export function chatService(db: Db) {
           role: input.role,
           kind: input.kind,
           status: input.status ?? "completed",
-          body: input.body,
+          body: durableBody,
           structuredPayload: withPersistedTranscript(
             sanitizeChatStructuredPayload(input.structuredPayload ?? null),
             input.transcript ?? [],
@@ -1134,17 +1138,20 @@ export function chatService(db: Db) {
       if (!existing) return null;
 
       const now = new Date();
+      const durableInputBody = input.body !== undefined && existing.role !== "user"
+        ? await normalizeLocalLibraryPathMarkdown(input.body, existing.orgId)
+        : input.body;
       const wasVisibleIncoming = isVisibleIncomingChatMessage(existing);
       const nextMessage = {
         role: existing.role,
         kind: input.kind ?? existing.kind,
-        body: input.body ?? existing.body,
+        body: durableInputBody ?? existing.body,
         approvalId: input.approvalId !== undefined ? input.approvalId : existing.approvalId,
       } satisfies Pick<MessageRow, "role" | "kind" | "body" | "approvalId">;
       const isVisibleIncoming = isVisibleIncomingChatMessage(nextMessage);
       const becameVisibleIncoming = !wasVisibleIncoming && isVisibleIncoming;
       const visibleContentChanged =
-        (input.body !== undefined && safeTrim(input.body) !== safeTrim(existing.body)) ||
+        (durableInputBody !== undefined && safeTrim(durableInputBody) !== safeTrim(existing.body)) ||
         (input.kind !== undefined && input.kind !== existing.kind) ||
         (input.approvalId !== undefined && input.approvalId !== existing.approvalId);
 
@@ -1154,7 +1161,7 @@ export function chatService(db: Db) {
           ...(becameVisibleIncoming ? { createdAt: now } : {}),
           ...(input.kind !== undefined ? { kind: input.kind } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
-          ...(input.body !== undefined ? { body: input.body } : {}),
+          ...(durableInputBody !== undefined ? { body: durableInputBody } : {}),
           ...(input.structuredPayload !== undefined || input.transcript !== undefined
             ? {
               structuredPayload: withPersistedTranscript(

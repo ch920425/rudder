@@ -214,6 +214,20 @@ describe("MarkdownBody", () => {
     expect(html).toContain("product-brief.md");
   });
 
+  it("renders server-normalized Library file links from agent replies as mention chips", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"See [ship.md](library-file://file?p=projects%2Frudder%2Fplans%2Fship.md)."}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="/library?path=projects%2Frudder%2Fplans%2Fship.md"');
+    expect(html).toContain('data-mention-kind="library_file"');
+    expect(html).toContain("ship.md");
+  });
+
   it("renders library entry mentions as live Library entry links with path hints", () => {
     const href = buildLibraryEntryMentionHref("entry-123", "product-brief.md", "docs/product-brief.md");
     const html = renderToStaticMarkup(

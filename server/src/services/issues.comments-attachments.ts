@@ -16,6 +16,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { forbidden, notFound, unprocessable } from "../errors.js";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { instanceSettingsService } from "./instance-settings.js";
+import { normalizeLocalLibraryPathMarkdown } from "./library-path-markdown.js";
 
 import { MAX_ISSUE_COMMENT_PAGE_LIMIT } from "./issues.helpers.js";
 
@@ -237,7 +238,10 @@ export function createIssueCommentAttachmentMethods(ctx: IssueCommentAttachmentM
       const currentUserRedactionOptions = {
         enabled: (await instanceSettings.getGeneral()).censorUsernameInLogs,
       };
-      const redactedBody = redactCurrentUserText(body, currentUserRedactionOptions);
+      const durableBody = actor.agentId
+        ? await normalizeLocalLibraryPathMarkdown(body, issue.orgId)
+        : body;
+      const redactedBody = redactCurrentUserText(durableBody, currentUserRedactionOptions);
       const [comment] = await db
         .insert(issueComments)
         .values({
