@@ -160,7 +160,7 @@ test("renderable entity links show hover previews except chat links", async ({ p
   await expectPreviewFor(libraryFileLink, "Workspace file preview summary from the real workspace API.");
   const commentCard = await expectPreviewIconFor(issueCommentLink, '[data-slot="issue-comment-preview-icon"]', "Comment preview body from the real comments API");
   await expect(commentCard.locator('[data-slot="issue-status-icon"]')).toHaveCount(0);
-  await expect(commentCard).not.toContainText("Preview target issue");
+  await expect(commentCard).toContainText("Preview target issue");
   await expect(commentCard).not.toContainText("High");
 
   await expect(chatLink).toBeVisible();
