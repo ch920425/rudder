@@ -361,7 +361,7 @@ export function registerIssueCommentAttachmentRoutes(ctx: IssueCommentAttachment
         try {
           mentionedIds = await svc.findMentionedAgents(issue.orgId, req.body.body);
         } catch (err) {
-          logger.warn({ err, issueId: id }, "failed to resolve @-mentions");
+          logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
         }
       }
 

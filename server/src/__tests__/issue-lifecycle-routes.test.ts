@@ -1,4 +1,5 @@
 import { renderTemplate, selectPromptTemplate } from "@rudderhq/agent-runtime-utils/server-utils";
+import { buildAgentMentionHref } from "@rudderhq/shared";
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -1746,7 +1747,7 @@ describe("issue lifecycle routes", () => {
       .patch("/api/issues/11111111-1111-4111-8111-111111111111")
       .send({
         assigneeAgentId: ASSIGNEE_AGENT_ID,
-        comment: "@Founding Engineer please take this",
+        comment: `[Founding Engineer](${buildAgentMentionHref(ASSIGNEE_AGENT_ID, "code", "wake")}) please take this`,
       });
 
     expect(res.status).toBe(200);
@@ -1773,7 +1774,7 @@ describe("issue lifecycle routes", () => {
       id: "comment-mention-1",
       issueId: "11111111-1111-4111-8111-111111111111",
       orgId: "organization-1",
-      body: "@worker please check this",
+      body: `[Worker](${buildAgentMentionHref(mentionedAgentId, "code", "wake")}) please check this`,
       createdAt: new Date(),
       updatedAt: new Date(),
       authorAgentId: null,
@@ -1782,7 +1783,7 @@ describe("issue lifecycle routes", () => {
 
     const res = await request(createApp())
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
-      .send({ body: "@worker please check this" });
+      .send({ body: `[Worker](${buildAgentMentionHref(mentionedAgentId, "code", "wake")}) please check this` });
 
     expect(res.status).toBe(201);
     await flushAsyncWork();
@@ -1804,7 +1805,7 @@ describe("issue lifecycle routes", () => {
           }),
           comment: expect.objectContaining({
             id: "comment-mention-1",
-            body: "@worker please check this",
+            body: `[Worker](${buildAgentMentionHref(mentionedAgentId, "code", "wake")}) please check this`,
             authorUserId: "local-board",
           }),
         }),
@@ -1826,7 +1827,7 @@ describe("issue lifecycle routes", () => {
     });
     expect(renderedPrompt).toContain("You were mentioned in a comment and your attention is needed.");
     expect(renderedPrompt).toContain("Lifecycle hardening");
-    expect(renderedPrompt).toContain("@worker please check this");
+    expect(renderedPrompt).toContain(`[Worker](${buildAgentMentionHref(mentionedAgentId, "code", "wake")}) please check this`);
   });
 
   it("records agent issue comments with the current run id", async () => {
@@ -2054,7 +2055,7 @@ describe("issue lifecycle routes", () => {
 
     const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, RUN_ID)))
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
-      .send({ body: "@Peer Agent I handled the review feedback." });
+      .send({ body: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) I handled the review feedback.` });
 
     expect(res.status).toBe(201);
     await flushAsyncWork();
@@ -2072,7 +2073,7 @@ describe("issue lifecycle routes", () => {
     const res = await request(createApp())
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
       .send({
-        body: "@Peer Agent can you check the interaction copy?",
+        body: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) can you check the interaction copy?`,
         assigneeAgentId: PEER_AGENT_ID,
         assigneeUserId: null,
       });
@@ -2080,7 +2081,7 @@ describe("issue lifecycle routes", () => {
     expect(res.status).toBe(201);
     expect(mockIssueService.addComment).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
-      "@Peer Agent can you check the interaction copy?",
+      `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) can you check the interaction copy?`,
       { userId: "local-board" },
     );
     expect(mockIssueService.update).not.toHaveBeenCalled();
@@ -2207,7 +2208,7 @@ describe("issue lifecycle routes", () => {
 
     const res = await request(createApp())
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
-      .send({ body: "@Peer Agent can you look at the UX?" });
+      .send({ body: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) can you look at the UX?` });
 
     expect(res.status).toBe(201);
     await flushAsyncWork();
@@ -2233,7 +2234,7 @@ describe("issue lifecycle routes", () => {
 
     const res = await request(createApp())
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
-      .send({ body: "@Peer Agent can you take a look?" });
+      .send({ body: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) can you take a look?` });
 
     expect(res.status).toBe(201);
     expect(mockIssueService.update).not.toHaveBeenCalled();
@@ -2272,7 +2273,7 @@ describe("issue lifecycle routes", () => {
     const res = await request(createApp())
       .patch("/api/issues/11111111-1111-4111-8111-111111111111")
       .send({
-        comment: "@Peer Agent please own this one.",
+        comment: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) please own this one.`,
         assigneeAgentId: PEER_AGENT_ID,
         assigneeUserId: null,
       });
@@ -2321,7 +2322,7 @@ describe("issue lifecycle routes", () => {
 
     const res = await request(createApp(createAgentActor(ASSIGNEE_AGENT_ID, RUN_ID)))
       .patch("/api/issues/11111111-1111-4111-8111-111111111111")
-      .send({ comment: "@Peer Agent I handled the review feedback." });
+      .send({ comment: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) I handled the review feedback.` });
 
     expect(res.status).toBe(200);
     await flushAsyncWork();

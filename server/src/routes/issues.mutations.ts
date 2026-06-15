@@ -665,7 +665,7 @@ export function registerIssueMutationRoutes(ctx: IssueMutationRouteContext) {
           try {
             mentionedIds = await svc.findMentionedAgents(issue.orgId, commentBody);
           } catch (err) {
-            logger.warn({ err, issueId: id }, "failed to resolve @-mentions");
+            logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
           }
         }
 

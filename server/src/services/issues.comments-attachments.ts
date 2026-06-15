@@ -25,13 +25,6 @@ type IssueCommentAttachmentMethodContext = {
   redactIssueComment: <T extends { body: string }>(comment: T, censorUsernameInLogs: boolean) => T;
 };
 
-function stripMarkdownLinksAndCodeForBareMentions(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`\n]*`/g, "")
-    .replace(/\[[^\]]*]\([^)]+\)/g, "");
-}
-
 export function createIssueCommentAttachmentMethods(ctx: IssueCommentAttachmentMethodContext) {
   const { db, instanceSettings, redactIssueComment } = ctx;
   function serializeCommentForResponse<T extends { body: string; deletedAt?: Date | string | null }>(
@@ -73,14 +66,8 @@ export function createIssueCommentAttachmentMethods(ctx: IssueCommentAttachmentM
 
   return {
     findMentionedAgents: async (orgId: string, body: string) => {
-      const re = /\B@([^\s@,!?.]+)/g;
-      const tokens = new Set<string>();
-      let m: RegExpExecArray | null;
-      const bareMentionSource = stripMarkdownLinksAndCodeForBareMentions(body);
-      while ((m = re.exec(bareMentionSource)) !== null) tokens.add(m[1].toLowerCase());
-
       const explicitAgentMentionIds = extractAgentWakeMentionIds(body).filter(isUuidLike);
-      if (tokens.size === 0 && explicitAgentMentionIds.length === 0) return [];
+      if (explicitAgentMentionIds.length === 0) return [];
 
       const rows = await db.select({ id: agents.id, name: agents.name })
         .from(agents).where(eq(agents.orgId, orgId));
@@ -88,11 +75,6 @@ export function createIssueCommentAttachmentMethods(ctx: IssueCommentAttachmentM
       const resolved = new Set<string>();
       for (const agentId of explicitAgentMentionIds) {
         if (orgAgentIds.has(agentId)) resolved.add(agentId);
-      }
-      for (const agent of rows) {
-        if (tokens.has(agent.name.toLowerCase())) {
-          resolved.add(agent.id);
-        }
       }
       return [...resolved];
     },

@@ -47,7 +47,7 @@ The failed first fix treated every structured `agent://...` Markdown link as
 render-only. That prevented useless wakeup loops from rich rendering, but it
 also broke the expected user journey: choosing an agent from the issue comment
 composer no longer woke that agent, because the editor serializes selected
-mentions as structured Markdown links rather than bare `@Name` text.
+mentions as structured Markdown links.
 
 ## Decision
 
@@ -58,14 +58,9 @@ mention intent:
   differently.
 - `agent://<id>?intent=wake` means the writer selected an agent mention in an
   issue-comment surface and intends to route attention.
-- Bare `@AgentName` remains a compatibility wake signal for manually typed
-  comments.
 
 The server should not infer wake intent from UI styling alone. It should resolve
-wake targets from:
-
-- visible bare `@Name` tokens in board-authored comments
-- structured agent links whose parsed intent is `wake`
+wake targets from structured agent links whose parsed intent is `wake`.
 
 Agent-authored issue comments should not fan out wakeups to other agents by
 default. This avoids ping-pong loops where one agent responds, quotes or
@@ -100,8 +95,7 @@ Agents must know the boundary:
 2. Teach the issue comment composer to serialize selected agent mentions with
    `intent=wake`.
 3. Keep other reference surfaces on reference-only `agent://...` links.
-4. Update comment wake resolution to combine bare `@Name` compatibility tokens
-   with wake-intent structured links.
+4. Update comment wake resolution to use only wake-intent structured links.
 5. Keep agent-authored comment fanout suppression in both comment-create and
    issue-update-with-comment routes.
 6. Validate structured wake-intent agent IDs against the current organization
@@ -114,7 +108,6 @@ Agents must know the boundary:
 - Shared parser tests:
   - reference-only agent links parse as references
   - wake-intent links extract as wake mentions
-  - bare `@Name` compatibility remains server-resolved
 - Editor tests:
   - issue comment composer inserts wake-intent agent links
   - generic Markdown reference serialization remains reference-only
@@ -123,7 +116,7 @@ Agents must know the boundary:
   - reference-only `agent://...` does not wake
   - wake-intent `agent://...` IDs from another organization do not wake
   - agent-authored comments do not fan out peer wakeups
-  - existing human bare `@Agent` behavior remains
+  - bare agent-name text does not wake
   - runtime operating contract no longer teaches plain `agent://...` as wake
 - Real-local validation:
   - open the local issue detail route

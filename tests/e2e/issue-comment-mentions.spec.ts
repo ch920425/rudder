@@ -161,6 +161,23 @@ test("issue comment composer uses the chat-style mention panel without exposing 
   expect(afterCommentOnly.assigneeAgentId).toBeNull();
   expect(afterCommentOnly.assigneeUserId).toBe("local-board");
 
+  const bareNameCommentRes = await page.request.post(`/api/issues/${primaryIssue.id}/comments`, {
+    data: { body: `@${agent.name} can you advise?` },
+  });
+  expect(bareNameCommentRes.ok()).toBe(true);
+  await expect.poll(async () => {
+    const runsRes = await page.request.get(`/api/orgs/${organization.id}/heartbeat-runs?agentId=${agent.id}&limit=20`);
+    expect(runsRes.ok()).toBe(true);
+    const runs = await runsRes.json() as Array<{ contextSnapshot?: Record<string, unknown> | null }>;
+    return runs.filter((run) =>
+      run.contextSnapshot?.wakeReason === "issue_comment_mentioned"
+      && run.contextSnapshot?.wakeSource === "comment.mention"
+    ).length;
+  }, {
+    timeout: 5_000,
+    intervals: [250, 500, 1_000],
+  }).toBe(mentionWakeRunsBeforeReferenceOnly);
+
   const explicitReassignRes = await page.request.patch(`/api/issues/${primaryIssue.id}`, {
     data: {
       comment: `[${agent.name}](agent://${agent.id}) please own this.`,

@@ -625,16 +625,14 @@ describe("issueService.list participantAgentId", () => {
       },
     ]);
 
-    await expect(svc.findMentionedAgents(orgId, "@Wesley please check this")).resolves.toEqual([agentId]);
+    await expect(svc.findMentionedAgents(orgId, "@Wesley please check this")).resolves.toEqual([]);
     await expect(
       svc.findMentionedAgents(orgId, `Render-only reference: [Wesley](${buildAgentMentionHref(agentId, "code")})`),
     ).resolves.toEqual([]);
     await expect(
       svc.findMentionedAgents(orgId, `Renderer label reference: [@Wesley](${buildAgentMentionHref(agentId, "code")})`),
     ).resolves.toEqual([]);
-    await expect(
-      svc.findMentionedAgents(orgId, "Code is not a wake request: `@Wesley`"),
-    ).resolves.toEqual([]);
+    await expect(svc.findMentionedAgents(orgId, "Code is not a wake request: `@Wesley`")).resolves.toEqual([]);
     await expect(
       svc.findMentionedAgents(orgId, `Wake request: [Wesley](${buildAgentMentionHref(agentId, "code", "wake")})`),
     ).resolves.toEqual([agentId]);

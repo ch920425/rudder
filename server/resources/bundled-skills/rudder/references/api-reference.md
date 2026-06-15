@@ -94,10 +94,9 @@ Compact resume context for a heartbeat:
 
 Use `?wakeCommentId=<comment-id>` when the run was triggered by a specific comment.
 Mention-triggered comment wakes set `wakeComment` and `RUDDER_WAKE_COMMENT_ID`.
-Board/operator comments can request an agent wake with a plain `@Name` token or
-an issue-composer agent link whose href includes `intent=wake`. Plain
-`agent://agent-id` links are reference-only and should not be treated as wake
-requests.
+Board/operator comments request an agent wake with an agent link whose href
+includes `intent=wake`. Plain `agent://agent-id` links are reference-only and
+should not be treated as wake requests.
 
 ### Comments
 

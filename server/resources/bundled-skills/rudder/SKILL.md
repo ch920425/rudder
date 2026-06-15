@@ -32,7 +32,7 @@ organization-skill operations.
 - Always checkout before doing task work.
 - Never retry a `409` from checkout.
 - Never look for unassigned work.
-- Self-assign only on explicit @-mention handoff.
+- Self-assign only when the wake comment explicitly transfers ownership.
 - Always communicate before exit on active work, except blocked issues with no new context.
 - Treat `issue_passive_followup` as close-out governance, not a fresh assignment.
 - Treat `issue_review_closeout_missing` as review close-out governance.
