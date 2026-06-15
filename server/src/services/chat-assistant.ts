@@ -11,7 +11,7 @@ import { findServerAdapter } from "../agent-runtimes/index.js";
 import type { StorageService } from "../storage/types.js";
 import { agentRunContextService } from "./agent-run-context.js";
 import { agentService } from "./agents.js";
-import { asString, buildConversationPrompt, CHAT_RESULT_SENTINEL_PREFIX, CHAT_UNSUPPORTED_ADAPTER_TYPES, ChatAssistantResult, ChatAssistantStreamError, ChatAttachmentPromptReference, chatExecutionConfig, createAssistantTextAccumulator, createSentinelStream, extractGeneratedAttachments, GenerateChatAssistantReplyInput, linkedIssueIdsForChat, linkedProjectIdForChat, maybeEmitAssistantDelta, maybeEmitAssistantState, maybeEmitObservedTranscriptEntry, maybeEmitTranscriptEntry, modelLabel, parseCompletedAssistantReply, partialBodyFromRawAssistantText, prepareChatAttachmentReferences, ResolvedChatRuntimeSource, resultText, safeTrim, shouldSuppressChatTranscriptEntry, StreamChatAssistantReplyInput, StreamChatAssistantReplyResult, stubAgent, summarizeRuntimeSkills, unavailableAgentDescriptor, unconfiguredDescriptor } from "./chat-assistant.helpers.js";
+import { asString, buildConversationPrompt, CHAT_RESULT_SENTINEL_PREFIX, CHAT_UNSUPPORTED_ADAPTER_TYPES, ChatAssistantResult, ChatAssistantStreamError, ChatAttachmentPromptReference, chatExecutionConfig, createAssistantTextAccumulator, createSentinelStream, extractGeneratedAttachments, finalBodyFromRawAssistantText, GenerateChatAssistantReplyInput, linkedIssueIdsForChat, linkedProjectIdForChat, maybeEmitAssistantDelta, maybeEmitAssistantState, maybeEmitObservedTranscriptEntry, maybeEmitTranscriptEntry, modelLabel, parseCompletedAssistantReply, partialBodyFromRawAssistantText, prepareChatAttachmentReferences, ResolvedChatRuntimeSource, resultText, safeTrim, shouldSuppressChatTranscriptEntry, StreamChatAssistantReplyInput, StreamChatAssistantReplyResult, stubAgent, summarizeRuntimeSkills, unavailableAgentDescriptor, unconfiguredDescriptor } from "./chat-assistant.helpers.js";
 import { preflightManagedAgentWorkspace } from "./managed-workspace-preflight.js";
 import { executeAdapterWithModelFallbacks } from "./runtime-kernel/model-fallback.js";
 export * from "./chat-assistant.helpers.js";
@@ -415,12 +415,17 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
     await flushStdoutChunk("", true);
     await maybeEmitAssistantDelta(input.onAssistantDelta, sentinelStream.finish());
 
+    const rawResultText = resultText(result);
+    const rawAssistantText = assistantTextAccumulator.fullText || rawResultText;
     const partialBody =
       partialBodyFromRawAssistantText(
-        assistantTextAccumulator.fullText || resultText(result),
+        rawAssistantText,
         resultSentinel,
       ) ||
       (safeTrim(sentinelStream.visibleText) ?? "");
+    const finalPartialBody =
+      finalBodyFromRawAssistantText(rawResultText, resultSentinel)
+      || finalBodyFromRawAssistantText(rawAssistantText, resultSentinel);
 
     if (input.abortSignal?.aborted) {
       await maybeEmitAssistantState(input.onAssistantState, "stopped");
@@ -432,10 +437,20 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
     }
 
     if (result.timedOut) {
-      throw new ChatAssistantStreamError("Chat request timed out", partialBody);
+      throw new ChatAssistantStreamError(
+        "Chat request timed out",
+        finalPartialBody,
+        [],
+        { partialBodyUserVisible: Boolean(finalPartialBody) },
+      );
     }
     if ((result.exitCode ?? 0) !== 0 || result.errorMessage) {
-      throw new ChatAssistantStreamError(result.errorMessage ?? "Chat adapter execution failed", partialBody);
+      throw new ChatAssistantStreamError(
+        result.errorMessage ?? "Chat adapter execution failed",
+        finalPartialBody,
+        [],
+        { partialBodyUserVisible: Boolean(finalPartialBody) },
+      );
     }
 
     await maybeEmitAssistantState(input.onAssistantState, "finalizing");
@@ -446,20 +461,12 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
     try {
       reply = parseCompletedAssistantReply(raw, resultSentinel, { requireSentinel: true });
     } catch (error) {
-      const fallbackBody = safeTrim(partialBody);
-      if (fallbackBody) {
-        reply = {
-          kind: "message",
-          body: fallbackBody,
-          structuredPayload: null,
-        };
-      } else {
-        throw new ChatAssistantStreamError(
-          error instanceof Error ? error.message : "Chat adapter returned an invalid final reply",
-          partialBody,
-          generatedAttachments,
-        );
-      }
+      throw new ChatAssistantStreamError(
+        error instanceof Error ? error.message : "Chat adapter returned an invalid final reply",
+        finalPartialBody,
+        generatedAttachments,
+        { partialBodyUserVisible: Boolean(finalPartialBody) },
+      );
     }
     const finalBody = reply.body;
     reply.replyingAgentId = runtimeAgentId;

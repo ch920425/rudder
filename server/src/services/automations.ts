@@ -49,7 +49,7 @@ import {
   normalizeWebhookTimestampMs,
   OPEN_ISSUE_STATUSES
 } from "./automations.scheduler.js";
-import { chatAssistantService, ChatAssistantStreamError, type ChatAssistantResult, type ChatGeneratedAttachment } from "./chat-assistant.js";
+import { chatAssistantService, ChatAssistantStreamError, userVisiblePartialBodyFromError, type ChatAssistantResult, type ChatGeneratedAttachment } from "./chat-assistant.js";
 import { claimChatGeneration, hasActiveChatGeneration } from "./chat-generation-locks.js";
 import { chatService } from "./chats.js";
 import { validateCron } from "./cron.js";
@@ -368,6 +368,7 @@ export function automationService(db: Db, deps: AutomationServiceDeps = {}) {
           `Generated attachment exceeds ${MAX_ATTACHMENT_BYTES} bytes`,
           input.message.body,
           input.generatedAttachments,
+          { partialBodyUserVisible: true },
         );
       }
       const stored = await (storageSvc ?? getStorageService()).putFile({
@@ -729,7 +730,7 @@ export function automationService(db: Db, deps: AutomationServiceDeps = {}) {
         completedAt: new Date(),
       });
     } catch (error) {
-      const partialBody = error instanceof ChatAssistantStreamError ? error.partialBody : "";
+      const partialBody = userVisiblePartialBodyFromError(error);
       const failureReason = error instanceof Error ? error.message : String(error);
       const fallbackBody = partialBody.trim() || "Automation chat run failed before it produced a final response.";
       const latestConversation = await chatSvc.getById(conversation.id);

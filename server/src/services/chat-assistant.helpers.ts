@@ -93,12 +93,19 @@ export type StreamChatAssistantReplyResult =
 
 export class ChatAssistantStreamError extends Error {
   partialBody: string;
+  partialBodyUserVisible: boolean;
   generatedAttachments: ChatGeneratedAttachment[];
 
-  constructor(message: string, partialBody: string, generatedAttachments: ChatGeneratedAttachment[] = []) {
+  constructor(
+    message: string,
+    partialBody: string,
+    generatedAttachments: ChatGeneratedAttachment[] = [],
+    options: { partialBodyUserVisible?: boolean } = {},
+  ) {
     super(message);
     this.name = "ChatAssistantStreamError";
     this.partialBody = partialBody;
+    this.partialBodyUserVisible = options.partialBodyUserVisible === true;
     this.generatedAttachments = generatedAttachments;
   }
 }
@@ -1135,6 +1142,18 @@ export function parseCompletedAssistantReply(
 
 export function partialBodyFromRawAssistantText(rawText: string, resultSentinel: string) {
   return safeTrim(parseAssistantEnvelope(rawText, resultSentinel).visibleBody) ?? "";
+}
+
+export function finalBodyFromRawAssistantText(rawText: string, resultSentinel: string) {
+  const enveloped = parseAssistantEnvelope(rawText, resultSentinel);
+  if (!enveloped.usedSentinel || !enveloped.jsonPayload) return "";
+  const body = typeof enveloped.jsonPayload.body === "string" ? enveloped.jsonPayload.body : "";
+  return safeTrim(body) ?? "";
+}
+
+export function userVisiblePartialBodyFromError(error: unknown) {
+  if (!(error instanceof ChatAssistantStreamError)) return "";
+  return error.partialBodyUserVisible ? error.partialBody : "";
 }
 
 export async function maybeEmitAssistantState(

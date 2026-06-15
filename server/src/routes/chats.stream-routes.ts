@@ -27,7 +27,8 @@ import { logger } from "../middleware/logger.js";
 import { validate } from "../middleware/validate.js";
 import {
   CHAT_ASSISTANT_USER_ERROR_MESSAGE,
-  ChatAssistantStreamError
+  ChatAssistantStreamError,
+  userVisiblePartialBodyFromError
 } from "../services/chat-assistant.js";
 import { cancelActiveChatGeneration, claimChatGeneration } from "../services/chat-generation-locks.js";
 import {
@@ -369,25 +370,29 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
           } catch (error) {
             finalChatStatus = "failed";
             if (error instanceof ChatAssistantStreamError) {
-              finalChatOutput = error.partialBody;
+              finalChatOutput = userVisiblePartialBodyFromError(error);
             }
             throw error;
           } finally {
             try {
+              const observationFallbackOutput = finalChatOutput
+                || (finalChatStatus === "failed" ? CHAT_ASSISTANT_USER_ERROR_MESSAGE : null);
               const transcriptStats = emitExecutionTranscriptTree({
                 context: chatObservation!,
                 parentObservation: observation,
                 transcript: observedTranscript,
                 initialTurnInput: modelTurnInput,
-                fallbackResult: finalChatOutput
+                fallbackResult: observationFallbackOutput
                   ? {
-                    output: finalChatOutput,
+                    output: observationFallbackOutput,
                     subtype: finalChatStatus,
                     isError: finalChatStatus === "failed",
                   }
                   : null,
               });
-              finalChatOutput = finalChatOutput ?? transcriptStats.finalOutput ?? null;
+              finalChatOutput = finalChatOutput
+                || (finalChatStatus === "failed" ? observationFallbackOutput : transcriptStats.finalOutput)
+                || null;
             } catch (error) {
               logger.warn(
                 {
@@ -414,7 +419,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
         },
       );
     } catch (err) {
-      const partialBody = err instanceof ChatAssistantStreamError ? err.partialBody : "";
+      const partialBody = userVisiblePartialBodyFromError(err);
       const generatedAttachments = err instanceof ChatAssistantStreamError ? err.generatedAttachments : [];
       const failedReplyingAgentId = chatReplyingAgentId(assistantConversationForPartial);
       let failedMessage = await persistPartialAssistantMessage(

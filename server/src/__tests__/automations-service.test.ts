@@ -30,6 +30,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { automationService } from "../services/automations.ts";
+import { ChatAssistantStreamError } from "../services/chat-assistant.ts";
 import { claimChatGeneration } from "../services/chat-generation-locks.ts";
 import { issueService } from "../services/issues.ts";
 
@@ -656,6 +657,80 @@ describe("automation service live-execution coalescing", () => {
     });
     expect((assistantMessage.structuredPayload as Record<string, unknown>).__chatTranscript).toHaveLength(1);
     expect(chatAssistant.streamChatAssistantReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps process transcript text out of failed chat output bodies", async () => {
+    const chatAssistant = {
+      enrichConversation: vi.fn(async (conversation: any) => ({
+        ...conversation,
+        chatRuntime: {
+          sourceType: "agent",
+          sourceLabel: "CodexCoder",
+          runtimeAgentId: conversation.preferredAgentId,
+          agentRuntimeType: "codex_local",
+          model: "test",
+          available: true,
+          error: null,
+        },
+      })),
+      streamChatAssistantReply: vi.fn(async (input: any) => {
+        await input.onAssistantDelta?.("I will inspect ");
+        await input.onAssistantDelta?.("the issue first.");
+        await input.onTranscriptEntry?.({
+          kind: "assistant",
+          ts: "2026-03-20T12:00:01.000Z",
+          text: "I will inspect the issue first.",
+          delta: true,
+        });
+        throw new ChatAssistantStreamError("runtime process exited", "I will inspect the issue first.");
+      }),
+    };
+    const { agentId, orgId, projectId, svc } = await seedFixture({ chatAssistant });
+    const automation = await svc.create(
+      orgId,
+      {
+        projectId,
+        goalId: null,
+        parentIssueId: null,
+        title: "Daily standup",
+        description: "Summarize active work.",
+        assigneeAgentId: agentId,
+        outputMode: "chat_output",
+        chatConversationId: null,
+        notifyOnIssueCreated: false,
+        priority: "medium",
+        status: "active",
+        concurrencyPolicy: "coalesce_if_active",
+        catchUpPolicy: "skip_missed",
+      },
+      {},
+    );
+
+    const run = await svc.runAutomation(automation.id, { source: "manual" });
+    await svc.executeChatOutputAutomationRun(run.id);
+
+    const failed = await db
+      .select()
+      .from(automationRuns)
+      .where(eq(automationRuns.id, run.id))
+      .then((rows) => rows[0] ?? null);
+    expect(failed?.status).toBe("failed");
+    expect(failed?.failureReason).toContain("runtime process exited");
+    expect(failed?.terminalChatMessageId).toBeTruthy();
+
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.conversationId, run.linkedChatConversationId!))
+      .orderBy(asc(chatMessages.createdAt));
+    expect(messages).toHaveLength(2);
+    const assistantMessage = messages[1]!;
+    expect(assistantMessage.status).toBe("failed");
+    expect(assistantMessage.body).toBe("Automation chat run failed before it produced a final response.");
+    expect(assistantMessage.body).not.toContain("I will inspect the issue first.");
+    expect((assistantMessage.structuredPayload as Record<string, unknown>).__chatTranscript).toEqual([
+      expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." }),
+    ]);
   });
 
   it("preserves non-message chat assistant result kinds for chat output", async () => {

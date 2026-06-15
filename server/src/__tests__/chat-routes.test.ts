@@ -124,8 +124,26 @@ vi.mock("../services/index.js", () => ({
 }));
 
 vi.mock("../services/chat-assistant.js", () => ({
-  ChatAssistantStreamError: class ChatAssistantStreamError extends Error {},
+  CHAT_ASSISTANT_USER_ERROR_MESSAGE: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+  ChatAssistantStreamError: class ChatAssistantStreamError extends Error {
+    partialBody: string;
+    partialBodyUserVisible: boolean;
+    generatedAttachments: unknown[];
+
+    constructor(message: string, partialBody = "", generatedAttachments: unknown[] = [], options: { partialBodyUserVisible?: boolean } = {}) {
+      super(message);
+      this.partialBody = partialBody;
+      this.partialBodyUserVisible = options.partialBodyUserVisible === true;
+      this.generatedAttachments = generatedAttachments;
+    }
+  },
   chatAssistantService: () => mockChatAssistantService,
+  userVisiblePartialBodyFromError: (error: unknown) => {
+    const candidate = error as { partialBody?: unknown; partialBodyUserVisible?: unknown };
+    return candidate?.partialBodyUserVisible === true && typeof candidate.partialBody === "string"
+      ? candidate.partialBody
+      : "";
+  },
 }));
 
 vi.mock("../langfuse.js", () => ({
@@ -1404,6 +1422,57 @@ describe("chat routes", () => {
     );
   });
 
+  it("does not use process transcript text as failed non-stream observation output", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Need help");
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatAssistantService.streamChatAssistantReply.mockImplementation(async (input) => {
+      await input.onTranscriptEntry?.({
+        kind: "assistant",
+        ts: "2026-03-26T08:01:01.000Z",
+        text: "I will inspect the issue first.",
+        delta: true,
+      });
+      await input.onObservedTranscriptEntry?.({
+        kind: "assistant",
+        ts: "2026-03-26T08:01:01.000Z",
+        text: "I will inspect the issue first.",
+        delta: true,
+      });
+      const { ChatAssistantStreamError } = await import("../services/chat-assistant.js");
+      throw new ChatAssistantStreamError("runtime process exited", "I will inspect the issue first.");
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages")
+      .send({ body: "Need help" });
+
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      error: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+    });
+    expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      fallbackResult: {
+        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        subtype: "failed",
+        isError: true,
+      },
+      transcript: [expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." })],
+    }));
+    expect(mockUpdateExecutionObservation).toHaveBeenLastCalledWith(
+      null,
+      expect.objectContaining({ status: "failed" }),
+      expect.objectContaining({
+        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        level: "ERROR",
+        statusMessage: "failed",
+      }),
+    );
+  });
+
   it("stores generated assistant images as chat attachments", async () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Generate a UI");
@@ -1654,9 +1723,11 @@ describe("chat routes", () => {
       }),
     );
     expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
-      fallbackResult: {
+      fallbackResult: expect.objectContaining({
         output: "Working on it",
-      },
+        subtype: "completed",
+        isError: false,
+      }),
       initialTurnInput: runtimePrompt,
       transcript: [],
     }));
@@ -1798,6 +1869,80 @@ describe("chat routes", () => {
         expect.objectContaining({ kind: "tool_call", name: "read_file" }),
       ],
     }));
+  });
+
+  it("does not persist process transcript text as the failed stream message body", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Need help");
+    const progressMessage = {
+      ...createMessage("message-assistant", "assistant", "message", ""),
+      status: "streaming",
+    };
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(progressMessage);
+    mockChatAssistantService.streamChatAssistantReply.mockImplementation(async (input) => {
+      await input.onAssistantState?.("streaming");
+      await input.onTranscriptEntry?.({
+        kind: "assistant",
+        ts: "2026-03-26T08:01:01.000Z",
+        text: "I will inspect the issue first.",
+        delta: true,
+      });
+      const { ChatAssistantStreamError } = await import("../services/chat-assistant.js");
+      throw new ChatAssistantStreamError("runtime process exited", "I will inspect the issue first.");
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages/stream")
+      .send({ body: "Need help" })
+      .buffer(true)
+      .parse((response, callback) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          text += chunk;
+        });
+        response.on("end", () => callback(null, text));
+      });
+
+    expect(res.status).toBe(201);
+    const events = String(res.body)
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events.at(-1)).toEqual(expect.objectContaining({
+      type: "error",
+      error: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+      messageId: "message-assistant",
+    }));
+    expect(mockChatService.updateMessage).toHaveBeenLastCalledWith(
+      "chat-1",
+      "message-assistant",
+      expect.objectContaining({
+        status: "failed",
+        body: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        transcript: [expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." })],
+      }),
+    );
+    expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
+      fallbackResult: {
+        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        subtype: "failed",
+        isError: true,
+      },
+    }));
+    expect(mockUpdateExecutionObservation).toHaveBeenLastCalledWith(
+      null,
+      expect.objectContaining({ status: "failed" }),
+      expect.objectContaining({
+        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        level: "ERROR",
+        statusMessage: "failed",
+      }),
+    );
   });
 
   it("updates a streaming assistant placeholder into ask_user on final", async () => {

@@ -33,6 +33,7 @@ import {
   CHAT_ASSISTANT_USER_ERROR_MESSAGE,
   chatAssistantService,
   ChatAssistantStreamError,
+  userVisiblePartialBodyFromError,
   type ChatAssistantResult,
   type ChatGeneratedAttachment,
 } from "../services/chat-assistant.js";
@@ -620,6 +621,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
             `Generated attachment exceeds ${MAX_ATTACHMENT_BYTES} bytes`,
             assistantReply.body,
             generatedAttachments,
+            { partialBodyUserVisible: true },
           );
         }
         const stored = await storage.putFile({
@@ -1351,24 +1353,32 @@ export function chatRoutes(db: Db, storage: StorageService) {
             return created;
           } catch (error) {
             if (error instanceof ChatAssistantStreamError) {
-              fallbackOutput = error.partialBody;
+              fallbackOutput = userVisiblePartialBodyFromError(error);
             }
             finalChatStatus = "failed";
             throw error;
           } finally {
             try {
+              const observationFallbackOutput = finalChatOutput
+                || fallbackOutput
+                || (finalChatStatus === "failed" ? CHAT_ASSISTANT_USER_ERROR_MESSAGE : null);
               const transcriptStats = emitExecutionTranscriptTree({
                 context: chatObservation!,
                 parentObservation: observation,
                 transcript: observedTranscript,
                 initialTurnInput: modelTurnInput,
-                fallbackResult: fallbackOutput
+                fallbackResult: observationFallbackOutput
                   ? {
-                    output: fallbackOutput,
+                    output: observationFallbackOutput,
+                    subtype: finalChatStatus,
+                    isError: finalChatStatus === "failed",
                   }
                   : null,
               });
-              finalChatOutput = finalChatOutput ?? transcriptStats.finalOutput ?? fallbackOutput ?? null;
+              finalChatOutput = finalChatOutput
+                || fallbackOutput
+                || (finalChatStatus === "failed" ? observationFallbackOutput : transcriptStats.finalOutput)
+                || null;
             } catch (error) {
               logger.warn(
                 {

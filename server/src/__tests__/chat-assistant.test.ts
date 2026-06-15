@@ -1650,7 +1650,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
     expect(result.reply.generatedAttachments?.[0]?.body.equals(Buffer.from("fake-png"))).toBe(true);
   });
 
-  it("recovers a plain chat message when the adapter omits the required result sentinel", async () => {
+  it("does not promote progress text to a final reply when the adapter omits the required result sentinel", async () => {
     const svc = chatAssistantService({} as any);
 
     mockAdapter.execute.mockImplementationOnce(async (ctx) => {
@@ -1670,18 +1670,77 @@ describe("chatAssistantService operator profile prompt injection", () => {
       };
     });
 
-    const result = await svc.streamChatAssistantReply({
+    await expect(svc.streamChatAssistantReply({
       conversation: makeConversation(),
       messages: makeMessages(),
       contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "Chat adapter completed without the required Rudder result sentinel",
+      partialBody: "",
+      partialBodyUserVisible: false,
+    });
+  });
+
+  it("does not expose progress transcript text as failed partial body", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onLog(
+        "stdout",
+        `${JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: "I will inspect the issue first." },
+        })}\n`,
+      );
+      await ctx.onLog(
+        "stdout",
+        `${JSON.stringify({
+          type: "item.started",
+          item: { type: "tool_use", id: "tool-1", name: "read_file", input: { path: "server/src/routes/chats.ts" } },
+        })}\n`,
+      );
+      return {
+        summary: "I will inspect the issue first.",
+        resultJson: null,
+        timedOut: false,
+        exitCode: 1,
+        errorMessage: "runtime process exited",
+      };
     });
 
-    expect(result.outcome).toBe("completed");
-    if (result.outcome !== "completed") throw new Error("expected completed");
-    expect(result.reply).toMatchObject({
-      kind: "message",
-      body: "I am still working.",
-      structuredPayload: null,
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "runtime process exited",
+      partialBody: "",
+      partialBodyUserVisible: false,
+    });
+  });
+
+  it("keeps a completed result body visible when the runtime fails after emitting the result envelope", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => {
+      const finalText = assistantSummary(ctx, "I have enough to answer.");
+      return {
+        summary: finalText,
+        resultJson: null,
+        timedOut: false,
+        exitCode: 1,
+        errorMessage: "post-processing failed",
+      };
+    });
+
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "post-processing failed",
+      partialBody: "I have enough to answer.",
+      partialBodyUserVisible: true,
     });
   });
 
