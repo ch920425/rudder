@@ -45,6 +45,19 @@ staging channel uses `staging.doc.rudder.zeeland.studio` only. Staging pages are
 still expected to emit production canonical URLs so preview traffic does not
 compete with the canonical docs host in search indexes.
 
+## Public Edge Protection
+
+The production Vercel project can receive high-volume generic crawler probes for
+paths that are not part of the docs information architecture, such as `/about`,
+`/contact`, and `/home`. Do not convert those probes into broad homepage
+redirects: that hides the 404 symptom, can create soft-404 signals, and still
+lets invalid traffic reach the deployment.
+
+Use `.github/workflows/docs-vercel-firewall.yml` to apply the docs firewall rule
+that denies those known non-doc probe paths before they hit the static docs
+surface. Reserve Mintlify redirects in `docs.json` for real old URLs that have a
+close semantic replacement.
+
 ## Content Scope
 
 The docs tree provides English and Simplified Chinese navigation through Mintlify language entries in `docs.json`. Product screenshots and screenshot-style assets used by the pages must keep visible product content in English so both language versions share the same reviewable visual evidence.
