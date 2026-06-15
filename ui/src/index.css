@@ -3246,8 +3246,9 @@ a.rudder-skill-token::before {
 
 .rudder-entity-preview-card {
   display: block;
-  width: min(20rem, calc(100vw - 2rem));
+  width: min(26rem, calc(100vw - 2rem));
   max-width: calc(100vw - 2rem);
+  max-height: min(32rem, calc(100vh - 3rem));
   padding: 0.7rem;
   border: 1px solid color-mix(in oklab, var(--border) 74%, transparent);
   border-radius: 8px;
@@ -3256,6 +3257,7 @@ a.rudder-skill-token::before {
   color: var(--foreground);
   font-size: 0.75rem;
   line-height: 1.45;
+  overflow: hidden;
   text-align: left;
   white-space: normal;
 }
@@ -3381,6 +3383,64 @@ a.rudder-skill-token::before {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.rudder-entity-preview-comment-body {
+  max-height: min(24rem, calc(100vh - 10rem));
+  margin-top: 0.65rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.2rem;
+  color: var(--foreground);
+}
+
+.rudder-entity-preview-comment-body :where(p, ul, ol, blockquote, pre) {
+  margin: 0.45rem 0 0;
+}
+
+.rudder-entity-preview-comment-body :where(p, ul, ol, blockquote, pre):first-child {
+  margin-top: 0;
+}
+
+.rudder-entity-preview-comment-body :where(ul, ol) {
+  padding-left: 1rem;
+}
+
+.rudder-entity-preview-comment-body :where(code) {
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  padding: 0.05rem 0.22rem;
+  font-size: 0.72rem;
+}
+
+.rudder-entity-preview-comment-body :where(pre) {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--muted) 58%, transparent);
+  padding: 0.55rem;
+}
+
+.rudder-entity-preview-comment-body :where(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
+.rudder-entity-preview-comment-body :where(a) {
+  color: var(--rudder-doc-link);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rudder-entity-preview-comment-body :where(img) {
+  display: block;
+  width: 100%;
+  max-height: 11rem;
+  margin-top: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--muted) 34%, transparent);
+  object-fit: contain;
 }
 
 .rudder-skill-hover-card-action,

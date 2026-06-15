@@ -7,10 +7,13 @@ import type {
 } from "@rudderhq/shared";
 import { FileText, Folder, MessageSquareText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Markdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
 import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import type { ParsedMentionChip } from "../lib/mention-chips";
 import { formatPriorityLabel } from "../lib/priorities";
 import { cn } from "../lib/utils";
@@ -64,6 +67,7 @@ type EntityPreview =
       title: string;
       rows: PreviewRow[];
       summary: string | null;
+      body: string | null;
     }
   | {
       kind: "agent";
@@ -212,21 +216,28 @@ async function readAgentPreviewRef(agentId: string | null | undefined, orgId: st
 
 async function buildIssueCommentPreview(
   mention: Extract<PreviewableMention, { kind: "issue" }>,
+  orgId: string,
 ): Promise<EntityPreview> {
-  const comment = await issuesApi.getComment(mention.issueId, mention.commentId!);
+  const [comment, issue] = await Promise.all([
+    issuesApi.getComment(mention.issueId, mention.commentId!),
+    issuesApi.get(mention.issueId).catch(() => null),
+  ]);
   const issueLabel = mention.ref ?? "Issue";
+  const issueTitle = issue?.title?.trim() || issueLabel;
+  const body = comment.body?.trim() || null;
 
   return {
     kind: "issue_comment",
     eyebrow: `${issueLabel} comment`,
-    title: "Comment",
+    title: issueTitle,
     rows: [],
-    summary: commentBodyPreview(comment.body) ?? "No comment body.",
+    summary: body ? null : "No comment body.",
+    body,
   };
 }
 
 async function buildIssuePreview(mention: Extract<PreviewableMention, { kind: "issue" }>, orgId: string): Promise<EntityPreview> {
-  if (mention.commentId) return buildIssueCommentPreview(mention);
+  if (mention.commentId) return buildIssueCommentPreview(mention, orgId);
 
   const issue = await issuesApi.get(mention.issueId);
   const embeddedProject = issue.project as (Partial<Project> & { name?: string | null }) | null | undefined;
@@ -503,12 +514,48 @@ function PreviewHeader({ preview }: { preview: EntityPreview }) {
   );
 }
 
+const previewMarkdownComponents: Components = {
+  a: ({ node: _node, href, children, ...props }) => (
+    <a {...props} href={href} target={href?.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+      {children}
+    </a>
+  ),
+  img: ({ node: _node, src, alt, ...props }) => (
+    <img {...props} src={src ?? ""} alt={alt ?? ""} loading="lazy" />
+  ),
+};
+
+function IssueCommentPreviewBody({ body }: { body: string }) {
+  const scrollRef = useScrollbarActivityRef();
+  return (
+    <div
+      ref={scrollRef}
+      className="rudder-entity-preview-comment-body scrollbar-auto-hide"
+      data-testid="issue-comment-preview-body"
+    >
+      <Markdown remarkPlugins={[remarkGfm]} components={previewMarkdownComponents} urlTransform={(url) => url}>
+        {body}
+      </Markdown>
+    </div>
+  );
+}
+
 function PreviewContent({ preview }: { preview: EntityPreview }) {
   if (preview.kind === "agent") {
     return (
       <>
         <PreviewHeader preview={preview} />
         <PreviewRows rows={[{ label: "Status", value: preview.status }]} />
+        {preview.summary ? <span className="rudder-entity-preview-summary">{preview.summary}</span> : null}
+      </>
+    );
+  }
+
+  if (preview.kind === "issue_comment") {
+    return (
+      <>
+        <PreviewHeader preview={preview} />
+        {preview.body ? <IssueCommentPreviewBody body={preview.body} /> : null}
         {preview.summary ? <span className="rudder-entity-preview-summary">{preview.summary}</span> : null}
       </>
     );

@@ -102,6 +102,19 @@ describe("index.css motion rules", () => {
     expect(previewRow).not.toContain("align-items: baseline");
   });
 
+  it("keeps issue comment hover previews tall, scrollable, and image-aware", () => {
+    const previewCard = cssBlock(".rudder-entity-preview-card");
+    const commentBody = cssBlock(".rudder-entity-preview-comment-body");
+    const commentImage = cssBlock(".rudder-entity-preview-comment-body :where(img)");
+
+    expect(previewCard).toContain("width: min(26rem, calc(100vw - 2rem))");
+    expect(previewCard).toContain("max-height: min(32rem, calc(100vh - 3rem))");
+    expect(commentBody).toContain("max-height: min(24rem, calc(100vh - 10rem))");
+    expect(commentBody).toContain("overflow-y: auto");
+    expect(commentImage).toContain("object-fit: contain");
+    expect(commentImage).toContain("max-height: 11rem");
+  });
+
   it("keeps glass popovers above utility backgrounds", () => {
     const glassPopover = cssBlock(".glass-popover.glass-popover");
 
