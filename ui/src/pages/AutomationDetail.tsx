@@ -17,7 +17,6 @@ import type { ActivityEvent, AutomationRunSummary, AutomationTrigger } from "@ru
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity as ActivityIcon,
-  ArrowLeft,
   Check,
   ChevronDown,
   ChevronRight,
@@ -923,33 +922,6 @@ export function AutomationDetail() {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 px-4 pt-3 sm:px-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <main className="min-w-0 space-y-6">
           <section className="max-w-none space-y-3">
-            <div
-              data-testid="automation-detail-local-breadcrumb"
-              className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"
-            >
-              <Button
-                asChild
-                variant="ghost"
-                size="icon-xs"
-                className="-ml-1 text-muted-foreground hover:text-foreground"
-                aria-label="Back to automations"
-                title="Back to automations"
-              >
-                <Link to="/automations">
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-              <Link
-                to="/automations"
-                className="shrink-0 underline-offset-4 hover:text-foreground hover:underline"
-              >
-                Automations
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-              <span className="min-w-0 truncate text-foreground/80" title={automation.title}>
-                {automation.title}
-              </span>
-            </div>
             <textarea
               ref={titleInputRef}
               className="min-h-[34px] w-full resize-none overflow-hidden bg-transparent text-[1.45rem] font-semibold leading-tight outline-none placeholder:text-muted-foreground/50 sm:text-[1.6rem]"

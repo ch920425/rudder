@@ -453,11 +453,6 @@ describe("AutomationDetail", () => {
     expect(container.textContent).toContain("Active run");
     expect(container.textContent).toContain("Repeats");
     expect(container.textContent).toContain("Issue");
-    const localBreadcrumb = container.querySelector('[data-testid="automation-detail-local-breadcrumb"]');
-    expect(localBreadcrumb?.textContent).toContain("Automations");
-    expect(localBreadcrumb?.textContent).toContain("Daily automation review");
-    expect(localBreadcrumb?.querySelector('a[aria-label="Back to automations"]')?.getAttribute("href")).toBe("/automations");
-    expect(localBreadcrumb?.querySelector('a[href="/automations"]')).toBeTruthy();
     expect(container.textContent).not.toContain("Details");
     expect(container.textContent).not.toContain("Changes save automatically as you edit instructions, ownership, and delivery rules.");
     expect(container.textContent).not.toContain("Automatic triggers are live.");
