@@ -3,9 +3,9 @@ export type NormalizedAgentPermissions = Record<string, unknown> & {
   canManageSkills: boolean;
 };
 
-export function defaultPermissionsForRole(role: string): NormalizedAgentPermissions {
+export function defaultPermissionsForRole(_role: string): NormalizedAgentPermissions {
   return {
-    canCreateAgents: role === "ceo",
+    canCreateAgents: true,
     canManageSkills: true,
   };
 }

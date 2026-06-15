@@ -11,7 +11,7 @@ import { validateModelFallbacksConfig } from "./model-fallbacks.js";
 import { envConfigSchema } from "./secret.js";
 
 export const agentPermissionsSchema = z.object({
-  canCreateAgents: z.boolean().optional().default(false),
+  canCreateAgents: z.boolean().optional().default(true),
   canManageSkills: z.boolean().optional().default(true),
 });
 

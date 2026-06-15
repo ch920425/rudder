@@ -25,3 +25,26 @@ describe("agent avatar validation", () => {
     })).toThrow();
   });
 });
+
+describe("agent permission validation", () => {
+  it("defaults new agents to agent creation access", () => {
+    expect(
+      createAgentSchema.parse({
+        name: "Builder",
+        permissions: {},
+      }).permissions,
+    ).toEqual({
+      canCreateAgents: true,
+      canManageSkills: true,
+    });
+  });
+
+  it("preserves an explicit agent creation denial", () => {
+    expect(
+      createAgentSchema.parse({
+        name: "Builder",
+        permissions: { canCreateAgents: false },
+      }).permissions?.canCreateAgents,
+    ).toBe(false);
+  });
+});
