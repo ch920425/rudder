@@ -282,6 +282,7 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "- Agents: use `[<agent-name>](agent://<agent-id>)` for reference-only links. In issue comments, use `[<agent-name>](agent://<agent-id>?intent=wake)` only when you intentionally want to wake that agent for attention or collaboration.",
   "- Projects: use `[<project-name>](project://<project-id>)` when citing a Rudder project.",
   "- Chat threads: use `[<chat-title>](chat://<conversation-id>)` when citing a Rudder chat conversation.",
+  "- Skills: use `[$<skill-ref>](<path-or-url-ending-in-SKILL.md>)` when citing a Rudder skill reference; the label may use `org/<org-url-key>/<skill-slug>`, `org/<org-url-key>/<agent-url-key>/<skill-slug>`, or `rudder/<skill-slug>`.",
   "- Library files: use the `markdownLink` returned by `rudder library file ref \"$RUDDER_PROJECT_LIBRARY_PATH/<relative-file>\" --json`; do not hand-write `library-entry://...` links, and treat `library-file://...` as legacy path syntax only.",
   "",
   "Write these as normal Markdown links, not inside code spans or code blocks, unless you are literally documenting the syntax.",

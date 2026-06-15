@@ -370,6 +370,8 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("[<agent-name>](agent://<agent-id>?intent=wake)");
     expect(loaded.prefix).toContain("[<project-name>](project://<project-id>)");
     expect(loaded.prefix).toContain("[<chat-title>](chat://<conversation-id>)");
+    expect(loaded.prefix).toContain("[$<skill-ref>](<path-or-url-ending-in-SKILL.md>)");
+    expect(loaded.prefix).toContain("rudder/<skill-slug>");
     expect(loaded.prefix).toContain("Library files: use the `markdownLink` returned by");
     expect(loaded.prefix).toContain("not inside code spans or code blocks");
     expect(loaded.prefix).toContain("Use `/tmp` only for transient scratch files");
