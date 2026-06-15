@@ -419,16 +419,20 @@ const TimelineList = memo(function TimelineList({
   const editAttachInputRef = useRef<HTMLInputElement | null>(null);
 
   async function handleEditAttachFile(evt: ChangeEvent<HTMLInputElement>) {
-    const file = evt.target.files?.[0];
-    if (!file || !imageUploadHandler) return;
+    const files = Array.from(evt.target.files ?? []);
+    if (files.length === 0 || !imageUploadHandler) return;
     setEditAttaching(true);
     try {
-      const url = await imageUploadHandler(file);
-      const safeName = file.name.replace(/[[\]]/g, "\\$&");
-      const markdown = file.type.startsWith("image/")
-        ? `![${safeName}](${url})`
-        : `[${safeName}](${url})`;
+      const snippets: string[] = [];
+      for (const file of files) {
+        const url = await imageUploadHandler(file);
+        const safeName = file.name.replace(/[[\]]/g, "\\$&");
+        snippets.push(file.type.startsWith("image/")
+          ? `![${safeName}](${url})`
+          : `[${safeName}](${url})`);
+      }
       const currentMarkdown = editEditorRef.current?.getMarkdown?.() ?? editBody;
+      const markdown = snippets.join("\n\n");
       setEditBody(currentMarkdown ? `${currentMarkdown}\n\n${markdown}` : markdown);
     } finally {
       setEditAttaching(false);
@@ -739,6 +743,7 @@ const TimelineList = memo(function TimelineList({
                         ref={editAttachInputRef}
                         type="file"
                         accept={COMMENT_ATTACHMENT_ACCEPT}
+                        multiple
                         className="hidden"
                         onChange={handleEditAttachFile}
                       />
@@ -1068,19 +1073,25 @@ export function CommentThread({
   }
 
   async function handleAttachFile(evt: ChangeEvent<HTMLInputElement>) {
-    const file = evt.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(evt.target.files ?? []);
+    if (files.length === 0) return;
     setAttaching(true);
     try {
       if (imageUploadHandler) {
-        const url = await imageUploadHandler(file);
-        const safeName = file.name.replace(/[[\]]/g, "\\$&");
-        const markdown = file.type.startsWith("image/")
-          ? `![${safeName}](${url})`
-          : `[${safeName}](${url})`;
+        const snippets: string[] = [];
+        for (const file of files) {
+          const url = await imageUploadHandler(file);
+          const safeName = file.name.replace(/[[\]]/g, "\\$&");
+          snippets.push(file.type.startsWith("image/")
+            ? `![${safeName}](${url})`
+            : `[${safeName}](${url})`);
+        }
+        const markdown = snippets.join("\n\n");
         setBody((prev) => prev ? `${prev}\n\n${markdown}` : markdown);
       } else if (onAttachImage) {
-        await onAttachImage(file);
+        for (const file of files) {
+          await onAttachImage(file);
+        }
       }
     } finally {
       setAttaching(false);
@@ -1152,6 +1163,7 @@ export function CommentThread({
                 ref={attachInputRef}
                 type="file"
                 accept={COMMENT_ATTACHMENT_ACCEPT}
+                multiple
                 className="hidden"
                 onChange={handleAttachFile}
               />

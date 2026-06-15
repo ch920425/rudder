@@ -889,8 +889,8 @@ function hasFilePayload(evt: DragEvent<HTMLDivElement> | ClipboardEvent<HTMLDivE
   return Array.from(evt.clipboardData?.types ?? []).includes("Files");
 }
 
-function firstImageFile(files: FileList | null | undefined) {
-  return Array.from(files ?? []).find((file) => file.type.startsWith("image/")) ?? null;
+export function imageFilesFromFileList(files: FileList | File[] | null | undefined) {
+  return Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
 }
 
 function BrowserPortal({ children }: { children: ReactNode }) {
@@ -1311,6 +1311,11 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       setUploadError(error instanceof Error ? error.message : "Image upload failed");
     }
   }, [get, getInstance, loading]);
+  const uploadImages = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      await uploadImage(file);
+    }
+  }, [uploadImage]);
 
   const canDropImage = Boolean(imageUploadHandler);
 
@@ -1490,10 +1495,10 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       onMouseUpCapture={checkMention}
       onPasteCapture={(event) => {
         if (canDropImage && hasFilePayload(event)) {
-          const file = firstImageFile(event.clipboardData.files);
-          if (!file) return;
+          const files = imageFilesFromFileList(event.clipboardData.files);
+          if (files.length === 0) return;
           event.preventDefault();
-          void uploadImage(file);
+          void uploadImages(files);
           return;
         }
 
@@ -1519,10 +1524,10 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       onDrop={(event) => {
         setIsDragOver(false);
         if (!canDropImage || !hasFilePayload(event)) return;
-        const file = firstImageFile(event.dataTransfer.files);
-        if (!file) return;
+        const files = imageFilesFromFileList(event.dataTransfer.files);
+        if (files.length === 0) return;
         event.preventDefault();
-        void uploadImage(file);
+        void uploadImages(files);
       }}
     >
       <div

@@ -260,6 +260,50 @@ describe("CommentThread", () => {
     expect(html).not.toContain("Assignee");
   });
 
+  it("attaches every selected comment file to the draft body", async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    const upload = vi.fn(async (file: File) => `/api/attachments/${file.name}/content`);
+    const container = renderInteractive(
+      <MemoryRouter>
+        <CommentThread
+          comments={[]}
+          onAdd={onAdd}
+          imageUploadHandler={upload}
+        />
+      </MemoryRouter>,
+    );
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(input).toBeTruthy();
+    expect(input?.multiple).toBe(true);
+    const first = new File(["first"], "first.png", { type: "image/png" });
+    const second = new File(["second"], "second.png", { type: "image/png" });
+    Object.defineProperty(input, "files", { value: [first, second], configurable: true });
+
+    await act(async () => {
+      input!.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+    expect(upload).toHaveBeenNthCalledWith(1, first);
+    expect(upload).toHaveBeenNthCalledWith(2, second);
+
+    const editor = container.querySelector('textarea[aria-label="Leave a comment..."]') as HTMLTextAreaElement | null;
+    await vi.waitFor(() => expect(editor?.value).toContain("![first.png](/api/attachments/first.png/content)"));
+    expect(editor?.value).toContain("![second.png](/api/attachments/second.png/content)");
+
+    await click([...container.querySelectorAll("button")].find((button) => button.textContent === "Comment") ?? null);
+    await vi.waitFor(() => expect(onAdd).toHaveBeenCalledWith(
+      [
+        "![first.png](/api/attachments/first.png/content)",
+        "",
+        "![second.png](/api/attachments/second.png/content)",
+      ].join("\n"),
+      undefined,
+    ));
+  });
+
   it("passes skill mention metadata into rendered comments", () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>

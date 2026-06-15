@@ -13,6 +13,7 @@ import {
 import {
   applyMention,
   hasRudderMarkdownReference,
+  imageFilesFromFileList,
   insertMissingRudderTokenBoundarySpaces,
   insertTextAfterRudderTokenBoundary,
   isMilkdownEditableUnexpectedlyBlank,
@@ -235,6 +236,15 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
     expect(shouldParsePastedMarkdown("```md\n# Context\n```")).toBe(true);
     expect(shouldParsePastedMarkdown("[Winter](agent://agent-1?i=bot)")).toBe(true);
     expect(shouldParsePastedMarkdown("plain sentence")).toBe(false);
+  });
+
+  it("keeps every image file from a multi-file clipboard payload", () => {
+    const first = new File(["first"], "first.png", { type: "image/png" });
+    const second = new File(["second"], "second.jpg", { type: "image/jpeg" });
+    const text = new File(["notes"], "notes.txt", { type: "text/plain" });
+    const third = new File(["third"], "third.webp", { type: "image/webp" });
+
+    expect(imageFilesFromFileList([first, second, text, third])).toEqual([first, second, third]);
   });
 
   it("replaces the active repeated mention query instead of the last matching text", () => {
