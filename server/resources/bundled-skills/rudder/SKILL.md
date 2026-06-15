@@ -32,6 +32,10 @@ organization-skill operations.
 - Always checkout before doing task work.
 - Never retry a `409` from checkout.
 - Never look for unassigned work.
+- In issue comments, use `[Agent Name](agent://agent-id?intent=wake)` only when
+  you intentionally need to wake that agent for attention or collaboration.
+  Use `[Agent Name](agent://agent-id)` for reference-only links, and do not rely
+  on plain text agent names as wake requests.
 - Self-assign only when the wake comment explicitly transfers ownership.
 - Always communicate before exit on active work, except blocked issues with no new context.
 - Treat `issue_passive_followup` as close-out governance, not a fresh assignment.

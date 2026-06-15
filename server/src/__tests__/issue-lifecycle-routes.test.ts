@@ -2042,7 +2042,7 @@ describe("issue lifecycle routes", () => {
   });
 
 
-  it("does not fan out mention wakeups from agent-authored issue comments", async () => {
+  it("lets agent-authored issue comments wake peers through wake-intent links", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({
         assigneeAgentId: ASSIGNEE_AGENT_ID,
@@ -2059,7 +2059,54 @@ describe("issue lifecycle routes", () => {
 
     expect(res.status).toBe(201);
     await flushAsyncWork();
-    expect(mockIssueService.findMentionedAgents).not.toHaveBeenCalled();
+    expect(mockIssueService.findMentionedAgents).toHaveBeenCalledWith(
+      "organization-1",
+      `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) I handled the review feedback.`,
+    );
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(1);
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      PEER_AGENT_ID,
+      expect.objectContaining({
+        source: "automation",
+        reason: "issue_comment_mentioned",
+        requestedByActorType: "agent",
+        requestedByActorId: ASSIGNEE_AGENT_ID,
+        contextSnapshot: expect.objectContaining({
+          wakeSource: "comment.mention",
+          wakeReason: "issue_comment_mentioned",
+        }),
+      }),
+    );
+  });
+
+  it("does not let an agent-authored issue comment wake the author itself", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: PEER_AGENT_ID,
+        status: "in_progress",
+        checkoutRunId: PEER_RUN_ID,
+        executionRunId: PEER_RUN_ID,
+      }),
+    );
+    mockIssueService.findMentionedAgents.mockResolvedValue([PEER_AGENT_ID]);
+    mockHeartbeatService.getRun.mockResolvedValueOnce({
+      id: PEER_RUN_ID,
+      orgId: "organization-1",
+      agentId: PEER_AGENT_ID,
+      status: "running",
+      contextSnapshot: { issueId: "11111111-1111-4111-8111-111111111111" },
+    });
+
+    const res = await request(createApp(createAgentActor(PEER_AGENT_ID, PEER_RUN_ID)))
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) note to self.` });
+
+    expect(res.status).toBe(201);
+    await flushAsyncWork();
+    expect(mockIssueService.findMentionedAgents).toHaveBeenCalledWith(
+      "organization-1",
+      `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) note to self.`,
+    );
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
   });
   it("does not update assignee when a comment mentions another agent", async () => {
@@ -2301,7 +2348,7 @@ describe("issue lifecycle routes", () => {
     );
   });
 
-  it("does not fan out mention wakeups from agent-authored issue update comments", async () => {
+  it("lets agent-authored issue update comments wake peers through wake-intent links", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({
         assigneeAgentId: ASSIGNEE_AGENT_ID,
@@ -2326,8 +2373,24 @@ describe("issue lifecycle routes", () => {
 
     expect(res.status).toBe(200);
     await flushAsyncWork();
-    expect(mockIssueService.findMentionedAgents).not.toHaveBeenCalled();
-    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
+    expect(mockIssueService.findMentionedAgents).toHaveBeenCalledWith(
+      "organization-1",
+      `[Peer Agent](${buildAgentMentionHref(PEER_AGENT_ID, "code", "wake")}) I handled the review feedback.`,
+    );
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(1);
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      PEER_AGENT_ID,
+      expect.objectContaining({
+        source: "automation",
+        reason: "issue_comment_mentioned",
+        requestedByActorType: "agent",
+        requestedByActorId: ASSIGNEE_AGENT_ID,
+        contextSnapshot: expect.objectContaining({
+          wakeSource: "comment.mention",
+          wakeReason: "issue_comment_mentioned",
+        }),
+      }),
+    );
   });
 
   it("rejects issue completion from a mention-only agent run that does not own the issue", async () => {

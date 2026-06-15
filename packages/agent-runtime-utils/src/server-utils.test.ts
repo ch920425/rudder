@@ -376,7 +376,8 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("Do not put action URLs in backticks or code blocks");
     expect(loaded.prefix).toContain("agent://agent-id?intent=wake");
     expect(loaded.prefix).toContain("Plain structured links such as `agent://agent-id` are reference-only links");
-    expect(loaded.prefix).toContain("Agent-authored issue comments do not fan out peer wakeups by default");
+    expect(loaded.prefix).toContain("plain text agent names are not wake requests");
+    expect(loaded.prefix).toContain("Use wake-intent links only when you intentionally want to wake another agent");
     expect(loaded.prefix).toContain("attach the image with the Rudder CLI `--image <path>` option");
     expect(loaded.commandNotes).toEqual(["Loaded Rudder agent operating contract from runtime code"]);
     expect(loaded.readFailed).toBe(false);

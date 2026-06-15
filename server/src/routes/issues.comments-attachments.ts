@@ -357,12 +357,10 @@ export function registerIssueCommentAttachmentRoutes(ctx: IssueCommentAttachment
       }
 
       let mentionedIds: string[] = [];
-      if (!actorIsAgent) {
-        try {
-          mentionedIds = await svc.findMentionedAgents(issue.orgId, req.body.body);
-        } catch (err) {
-          logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
-        }
+      try {
+        mentionedIds = await svc.findMentionedAgents(issue.orgId, req.body.body);
+      } catch (err) {
+        logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
       }
 
       for (const mentionedId of mentionedIds) {

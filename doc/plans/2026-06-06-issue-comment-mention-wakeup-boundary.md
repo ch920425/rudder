@@ -62,11 +62,10 @@ mention intent:
 The server should not infer wake intent from UI styling alone. It should resolve
 wake targets from structured agent links whose parsed intent is `wake`.
 
-Agent-authored issue comments should not fan out wakeups to other agents by
-default. This avoids ping-pong loops where one agent responds, quotes or
-mentions another agent, and starts a no-delta runtime chain. Agents should use
-issue assignment, reviewer fields, or explicit board-visible handoff language
-when another owner must act.
+Agent-authored and operator-authored issue comments share the same wake syntax:
+`agent://<id>?intent=wake`. Agents should use the wake intent only when they
+intentionally need to wake another agent for attention or collaboration; plain
+`agent://<id>` links and plain text agent names remain reference-only.
 
 ## Agent Journey Contract
 
@@ -77,9 +76,9 @@ Agents must know the boundary:
 - When an agent wakes from a mention, it must read the wake comment before doing
   work and should not assume ownership unless the comment explicitly asks for a
   handoff.
-- When an agent writes a comment, mentioning another agent is a durable
-  reference/coordination note, not an automatic runtime wake. This is deliberate
-  fanout protection.
+- When an agent writes a comment, only a structured wake-intent link wakes
+  another agent. Reference-only links and bare names are durable coordination
+  notes, not runtime wake requests.
 - To request structured review, agents should use reviewer workflow commands;
   free-form comments and mentions are not review decisions.
 - When an agent writes a user-openable URL in a comment or chat reply, it should
@@ -96,8 +95,8 @@ Agents must know the boundary:
    `intent=wake`.
 3. Keep other reference surfaces on reference-only `agent://...` links.
 4. Update comment wake resolution to use only wake-intent structured links.
-5. Keep agent-authored comment fanout suppression in both comment-create and
-   issue-update-with-comment routes.
+5. Apply wake-intent resolution consistently in both comment-create and
+   issue-update-with-comment routes for operator and agent authors.
 6. Validate structured wake-intent agent IDs against the current organization
    before queuing wakeups.
 7. Update bundled Rudder skill instructions, runtime operating contract prompts,
@@ -115,8 +114,8 @@ Agents must know the boundary:
   - board-authored wake-intent mention queues the mentioned agent
   - reference-only `agent://...` does not wake
   - wake-intent `agent://...` IDs from another organization do not wake
-  - agent-authored comments do not fan out peer wakeups
-  - bare agent-name text does not wake
+  - agent-authored comments can wake peers with explicit wake-intent links
+  - plain text agent names do not wake
   - runtime operating contract no longer teaches plain `agent://...` as wake
 - Real-local validation:
   - open the local issue detail route
@@ -126,6 +125,8 @@ Agents must know the boundary:
 
 ## Non-Goals
 
-- Do not introduce `/ask @Agent` or a new explicit button in this slice.
+- Do not introduce a separate ask-agent command or a new explicit button in
+  this slice.
 - Do not make mentions transfer ownership.
-- Do not allow agent-authored comments to create unbounded peer fanout.
+- Do not treat plain text agent names or reference-only `agent://<id>` links as
+  wake requests.
