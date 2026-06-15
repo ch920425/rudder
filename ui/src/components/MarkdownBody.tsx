@@ -514,6 +514,120 @@ export function normalizeEscapedMarkdownNewlines(source: string) {
     .replace(/\\n/g, "\n");
 }
 
+const MARKDOWN_HTML_BREAK_RE = /(?:<br\s*\/?>|&lt;br\s*\/?&gt;)/giu;
+const MARKDOWN_HTML_BREAK_ONLY_RE = /^(?:\s*(?:<br\s*\/?>|&lt;br\s*\/?&gt;)\s*)+$/iu;
+const MARKDOWN_HTML_BREAK_AT_CURSOR_RE = /^(?:<br\s*\/?>|&lt;br\s*\/?&gt;)/iu;
+
+function splitMarkdownHtmlBreakSegments(source: string): Array<{ text: string; protected: boolean }> {
+  const parts: Array<{ text: string; protected: boolean }> = [];
+  let cursor = 0;
+  let plainStart = 0;
+
+  function pushPlain(end: number) {
+    if (end > plainStart) parts.push({ text: source.slice(plainStart, end), protected: false });
+  }
+
+  function pushProtected(end: number) {
+    pushPlain(cursor);
+    parts.push({ text: source.slice(cursor, end), protected: true });
+    cursor = end;
+    plainStart = end;
+  }
+
+  while (cursor < source.length) {
+    const breakMatch = source.slice(cursor).match(MARKDOWN_HTML_BREAK_AT_CURSOR_RE);
+    if (breakMatch) {
+      cursor += breakMatch[0].length;
+      continue;
+    }
+
+    const char = source[cursor];
+    if (char === "`") {
+      const fence = source.slice(cursor).match(/^`+/u)?.[0] ?? "`";
+      const closing = findClosingMarkdownToken(source, fence, cursor + fence.length);
+      pushProtected(closing !== null ? closing + fence.length : source.length);
+      continue;
+    }
+
+    const linkStart = char === "[" ? cursor : char === "!" && source[cursor + 1] === "[" ? cursor + 1 : null;
+    if (linkStart !== null) {
+      const closeBracket = findClosingMarkdownToken(source, "]", linkStart + 1);
+      if (closeBracket !== null && source[closeBracket + 1] === "(") {
+        const closeParen = findClosingMarkdownParen(source, closeBracket + 2);
+        if (closeParen !== null) {
+          pushProtected(closeParen + 1);
+          continue;
+        }
+      }
+    }
+
+    if (char === "<") {
+      const closeAngle = findClosingMarkdownToken(source, ">", cursor + 1);
+      if (closeAngle !== null) {
+        pushProtected(closeAngle + 1);
+        continue;
+      }
+    }
+
+    cursor += 1;
+  }
+
+  pushPlain(source.length);
+  return parts;
+}
+
+function replaceMarkdownHtmlBreaksInPlainText(source: string) {
+  return source.split("\n").map((line) => {
+    if (MARKDOWN_HTML_BREAK_ONLY_RE.test(line)) return "";
+    return line.replace(MARKDOWN_HTML_BREAK_RE, "\n");
+  }).join("\n");
+}
+
+function normalizeMarkdownHtmlBreaksOutsideFencedBlocks(source: string) {
+  const output: string[] = [];
+  const pendingPlainLines: string[] = [];
+  let fenceMarker: "```" | "~~~" | null = null;
+
+  function flushPlainLines() {
+    if (pendingPlainLines.length === 0) return;
+    const plainSource = pendingPlainLines.join("\n");
+    output.push(
+      splitMarkdownHtmlBreakSegments(plainSource).map((segment) => (
+        segment.protected ? segment.text : replaceMarkdownHtmlBreaksInPlainText(segment.text)
+      )).join(""),
+    );
+    pendingPlainLines.length = 0;
+  }
+
+  for (const line of source.split("\n")) {
+    const fenceMatch = line.match(/^\s*(```|~~~)/u)?.[1] as "```" | "~~~" | undefined;
+    if (fenceMatch && fenceMarker === null) {
+      flushPlainLines();
+      fenceMarker = fenceMatch;
+      output.push(line);
+      continue;
+    }
+    if (fenceMatch && fenceMarker === fenceMatch) {
+      output.push(line);
+      fenceMarker = null;
+      continue;
+    }
+    if (fenceMarker !== null) {
+      output.push(line);
+      continue;
+    }
+    pendingPlainLines.push(line);
+  }
+
+  flushPlainLines();
+  return output.join("\n");
+}
+
+export function normalizeMarkdownHtmlBreaks(source: string) {
+  if (!/(?:<br|&lt;br)/iu.test(source)) return source;
+  return normalizeMarkdownHtmlBreaksOutsideFencedBlocks(source);
+}
+
 function MermaidDiagramBlock({ source, darkMode }: { source: string; darkMode: boolean }) {
   const renderId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [svg, setSvg] = useState<string | null>(null);
@@ -695,7 +809,7 @@ export function MarkdownBody({
   );
   const organizationPrefix = currentOrganizationPrefixFromLocation();
   const normalizedChildren = linkBareAgentMentions(
-    normalizeRelaxedMarkdownSyntax(normalizeEscapedMarkdownNewlines(children)),
+    normalizeRelaxedMarkdownSyntax(normalizeMarkdownHtmlBreaks(normalizeEscapedMarkdownNewlines(children))),
     agentMentions,
   );
   const handleCopy = (event: ClipboardEvent<HTMLDivElement>) => {

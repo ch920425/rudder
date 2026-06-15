@@ -1249,6 +1249,60 @@ describe("MarkdownBody", () => {
     expect(html).toContain("\\n");
   });
 
+  it("does not render standalone html break tags as visible markdown text", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"- Trace the agent run context\n  <br />\n- Optimize the skill and memory notes\n&lt;br&gt;\nDone<br />again"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Trace the agent run context");
+    expect(html).toContain("Optimize the skill and memory notes");
+    expect(html).toContain("Done");
+    expect(html).toContain("again");
+    expect(html).not.toContain("&lt;br");
+    expect(html).not.toContain("<br");
+  });
+
+  it("keeps html break examples visible inside markdown code", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"Use `<br />` only when documenting HTML.\n\n```html\n<br />\n```"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Use ");
+    expect(html.match(/&lt;br/g)?.length).toBe(2);
+  });
+
+  it("keeps html break examples visible inside multiline markdown code spans", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>{"Use `first\n<br />\nsecond` as a literal example."}</MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("&lt;br");
+  });
+
+  it("does not rewrite html break examples inside markdown links and images", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"See [literal <br /> example](https://example.com/docs?tag=%3Cbr%3E) and ![literal <br /> image](/api/assets/test/content)."}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("literal &lt;br /&gt; example");
+    expect(html).toContain("tag=%3Cbr%3E");
+    expect(html).toContain('alt="literal &lt;br /&gt; image"');
+  });
+
   it("lets callers intercept ordinary markdown links", () => {
     const onLinkClick = vi.fn(({ event }) => event.preventDefault());
     const container = render(
