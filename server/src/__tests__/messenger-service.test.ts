@@ -1319,6 +1319,7 @@ describe("messengerService and issue follows", () => {
         type: "chat_issue_creation",
         status: "approved",
         requestedByUserId: userId,
+        decisionNote: "Keep execution behind a feature flag.",
         payload: {
           chatConversationId: conversation!.id,
           proposedIssue: {
@@ -1335,10 +1336,19 @@ describe("messengerService and issue follows", () => {
 
     const issue = await chatSvc.applyApprovedApproval(approval, userId);
     const persistedIssue = await db
-      .select({ assigneeAgentId: issues.assigneeAgentId, reviewerAgentId: issues.reviewerAgentId })
+      .select({
+        assigneeAgentId: issues.assigneeAgentId,
+        reviewerAgentId: issues.reviewerAgentId,
+        description: issues.description,
+      })
       .from(issues)
       .where(eq(issues.id, (issue as { id: string }).id))
       .then((rows) => rows[0]);
+    const feedbackMessage = await db
+      .select({ body: chatMessages.body, structuredPayload: chatMessages.structuredPayload })
+      .from(chatMessages)
+      .where(eq(chatMessages.conversationId, conversation!.id))
+      .then((rows) => rows.find((row) => row.structuredPayload?.eventType === "approval_feedback"));
 
     expect(issue).toMatchObject({
       title: "Implement selected work",
@@ -1348,6 +1358,10 @@ describe("messengerService and issue follows", () => {
     });
     expect(persistedIssue?.assigneeAgentId).toBe(agentId);
     expect(persistedIssue?.reviewerAgentId).toBe(agentId);
+    expect(persistedIssue?.description).toContain("## Approval feedback");
+    expect(persistedIssue?.description).toContain("Keep execution behind a feature flag.");
+    expect(feedbackMessage?.body).toContain("Approved with execution feedback:");
+    expect(feedbackMessage?.body).toContain("Keep execution behind a feature flag.");
   });
 
   it("preserves explicitly unassigned approved chat issue proposals", async () => {

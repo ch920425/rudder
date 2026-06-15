@@ -196,7 +196,7 @@ test.describe("Chat proposal review block", () => {
     await composer.fill("please draft an issue");
     await page.getByRole("button", { name: "Send" }).click();
 
-    const reviewBlock = page.getByTestId("proposal-review-block").last();
+    const reviewBlock = page.getByTestId("proposal-review-block").first();
     await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
     await expect(reviewBlock).toHaveAttribute("data-status", "pending");
     await expect(reviewBlock).toHaveAttribute("data-kind", "issue");
@@ -225,15 +225,89 @@ test.describe("Chat proposal review block", () => {
     await skillOption.dispatchEvent("mousedown");
     await expect(reviewNote.locator("[data-skill-token='true']")).toContainText("build-advisor");
 
-    await reviewNoteEditor.fill("Need a concrete execution scope before opening this.");
+    const rejectionFeedback = "Need a concrete execution scope before opening this.";
+    await reviewNoteEditor.fill(rejectionFeedback);
     await reviewBlock.getByRole("button", { name: "Reject" }).click();
 
     await expect(reviewBlock).toHaveAttribute("data-status", "rejected", { timeout: 15_000 });
     await expect(reviewBlock.getByTestId("proposal-review-status")).toContainText("rejected");
     await expect(reviewBlock).toContainText("Rejected. This proposal will not move forward.");
-    await expect(reviewBlock).toContainText("Need a concrete execution scope before opening this.");
+    await expect(reviewBlock).toContainText(rejectionFeedback);
+    await expect(page.getByText('I rejected the proposal "Review block rejection test".')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(rejectionFeedback).last()).toBeVisible();
+    await expect(page.getByTestId("proposal-review-block")).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.getByTestId("proposal-review-block").last()).toHaveAttribute("data-status", "pending");
     await expect(page.getByTestId("proposal-review-gate")).toHaveCount(0);
     await expect(page.locator(".rudder-mdxeditor-content").last()).toBeVisible();
+  });
+
+  test("rejects proposals without feedback without continuing the conversation", async ({ page }) => {
+    const command = await writeProposalStub("proposal-review-reject-without-feedback", {
+      kind: "issue_proposal",
+      body: "Create a scoped issue for this no-feedback rejection test.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Review block quiet rejection test",
+          description: "Verify empty rejection feedback closes the proposal without a follow-up chat turn.",
+          priority: "low",
+          assigneeUnassignedReason: "This proposal is intentionally unassigned until the rejection flow completes.",
+        },
+      },
+    });
+    const organization = await createProposalOrg(page, `RejectQuiet-${Date.now()}`, command);
+
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill("please draft an issue");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    const reviewBlock = page.getByTestId("proposal-review-block").last();
+    await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
+    await expect(reviewBlock).toHaveAttribute("data-status", "pending");
+    await reviewBlock.getByRole("button", { name: "Reject" }).click();
+
+    await expect(reviewBlock).toHaveAttribute("data-status", "rejected", { timeout: 15_000 });
+    await expect(page.getByTestId("proposal-review-block")).toHaveCount(1);
+    await expect(page.getByText("I rejected the proposal")).toHaveCount(0);
+    await expect(page.locator(".chat-composer").last()).toBeVisible();
+  });
+
+  test("requests proposal changes with feedback and continues the conversation", async ({ page }) => {
+    const command = await writeProposalStub("proposal-review-request-changes", {
+      kind: "issue_proposal",
+      body: "Create a revised issue proposal for this request-changes test.",
+      structuredPayload: {
+        issueProposal: {
+          title: "Review block revision test",
+          description: "Verify request changes keeps feedback in the chat loop.",
+          priority: "medium",
+          assigneeUnassignedReason: "The operator will choose an owner after the revised proposal.",
+        },
+      },
+    });
+    const organization = await createProposalOrg(page, `RequestChanges-${Date.now()}`, command);
+
+    await page.goto(`/chat?agentId=${organization.chatAgent.id}`);
+    const composer = page.locator(".rudder-mdxeditor-content").first();
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill("please draft an issue");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    const reviewBlock = page.getByTestId("proposal-review-block").first();
+    await expect(reviewBlock).toBeVisible({ timeout: 15_000 });
+    const revisionFeedback = "Narrow the acceptance criteria before I approve this.";
+    await reviewBlock
+      .getByTestId("proposal-review-note")
+      .locator(".rudder-mdxeditor-content[contenteditable='true']")
+      .fill(revisionFeedback);
+    await reviewBlock.getByRole("button", { name: "Request changes" }).click();
+
+    await expect(reviewBlock).toHaveAttribute("data-status", "revision_requested", { timeout: 15_000 });
+    await expect(page.getByText('Please revise the proposal "Review block revision test"')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(revisionFeedback).last()).toBeVisible();
+    await expect(page.getByTestId("proposal-review-block")).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.getByTestId("proposal-review-block").last()).toHaveAttribute("data-status", "pending");
   });
 
   test("shows approved proposals as completed review blocks", async ({ page }) => {
@@ -270,12 +344,17 @@ test.describe("Chat proposal review block", () => {
     await expect(reviewBlock.locator("h2")).toHaveText("Execution plan");
     await expect(reviewBlock.locator("ul li")).toHaveCount(2);
     await expect(reviewBlock.locator("code")).toContainText("pnpm test:e2e");
+    const approvalFeedback = "Keep feature flag on until smoke validation passes.";
+    const reviewNote = reviewBlock.getByTestId("proposal-review-note");
+    await reviewNote.locator(".rudder-mdxeditor-content[contenteditable='true']").fill(approvalFeedback);
 
     await reviewBlock.getByTestId("proposal-review-approve").click();
 
     await expect(reviewBlock).toHaveAttribute("data-status", "approved", { timeout: 15_000 });
     await expect(reviewBlock.getByTestId("proposal-review-status")).toContainText("approved");
     await expect(reviewBlock).toContainText("Approved. This proposal has been accepted.");
+    await expect(page.getByText("Approved with execution feedback:")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(approvalFeedback).last()).toBeVisible();
     const createdIssueLink = page.locator(".chat-system-issue-link").last();
     await expect(createdIssueLink).toBeVisible({ timeout: 15_000 });
     await expect(createdIssueLink).toHaveAttribute("href", /\/issues\//);
@@ -303,6 +382,8 @@ test.describe("Chat proposal review block", () => {
     expect(composerGap!.contentPaddingBottom).toBe("0px");
     await createdIssueLink.click();
     await expect(page.getByRole("heading", { name: "Review block approval test" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Approval feedback")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(approvalFeedback)).toBeVisible();
     await expect(page.getByTestId("proposal-review-gate")).toHaveCount(0);
     await expect(page.locator(".chat-composer").last()).toBeVisible();
     await expect(page.getByRole("button", { name: "Comment" })).toBeVisible();

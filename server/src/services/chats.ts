@@ -1384,6 +1384,25 @@ export function chatService(db: Db) {
     }
   }
 
+  function issueProposalWithApprovalFeedback(
+    issueProposal: Record<string, unknown>,
+    decisionNote: string | null | undefined,
+  ) {
+    const feedback = safeTrim(decisionNote);
+    if (!feedback) return issueProposal;
+    const description = typeof issueProposal.description === "string" ? issueProposal.description.trimEnd() : "";
+    return {
+      ...issueProposal,
+      description: [
+        description,
+        "",
+        "## Approval feedback",
+        "",
+        feedback,
+      ].join("\n"),
+    };
+  }
+
     async function convertToIssue(
       conversationId: string,
       input: {
@@ -1659,11 +1678,14 @@ export function chatService(db: Db) {
           payload.proposedIssue && typeof payload.proposedIssue === "object" && !Array.isArray(payload.proposedIssue)
             ? (payload.proposedIssue as Record<string, unknown>)
             : null;
+        const proposedIssueWithFeedback = proposedIssue
+          ? issueProposalWithApprovalFeedback(proposedIssue, approval.decisionNote)
+          : proposedIssue;
         const issue = await convertToIssue(conversationId, {
           actorUserId,
           createdByAgentId: safeTrim(typeof payload.proposedByAgentId === "string" ? payload.proposedByAgentId : null),
           messageId,
-          proposal: proposedIssue,
+          proposal: proposedIssueWithFeedback,
         });
         const links = await issueApprovalsSvc.linkManyForApproval(approval.id, [issue.id], {
           agentId: null,
@@ -1695,6 +1717,26 @@ export function chatService(db: Db) {
             approvalId: approval.id,
           },
         });
+        const approvalFeedback = safeTrim(approval.decisionNote);
+        if (approvalFeedback) {
+          await addMessage(conversationId, {
+            orgId: approval.orgId,
+            role: "system",
+            kind: "system_event",
+            body: [
+              "Approved with execution feedback:",
+              "",
+              approvalFeedback,
+            ].join("\n"),
+            structuredPayload: {
+              eventType: "approval_feedback",
+              issueId: issue.id,
+              issueIdentifier: issue.identifier,
+              approvalId: approval.id,
+              decisionNote: approvalFeedback,
+            },
+          });
+        }
         await logActivity(db, {
           orgId: approval.orgId,
           actorType: "user",

@@ -98,7 +98,7 @@ import {
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent as ReactClipboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ASK_USER_ANSWER_PREFIX, ApprovalAction, AskUserPanel, AssistantDraftItem, AttachmentPreviewState, ChatAttachmentPreviewDialog, ChatBranchPreview, ChatEmptyStatePromptOptions, ChatEmptyStateRecentConversations, ChatMessageItem, ChatMessagesLoadingState, EMPTY_STATE_PROMPT_GROUPS, EmptyStatePromptLabel, INTERRUPTED_CHAT_CONTINUATION_PROMPT, LazyStreamTranscriptItem, NO_CHAT_AGENT_LABEL, NO_PROJECT_ID, OptimisticUserDraftItem, PLAN_MODE_HELP_TEXT, PendingAttachmentPreview, StreamTranscriptItem, approvalNeedsAction, askUserAnswerFromMessage, askUserRequestFromMessage, buildChatProposalRevisionPrompt, buildDraftChatContextLinks, buildMessengerChatThreadSummary, chatEmptyStateHeading, chatIssueApprovalPayloadWithProposalOverride, composerMenuPositionForAnchor, computeDisplayedChatMessages, conversationDisplayTitle, draftIssueContextLabel, findLatestUnansweredAskUserMessage, findRetrySourceUserMessage, formatChatPrimaryIssueBreadcrumb, isAskUserMessageAnswered, isChatAgentSelectionLocked, isChatProjectSelectionLocked, isUserVisibleIncomingChatMessage, issueProposalFromMessage, materializePendingAttachment, mergeChatConversationsForStatus, mergeChatMessages, operationProposalFromMessage, operationProposalStatusFromMessage, parseAskUserAnswerMessage, pendingAttachmentKey, projectContextId, projectDisplayName, rememberChatProjectId, rememberChatProjectIdForAgent, resolveDefaultDraftChatProjectId, resolveDraftIssueContext, scrollChatMessagesToBottom, shouldHandlePlainChatLinkClick, withOptimisticOutgoingMessage, withOptimisticPlanMode } from "./Chat.parts";
+import { ASK_USER_ANSWER_PREFIX, ApprovalAction, AskUserPanel, AssistantDraftItem, AttachmentPreviewState, ChatAttachmentPreviewDialog, ChatBranchPreview, ChatEmptyStatePromptOptions, ChatEmptyStateRecentConversations, ChatMessageItem, ChatMessagesLoadingState, EMPTY_STATE_PROMPT_GROUPS, EmptyStatePromptLabel, INTERRUPTED_CHAT_CONTINUATION_PROMPT, LazyStreamTranscriptItem, NO_CHAT_AGENT_LABEL, NO_PROJECT_ID, OptimisticUserDraftItem, PLAN_MODE_HELP_TEXT, PendingAttachmentPreview, StreamTranscriptItem, approvalNeedsAction, askUserAnswerFromMessage, askUserRequestFromMessage, buildChatProposalRejectFeedbackPrompt, buildChatProposalRevisionPrompt, buildDraftChatContextLinks, buildMessengerChatThreadSummary, chatEmptyStateHeading, chatIssueApprovalPayloadWithProposalOverride, composerMenuPositionForAnchor, computeDisplayedChatMessages, conversationDisplayTitle, draftIssueContextLabel, findLatestUnansweredAskUserMessage, findRetrySourceUserMessage, formatChatPrimaryIssueBreadcrumb, isAskUserMessageAnswered, isChatAgentSelectionLocked, isChatProjectSelectionLocked, isUserVisibleIncomingChatMessage, issueProposalFromMessage, materializePendingAttachment, mergeChatConversationsForStatus, mergeChatMessages, operationProposalFromMessage, operationProposalStatusFromMessage, parseAskUserAnswerMessage, pendingAttachmentKey, projectContextId, projectDisplayName, rememberChatProjectId, rememberChatProjectIdForAgent, resolveDefaultDraftChatProjectId, resolveDraftIssueContext, scrollChatMessagesToBottom, shouldHandlePlainChatLinkClick, withOptimisticOutgoingMessage, withOptimisticPlanMode } from "./Chat.parts";
 export * from "./Chat.attachments";
 export * from "./Chat.messages";
 export * from "./Chat.parts";
@@ -807,15 +807,28 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       { approvalId, action, messageId, payloadOverride },
       {
         onSuccess: () => {
-          if (action !== "requestRevision" || !selectedConversation) return;
-          void sendMessage({
-            bodyOverride: buildChatProposalRevisionPrompt({
-              proposalTitle,
-              feedback,
-            }),
-            filesOverride: [],
-            conversationOverride: selectedConversation,
-          });
+          if (!selectedConversation) return;
+          if (action === "requestRevision") {
+            void sendMessage({
+              bodyOverride: buildChatProposalRevisionPrompt({
+                proposalTitle,
+                feedback,
+              }),
+              filesOverride: [],
+              conversationOverride: selectedConversation,
+            });
+            return;
+          }
+          if (action === "reject" && feedback) {
+            void sendMessage({
+              bodyOverride: buildChatProposalRejectFeedbackPrompt({
+                proposalTitle,
+                feedback,
+              }),
+              filesOverride: [],
+              conversationOverride: selectedConversation,
+            });
+          }
         },
       },
     );

@@ -25,6 +25,7 @@ import {
   askUserAnswerFromMessage,
   askUserRequestFromMessage,
   assistantStateLabel,
+  buildChatProposalRejectFeedbackPrompt,
   buildChatProposalRevisionPrompt,
   buildDraftChatContextLinks,
   canContinueInterruptedChatMessage,
@@ -544,6 +545,8 @@ describe("ProposalCard", () => {
     expect(html).toContain("Wesley");
     expect(html).toContain("CTO");
     expect(html).toContain('data-testid="proposal-review-note"');
+    expect(html).toContain("Reply and execution feedback");
+    expect(html).toContain("Optional for approval or rejection. Required for Request changes.");
     expect(html).toContain("rudder-mdxeditor-scope");
     expect(html).not.toContain("<textarea");
   });
@@ -844,6 +847,17 @@ describe("proposal revision prompts", () => {
       proposalTitle: "Fix approval flow",
       feedback: "Assign the issue to the creating agent.",
     })).toContain("Return a new proposal for review. Do not create the issue or apply the change yet.");
+  });
+
+  it("builds an agent-facing rejection feedback prompt from operator feedback", () => {
+    expect(buildChatProposalRejectFeedbackPrompt({
+      proposalTitle: "Fix approval flow",
+      feedback: "This solves the wrong workflow.",
+    })).toContain("I rejected the proposal \"Fix approval flow\".");
+    expect(buildChatProposalRejectFeedbackPrompt({
+      proposalTitle: "Fix approval flow",
+      feedback: "This solves the wrong workflow.",
+    })).toContain("Continue from this feedback. Do not create the issue or apply the change unless I approve a new proposal.");
   });
 });
 

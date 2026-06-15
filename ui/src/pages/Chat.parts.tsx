@@ -743,6 +743,23 @@ export function buildChatProposalRevisionPrompt(input: {
   ].join("\n");
 }
 
+export function buildChatProposalRejectFeedbackPrompt(input: {
+  proposalTitle?: string | null;
+  feedback: string;
+}) {
+  const title = input.proposalTitle?.trim();
+  return [
+    title
+      ? `I rejected the proposal "${title}".`
+      : "I rejected the current proposal.",
+    "",
+    "Feedback:",
+    input.feedback.trim(),
+    "",
+    "Continue from this feedback. Do not create the issue or apply the change unless I approve a new proposal.",
+  ].join("\n");
+}
+
 export function issueProposalFromMessage(message: ChatMessage) {
   const payload = message.structuredPayload;
   if (!payload) return null;

@@ -716,7 +716,7 @@ export function ProposalCard({
             {showDecisionNote ? (
               <label className="block space-y-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {showRevisionAction || showOperationActions ? "Feedback for agent" : "Decision note"}
+                  {showRevisionAction || showOperationActions ? "Reply and execution feedback" : "Decision note"}
                 </span>
                 <div
                   id={decisionNoteId}
@@ -734,7 +734,7 @@ export function ProposalCard({
                     bordered={false}
                     placeholder={
                       showRevisionAction || showOperationActions
-                        ? "Tell the agent what must change before approval."
+                        ? "Optional for approval or rejection. Required for Request changes."
                         : "Optional note for approval or rejection."
                     }
                     className="rounded-[var(--radius-md)] bg-transparent"
