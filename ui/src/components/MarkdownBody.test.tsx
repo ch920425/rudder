@@ -8,7 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "../context/ThemeContext";
 import { MarkdownBody } from "./MarkdownBody";
 import type { MentionOption } from "./MarkdownEditor";
-import { __clearRudderEntityPreviewCachesForTests } from "./RudderEntityPreview";
+import {
+  __clearRudderEntityPreviewCachesForTests,
+  RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS,
+} from "./RudderEntityPreview";
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -147,6 +150,8 @@ afterEach(() => {
   __clearRudderEntityPreviewCachesForTests();
   markdownMentionsMock.mentions = [];
   vi.clearAllMocks();
+  vi.clearAllTimers();
+  vi.useRealTimers();
   localStorageMock.values.clear();
   document.body.innerHTML = "";
   window.history.pushState({}, "", "/");
@@ -172,6 +177,34 @@ async function focusPreviewLink(link: Element | null) {
   expect(link).toBeTruthy();
   await act(async () => {
     link?.dispatchEvent(new FocusEvent("focusin", { bubbles: true, cancelable: true }));
+  });
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function hoverPreviewLink(link: Element | null) {
+  expect(link).toBeTruthy();
+  await act(async () => {
+    link?.closest(".rudder-entity-preview-wrap")?.dispatchEvent(
+      new MouseEvent("mouseover", { bubbles: true, cancelable: true, relatedTarget: document.body }),
+    );
+  });
+}
+
+async function leavePreviewLink(link: Element | null) {
+  expect(link).toBeTruthy();
+  await act(async () => {
+    link?.closest(".rudder-entity-preview-wrap")?.dispatchEvent(
+      new MouseEvent("mouseout", { bubbles: true, cancelable: true, relatedTarget: document.body }),
+    );
+  });
+}
+
+async function advanceTimersAndFlush(ms: number) {
+  await act(async () => {
+    vi.advanceTimersByTime(ms);
   });
   await act(async () => {
     await Promise.resolve();
@@ -716,6 +749,143 @@ describe("MarkdownBody", () => {
       expect(row.querySelector(".rudder-entity-preview-row-value > span[aria-hidden='true']")).toBeTruthy();
     }
     expect(document.body.querySelector(".rudder-entity-preview-card")?.classList.contains("motion-entity-preview-pop")).toBe(true);
+  });
+
+  it("does not load or render entity previews during quick hover passes", async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-789",
+      name: "PAP-123 auth flow",
+      kind: "issue",
+      issueId: "issue-789",
+      issueIdentifier: "PAP-123",
+      issueStatus: "in_review",
+    }];
+    entityPreviewApiMocks.getIssue.mockResolvedValue({
+      id: "issue-789",
+      orgId: "org-1",
+      title: "Auth flow polish",
+      identifier: "PAP-123",
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      project: { name: "Rudder dev" },
+      assigneeAgentId: null,
+      reviewerAgentId: null,
+      description: "Tighten the markdown renderable link behavior.",
+    });
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[@PAP-123 auth flow](${buildIssueMentionHref("issue-789", "PAP-123", null, "in_review")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    const link = container.querySelector("a.rudder-mention-chip");
+
+    await hoverPreviewLink(link);
+    await advanceTimersAndFlush(RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS - 1);
+
+    expect(entityPreviewApiMocks.getIssue).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeNull();
+
+    await leavePreviewLink(link);
+    await advanceTimersAndFlush(1);
+
+    expect(entityPreviewApiMocks.getIssue).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeNull();
+  });
+
+  it("loads entity previews only after the hover dwell delay", async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-789",
+      name: "PAP-123 auth flow",
+      kind: "issue",
+      issueId: "issue-789",
+      issueIdentifier: "PAP-123",
+      issueStatus: "in_review",
+    }];
+    entityPreviewApiMocks.getIssue.mockResolvedValue({
+      id: "issue-789",
+      orgId: "org-1",
+      title: "Auth flow polish",
+      identifier: "PAP-123",
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      project: { name: "Rudder dev" },
+      assigneeAgentId: null,
+      reviewerAgentId: null,
+      description: "Tighten the markdown renderable link behavior.",
+    });
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[@PAP-123 auth flow](${buildIssueMentionHref("issue-789", "PAP-123", null, "in_review")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    await hoverPreviewLink(container.querySelector("a.rudder-mention-chip"));
+    await advanceTimersAndFlush(RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS);
+
+    expect(entityPreviewApiMocks.getIssue).toHaveBeenCalledWith("issue-789");
+    expect(document.body.textContent).toContain("Auth flow polish");
+  });
+
+  it("requires the full hover dwell delay when reopening the same entity preview", async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-789",
+      name: "PAP-123 auth flow",
+      kind: "issue",
+      issueId: "issue-789",
+      issueIdentifier: "PAP-123",
+      issueStatus: "in_review",
+    }];
+    entityPreviewApiMocks.getIssue.mockResolvedValue({
+      id: "issue-789",
+      orgId: "org-1",
+      title: "Auth flow polish",
+      identifier: "PAP-123",
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      project: { name: "Rudder dev" },
+      assigneeAgentId: null,
+      reviewerAgentId: null,
+      description: "Tighten the markdown renderable link behavior.",
+    });
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[@PAP-123 auth flow](${buildIssueMentionHref("issue-789", "PAP-123", null, "in_review")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    const link = container.querySelector("a.rudder-mention-chip");
+
+    await hoverPreviewLink(link);
+    await advanceTimersAndFlush(RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS);
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeTruthy();
+
+    await leavePreviewLink(link);
+    await advanceTimersAndFlush(300);
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeNull();
+
+    await hoverPreviewLink(link);
+    await advanceTimersAndFlush(RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS - 1);
+
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeNull();
+
+    await advanceTimersAndFlush(1);
+
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeTruthy();
+    expect(entityPreviewApiMocks.getIssue).toHaveBeenCalledTimes(1);
   });
 
   it("loads an issue comment preview from comment-anchored issue links", async () => {

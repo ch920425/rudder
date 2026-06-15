@@ -101,6 +101,7 @@ type PreviewState =
 
 const SELECTED_ORG_STORAGE_KEY = "rudder.selectedOrganizationId";
 const ENTITY_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
+export const RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS = 1000;
 
 type CachedPromise<T> = {
   expiresAt: number;
@@ -526,7 +527,14 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const loadStartedRef = useRef(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const orgId = useMemo(readSelectedOrgId, []);
+
+  const clearHoverTimer = () => {
+    if (!hoverTimerRef.current) return;
+    clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  };
 
   useEffect(() => {
     if (!activated || loadStartedRef.current) return;
@@ -555,24 +563,45 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
     };
   }, [activated, label, mention, orgId]);
 
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
   const showPreview = () => {
+    clearHoverTimer();
     setActivated(true);
     setOpen(true);
   };
 
+  const scheduleHoverPreview = () => {
+    clearHoverTimer();
+    hoverTimerRef.current = setTimeout(() => {
+      hoverTimerRef.current = null;
+      showPreview();
+    }, RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS);
+  };
+
+  const hidePreview = () => {
+    clearHoverTimer();
+    setOpen(false);
+  };
+
   return (
-    <TooltipProvider delayDuration={120}>
+    <TooltipProvider delayDuration={RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS} skipDelayDuration={0}>
       <Tooltip open={open} onOpenChange={(nextOpen) => {
+        if (!nextOpen) clearHoverTimer();
         setOpen(nextOpen);
         if (nextOpen) setActivated(true);
       }}>
         <TooltipTrigger asChild>
           <span
             className="rudder-entity-preview-wrap"
-            onMouseEnter={showPreview}
-            onMouseLeave={() => setOpen(false)}
+            onMouseEnter={scheduleHoverPreview}
+            onMouseLeave={hidePreview}
             onFocusCapture={showPreview}
-            onBlurCapture={() => setOpen(false)}
+            onBlurCapture={hidePreview}
           >
             {children}
           </span>
