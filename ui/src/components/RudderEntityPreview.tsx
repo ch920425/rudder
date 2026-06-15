@@ -102,6 +102,7 @@ type PreviewState =
 const SELECTED_ORG_STORAGE_KEY = "rudder.selectedOrganizationId";
 const ENTITY_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
 export const RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS = 1000;
+const RUDDER_ENTITY_PREVIEW_CLOSE_DELAY_MS = 160;
 
 type CachedPromise<T> = {
   expiresAt: number;
@@ -528,12 +529,20 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const loadStartedRef = useRef(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerWrapRef = useRef<HTMLSpanElement>(null);
   const orgId = useMemo(readSelectedOrgId, []);
 
   const clearHoverTimer = () => {
     if (!hoverTimerRef.current) return;
     clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = null;
+  };
+
+  const clearCloseTimer = () => {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
   };
 
   useEffect(() => {
@@ -566,17 +575,43 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
   useEffect(() => {
     return () => {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleMouseMove = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (triggerWrapRef.current?.contains(target)) {
+        clearCloseTimer();
+        return;
+      }
+      const insidePreviewCard = Array.from(document.querySelectorAll(".rudder-entity-preview-card"))
+        .some((card) => card.contains(target));
+      if (insidePreviewCard) {
+        clearCloseTimer();
+        return;
+      }
+      hidePreview();
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [open]);
+
   const showPreview = () => {
     clearHoverTimer();
+    clearCloseTimer();
     setActivated(true);
     setOpen(true);
   };
 
   const scheduleHoverPreview = () => {
     clearHoverTimer();
+    clearCloseTimer();
     hoverTimerRef.current = setTimeout(() => {
       hoverTimerRef.current = null;
       showPreview();
@@ -585,6 +620,20 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
 
   const hidePreview = () => {
     clearHoverTimer();
+    clearCloseTimer();
+    if (!open) {
+      setOpen(false);
+      return;
+    }
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setOpen(false);
+    }, RUDDER_ENTITY_PREVIEW_CLOSE_DELAY_MS);
+  };
+
+  const hidePreviewImmediately = () => {
+    clearHoverTimer();
+    clearCloseTimer();
     setOpen(false);
   };
 
@@ -592,16 +641,20 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
     <TooltipProvider delayDuration={RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS} skipDelayDuration={0}>
       <Tooltip open={open} onOpenChange={(nextOpen) => {
         if (!nextOpen) clearHoverTimer();
-        setOpen(nextOpen);
-        if (nextOpen) setActivated(true);
+        if (nextOpen) {
+          showPreview();
+        } else {
+          hidePreview();
+        }
       }}>
         <TooltipTrigger asChild>
           <span
+            ref={triggerWrapRef}
             className="rudder-entity-preview-wrap"
             onMouseEnter={scheduleHoverPreview}
             onMouseLeave={hidePreview}
             onFocusCapture={showPreview}
-            onBlurCapture={hidePreview}
+            onBlurCapture={hidePreviewImmediately}
           >
             {children}
           </span>
@@ -613,6 +666,8 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
             sideOffset={8}
             collisionPadding={16}
             className={cn("rudder-entity-preview-card motion-entity-preview-pop", state.status === "loading" && "rudder-entity-preview-card--loading")}
+            onMouseEnter={showPreview}
+            onMouseLeave={hidePreview}
           >
             {state.status === "ready" ? (
               <PreviewContent preview={state.preview} />

@@ -202,6 +202,26 @@ async function leavePreviewLink(link: Element | null) {
   });
 }
 
+async function hoverPreviewCard() {
+  const card = document.body.querySelector(".rudder-entity-preview-card");
+  expect(card).toBeTruthy();
+  await act(async () => {
+    card?.dispatchEvent(
+      new MouseEvent("mouseover", { bubbles: true, cancelable: true, relatedTarget: document.body }),
+    );
+  });
+}
+
+async function leavePreviewCard() {
+  const card = document.body.querySelector(".rudder-entity-preview-card");
+  expect(card).toBeTruthy();
+  await act(async () => {
+    card?.dispatchEvent(
+      new MouseEvent("mouseout", { bubbles: true, cancelable: true, relatedTarget: document.body }),
+    );
+  });
+}
+
 async function advanceTimersAndFlush(ms: number) {
   await act(async () => {
     vi.advanceTimersByTime(ms);
@@ -886,6 +906,55 @@ describe("MarkdownBody", () => {
 
     expect(document.body.querySelector(".rudder-entity-preview-card")).toBeTruthy();
     expect(entityPreviewApiMocks.getIssue).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an open entity preview visible while the mouse moves into the preview card", async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-789",
+      name: "PAP-123 auth flow",
+      kind: "issue",
+      issueId: "issue-789",
+      issueIdentifier: "PAP-123",
+      issueStatus: "in_review",
+    }];
+    entityPreviewApiMocks.getIssue.mockResolvedValue({
+      id: "issue-789",
+      orgId: "org-1",
+      title: "Auth flow polish",
+      identifier: "PAP-123",
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      project: { name: "Rudder dev" },
+      assigneeAgentId: null,
+      reviewerAgentId: null,
+      description: "Tighten the markdown renderable link behavior.",
+    });
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[@PAP-123 auth flow](${buildIssueMentionHref("issue-789", "PAP-123", null, "in_review")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    const link = container.querySelector("a.rudder-mention-chip");
+
+    await hoverPreviewLink(link);
+    await advanceTimersAndFlush(RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS);
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeTruthy();
+
+    await leavePreviewLink(link);
+    await hoverPreviewCard();
+    await advanceTimersAndFlush(300);
+
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeTruthy();
+
+    await leavePreviewCard();
+    await advanceTimersAndFlush(300);
+
+    expect(document.body.querySelector(".rudder-entity-preview-card")).toBeNull();
   });
 
   it("loads an issue comment preview from comment-anchored issue links", async () => {
