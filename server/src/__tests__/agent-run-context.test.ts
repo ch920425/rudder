@@ -171,6 +171,49 @@ describe("agentRunContextService buildSceneContext", () => {
     expect(mockListOrganizationResources).not.toHaveBeenCalled();
   });
 
+  it("appends assigned automation titles and ids to the compiled run prompt", async () => {
+    const orderBy = vi.fn(async () => [
+      { id: "automation-1", title: "Daily reviewer follow-up" },
+      { id: "automation-2", title: "Release channel watch" },
+    ]);
+    const where = vi.fn(() => ({ orderBy }));
+    const from = vi.fn(() => ({ where }));
+    const db = { select: vi.fn(() => ({ from })) } as any;
+
+    const svc = agentRunContextService(db);
+    const context = await svc.buildSceneContext({
+      scene: "heartbeat",
+      agent: {
+        id: "agent-1",
+        orgId: "organization-1",
+        name: "Builder",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {},
+      },
+      resolvedWorkspace: {
+        cwd: "/tmp/agent-home",
+        source: "agent_home",
+        projectId: null,
+        workspaceId: null,
+        repoUrl: null,
+        repoRef: null,
+        workspaceHints: [],
+        warnings: [],
+      },
+      runtimeConfig: {},
+    });
+
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("## Agent Automations");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("- Daily reviewer follow-up");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - ID: `automation-1`");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("- Release channel watch");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - ID: `automation-2`");
+    expect(context.rudderWorkspace.orgResourcesPrompt).not.toContain("status");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toBe(context.rudderWorkspace.resourcesPrompt);
+    expect(orderBy).toHaveBeenCalledOnce();
+    expect(mockListProjectResourceAttachments).not.toHaveBeenCalled();
+  });
+
   it("injects attached project resources into the compiled run prompt", async () => {
     mockListOrganizationResources.mockResolvedValue([]);
     mockListProjectResourceAttachments.mockResolvedValue([

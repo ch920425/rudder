@@ -1,11 +1,11 @@
 import type { RudderSkillEntry } from "@rudderhq/agent-runtime-utils/server-utils";
 import type { Db } from "@rudderhq/db";
-import { issues, projects, projectWorkspaces } from "@rudderhq/db";
+import { automations, issues, projects, projectWorkspaces } from "@rudderhq/db";
 import {
   deriveProjectUrlKey,
   type ProjectResourceAttachment,
 } from "@rudderhq/shared";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import fs from "node:fs/promises";
 import { parseObject } from "../agent-runtimes/utils.js";
 import {
@@ -160,8 +160,61 @@ function buildProjectResourcesPrompt(resources: ProjectResourceAttachment[]) {
 
 function buildCompiledResourcesPrompt(
   projectResources: ProjectResourceAttachment[],
+  agentAutomations: Array<{ id: string; title: string }>,
 ) {
-  return buildProjectResourcesPrompt(projectResources);
+  return [
+    buildProjectResourcesPrompt(projectResources),
+    buildAgentAutomationsPrompt(agentAutomations),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildAgentAutomationsPrompt(
+  agentAutomations: Array<{ id: string; title: string }>,
+) {
+  if (agentAutomations.length === 0) return "";
+  return [
+    "## Agent Automations",
+    "",
+    ...agentAutomations.flatMap((automation) => [
+      `- ${automation.title}`,
+      `  - ID: \`${automation.id}\``,
+    ]),
+  ].join("\n");
+}
+
+async function listAgentAutomationsForPrompt(
+  db: Db,
+  orgId: string,
+  agentId: string,
+): Promise<Array<{ id: string; title: string }>> {
+  if (typeof (db as Partial<Db>).select !== "function") return [];
+  const query = db.select({ id: automations.id, title: automations.title });
+  if (!query || typeof (query as { from?: unknown }).from !== "function") {
+    return [];
+  }
+  const fromQuery = query.from(automations);
+  if (
+    !fromQuery ||
+    typeof (fromQuery as { where?: unknown }).where !== "function"
+  ) {
+    return [];
+  }
+  const whereQuery = fromQuery.where(
+    and(
+      eq(automations.orgId, orgId),
+      eq(automations.assigneeAgentId, agentId),
+      ne(automations.status, "archived"),
+    ),
+  );
+  if (
+    !whereQuery ||
+    typeof (whereQuery as { orderBy?: unknown }).orderBy !== "function"
+  ) {
+    return [];
+  }
+  return whereQuery.orderBy(asc(automations.title), asc(automations.id));
 }
 
 async function resolveProjectLibraryContext(
@@ -486,8 +539,13 @@ export function agentRunContextService(db: Db) {
       input.agent.orgId,
       workspaceProjectId,
     );
+    const agentAutomations = await listAgentAutomationsForPrompt(
+      db,
+      input.agent.orgId,
+      input.agent.id,
+    );
     const compiledResourcesPrompt =
-      buildCompiledResourcesPrompt(projectResources);
+      buildCompiledResourcesPrompt(projectResources, agentAutomations);
     const rudderWorkspace = {
       cwd: executionWorkspaceCwd,
       source: workspaceSource,
