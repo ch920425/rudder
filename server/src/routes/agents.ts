@@ -201,8 +201,20 @@ export function agentRoutes(db: Db, storage?: StorageService) {
   }
 
   function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
+    if (!agent.permissions || typeof agent.permissions !== "object") return true;
+    const value = (agent.permissions as Record<string, unknown>).canCreateAgents;
+    return typeof value === "boolean" ? value : true;
+  }
+
+  function hasExplicitAgentCreationDeny(agent: { permissions: Record<string, unknown> | null | undefined }) {
     if (!agent.permissions || typeof agent.permissions !== "object") return false;
-    return Boolean((agent.permissions as Record<string, unknown>).canCreateAgents);
+    return (agent.permissions as Record<string, unknown>).canCreateAgents === false;
+  }
+
+  async function hasEffectiveAgentCreationGrant(orgId: string, agent: { id: string; role: string; permissions: Record<string, unknown> | null | undefined }) {
+    if (hasExplicitAgentCreationDeny(agent)) return false;
+    const allowedByGrant = await access.hasPermission(orgId, "agent", agent.id, "agents:create");
+    return allowedByGrant || canCreateAgents(agent);
   }
 
   async function buildAgentAccessState(agent: NonNullable<Awaited<ReturnType<typeof svc.getById>>>) {
@@ -307,8 +319,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     if (!actorAgent || actorAgent.orgId !== orgId) {
       throw forbidden("Agent key cannot access another organization");
     }
-    const allowedByGrant = await access.hasPermission(orgId, "agent", actorAgent.id, "agents:create");
-    if (!allowedByGrant && !canCreateAgents(actorAgent)) {
+    if (!await hasEffectiveAgentCreationGrant(orgId, actorAgent)) {
       throw forbidden("Missing permission: can create agents");
     }
     return actorAgent;
@@ -327,8 +338,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     if (!req.actor.agentId) return false;
     const actorAgent = await svc.getById(req.actor.agentId);
     if (!actorAgent || actorAgent.orgId !== orgId) return false;
-    const allowedByGrant = await access.hasPermission(orgId, "agent", actorAgent.id, "agents:create");
-    return allowedByGrant || canCreateAgents(actorAgent);
+    return hasEffectiveAgentCreationGrant(orgId, actorAgent);
   }
 
   async function assertAgentAvatarAssetBelongsToOrg(orgId: string, icon: unknown) {
@@ -358,6 +368,9 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     }
 
     if (actorAgent.id === targetAgent.id) return;
+    if (hasExplicitAgentCreationDeny(actorAgent)) {
+      throw forbidden("Only CEO or agent creators can modify other agents");
+    }
     if (actorAgent.role === "ceo") return;
     const allowedByGrant = await access.hasPermission(
       targetAgent.orgId,

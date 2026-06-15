@@ -79,6 +79,18 @@ type ExportContext = {
   organizationSkills: ReturnType<typeof organizationSkillService>;
 };
 
+const AGENT_PERMISSION_DEFAULT_RULES = [
+  { path: ["canCreateAgents"], value: true },
+  { path: ["canManageSkills"], value: true },
+];
+
+function prunePortableAgentPermissions(permissions: unknown): Record<string, unknown> {
+  return pruneDefaultLikeValue(isPlainRecord(permissions) ? permissions : {}, {
+    dropFalseBooleans: false,
+    defaultRules: AGENT_PERMISSION_DEFAULT_RULES,
+  }) as Record<string, unknown>;
+}
+
 export function createOrganizationPortabilityExportHandlers(context: ExportContext) {
   const { db, storage, organizations, agents, assetRecords, instructions, organizationSkills } = context;
 
@@ -454,7 +466,7 @@ export function createOrganizationPortabilityExportHandlers(context: ExportConte
             defaultRules: RUNTIME_DEFAULT_RULES,
           },
         ) as Record<string, unknown>;
-        const portablePermissions = pruneDefaultLikeValue(agent.permissions ?? {}, { dropFalseBooleans: true }) as Record<string, unknown>;
+        const portablePermissions = prunePortableAgentPermissions(agent.permissions);
         const agentEnvInputs = dedupeEnvInputs(
           envInputs
             .slice(envInputsStart)

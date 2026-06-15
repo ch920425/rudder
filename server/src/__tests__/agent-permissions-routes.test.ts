@@ -35,7 +35,9 @@ const baseAgent = {
 const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
   getInternalById: vi.fn(),
+  list: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
   updatePermissions: vi.fn(),
   getChainOfCommand: vi.fn(),
   resolveByReference: vi.fn(),
@@ -447,6 +449,81 @@ describe("agent permission routes", () => {
         instructionsFilePath: "/tmp/external-agent-instructions/AGENTS.md",
       }),
     }));
+  });
+
+  it("does not let a legacy agents:create grant bypass an explicit agent creation denial", async () => {
+    mockAccessService.hasPermission.mockResolvedValue(true);
+
+    const app = createApp({
+      type: "agent",
+      agentId,
+      orgId,
+      runId: "run-1",
+    });
+
+    const res = await request(app)
+      .post(`/api/orgs/${orgId}/agent-hires`)
+      .send({
+        name: "Denied Spawn",
+        role: "general",
+        agentRuntimeType: "process",
+        agentRuntimeConfig: {},
+        runtimeConfig: {},
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Missing permission: can create agents" });
+    expect(mockAccessService.hasPermission).not.toHaveBeenCalled();
+    expect(mockAgentService.create).not.toHaveBeenCalled();
+  });
+
+  it("does not let a legacy agents:create grant expose agent configurations after explicit denial", async () => {
+    mockAccessService.hasPermission.mockResolvedValue(true);
+
+    const app = createApp({
+      type: "agent",
+      agentId,
+      orgId,
+      runId: "run-1",
+    });
+
+    const res = await request(app).get(`/api/orgs/${orgId}/agent-configurations`);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Missing permission: can create agents" });
+    expect(mockAccessService.hasPermission).not.toHaveBeenCalled();
+    expect(mockAgentService.list).not.toHaveBeenCalled();
+  });
+
+  it("does not let a legacy agents:create grant update another agent after explicit denial", async () => {
+    const targetAgentId = "33333333-3333-4333-8333-333333333333";
+    mockAccessService.hasPermission.mockResolvedValue(true);
+    mockAgentService.getInternalById.mockResolvedValue({
+      ...baseAgent,
+      id: targetAgentId,
+      name: "Target",
+    });
+
+    const app = createApp({
+      type: "agent",
+      agentId,
+      orgId,
+      runId: "run-1",
+    });
+
+    const res = await request(app)
+      .patch(`/api/agents/${targetAgentId}`)
+      .send({ title: "Updated Target" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Only CEO or agent creators can modify other agents" });
+    expect(mockAccessService.hasPermission).not.toHaveBeenCalledWith(
+      orgId,
+      "agent",
+      agentId,
+      "agents:create",
+    );
+    expect(mockAgentService.update).not.toHaveBeenCalled();
   });
 
   it("keeps task assignment enabled when agent creation privilege is enabled", async () => {

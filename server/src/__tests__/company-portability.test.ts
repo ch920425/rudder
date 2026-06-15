@@ -447,8 +447,65 @@ describe("organization portability", () => {
     expect(extension).not.toContain("PATH:");
     expect(extension).not.toContain("requireBoardApprovalForNewAgents: true");
     expect(extension).not.toContain("budgetMonthlyCents: 0");
+    expect(extension).toContain("permissions:");
+    expect(extension).toContain("canCreateAgents: false");
     expect(exported.warnings).toContain("Agent claudecoder command /Users/dotta/.local/bin/claude was omitted from export because it is system-dependent.");
     expect(exported.warnings).toContain("Agent claudecoder PATH override was omitted from export because it is system-dependent.");
+  });
+
+  it("round-trips explicit agent creation denials through organization portability", async () => {
+    const portability = organizationPortabilityService({} as any);
+
+    companySvc.create.mockResolvedValue({
+      id: "organization-imported",
+      name: "Imported Rudder",
+    });
+    accessSvc.ensureMembership.mockResolvedValue(undefined);
+    agentSvc.create.mockResolvedValue({
+      id: "agent-created",
+      name: "ClaudeCoder",
+    });
+
+    const exported = await portability.exportBundle("organization-1", {
+      include: {
+        organization: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+    });
+
+    const extension = asTextFile(exported.files[".rudder.yaml"]);
+    expect(extension).toContain("permissions:");
+    expect(extension).toContain("canCreateAgents: false");
+
+    agentSvc.list.mockResolvedValue([]);
+
+    await portability.importBundle({
+      source: {
+        type: "inline",
+        rootPath: exported.rootPath,
+        files: exported.files,
+      },
+      include: {
+        organization: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+      target: {
+        mode: "new_organization",
+        newOrganizationName: "Imported Rudder",
+      },
+      agents: "all",
+      collisionStrategy: "rename",
+    }, "user-1");
+
+    expect(agentSvc.create).toHaveBeenCalledWith("organization-imported", expect.objectContaining({
+      permissions: expect.objectContaining({
+        canCreateAgents: false,
+      }),
+    }));
   });
 
   it("exports default sidebar order into the Rudder extension and manifest", async () => {

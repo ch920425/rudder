@@ -1636,6 +1636,64 @@ describe("agent CLI e2e", () => {
     expect(created.permissions.canCreateAgents).toBe(true);
   });
 
+  it("blocks an explicit-deny agent from creating a new agent through the CLI", { timeout: 60_000 }, async () => {
+    const db = createDb(connectionString);
+    const deniedAgentId = randomUUID();
+    const deniedAgentKey = createApiKeyToken();
+    await db.insert(agents).values({
+      id: deniedAgentId,
+      orgId,
+      name: "CLI Denied Creator",
+      role: "engineer",
+      title: "CLI Denied Creator",
+      status: "idle",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: { cwd: tempRoot },
+      runtimeConfig: {},
+      permissions: { canCreateAgents: false, canManageSkills: true },
+    });
+    await db.insert(agentApiKeys).values({
+      agentId: deniedAgentId,
+      orgId,
+      name: "agent-cli-e2e-denied",
+      keyHash: hashToken(deniedAgentKey),
+    });
+
+    const env = {
+      RUDDER_API_KEY: deniedAgentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: deniedAgentId,
+      RUDDER_RUN_ID: runId,
+    };
+
+    await expect(runCliJson<AgentHireResult>(
+      [
+        "agent",
+        "hire",
+        "--payload",
+        JSON.stringify({
+          name: "CLI Should Not Exist",
+          role: "general",
+          title: "CLI Should Not Exist",
+          icon: "crown",
+          reportsTo: deniedAgentId,
+          capabilities: "Should be blocked by explicit agent creation denial",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: { cwd: tempRoot, model: "o4-mini" },
+          runtimeConfig: { heartbeat: { enabled: true, intervalSec: 300, wakeOnDemand: true } },
+        }),
+      ],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    )).rejects.toThrow("Missing permission: can create agents");
+
+    const rows = await db.select().from(agents).where(eq(agents.name, "CLI Should Not Exist"));
+    expect(rows).toHaveLength(0);
+  });
+
   it("runs the CLI-only create-agent path", { timeout: 60_000 }, async () => {
     const env = {
       RUDDER_API_KEY: agentKey,
