@@ -348,8 +348,10 @@ describe("selectPromptTemplate", () => {
 
 describe("loadAgentInstructionsPrefix", () => {
   it("loads the runtime operating contract without an instruction file", async () => {
+    const currentTime = new Date("2026-06-15T12:34:56.789Z");
     const loaded = await loadAgentInstructionsPrefix({
       instructionsFilePath: "",
+      currentTime,
       onLog: async () => {},
     });
 
@@ -379,6 +381,10 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("plain text agent names are not wake requests");
     expect(loaded.prefix).toContain("Use wake-intent links only when you intentionally want to wake another agent");
     expect(loaded.prefix).toContain("attach the image with the Rudder CLI `--image <path>` option");
+    expect(loaded.prefix).toContain("## Current Time");
+    expect(loaded.prefix).toContain("Instruction load time: 2026-06-15T12:34:56.789Z.");
+    expect(loaded.prefix).toContain("Treat this as the current time for this run");
+    expect(loaded.prefix).toMatch(/## Current Time[\s\S]*fresher timestamp\.$/);
     expect(loaded.commandNotes).toEqual(["Loaded Rudder agent operating contract from runtime code"]);
     expect(loaded.readFailed).toBe(false);
     expect(loaded.memoryFilePath).toBeNull();
@@ -467,6 +473,7 @@ describe("loadAgentInstructionsPrefix", () => {
     try {
       const loaded = await loadAgentInstructionsPrefix({
         instructionsFilePath: instructionsPath,
+        currentTime: new Date("2026-06-15T23:45:00.000Z"),
         onLog: async () => {},
       });
 
@@ -475,6 +482,8 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).toContain("# Tools");
       expect(loaded.prefix).toContain("# Tacit Memory");
       expect(loaded.prefix).not.toContain("# Heartbeat");
+      expect(loaded.prefix.indexOf("# Tacit Memory")).toBeLessThan(loaded.prefix.indexOf("## Current Time"));
+      expect(loaded.prefix).toMatch(/## Current Time\n\nInstruction load time: 2026-06-15T23:45:00\.000Z\.[\s\S]*fresher timestamp\.$/);
       expect(loaded.commandNotes).toContain("Loaded agent instructions from $AGENT_HOME/instructions/AGENTS.md");
       expect(loaded.commandNotes).toContain("Loaded agent soul instructions from $AGENT_HOME/instructions/SOUL.md");
       expect(loaded.commandNotes).toContain("Loaded agent tool notes from $AGENT_HOME/instructions/TOOLS.md");

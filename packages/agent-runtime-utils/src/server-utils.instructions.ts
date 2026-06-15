@@ -58,10 +58,12 @@ export function displayInstructionDir(filePath: string, instructionsFilePath: st
 export async function loadAgentInstructionsPrefix(input: {
   instructionsFilePath: string;
   includeHeartbeatInstructions?: boolean;
+  currentTime?: Date;
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
   warningStream?: "stdout" | "stderr";
 }): Promise<LoadedAgentInstructionsPrefix> {
   const instructionsFilePath = input.instructionsFilePath.trim();
+  const currentTime = input.currentTime ?? new Date();
   const includeHeartbeatInstructions = input.includeHeartbeatInstructions === true;
   const entryIsHeartbeatInstructions = path.basename(instructionsFilePath).toLowerCase() === "heartbeat.md";
   const instructionsDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
@@ -79,8 +81,12 @@ export async function loadAgentInstructionsPrefix(input: {
     ? `${RUDDER_AGENT_HEARTBEAT_INSTRUCTION}\n\n` +
       "The above Rudder heartbeat instruction was injected by Rudder at runtime."
     : "";
+  const currentTimeSection =
+    "## Current Time\n\n" +
+    `Instruction load time: ${currentTime.toISOString()}.\n\n` +
+    "Treat this as the current time for this run unless later tool output gives a fresher timestamp.";
   const empty = {
-    prefix: joinPromptSections([operatingContractSection, runtimeHeartbeatSection]),
+    prefix: joinPromptSections([operatingContractSection, runtimeHeartbeatSection, currentTimeSection]),
     commandNotes: [
       "Loaded Rudder agent operating contract from runtime code",
       ...(runtimeHeartbeatSection ? ["Loaded Rudder heartbeat instructions from runtime code"] : []),
@@ -93,7 +99,7 @@ export async function loadAgentInstructionsPrefix(input: {
     heartbeatFilePath: null,
     readFailed: false,
     metrics: {
-      instructionsChars: joinPromptSections([operatingContractSection, runtimeHeartbeatSection]).length,
+      instructionsChars: joinPromptSections([operatingContractSection, runtimeHeartbeatSection, currentTimeSection]).length,
       operatingContractChars: operatingContractSection.length,
       runtimeHeartbeatChars: runtimeHeartbeatSection.length,
       instructionEntryChars: 0,
@@ -214,7 +220,15 @@ export async function loadAgentInstructionsPrefix(input: {
   const heartbeatFileChars = 0;
   const heartbeatChars = runtimeHeartbeatSection.length + heartbeatFileChars;
 
-  const prefix = joinPromptSections([operatingContractSection, runtimeHeartbeatSection, entrySection, soul.section, tools.section, memorySection]);
+  const prefix = joinPromptSections([
+    operatingContractSection,
+    runtimeHeartbeatSection,
+    entrySection,
+    soul.section,
+    tools.section,
+    memorySection,
+    currentTimeSection,
+  ]);
   return {
     prefix,
     commandNotes,
