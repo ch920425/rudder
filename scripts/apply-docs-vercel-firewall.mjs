@@ -119,22 +119,26 @@ async function main() {
   if (existingRule) {
     const id = existingRule.id || existingRule.uid;
     await vercel.security.updateFirewallConfig({
-      action: "rules.update",
-      id,
       projectId: options.projectId,
+      requestBody: {
+        action: "rules.update",
+        id,
+        value: RULE_VALUE,
+      },
       teamId: options.teamId,
-      value: RULE_VALUE,
     });
     console.log(`Updated existing firewall rule ${id}.`);
     return;
   }
 
   await vercel.security.updateFirewallConfig({
-    action: "rules.insert",
-    id: null,
     projectId: options.projectId,
+    requestBody: {
+      action: "rules.insert",
+      id: null,
+      value: RULE_VALUE,
+    },
     teamId: options.teamId,
-    value: RULE_VALUE,
   });
   console.log("Inserted firewall rule.");
 }
