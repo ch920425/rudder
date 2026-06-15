@@ -448,7 +448,7 @@ function getLastCaretTarget(node: Node): CaretTarget {
   return { kind: "inside", node, offset: node.childNodes.length };
 }
 
-function placeCaretNearInlineToken(token: HTMLElement) {
+function placeCaretAtAtomicInlineTokenEdge(token: HTMLElement, edge: "before" | "after") {
   const editable = token.closest('[contenteditable="true"]');
   if (!(editable instanceof HTMLElement)) return;
 
@@ -458,14 +458,29 @@ function placeCaretNearInlineToken(token: HTMLElement) {
   if (!selection) return;
 
   const range = document.createRange();
-  // Contenteditable=false inline chips are a brittle selection boundary for
-  // Lexical. A click on the chip should leave the user in the useful editing
-  // position: after the chip, where Backspace can remove it and typing can
-  // continue normally.
-  range.setStartAfter(token);
+  if (edge === "before") {
+    range.setStartBefore(token);
+  } else {
+    range.setStartAfter(token);
+  }
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+function placeCaretNearInlineToken(token: HTMLElement, clientX?: number) {
+  if (typeof clientX === "number") {
+    const rect = token.getBoundingClientRect();
+    if (rect.width > 0) {
+      placeCaretAtAtomicInlineTokenEdge(token, clientX < rect.left + rect.width / 2 ? "before" : "after");
+      return;
+    }
+  }
+
+  // Contenteditable=false inline chips are a brittle selection boundary for
+  // Lexical. Default to the useful editing position after the chip, where
+  // Backspace can remove it and typing can continue normally.
+  placeCaretAtAtomicInlineTokenEdge(token, "after");
 }
 
 function getVisibleTextOffsetBeforeNode(editable: HTMLElement, node: Node) {
@@ -685,7 +700,7 @@ function stopAtomicInlineTokenEvent(
   event.stopPropagation();
   event.nativeEvent.stopImmediatePropagation?.();
   if (options.placeCaret && typeof event.clientX === "number") {
-    placeCaretNearInlineToken(token);
+    placeCaretNearInlineToken(token, event.clientX);
   }
   return true;
 }
@@ -1647,6 +1662,28 @@ const LegacyMarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       window.removeEventListener("scroll", repositionMentionMenu, true);
     };
   }, [checkMention, mentionActive]);
+
+  useEffect(() => {
+    if (!plainText) return;
+
+    const keepCaretOutsideAtomicInlineTokens = () => {
+      const editable = containerRef.current?.querySelector('[contenteditable="true"]');
+      if (!(editable instanceof HTMLElement)) return;
+      const selection = window.getSelection();
+      if (!selection || !selection.isCollapsed || !selection.anchorNode) return;
+      if (!editable.contains(selection.anchorNode)) return;
+
+      const token = readAtomicInlineTokenElement(selection.anchorNode);
+      if (!token || !editable.contains(token.element)) return;
+      if (selection.anchorNode !== token.element && !token.element.contains(selection.anchorNode)) return;
+
+      placeCaretAtAtomicInlineTokenEdge(token.element, "after");
+      armPendingMentionInputFromToken(token);
+    };
+
+    document.addEventListener("selectionchange", keepCaretOutsideAtomicInlineTokens);
+    return () => document.removeEventListener("selectionchange", keepCaretOutsideAtomicInlineTokens);
+  }, [armPendingMentionInputFromToken, plainText]);
 
   useEffect(() => {
     const editable = containerRef.current?.querySelector('[contenteditable="true"]');

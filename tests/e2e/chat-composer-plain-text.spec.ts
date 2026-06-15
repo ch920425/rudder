@@ -81,6 +81,63 @@ test("chat composer keeps normal Markdown literal while tokenizing Rudder refere
   expect(userMessage?.body).toBe(draft);
 });
 
+test("chat composer keeps the caret outside Rudder reference tokens", async ({ page }) => {
+  const organization = await createOrganization(page, "Chat-Reference-Caret");
+  const agent = await createChatAgent(page, organization.id, "原则");
+
+  const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+    data: {
+      title: "Reference caret",
+      preferredAgentId: agent.id,
+    },
+  });
+  expect(chatRes.ok()).toBe(true);
+  const chat = await chatRes.json() as { id: string };
+
+  await page.goto("/");
+  await page.evaluate((orgId) => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+  }, organization.id);
+
+  await page.goto(`/${organization.issuePrefix}/messenger/chat/${chat.id}`);
+
+  const composer = page.locator(".rudder-mdxeditor-content").first();
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+
+  const canonicalReference = `[${agent.name}](agent://${agent.id})`;
+  await composer.fill(`请参考 ${canonicalReference} 后续计划`);
+
+  const token = composer.locator("[data-mention-kind='agent']").filter({ hasText: agent.name }).first();
+  await expect(token).toBeVisible({ timeout: 15_000 });
+
+  const selectionState = await token.evaluate((element) => {
+    const textNode = Array.from(element.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+    if (!textNode) return { ok: false, reason: "missing token text" };
+
+    const range = document.createRange();
+    range.setStart(textNode, 1);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    const parent = element.parentNode;
+    const tokenIndex = parent ? Array.prototype.indexOf.call(parent.childNodes, element) : -1;
+    return {
+      ok: selection?.anchorNode === parent && selection.anchorOffset === tokenIndex + 1,
+      anchorInsideToken: selection?.anchorNode ? element.contains(selection.anchorNode) : null,
+      anchorOffset: selection?.anchorOffset ?? null,
+      tokenIndex,
+    };
+  });
+
+  expect(selectionState).toMatchObject({
+    ok: true,
+    anchorInsideToken: false,
+  });
+});
+
 test("chat composer keeps text after Rudder reference tokens when sending", async ({ page }) => {
   const organization = await createOrganization(page, "Chat-Reference-Tail");
   const agent = await createChatAgent(page, organization.id, "Mira");

@@ -882,6 +882,114 @@ describe("MarkdownEditor", () => {
     expect(onChange).toHaveBeenLastCalledWith("[ZST-357](issue://issue-1?r=ZST-357) 可以这样");
   });
 
+  it("moves a collapsed caret out of the middle of a plain-text mention token", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="[原则](issue://issue-1?r=ZST-357) "
+          onChange={onChange}
+          plainText
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    const token = container.querySelector("[data-mention-kind='issue']");
+    const tokenText = token?.firstChild;
+    expect(editable).toBeTruthy();
+    expect(token).toBeTruthy();
+    expect(tokenText?.nodeType).toBe(Node.TEXT_NODE);
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(tokenText!, 1);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+
+    expect(selection?.anchorNode).toBe(editable);
+    expect(selection?.anchorOffset).toBe(1);
+  });
+
+  it("places mouse-driven mention token carets on token edges instead of inside the token", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onChange = vi.fn();
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="[原则](issue://issue-1?r=ZST-357) "
+          onChange={onChange}
+          plainText
+        />,
+      );
+    });
+
+    const editable = container.querySelector('[contenteditable="true"]');
+    const token = container.querySelector<HTMLElement>("[data-mention-kind='issue']");
+    expect(editable).toBeTruthy();
+    expect(token).toBeTruthy();
+    token!.getBoundingClientRect = () => ({
+      bottom: 20,
+      height: 20,
+      left: 100,
+      right: 180,
+      top: 0,
+      width: 80,
+      x: 100,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      token!.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 110,
+      }));
+    });
+
+    const selection = window.getSelection();
+    expect(selection?.anchorNode).toBe(editable);
+    expect(selection?.anchorOffset).toBe(0);
+
+    await act(async () => {
+      token!.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 170,
+      }));
+    });
+
+    expect(selection?.anchorNode).toBe(editable);
+    expect(selection?.anchorOffset).toBe(1);
+  });
+
   it("keeps the caret after a mention selected with Tab in a plain text composer", async () => {
     const restoreCaretRect = stubCaretRect();
     const container = document.createElement("div");
