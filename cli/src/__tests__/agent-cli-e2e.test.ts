@@ -386,6 +386,7 @@ describe("agent CLI e2e", () => {
   let agentId = "";
   let peerAgentId = "";
   let agentKey = "";
+  let peerAgentKey = "";
   let issueId = "";
   let firstCommentId = "";
   let secondCommentId = "";
@@ -485,6 +486,13 @@ describe("agent CLI e2e", () => {
       orgId,
       name: "agent-cli-e2e",
       keyHash: hashToken(agentKey),
+    });
+    peerAgentKey = createApiKeyToken();
+    await db.insert(agentApiKeys).values({
+      agentId: peerAgentId,
+      orgId,
+      name: "agent-cli-e2e-peer",
+      keyHash: hashToken(peerAgentKey),
     });
 
     await db.execute(sql`
@@ -1583,6 +1591,49 @@ describe("agent CLI e2e", () => {
       },
     );
     expect(additiveSnapshot.desiredSkills).toEqual(snapshot.desiredSkills);
+  });
+
+  it("lets a default-permission agent create a new agent through the CLI", { timeout: 60_000 }, async () => {
+    const env = {
+      RUDDER_API_KEY: peerAgentKey,
+      RUDDER_ORG_ID: orgId,
+      RUDDER_AGENT_ID: peerAgentId,
+      RUDDER_RUN_ID: runId,
+    };
+
+    const hire = await runCliJson<AgentHireResult>(
+      [
+        "agent",
+        "hire",
+        "--payload",
+        JSON.stringify({
+          name: "CLI Default Creator",
+          role: "general",
+          title: "CLI Default Creator",
+          icon: "crown",
+          reportsTo: peerAgentId,
+          capabilities: "Validates default agent creation permission",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: { cwd: tempRoot, model: "o4-mini" },
+          runtimeConfig: { heartbeat: { enabled: true, intervalSec: 300, wakeOnDemand: true } },
+        }),
+      ],
+      {
+        apiBase,
+        configPath,
+        env,
+      },
+    );
+
+    expect(hire.approval).toBeNull();
+    expect(hire.agent.status).toBe("idle");
+
+    const created = await runCliJson<AgentDetail>(["agent", "get", hire.agent.id], {
+      apiBase,
+      configPath,
+      env,
+    });
+    expect(created.permissions.canCreateAgents).toBe(true);
   });
 
   it("runs the CLI-only create-agent path", { timeout: 60_000 }, async () => {
