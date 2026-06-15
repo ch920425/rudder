@@ -105,6 +105,7 @@ export function BreadcrumbBar({
   const isIssuesRoute = useMemo(() => /^\/issues(?:\/|$)/.test(relativePath), [relativePath]);
   const isIssueDetailRoute = useMemo(() => /^\/issues\/[^/]+(?:\/|$)/.test(relativePath), [relativePath]);
   const isMessengerIssueDetailRoute = useMemo(() => /^\/messenger\/issues\/[^/]+(?:\/|$)/.test(relativePath), [relativePath]);
+  const isAutomationDetailRoute = useMemo(() => /^\/automations\/[^/]+(?:\/|$)/.test(relativePath), [relativePath]);
   const isLinearIssueSource = isIssuesRoute && activeIssueSource === "linear";
   const isPrimaryRailPage = useMemo(
     () => /^\/(?:dashboard|inbox|chat|messenger|issues|agents|library|projects|goals|automations|calendar)(?:\/|$)/.test(relativePath),
@@ -327,6 +328,7 @@ export function BreadcrumbBar({
 
   if (threeColumnTitle) {
     const showIssueDetailBreadcrumbs = ((isIssuesRoute && isIssueDetailRoute) || isMessengerIssueDetailRoute) && breadcrumbs.length > 1;
+    const showPrimaryDetailBreadcrumbs = showIssueDetailBreadcrumbs || (isAutomationDetailRoute && breadcrumbs.length > 1);
     const isProjectsRoute = /^\/projects(?:\/|$)/.test(relativePath);
     const isProjectsIndex = isProjectsRoute && !/^\/projects\/[^/]+/.test(relativePath);
     const isDashboardIndex = /^\/dashboard\/?$/.test(relativePath);
@@ -344,9 +346,12 @@ export function BreadcrumbBar({
         {openWorkspaceSidebarButton}
         {isDashboardIndex ? (
           <DashboardCalendarSwitcher />
-        ) : showIssueDetailBreadcrumbs ? (
+        ) : showPrimaryDetailBreadcrumbs ? (
           <div className={cn("min-w-0 flex-1", desktopChrome && "desktop-window-no-drag")}>
-            <Breadcrumb className="min-w-0 overflow-hidden" data-testid="issue-detail-breadcrumb">
+            <Breadcrumb
+              className="min-w-0 overflow-hidden"
+              data-testid={showIssueDetailBreadcrumbs ? "issue-detail-breadcrumb" : "primary-detail-breadcrumb"}
+            >
               <BreadcrumbList className="flex-nowrap overflow-hidden">
                 {breadcrumbs.map((crumb, i) => {
                   const isLast = i === breadcrumbs.length - 1;
@@ -385,7 +390,7 @@ export function BreadcrumbBar({
             <h1 className="truncate text-[15px] font-semibold tracking-tight text-foreground">{threeColumnTitle}</h1>
           </div>
         )}
-        {desktopChrome && !showIssueDetailBreadcrumbs ? <div className="desktop-window-drag hidden min-h-full flex-1 md:block" /> : null}
+        {desktopChrome && !showPrimaryDetailBreadcrumbs ? <div className="desktop-window-drag hidden min-h-full flex-1 md:block" /> : null}
         {isIssuesRoute ? (
           <div className={cn("hidden items-center gap-3 md:flex", desktopChrome && "desktop-window-no-drag")}>
             <div ref={issueSearchContainerRef} className="relative w-80">

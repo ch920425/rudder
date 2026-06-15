@@ -171,6 +171,22 @@ describe("BreadcrumbBar", () => {
     expect(html).not.toContain("Create Issue");
   });
 
+  it("uses automation detail breadcrumbs in the primary rail header", () => {
+    pathname = "/RUD/automations/auto-1";
+    mockBreadcrumbs = [
+      { label: "Automations", href: "/automations" },
+      { label: "Rudder SEO / GSC Daily Check" },
+    ];
+
+    const html = renderToStaticMarkup(<BreadcrumbBar variant="card" />);
+
+    expect(html).toContain('href="/automations"');
+    expect(html).toContain("Rudder SEO / GSC Daily Check");
+    expect(html).toContain("primary-detail-breadcrumb");
+    expect(html).toContain("list-none");
+    expect(html).not.toContain("<h1");
+  });
+
   it("keeps issue detail source state on ancestor breadcrumb links", () => {
     pathname = "/RUD/issues/RUD-197";
     locationState = { issueDetailBreadcrumb: { label: "Inbox", href: "/inbox?scope=recent" } };
