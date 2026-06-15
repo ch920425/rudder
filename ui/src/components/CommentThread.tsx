@@ -205,6 +205,30 @@ export function resolveCurrentIssueCommentLink(input: {
   return null;
 }
 
+export function resolveInternalMarkdownRoute(input: {
+  href: string;
+  baseHref: string;
+}): { pathname: string; search: string; hash: string } | null {
+  let target: URL;
+  let base: URL;
+  try {
+    base = new URL(input.baseHref);
+    target = new URL(input.href, base);
+  } catch {
+    return null;
+  }
+
+  if (target.origin !== base.origin) return null;
+  if (target.pathname === base.pathname && target.search === base.search && target.hash === base.hash) return null;
+  if (/^\/api(?:\/|$)/.test(target.pathname)) return null;
+
+  return {
+    pathname: target.pathname,
+    search: target.search,
+    hash: target.hash,
+  };
+}
+
 function buildCommentMarkdownLink(comment: CommentWithRunMeta, location: ReturnType<typeof useLocation>) {
   const href = buildIssueMentionHref(comment.issueId, extractIssueRouteRef(location), comment.id);
   return `[Issue comment ${comment.id.slice(0, 8)}](${href})`;
@@ -989,17 +1013,28 @@ export function CommentThread({
       currentIssueId,
       currentIssueRef: extractIssueRouteRef(location),
     });
-    if (!commentId) return;
+    if (commentId) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const hash = `#comment-${encodeURIComponent(commentId)}`;
+      if (location.hash === hash) {
+        scrollToComment(commentId);
+      } else {
+        navigate({ pathname: location.pathname, search: location.search, hash });
+      }
+      return true;
+    }
+
+    const route = resolveInternalMarkdownRoute({
+      href,
+      baseHref: window.location.href,
+    });
+    if (!route) return;
 
     event.preventDefault();
     event.stopPropagation();
-
-    const hash = `#comment-${encodeURIComponent(commentId)}`;
-    if (location.hash === hash) {
-      scrollToComment(commentId);
-    } else {
-      navigate({ pathname: location.pathname, search: location.search, hash });
-    }
+    navigate(route);
     return true;
   }, [currentIssueId, location, navigate, scrollToComment]);
 

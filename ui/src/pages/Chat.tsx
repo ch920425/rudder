@@ -291,6 +291,9 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       issue: draftIssueContext,
       agentId: activeSkillAgentId,
     })); }, [activeSkillAgentId, draftIssueContext, draftProjectDefaultKey, issues, pendingIssueId, pendingProjectPrefill, projects, selectedConversation, selectedOrganizationId, visibleProjects]);
+  const showConversationLoading = Boolean(
+    conversationId && !selectedConversation && conversationQuery.isPending && conversationQuery.data === undefined,
+  );
   useEffect(() => { if (!selectedOrganizationId) return; if (!relativePath.startsWith("/messenger/chat")) return; rememberMessengerPath(selectedOrganizationId, relativePath); }, [relativePath, selectedOrganizationId]); const refreshChat = async (chatId?: string | null) => { if (!selectedOrganizationId) return;
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "active") }),
@@ -1113,7 +1116,14 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {!selectedOrganizationId ? (
             <div className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-muted-foreground">
-              Select a organization first. </div> ) : selectedConversation ? ( <>
+              Select a organization first. </div> ) : showConversationLoading ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-5" data-testid="chat-conversation-loading-state">
+              <div ref={chatMessagesScrollRef} data-testid="chat-messages-scroll-region" className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto">
+                <div data-testid="chat-messages-content" className="mx-auto flex w-full max-w-4xl flex-col gap-5 pr-1">
+                  <ChatMessagesLoadingState />
+                </div>
+              </div>
+            </div> ) : selectedConversation ? ( <>
               <div className="pointer-events-none absolute right-3 top-12 z-20 flex justify-end md:right-3 md:top-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

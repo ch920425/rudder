@@ -11,6 +11,7 @@ import {
   commentIdFromIssueCommentHash,
   extractIssueRouteRefFromPathname,
   resolveCurrentIssueCommentLink,
+  resolveInternalMarkdownRoute,
 } from "./CommentThread";
 
 (
@@ -164,6 +165,33 @@ describe("CommentThread", () => {
       currentPathname: "/ZST/issues/ZST-573",
       currentIssueId: "issue-573",
       currentIssueRef: "ZST-573",
+    })).toBeNull();
+  });
+
+  it("resolves same-origin markdown routes for SPA navigation", () => {
+    expect(resolveInternalMarkdownRoute({
+      href: "/ZST/messenger/chat/chat-123",
+      baseHref: "http://localhost:3100/ZST/issues/ZST-617",
+    })).toEqual({
+      pathname: "/ZST/messenger/chat/chat-123",
+      search: "",
+      hash: "",
+    });
+    expect(resolveInternalMarkdownRoute({
+      href: "http://localhost:3100/ZST/messenger/chat/chat-123?x=1#turn-2",
+      baseHref: "http://localhost:3100/ZST/issues/ZST-617",
+    })).toEqual({
+      pathname: "/ZST/messenger/chat/chat-123",
+      search: "?x=1",
+      hash: "#turn-2",
+    });
+    expect(resolveInternalMarkdownRoute({
+      href: "/api/assets/asset-1/content",
+      baseHref: "http://localhost:3100/ZST/issues/ZST-617",
+    })).toBeNull();
+    expect(resolveInternalMarkdownRoute({
+      href: "https://example.com/ZST/messenger/chat/chat-123",
+      baseHref: "http://localhost:3100/ZST/issues/ZST-617",
     })).toBeNull();
   });
 

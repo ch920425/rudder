@@ -26,6 +26,7 @@ const mockState = vi.hoisted(() => ({
   conversationId: "chat-1" as string | null,
   conversations: [] as ChatConversation[],
   messagesByChatId: {} as Record<string, ChatMessage[]>,
+  pendingChatDetailIds: new Set<string>(),
   projects: [] as Project[],
   invalidateQueries: vi.fn(),
   markRead: vi.fn(),
@@ -48,6 +49,14 @@ vi.mock("@tanstack/react-query", () => ({
       return { data: mockState.conversations, isPending: false, isLoading: false, error: null };
     }
     if (queryKey[0] === "chats" && queryKey[1] === "detail") {
+      if (mockState.pendingChatDetailIds.has(String(queryKey[2]))) {
+        return {
+          data: undefined,
+          isPending: true,
+          isLoading: true,
+          error: null,
+        };
+      }
       return {
         data: mockState.conversations.find((chat) => chat.id === queryKey[2]) ?? null,
         isPending: false,
@@ -521,6 +530,7 @@ beforeEach(() => {
     "chat-1": [imageMessage(), pendingIssueProposal()],
     "chat-2": [message({ id: "other-message-1", conversationId: "chat-2", body: "Other chat" })],
   };
+  mockState.pendingChatDetailIds = new Set();
   mockState.invalidateQueries.mockReset();
   mockState.markRead.mockReset();
   mockState.mutations = [];
@@ -659,6 +669,22 @@ describe("Chat unread state", () => {
       inbox: 2,
       chatAttention: 1,
     });
+  });
+});
+
+describe("Chat route loading", () => {
+  it("shows a target conversation loading state instead of the new-chat empty state", () => {
+    mockState.conversationId = "chat-loading";
+    mockState.conversations = [];
+    mockState.messagesByChatId = {};
+    mockState.pendingChatDetailIds = new Set(["chat-loading"]);
+
+    const { container } = renderChat();
+
+    expect(container.querySelector("[data-testid='chat-conversation-loading-state']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='chat-composer-toolbar']")).toBeNull();
+    expect(container.querySelector("[data-testid='chat-empty-state-tabs']")).toBeNull();
+    expect(container.textContent).not.toContain("Scope a new feature");
   });
 });
 
