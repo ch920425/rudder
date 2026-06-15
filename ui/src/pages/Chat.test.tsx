@@ -340,6 +340,22 @@ describe("ChatMessageItem", () => {
     expect(html).toContain("Partial automation response.");
     expect(html).toContain('aria-label="Copy message"');
   });
+
+  it("renders failed assistant messages with a visible failure callout and retry action", () => {
+    const html = renderChatMessageItem(message({
+      role: "assistant",
+      kind: "message",
+      status: "failed",
+      body: "The assistant response failed.",
+      chatTurnId: "turn-1",
+    }));
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Response failed");
+    expect(html).toContain("This assistant response failed before it completed.");
+    expect(html).toContain(">Failed</span>");
+    expect(html).toContain("Retry");
+  });
 });
 
 describe("draft issue chat context", () => {

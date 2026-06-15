@@ -1722,10 +1722,23 @@ export function ChatMessageItem({
                   Continue
                 </button>
               ) : null}
+            </div>
+          ) : null}
+          {message.status === "failed" ? (
+            <div
+              className="mb-3 flex max-w-[72ch] items-start gap-3 rounded-[var(--radius-lg)] border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div className="min-w-0 flex-1" role="alert" aria-live="assertive">
+                <div className="text-sm font-semibold leading-5">Response failed</div>
+                <div className="mt-0.5 text-xs leading-5 text-destructive/85">
+                  This assistant response failed before it completed.
+                </div>
+              </div>
               {canRetryFailed ? (
                 <button
                   type="button"
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/15"
+                  className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-destructive/30 bg-background/70 px-2 text-xs font-medium text-destructive transition-colors hover:bg-background"
                   onClick={() => onRetryFailedMessage(message)}
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden />
