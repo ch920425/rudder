@@ -697,7 +697,7 @@ function SidebarIssueListSection({
                       <StatusIcon status={issue.status} />
                     </span>
                     <span className="flex min-h-5 min-w-0 flex-1 items-center gap-1.5">
-                      <span className="max-w-[6.5rem] shrink truncate font-mono text-[11px] leading-5 text-muted-foreground/78">{issueRef}</span>
+                      <span className="shrink-0 font-mono text-[11px] leading-5 text-muted-foreground/78">{issueRef}</span>
                       <span className="shrink-0 leading-5 text-muted-foreground/55">·</span>
                       <span className="min-w-0 truncate leading-5">{issue.title}</span>
                     </span>
