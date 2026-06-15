@@ -101,11 +101,19 @@ async function main() {
 
   const { Vercel } = await import("@vercel/sdk");
   const vercel = new Vercel({ bearerToken: token });
-  const config = await vercel.security.getFirewallConfig({
-    configVersion: "active",
-    projectId: options.projectId,
-    teamId: options.teamId,
-  });
+  let config = null;
+  try {
+    config = await vercel.security.getFirewallConfig({
+      configVersion: "active",
+      projectId: options.projectId,
+      teamId: options.teamId,
+    });
+  } catch (error) {
+    if (error?.statusCode !== 404) {
+      throw error;
+    }
+    console.log("No active firewall config exists yet; inserting the first custom rule.");
+  }
   const existingRule = findRuleByName(config, RULE_NAME);
 
   if (existingRule) {
