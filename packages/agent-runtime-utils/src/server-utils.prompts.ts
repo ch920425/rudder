@@ -1,13 +1,3 @@
-import { createHash } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
-import { constants as fsConstants, promises as fs, type Dirent } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import type {
-  AgentRuntimeSkillEntry,
-  AgentRuntimeSkillSnapshot,
-} from "./types.js";
-import { RunProcessResult, RunningProcess, SpawnTarget, ChildProcessWithEvents, runningProcesses, isChildProcessAlive, MAX_CAPTURE_BYTES, MAX_EXCERPT_BYTES, SENSITIVE_ENV_KEY, RUDDER_SKILL_ROOT_RELATIVE_CANDIDATES, DEFAULT_LOCAL_CLI_CREDENTIAL_HOME_ENTRIES, LocalCliCredentialShimCommand, DEFAULT_LOCAL_CLI_OPERATOR_HOME_SHIM_COMMANDS, RudderSkillEntry, InstalledSkillTarget, PersistentSkillSnapshotOptions, normalizePathSlashes, isMaintainerOnlySkillTarget, skillLocationLabel, buildManagedSkillOrigin, compactSkillText, parseSkillFrontmatterMetadata, readSkillMetadataFromDirectory, readSkillMetadataFromPath, resolveInstalledEntryTarget, parseObject, asString, asNumber, asBoolean, asStringArray, parseJson, appendWithCap, resolvePathValue, renderTemplate } from "./server-utils.process.js";
 
 export const DEFAULT_AGENT_PROMPT_TEMPLATE =
   `You are agent {{agent.id}} ({{agent.name}}). Continue your Rudder work.
@@ -316,6 +306,7 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "## Other",
   "- You can use `rudder` skill to see Agent best practise in Rudder. eg: update Agent profile, crud automation, manage library, project, org, curd agent run, chat, issue.",
   "- Before taking action, deeply analyze and research the existing information to ensure you have comprehensive context information before proceeding with the next action. You have your own goal, memory, skills, automation, library, project, org, use these resources to make better decisions.",
+  "- When the user explicitly mentions previously handled issue, tasks or conversations, you need to retrieve the relevant tasks first before proceeding with the next action."
 ].join("\n");
 
 export const RUDDER_AGENT_HEARTBEAT_INSTRUCTION = [
