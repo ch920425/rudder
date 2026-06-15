@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "../context/ThemeContext";
 import { MarkdownBody } from "./MarkdownBody";
 import type { MentionOption } from "./MarkdownEditor";
+import { __clearRudderEntityPreviewCachesForTests } from "./RudderEntityPreview";
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -143,6 +144,7 @@ let cleanupFn: (() => void) | null = null;
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
+  __clearRudderEntityPreviewCachesForTests();
   markdownMentionsMock.mentions = [];
   vi.clearAllMocks();
   localStorageMock.values.clear();
@@ -826,6 +828,38 @@ describe("MarkdownBody", () => {
     await focusPreviewLink(links[2] ?? null);
     expect(document.body.textContent).toContain("projects/rudder/product-brief.md");
     expect(document.body.textContent).toContain("Rudder coordinates agent work loops.");
+  });
+
+  it("reuses cached agent previews across repeated rendered mention chips", async () => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
+    entityPreviewApiMocks.getAgent.mockResolvedValue({
+      id: "agent-1",
+      orgId: "org-1",
+      name: "Wesley",
+      role: "engineer",
+      title: "Founding engineer",
+      icon: "code",
+      status: "active",
+      capabilities: "Ships focused Rudder changes and validates them.",
+    });
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {[
+            `[Wesley](${buildAgentMentionHref("agent-1", "code")})`,
+            `[Wesley again](${buildAgentMentionHref("agent-1", "code")})`,
+          ].join(" ")}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const links = container.querySelectorAll("a.rudder-mention-chip");
+    await focusPreviewLink(links[0] ?? null);
+    await focusPreviewLink(links[1] ?? null);
+
+    expect(entityPreviewApiMocks.getAgent).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Ships focused Rudder changes");
   });
 
   it("loads Library document and entry previews without giving chat links previews", async () => {

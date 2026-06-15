@@ -100,6 +100,20 @@ type PreviewState =
   | { status: "error"; message: string };
 
 const SELECTED_ORG_STORAGE_KEY = "rudder.selectedOrganizationId";
+const ENTITY_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type CachedPromise<T> = {
+  expiresAt: number;
+  promise: Promise<T>;
+};
+
+const entityPreviewCache = new Map<string, CachedPromise<EntityPreview>>();
+const agentDetailCache = new Map<string, CachedPromise<AgentDetail>>();
+
+export function __clearRudderEntityPreviewCachesForTests() {
+  entityPreviewCache.clear();
+  agentDetailCache.clear();
+}
 
 function readSelectedOrgId() {
   if (typeof window === "undefined") return null;
@@ -146,10 +160,48 @@ function shortId(value: string | null | undefined) {
   return value.length > 8 ? value.slice(0, 8) : value;
 }
 
+function cachedPromise<T>(
+  cache: Map<string, CachedPromise<T>>,
+  key: string,
+  loader: () => Promise<T>,
+  ttlMs = ENTITY_PREVIEW_CACHE_TTL_MS,
+) {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = loader().catch((error) => {
+    cache.delete(key);
+    throw error;
+  });
+  cache.set(key, { expiresAt: now + ttlMs, promise });
+  return promise;
+}
+
+function getCachedAgentDetail(agentId: string, orgId: string) {
+  return cachedPromise(
+    agentDetailCache,
+    `${orgId}:agent:${agentId}`,
+    () => agentsApi.get(agentId, orgId),
+  );
+}
+
+function entityPreviewCacheKey(mention: PreviewableMention, orgId: string) {
+  if (mention.kind === "issue") {
+    return `${orgId}:issue:${mention.issueId}:${mention.commentId ?? ""}`;
+  }
+  if (mention.kind === "agent") return `${orgId}:agent:${mention.agentId}`;
+  if (mention.kind === "project") return `${orgId}:project:${mention.projectId}`;
+  if (mention.kind === "library_doc") return `${orgId}:library_doc:${mention.documentId}`;
+  if (mention.kind === "library_entry") return `${orgId}:library_entry:${mention.entryId}`;
+  if (mention.kind === "library_file") return `${orgId}:library_file:${mention.filePath}`;
+  return `${orgId}:library_directory:${mention.directoryPath}`;
+}
+
 async function readAgentPreviewRef(agentId: string | null | undefined, orgId: string): Promise<AgentPreviewRef | null> {
   if (!agentId) return null;
   try {
-    const agent = await agentsApi.get(agentId, orgId);
+    const agent = await getCachedAgentDetail(agentId, orgId);
     return { name: agent.name, icon: agent.icon, role: agent.role };
   } catch {
     return { name: `agent ${shortId(agentId)}`, icon: null, role: null };
@@ -218,6 +270,22 @@ function buildAgentPreview(agent: AgentDetail): EntityPreview {
   };
 }
 
+function buildAgentFallbackPreview(
+  mention: Extract<PreviewableMention, { kind: "agent" }>,
+  label: string,
+): EntityPreview {
+  return {
+    kind: "agent",
+    eyebrow: "Agent",
+    title: label.replace(/^@(?=\S)/, "") || `Agent ${shortId(mention.agentId) ?? ""}`.trim(),
+    subtitle: null,
+    status: "",
+    icon: mention.icon,
+    role: null,
+    summary: null,
+  };
+}
+
 function buildProjectPreview(project: Project): EntityPreview {
   const goalSummary = project.goals.length > 0
     ? project.goals.map((goal) => goal.title).slice(0, 2).join(", ")
@@ -279,9 +347,9 @@ function buildWorkspaceFilePreview(file: OrganizationWorkspaceFileDetail, title?
   };
 }
 
-async function loadPreview(mention: PreviewableMention, label: string, orgId: string): Promise<EntityPreview> {
+async function loadPreviewUncached(mention: PreviewableMention, label: string, orgId: string): Promise<EntityPreview> {
   if (mention.kind === "issue") return buildIssuePreview(mention, orgId);
-  if (mention.kind === "agent") return buildAgentPreview(await agentsApi.get(mention.agentId, orgId));
+  if (mention.kind === "agent") return buildAgentPreview(await getCachedAgentDetail(mention.agentId, orgId));
   if (mention.kind === "project") return buildProjectPreview(await projectsApi.get(mention.projectId, orgId));
   if (mention.kind === "library_doc") {
     return buildLibraryDocumentPreview(await organizationsApi.getLibraryDocument(orgId, mention.documentId));
@@ -314,6 +382,14 @@ async function loadPreview(mention: PreviewableMention, label: string, orgId: st
     rows: [{ label: "Path", value: mention.directoryPath }],
     summary: "Open the folder to inspect its files.",
   };
+}
+
+function loadPreview(mention: PreviewableMention, label: string, orgId: string): Promise<EntityPreview> {
+  return cachedPromise(
+    entityPreviewCache,
+    entityPreviewCacheKey(mention, orgId),
+    () => loadPreviewUncached(mention, label, orgId),
+  );
 }
 
 function PreviewRowIcon({ row }: { row: PreviewRow }) {
@@ -461,7 +537,11 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
     }
 
     let cancelled = false;
-    setState({ status: "loading" });
+    if (mention.kind === "agent") {
+      setState({ status: "ready", preview: buildAgentFallbackPreview(mention, label) });
+    } else {
+      setState({ status: "loading" });
+    }
     void loadPreview(mention, label, orgId)
       .then((preview) => {
         if (!cancelled) setState({ status: "ready", preview });
