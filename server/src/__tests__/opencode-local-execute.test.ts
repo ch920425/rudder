@@ -1,4 +1,5 @@
 import { execute, resetOpenCodeModelsCacheForTests } from "@rudderhq/agent-runtime-opencode-local/server";
+import { buildOpenCodeLocalConfig } from "@rudderhq/agent-runtime-opencode-local/ui";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,7 +34,9 @@ if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
 }
 console.log(JSON.stringify({ type: "step_start", sessionID: "opencode-session-1" }));
-console.log(JSON.stringify({ type: "text", part: { type: "text", text: "hello" } }));
+if (process.env.RUDDER_TEST_NO_FINAL_TEXT !== "1") {
+  console.log(JSON.stringify({ type: "text", part: { type: "text", text: "hello" } }));
+}
 console.log(JSON.stringify({
   type: "step_finish",
   part: {
@@ -48,6 +51,75 @@ console.log(JSON.stringify({
 }
 
 describe("opencode execute", { timeout: 20_000 }, () => {
+  it("does not inherit the global dangerous permission default unless explicitly enabled", () => {
+    expect(buildOpenCodeLocalConfig({
+      agentRuntimeType: "opencode_local",
+      cwd: "",
+      instructionsFilePath: "",
+      promptTemplate: "",
+      model: "opencode/deepseek-v4-flash-free",
+      modelFallbacks: [],
+      thinkingEffort: "",
+      chrome: false,
+      dangerouslySkipPermissions: true,
+      search: false,
+      dangerouslyBypassSandbox: false,
+      command: "",
+      args: "",
+      extraArgs: "",
+      envVars: "",
+      envBindings: {},
+      url: "",
+      bootstrapPrompt: "",
+      payloadTemplateJson: "",
+      workspaceStrategyType: "project_primary",
+      workspaceBaseRef: "",
+      workspaceBranchTemplate: "",
+      worktreeParentDir: "",
+      runtimeServicesJson: "",
+      maxTurnsPerRun: 300,
+      heartbeatEnabled: false,
+      intervalSec: 300,
+      preflightEnabled: true,
+      maxConcurrentRuns: 1,
+    })).toMatchObject({
+      model: "opencode/deepseek-v4-flash-free",
+      dangerouslySkipPermissions: true,
+    });
+
+    expect(buildOpenCodeLocalConfig({
+      agentRuntimeType: "opencode_local",
+      cwd: "",
+      instructionsFilePath: "",
+      promptTemplate: "",
+      model: "opencode/deepseek-v4-flash-free",
+      modelFallbacks: [],
+      thinkingEffort: "",
+      chrome: false,
+      dangerouslySkipPermissions: false,
+      search: false,
+      dangerouslyBypassSandbox: false,
+      command: "",
+      args: "",
+      extraArgs: "",
+      envVars: "",
+      envBindings: {},
+      url: "",
+      bootstrapPrompt: "",
+      payloadTemplateJson: "",
+      workspaceStrategyType: "project_primary",
+      workspaceBaseRef: "",
+      workspaceBranchTemplate: "",
+      worktreeParentDir: "",
+      runtimeServicesJson: "",
+      maxTurnsPerRun: 300,
+      heartbeatEnabled: false,
+      intervalSec: 300,
+      preflightEnabled: true,
+      maxConcurrentRuns: 1,
+    })).not.toHaveProperty("dangerouslySkipPermissions");
+  });
+
   it("prepends sibling memory instructions and reports memory prompt metrics", async () => {
     resetOpenCodeModelsCacheForTests();
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-execute-memory-"));
@@ -113,11 +185,14 @@ describe("opencode execute", { timeout: 20_000 }, () => {
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
         prompt: string;
         rudderEnvKeys: string[];
         gitIdentity: GitIdentityCapture;
       };
       expectPreparedGitConfigCapture(capture);
+      expect(capture.argv).toEqual(expect.arrayContaining(["run", "--format", "json", "--dir", workspace]));
+      expect(capture.argv).not.toContain("--dangerously-skip-permissions");
       expect(capture.prompt).toContain("# Agent Instructions");
       expect(capture.prompt).toContain("# Tacit Memory");
       expect(capture.rudderEnvKeys).toEqual(expect.arrayContaining([
@@ -127,6 +202,113 @@ describe("opencode execute", { timeout: 20_000 }, () => {
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("passes explicit cwd and permission bypass when configured", async () => {
+    resetOpenCodeModelsCacheForTests();
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-execute-dir-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "opencode");
+    const capturePath = path.join(root, "capture.json");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeOpenCodeCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    process.env.HOME = root;
+
+    try {
+      await execute({
+        runId: "run-opencode-dir",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "OpenCode Agent",
+          agentRuntimeType: "opencode_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "openai/gpt-4.1-mini",
+          dangerouslySkipPermissions: true,
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as { argv: string[] };
+      expect(capture.argv).toEqual(expect.arrayContaining(["run", "--format", "json", "--dir", workspace]));
+      expect(capture.argv).toContain("--dangerously-skip-permissions");
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("marks a zero-exit run without final text as degraded instead of returning an empty summary", async () => {
+    resetOpenCodeModelsCacheForTests();
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-execute-no-summary-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "opencode");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeOpenCodeCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    process.env.HOME = root;
+
+    try {
+      const result = await execute({
+        runId: "run-opencode-no-summary",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "OpenCode Agent",
+          agentRuntimeType: "opencode_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "openai/gpt-4.1-mini",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_NO_FINAL_TEXT: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.errorMessage).toContain("without a final text summary");
+      expect(result.summary).toContain("without a final text summary");
+      expect(result.resultJson).toMatchObject({ summaryStatus: "missing_final_text" });
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;

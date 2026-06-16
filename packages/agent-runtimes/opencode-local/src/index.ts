@@ -23,6 +23,7 @@ Core fields:
 - model (string, required): OpenCode model id in provider/model format (for example opencode/deepseek-v4-flash-free)
 - modelFallbacks (array, optional): ordered fallback attempts as { agentRuntimeType, model, config? }; each may use a different runtime/provider
 - variant (string, optional): provider-specific model variant (for example minimal|low|medium|high|max)
+- dangerouslySkipPermissions (boolean, optional): pass --dangerously-skip-permissions to opencode
 - promptTemplate (string, optional): run prompt template
 - command (string, optional): defaults to "opencode"
 - extraArgs (string[], optional): additional CLI args
@@ -37,6 +38,8 @@ Notes:
   \`opencode models\` to list available options in provider/model format.
 - Rudder requires an explicit \`model\` value for \`opencode_local\` agents.
 - Rudder loads only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page; user-home Claude/OpenCode skills are discovery candidates until selected there.
-- Runs are executed with: opencode run --format json ...
+- Runs are executed with: opencode run --format json --dir <cwd> ...
 - Sessions are resumed with --session when stored session cwd matches current cwd.
+- dangerouslySkipPermissions is opt-in for OpenCode. New OpenCode agents do not inherit the global Claude-oriented dangerous permission default unless this field is explicitly true.
+- A zero-exit OpenCode run that writes files but emits no final text is marked degraded instead of reported as an empty successful Rudder result.
 `;

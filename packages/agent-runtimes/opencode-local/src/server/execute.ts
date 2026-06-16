@@ -1,6 +1,7 @@
 import { inferOpenAiCompatibleBiller, type AgentRuntimeExecutionContext, type AgentRuntimeExecutionResult } from "@rudderhq/agent-runtime-utils";
 import { applyGitCredentialHelperPolicyEnv, applyGitIdentityPreparationEnv, ensureGitIdentityFileConfig } from "@rudderhq/agent-runtime-utils/git-identity";
 import {
+  asBoolean,
   asNumber,
   asString,
   asStringArray,
@@ -176,6 +177,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const command = asString(config.command, "opencode");
   const model = asString(config.model, "").trim();
   const variant = asString(config.variant, "").trim();
+  const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
 
   const workspaceContext = parseObject(context.rudderWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
@@ -421,10 +423,11 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   };
 
   const buildArgs = (resumeSessionId: string | null) => {
-    const args = ["run", "--format", "json"];
+    const args = ["run", "--format", "json", "--dir", cwd];
     if (resumeSessionId) args.push("--session", resumeSessionId);
     if (model) args.push("--model", model);
     if (variant) args.push("--variant", variant);
+    if (dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
     if (extraArgs.length > 0) args.push(...extraArgs);
     return args;
   };
@@ -494,12 +497,20 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         } as Record<string, unknown>)
       : null;
 
-    const parsedError = typeof attempt.parsed.errorMessage === "string" ? attempt.parsed.errorMessage.trim() : "";
     const stderrLine = firstNonEmptyLine(attempt.proc.stderr);
     const rawExitCode = attempt.proc.exitCode;
-    const synthesizedExitCode = parsedError && (rawExitCode ?? 0) === 0 ? 1 : rawExitCode;
+    const parsedError = typeof attempt.parsed.errorMessage === "string" ? attempt.parsed.errorMessage.trim() : "";
+    const missingFinalSummary =
+      !parsedError &&
+      (rawExitCode ?? 0) === 0 &&
+      attempt.parsed.summary.trim().length === 0;
+    const synthesizedExitCode =
+      (parsedError || missingFinalSummary) && (rawExitCode ?? 0) === 0 ? 1 : rawExitCode;
     const fallbackErrorMessage =
       parsedError ||
+      (missingFinalSummary
+        ? "OpenCode completed without a final text summary; Rudder requires final text to persist a trustworthy run result."
+        : "") ||
       stderrLine ||
       `OpenCode exited with code ${synthesizedExitCode ?? -1}`;
     const modelId = model || null;
@@ -525,8 +536,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,
+        ...(missingFinalSummary ? { summaryStatus: "missing_final_text" } : {}),
       },
-      summary: attempt.parsed.summary,
+      summary: attempt.parsed.summary || ((synthesizedExitCode ?? 0) === 0 ? "" : fallbackErrorMessage),
       clearSession: Boolean(clearSessionOnMissingSession && !attempt.parsed.sessionId),
     };
   };

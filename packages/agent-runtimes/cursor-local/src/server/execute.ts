@@ -393,14 +393,22 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       (entry): entry is [string, string] => typeof entry[1] === "string",
     ),
   );
-  const billingType = resolveCursorBillingType(effectiveEnv);
-  const runtimeEnv = await ensureLocalCliCredentialShimsInPath({
-    operatorHome,
-    targetHome: managedHome,
-    cwd,
-    env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, effectiveEnv)),
-    onLog,
-  });
+  const runtimeEnv = Object.fromEntries(
+    Object.entries(await ensureLocalCliCredentialShimsInPath({
+      operatorHome,
+      targetHome: managedHome,
+      cwd,
+      env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, effectiveEnv)),
+      commands: [
+        {
+          command: path.basename(command),
+          credentialEntries: [".cursor"],
+        },
+      ],
+      onLog,
+    })).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+  const billingType = resolveCursorBillingType(runtimeEnv);
   if (typeof runtimeEnv.PATH === "string") env.PATH = runtimeEnv.PATH;
   if (typeof runtimeEnv.Path === "string") env.Path = runtimeEnv.Path;
   await ensureCommandResolvable(command, cwd, runtimeEnv);
@@ -576,7 +584,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
 
     const proc = await runChildProcess(runId, command, args, {
       cwd,
-      env,
+      env: runtimeEnv,
       timeoutSec,
       graceSec,
       stdin: prompt,
@@ -653,7 +661,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       sessionParams: resolvedSessionParams,
       sessionDisplayId: resolvedSessionId,
       provider: providerFromModel,
-      biller: resolveCursorBiller(effectiveEnv, billingType, providerFromModel),
+      biller: resolveCursorBiller(runtimeEnv, billingType, providerFromModel),
       model,
       billingType,
       costUsd: attempt.parsed.costUsd,

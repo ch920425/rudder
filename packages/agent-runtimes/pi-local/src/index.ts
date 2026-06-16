@@ -21,7 +21,7 @@ Don't use when:
 Core fields:
 - cwd (string, optional): default absolute working directory fallback for the agent process (created if missing when possible)
 - instructionsFilePath (string, optional): absolute path to a markdown role/persona instructions file such as SOUL.md; Rudder's shared operating contract is appended separately at runtime
-- promptTemplate (string, optional): user prompt template passed via -p flag
+- promptTemplate (string, optional): user prompt template passed as the headless --print message
 - model (string, required): Pi model id in provider/model format (for example kimi-coding/kimi-for-coding)
 - modelFallbacks (array, optional): ordered fallback attempts as { agentRuntimeType, model, config? }; each may use a different runtime/provider
 - thinking (string, optional): thinking level (off, minimal, low, medium, high, xhigh)
@@ -39,5 +39,6 @@ Notes:
 - Rudder realizes only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page.
 - Selected skills are linked into a Rudder-managed Pi home for the run; unselected skills already present in the real user home do not load.
 - All tools (read, bash, edit, write, grep, find, ls) are enabled by default.
-- Agent instructions are appended to Pi's system prompt via --append-system-prompt, while the user task is sent via -p.
+- Agent instructions are appended to Pi's system prompt via --append-system-prompt, while the user task is sent as the --print JSON-mode message.
+- Rudder parses Pi's full JSON stdout for final text, usage, and tool events, but stores a sanitized stdout view so large thinking/signature payloads do not dominate run logs.
 `;

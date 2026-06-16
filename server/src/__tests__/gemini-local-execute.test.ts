@@ -121,6 +121,7 @@ describe("gemini execute", { timeout: 20_000 }, () => {
       expect(capture.argv).toContain("--output-format");
       expect(capture.argv).toContain("stream-json");
       expect(capture.argv).toContain("--prompt");
+      expect(capture.argv).toContain("--skip-trust");
       expect(capture.argv).toContain("--approval-mode");
       expect(capture.argv).toContain("yolo");
       const promptFlagIndex = capture.argv.indexOf("--prompt");
@@ -157,7 +158,7 @@ describe("gemini execute", { timeout: 20_000 }, () => {
     }
   });
 
-  it("always passes --approval-mode yolo", async () => {
+  it("always passes --skip-trust and --approval-mode yolo", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-gemini-yolo-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "gemini");
@@ -184,6 +185,7 @@ describe("gemini execute", { timeout: 20_000 }, () => {
       });
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expect(capture.argv).toContain("--skip-trust");
       expect(capture.argv).toContain("--approval-mode");
       expect(capture.argv).toContain("yolo");
       expect(capture.argv).not.toContain("--policy");

@@ -13,6 +13,7 @@ import {
   ensureRudderSkillSymlink,
   joinPromptSections,
   loadAgentInstructionsPrefix,
+  parseJson,
   parseObject,
   prepareAgentInstructionRuntimeContext,
   readRudderRuntimeSkillEntries,
@@ -34,6 +35,8 @@ import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RUDDER_INSTANCE_ID = "default";
+const MAX_PI_LOG_TEXT_CHARS = 4_000;
+const MAX_PI_RESULT_STDOUT_BYTES = 64 * 1024;
 
 function firstNonEmptyLine(text: string): string {
   return (
@@ -42,6 +45,155 @@ function firstNonEmptyLine(text: string): string {
       .map((line) => line.trim())
       .find(Boolean) ?? ""
   );
+}
+
+function truncateText(value: string, maxChars = MAX_PI_LOG_TEXT_CHARS): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars)}... [truncated ${value.length - maxChars} chars]`;
+}
+
+function extractPiTextContentForLog(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((item): item is { type: string; text?: string } =>
+      typeof item === "object" &&
+      item !== null &&
+      !Array.isArray(item) &&
+      (item as { type?: unknown }).type === "text" &&
+      typeof (item as { text?: unknown }).text === "string")
+    .map((item) => item.text ?? "")
+    .join("");
+}
+
+function redactNoisyPiValue(value: unknown, depth = 0): unknown {
+  if (depth > 6) return "[truncated-depth]";
+  if (typeof value === "string") return truncateText(value);
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => redactNoisyPiValue(item, depth + 1));
+
+  const output: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (/signature|thinking|reasoning/i.test(key)) {
+      output[key] = "[redacted]";
+      continue;
+    }
+    output[key] = redactNoisyPiValue(child, depth + 1);
+  }
+  return output;
+}
+
+function previewJsonValue(value: unknown, maxChars = MAX_PI_LOG_TEXT_CHARS): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string") return truncateText(value, maxChars);
+  try {
+    return truncateText(JSON.stringify(redactNoisyPiValue(value)), maxChars);
+  } catch {
+    return truncateText(String(value), maxChars);
+  }
+}
+
+function sanitizePiStdoutLine(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+  const event = parseJson(trimmed);
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
+    return truncateText(trimmed);
+  }
+
+  const record = event as Record<string, unknown>;
+  const type = asString(record.type, "");
+  const output: Record<string, unknown> = type ? { type } : { type: "event" };
+
+  if (type === "session") {
+    for (const key of ["version", "id", "timestamp", "cwd"]) {
+      if (record[key] !== undefined) output[key] = record[key];
+    }
+    return JSON.stringify(output);
+  }
+
+  if (type === "agent_end") {
+    const messages = Array.isArray(record.messages) ? record.messages : [];
+    const lastAssistant = [...messages].reverse().find((message) =>
+      typeof message === "object" &&
+      message !== null &&
+      !Array.isArray(message) &&
+      (message as { role?: unknown }).role === "assistant") as Record<string, unknown> | undefined;
+    const finalText = lastAssistant ? extractPiTextContentForLog(lastAssistant.content) : "";
+    output.messageCount = messages.length;
+    if (finalText) output.finalText = truncateText(finalText);
+    return JSON.stringify(output);
+  }
+
+  if (type === "turn_end") {
+    const message = record.message && typeof record.message === "object" && !Array.isArray(record.message)
+      ? record.message as Record<string, unknown>
+      : null;
+    if (message) {
+      output.message = {
+        role: message.role,
+        stopReason: message.stopReason,
+        errorMessage: message.errorMessage,
+        text: truncateText(extractPiTextContentForLog(message.content)),
+        usage: message.usage,
+      };
+    }
+    const toolResults = Array.isArray(record.toolResults) ? record.toolResults : [];
+    if (toolResults.length > 0) {
+      output.toolResults = toolResults.map((toolResult) => {
+        if (typeof toolResult !== "object" || toolResult === null || Array.isArray(toolResult)) {
+          return { content: previewJsonValue(toolResult) };
+        }
+        const toolRecord = toolResult as Record<string, unknown>;
+        return {
+          toolCallId: toolRecord.toolCallId,
+          isError: toolRecord.isError === true,
+          content: previewJsonValue(toolRecord.content),
+        };
+      });
+    }
+    return JSON.stringify(output);
+  }
+
+  if (type === "message_update") {
+    const assistantEvent = record.assistantMessageEvent &&
+      typeof record.assistantMessageEvent === "object" &&
+      !Array.isArray(record.assistantMessageEvent)
+      ? record.assistantMessageEvent as Record<string, unknown>
+      : null;
+    const messageType = assistantEvent ? asString(assistantEvent.type, "") : "";
+    output.assistantMessageEvent = {
+      type: messageType || "unknown",
+      ...(messageType === "text_delta" ? { delta: truncateText(asString(assistantEvent?.delta, "")) } : {}),
+    };
+    return JSON.stringify(output);
+  }
+
+  if (type === "tool_execution_start" || type === "tool_execution_end") {
+    output.toolCallId = record.toolCallId;
+    output.toolName = record.toolName;
+    if (record.args !== undefined) output.args = previewJsonValue(record.args);
+    if (record.result !== undefined) output.result = previewJsonValue(record.result);
+    if (record.isError !== undefined) output.isError = record.isError === true;
+    return JSON.stringify(output);
+  }
+
+  if (type === "usage" || record.usage !== undefined) {
+    output.usage = record.usage;
+    return JSON.stringify(output);
+  }
+
+  return JSON.stringify(output);
+}
+
+function sanitizePiStdout(stdout: string): string {
+  const sanitized = stdout
+    .split(/\r?\n/)
+    .map(sanitizePiStdoutLine)
+    .filter(Boolean)
+    .join("\n");
+  if (Buffer.byteLength(sanitized, "utf8") <= MAX_PI_RESULT_STDOUT_BYTES) return sanitized;
+  return `${sanitized.slice(0, MAX_PI_RESULT_STDOUT_BYTES)}\n[rudder] Pi stdout sanitized and truncated for persistence.`;
 }
 
 function parseModelProvider(model: string | null): string | null {
@@ -501,9 +653,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
 
   const buildArgs = (sessionFile: string): string[] => {
     const args: string[] = [];
-    
-    // Use RPC mode for proper lifecycle management (waits for agent completion)
-    args.push("--mode", "rpc");
+
+    // Use headless JSON mode so the process exits only after the model turn finishes.
+    args.push("--print", "--mode", "json");
     
     // Use --append-system-prompt to extend Pi's default system prompt
     args.push("--append-system-prompt", renderedSystemPromptExtension);
@@ -523,24 +675,16 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     return args;
   };
 
-  const buildRpcStdin = (): string => {
-    // Send the prompt as an RPC command
-    const promptCommand = {
-      type: "prompt",
-      message: userPrompt,
-    };
-    return JSON.stringify(promptCommand) + "\n";
-  };
-
   const runAttempt = async (sessionFile: string) => {
     const args = buildArgs(sessionFile);
+    const processArgs = [...args, userPrompt];
     if (onMeta) {
       await onMeta({
         agentRuntimeType: "pi_local",
         command,
         cwd,
         commandNotes,
-        commandArgs: args,
+        commandArgs: [...args, `<prompt ${userPrompt.length} chars>`],
         env: redactEnvForLogs(env),
         prompt: userPrompt,
         promptMetrics,
@@ -566,12 +710,13 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       // Emit complete lines
       for (const line of lines) {
         if (line) {
-          await onLog(stream, line + "\n");
+          const sanitizedLine = sanitizePiStdoutLine(line);
+          if (sanitizedLine) await onLog(stream, `${sanitizedLine}\n`);
         }
       }
     };
 
-    const proc = await runChildProcess(runId, command, args, {
+    const proc = await runChildProcess(runId, command, processArgs, {
       cwd,
       env: runtimeEnv,
       timeoutSec,
@@ -579,12 +724,12 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       onSpawn,
       abortSignal: ctx.abortSignal,
       onLog: bufferedOnLog,
-      stdin: buildRpcStdin(),
     });
     
     // Flush any remaining buffer content
     if (stdoutBuffer) {
-      await onLog("stdout", stdoutBuffer);
+      const sanitizedLine = sanitizePiStdoutLine(stdoutBuffer);
+      if (sanitizedLine) await onLog("stdout", sanitizedLine);
     }
     
     return {
@@ -640,8 +785,10 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       billingType: "unknown",
       costUsd: attempt.parsed.usage.costUsd,
       resultJson: {
-        stdout: attempt.proc.stdout,
+        stdout: sanitizePiStdout(attempt.proc.stdout),
         stderr: attempt.proc.stderr,
+        rawStdoutBytes: Buffer.byteLength(attempt.proc.stdout, "utf8"),
+        stdoutSanitized: true,
       },
       summary: attempt.parsed.finalMessage ?? attempt.parsed.messages.join("\n\n").trim(),
       clearSession: Boolean(clearSessionOnMissingSession),

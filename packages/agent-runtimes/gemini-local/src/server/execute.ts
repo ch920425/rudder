@@ -395,7 +395,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const instructionsDir = loadedInstructions.instructionsDir;
   const commandNotes = (() => {
     const notes: string[] = ["Prompt is passed to Gemini via --prompt for non-interactive execution."];
-    notes.push("Added --approval-mode yolo for unattended execution.");
+    notes.push("Added --approval-mode yolo and --skip-trust for unattended execution.");
     if (!instructionsFilePath) {
       notes.push(...loadedInstructions.commandNotes, "Prepended Rudder operating contract to prompt.");
       return notes;
@@ -482,6 +482,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     const args = ["--output-format", "stream-json"];
     if (resumeSessionId) args.push("--resume", resumeSessionId);
     if (model && model !== DEFAULT_GEMINI_LOCAL_MODEL) args.push("--model", model);
+    args.push("--skip-trust");
     args.push("--approval-mode", "yolo");
     if (sandbox) {
       args.push("--sandbox");

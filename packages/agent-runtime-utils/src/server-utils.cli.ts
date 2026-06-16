@@ -640,15 +640,15 @@ export async function shouldPrepareOperatorHomeShim(input: {
   targetHome: string;
   operatorHome: string;
 }): Promise<boolean> {
-  const authCheckArgs = input.command.authCheckArgs;
-  if (!authCheckArgs || authCheckArgs.length === 0) return true;
-
   if (input.command.credentialEntries && input.command.credentialEntries.length > 0) {
     const hasOperatorCredentialEntry = await Promise.all(
       input.command.credentialEntries.map((entry) => localCliPathExists(path.join(input.operatorHome, entry))),
     );
     if (!hasOperatorCredentialEntry.some(Boolean)) return false;
   }
+
+  const authCheckArgs = input.command.authCheckArgs;
+  if (!authCheckArgs || authCheckArgs.length === 0) return true;
 
   const managedHomeWorks = await runCredentialShimAuthCheck({
     targetCommand: input.targetCommand,

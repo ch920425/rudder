@@ -178,6 +178,9 @@ export function createValuesForRuntime(agentRuntimeType: string): CreateConfigVa
     values.search = DEFAULT_CODEX_LOCAL_SEARCH;
     values.dangerouslyBypassSandbox = DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
   }
+  if (agentRuntimeType === "opencode_local") {
+    values.dangerouslySkipPermissions = false;
+  }
   return values;
 }
 

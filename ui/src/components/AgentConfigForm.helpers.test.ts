@@ -14,6 +14,7 @@ describe("AgentConfigForm runtime defaults", () => {
     expect(defaultConfigForRuntime("opencode_local")).toMatchObject({
       model: "opencode/deepseek-v4-flash-free",
     });
+    expect(defaultConfigForRuntime("opencode_local")).not.toHaveProperty("dangerouslySkipPermissions");
 
     expect(defaultModelForRuntime("pi_local")).toBe("kimi-coding/kimi-for-coding");
     expect(defaultConfigForRuntime("pi_local")).toMatchObject({

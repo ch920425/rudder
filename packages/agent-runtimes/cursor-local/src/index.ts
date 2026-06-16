@@ -80,6 +80,7 @@ Notes:
 - Prompts are piped to Cursor via stdin.
 - Sessions are resumed with --resume when stored session cwd matches current cwd.
 - Rudder realizes only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page.
-- Selected skills are linked into a Rudder-managed Cursor home for the run; unselected skills already present in the real user home do not load.
+- Cursor subscription authentication is operator-home scoped. When ~/.cursor exists, Rudder launches cursor-agent through an operator HOME credential shim while still passing the Rudder workspace, prompt, and environment explicitly.
+- Selected skills are linked into a Rudder-managed Cursor home for the run; when the operator HOME credential shim is active, Cursor may also see operator-home Cursor configuration needed for local authentication.
 - Rudder auto-adds --yolo unless one of --trust/--yolo/-f is already present in extraArgs.
 `;

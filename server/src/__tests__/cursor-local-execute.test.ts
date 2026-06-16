@@ -15,9 +15,19 @@ async function writeFakeCursorCommand(commandPath: string): Promise<void> {
 const fs = require("node:fs");
 ${gitIdentityCaptureSnippet}
 
+if (process.argv[2] === "status") {
+  if ((process.env.HOME || "").includes("cursor-home")) {
+    console.error("Authentication required. Please run 'agent login' first.");
+    process.exit(1);
+  }
+  console.log("Logged in");
+  process.exit(0);
+}
+
 const capturePath = process.env.RUDDER_TEST_CAPTURE_PATH;
 const payload = {
   argv: process.argv.slice(2),
+  home: process.env.HOME,
   prompt: fs.readFileSync(0, "utf8"),
   rudderEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("RUDDER_"))
@@ -50,6 +60,7 @@ console.log(JSON.stringify({
 
 type CapturePayload = {
   argv: string[];
+  home: string;
   prompt: string;
   rudderEnvKeys: string[];
   gitIdentity: GitIdentityCapture;
@@ -232,6 +243,68 @@ describe("cursor execute", { timeout: 20_000 }, () => {
       expect(capture.argv).toContain("--mode");
       expect(capture.argv).toContain("ask");
     } finally {
+      restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the operator HOME shim when Cursor auth works outside the managed HOME", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-shim-"));
+    const workspace = path.join(root, "workspace");
+    const binDir = path.join(root, "bin");
+    const commandPath = path.join(binDir, "cursor-agent");
+    const capturePath = path.join(root, "capture.json");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(path.join(root, ".cursor"), { recursive: true });
+    await writeFakeCursorCommand(commandPath);
+
+    const restoreEnv = setManagedCursorEnv(root);
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${process.env.PATH ?? ""}`;
+    const logs: string[] = [];
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-shim",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: "cursor-agent",
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async (_stream, chunk) => {
+          logs.push(chunk);
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      expect(logs.join("")).toContain("Prepared local CLI credential shim");
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expect(capture.home).toBe(root);
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
       restoreEnv();
       await fs.rm(root, { recursive: true, force: true });
     }

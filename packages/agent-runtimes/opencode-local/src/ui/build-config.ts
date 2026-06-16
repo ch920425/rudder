@@ -60,6 +60,7 @@ export function buildOpenCodeLocalConfig(v: CreateConfigValues): Record<string, 
   const modelFallbacks = normalizeModelFallbacks(v.modelFallbacks, { agentRuntimeType: "opencode_local", model: v.model });
   if (modelFallbacks.length > 0) ac.modelFallbacks = modelFallbacks;
   if (v.thinkingEffort) ac.variant = v.thinkingEffort;
+  if (v.dangerouslySkipPermissions === true) ac.dangerouslySkipPermissions = true;
   // OpenCode sessions can run until the CLI exits naturally; keep timeout disabled (0)
   // and rely on graceSec for termination handling when a timeout is configured elsewhere.
   ac.timeoutSec = 0;

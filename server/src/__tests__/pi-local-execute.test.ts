@@ -36,6 +36,54 @@ if (capturePath) {
     gitIdentity: captureGitIdentityEnv(),
   }), "utf8");
 }
+if (process.env.RUDDER_TEST_PI_REALISTIC_OUTPUT === "1") {
+  const bigSignature = "sig_".repeat(3000);
+  console.log(JSON.stringify({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() }));
+  console.log(JSON.stringify({ type: "agent_start", signature: bigSignature }));
+  console.log(JSON.stringify({ type: "turn_start" }));
+  console.log(JSON.stringify({
+    type: "message_update",
+    assistantMessageEvent: {
+      type: "thinking_delta",
+      thinking: "internal reasoning should not be persisted",
+      signature: bigSignature
+    }
+  }));
+  console.log(JSON.stringify({
+    type: "message_update",
+    assistantMessageEvent: { type: "text_delta", delta: "streamed " }
+  }));
+  console.log(JSON.stringify({
+    type: "tool_execution_start",
+    toolCallId: "tool-1",
+    toolName: "write",
+    args: { path: "output.txt", content: "RUDDER_CAPABILITY_SUM=18", signature: bigSignature }
+  }));
+  console.log(JSON.stringify({
+    type: "tool_execution_end",
+    toolCallId: "tool-1",
+    toolName: "write",
+    result: { ok: true, signature: bigSignature },
+    isError: false
+  }));
+  console.log(JSON.stringify({
+    type: "turn_end",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "turn ok" }],
+      usage: { input: 10, output: 3, cacheRead: 2, cost: { total: 0.01 } }
+    },
+    toolResults: [{ toolCallId: "tool-1", content: { ok: true, signature: bigSignature }, isError: false }]
+  }));
+  console.log(JSON.stringify({
+    type: "agent_end",
+    messages: [
+      { role: "user", content: "task" },
+      { role: "assistant", content: [{ type: "text", text: "final ok" }], signature: bigSignature }
+    ]
+  }));
+  process.exit(0);
+}
 console.log(JSON.stringify({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() }));
 console.log(JSON.stringify({ type: "agent_start" }));
 console.log(JSON.stringify({ type: "turn_start" }));
@@ -137,6 +185,10 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(result.errorMessage).toBeNull();
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
       expectPreparedGitConfigCapture(capture);
+      expect(capture.argv).toEqual(expect.arrayContaining(["--print", "--mode", "json"]));
+      expect(capture.argv).not.toContain("rpc");
+      expect(capture.argv.at(-1)).toContain("Follow the rudder heartbeat.");
+      expect(capture.stdin).toBe("");
       const appendSystemPromptIndex = capture.argv.indexOf("--append-system-prompt");
       expect(appendSystemPromptIndex).toBeGreaterThanOrEqual(0);
       const systemPrompt = capture.argv[appendSystemPromptIndex + 1];
@@ -160,6 +212,71 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps final text from realistic Pi JSON while sanitizing noisy stdout persistence", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-pi-execute-realistic-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "pi");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakePiCommand(commandPath);
+
+    const logs: string[] = [];
+    const previousHome = process.env.HOME;
+    process.env.HOME = root;
+    try {
+      const result = await execute({
+        runId: "run-pi-realistic",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Pi Agent",
+          agentRuntimeType: "pi",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "openai/gpt-test",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_PI_REALISTIC_OUTPUT: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async (_stream, chunk) => {
+          logs.push(chunk);
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      expect(result.summary).toBe("final ok");
+      expect(result.usage).toMatchObject({
+        inputTokens: 10,
+        outputTokens: 3,
+        cachedInputTokens: 2,
+      });
+      expect(result.resultJson).toMatchObject({
+        stdoutSanitized: true,
+      });
+      expect(JSON.stringify(result.resultJson)).not.toContain("internal reasoning should not be persisted");
+      expect(JSON.stringify(result.resultJson)).not.toContain("sig_sig_sig_sig_sig_sig_sig_sig_sig_sig_");
+      expect(logs.join("")).not.toContain("internal reasoning should not be persisted");
+      expect(logs.join("")).toContain("\"type\":\"agent_end\"");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
