@@ -95,6 +95,24 @@ export function CodexLocalConfigFields({
             : mark("agentRuntimeConfig", "search", v)
         }
       />
+      <ToggleField
+        label="Count subscription usage as cost"
+        hint={help.countSubscriptionUsageAsCost}
+        checked={
+          isCreate
+            ? Boolean(values!.countSubscriptionUsageAsCost)
+            : eff(
+                "agentRuntimeConfig",
+                "countSubscriptionUsageAsCost",
+                Boolean(config.countSubscriptionUsageAsCost),
+              )
+        }
+        onChange={(v) =>
+          isCreate
+            ? set!({ countSubscriptionUsageAsCost: v })
+            : mark("agentRuntimeConfig", "countSubscriptionUsageAsCost", v)
+        }
+      />
       <LocalWorkspaceRuntimeFields
         isCreate={isCreate}
         values={values}

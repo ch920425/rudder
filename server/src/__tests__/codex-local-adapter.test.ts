@@ -1,5 +1,5 @@
 import { printCodexStreamEvent } from "@rudderhq/agent-runtime-codex-local/cli";
-import { isCodexUnknownSessionError, parseCodexJsonl } from "@rudderhq/agent-runtime-codex-local/server";
+import { estimateCodexCostUsd, isCodexUnknownSessionError, parseCodexJsonl } from "@rudderhq/agent-runtime-codex-local/server";
 import { parseCodexStdoutLine } from "@rudderhq/agent-runtime-codex-local/ui";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,6 +37,35 @@ describe("codex_local parser", () => {
     expect(parsed.sessionId).toBe("thread-123");
     expect(parsed.summary).toBe("completed anyway");
     expect(parsed.errorMessage).toBeNull();
+  });
+});
+
+describe("codex_local cost estimation", () => {
+  it("estimates API-equivalent costs for built-in Codex models", () => {
+    expect(estimateCodexCostUsd("gpt-5.5", {
+      inputTokens: 1_000_000,
+      cachedInputTokens: 200_000,
+      outputTokens: 100_000,
+    })).toBeCloseTo(7.1, 6);
+
+    expect(estimateCodexCostUsd("gpt-5.3-codex-spark", {
+      inputTokens: 1_000_000,
+      cachedInputTokens: 0,
+      outputTokens: 100_000,
+    })).toBeCloseTo(3.15, 6);
+  });
+
+  it("returns null for unknown models and zero-token usage", () => {
+    expect(estimateCodexCostUsd("custom-model", {
+      inputTokens: 1_000_000,
+      cachedInputTokens: 0,
+      outputTokens: 1,
+    })).toBeNull();
+    expect(estimateCodexCostUsd("gpt-5.5", {
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+    })).toBeNull();
   });
 });
 

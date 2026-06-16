@@ -12,6 +12,7 @@ export const defaultCreateValues: CreateConfigValues = {
   chrome: false,
   dangerouslySkipPermissions: true,
   search: false,
+  countSubscriptionUsageAsCost: false,
   dangerouslyBypassSandbox: false,
   command: "",
   args: "",

@@ -9,6 +9,12 @@ describe("AgentConfigForm runtime defaults", () => {
     });
   });
 
+  it("keeps Codex subscription cost estimation disabled by default", () => {
+    expect(defaultConfigForRuntime("codex_local")).toMatchObject({
+      countSubscriptionUsageAsCost: false,
+    });
+  });
+
   it("uses locally runnable default models for OpenCode and Pi", () => {
     expect(defaultModelForRuntime("opencode_local")).toBe("opencode/deepseek-v4-flash-free");
     expect(defaultConfigForRuntime("opencode_local")).toMatchObject({

@@ -3,6 +3,7 @@ export const label = "Codex (local)";
 export const DEFAULT_CODEX_LOCAL_MODEL = "gpt-5.5";
 export const DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX = true;
 export const DEFAULT_CODEX_LOCAL_SEARCH = true;
+export const DEFAULT_CODEX_LOCAL_COUNT_SUBSCRIPTION_USAGE_AS_COST = false;
 
 export const models = [
   { id: DEFAULT_CODEX_LOCAL_MODEL, label: "GPT-5.5" },
@@ -23,6 +24,7 @@ Core fields:
 - modelReasoningEffort (string, optional): reasoning effort override (low|medium|high|xhigh) passed via -c model_reasoning_effort=...
 - promptTemplate (string, optional): run prompt template
 - search (boolean, optional, defaults to true on new Codex agents): run codex with --search
+- countSubscriptionUsageAsCost (boolean, optional, defaults to false): when Codex uses local subscription auth, estimate API-equivalent spend from token usage instead of recording subscription runs as $0
 - dangerouslyBypassApprovalsAndSandbox (boolean, optional): run with bypass flag
 - command (string, optional): defaults to "codex"
 - extraArgs (string[], optional): additional CLI args

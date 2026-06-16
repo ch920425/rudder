@@ -374,6 +374,7 @@ export interface CreateConfigValues {
   chrome: boolean;
   dangerouslySkipPermissions: boolean;
   search: boolean;
+  countSubscriptionUsageAsCost?: boolean;
   dangerouslyBypassSandbox: boolean;
   command: string;
   args: string;

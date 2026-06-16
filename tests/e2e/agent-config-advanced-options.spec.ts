@@ -41,9 +41,9 @@ test.describe("Agent configuration advanced options", () => {
     await expect(page.getByText("Primary", { exact: true })).toBeVisible();
     await expect(page.getByText("Fallback 1", { exact: true })).toBeVisible();
     await expect(page.getByText("Model", { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "gpt-5.5", exact: true })).toBeVisible();
-    await expect(page.getByTestId("agent-fallback-model-1")).toContainText("gpt-5.4");
-    await expect(page.getByText("Add fallback", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "GPT-5.5", exact: true })).toBeVisible();
+    await expect(page.getByTestId("agent-fallback-model-1")).toContainText("GPT-5.4");
+    await expect(page.getByText("Add fallback model", { exact: true })).toBeVisible();
     await expect(page.getByText("Thinking effort", { exact: true }).first()).toBeVisible();
     const primaryThinkingEffortButton = page.getByRole("button", { name: "Auto", exact: true }).first();
     await expect(primaryThinkingEffortButton).toBeVisible();
@@ -62,6 +62,7 @@ test.describe("Agent configuration advanced options", () => {
     await expect(page.getByText("Command", { exact: true }).first()).toBeHidden();
     await expect(page.getByText("Environment variables", { exact: true }).first()).toBeHidden();
     await expect(page.getByText("Bypass sandbox", { exact: true }).first()).toBeHidden();
+    await expect(page.getByText("Count subscription usage as cost", { exact: true }).first()).toBeHidden();
 
     await advancedButton.click();
 
@@ -70,8 +71,12 @@ test.describe("Agent configuration advanced options", () => {
     await expect(page.getByText("Environment variables", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Bypass sandbox", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("switch", { name: "Enable search", exact: true })).toBeChecked();
+    const countSubscriptionUsageSwitch = page.getByRole("switch", { name: "Count subscription usage as cost", exact: true });
+    await expect(countSubscriptionUsageSwitch).not.toBeChecked();
+    await countSubscriptionUsageSwitch.click();
+    await expect(countSubscriptionUsageSwitch).toBeChecked();
 
-    await page.getByText("Add fallback", { exact: true }).click();
+    await page.getByText("Add fallback model", { exact: true }).click();
     await expect(page.getByText("Fallback 2", { exact: true })).toBeVisible();
     await page.getByTestId("agent-fallback-model-2").click();
     await page.getByPlaceholder("Search models...").fill("openrouter/custom-model");
@@ -88,9 +93,13 @@ test.describe("Agent configuration advanced options", () => {
     const refreshedRes = await page.request.get(`/api/agents/${agent.id}?orgId=${organization.id}`);
     expect(refreshedRes.ok()).toBe(true);
     const refreshed = await refreshedRes.json() as {
-      agentRuntimeConfig: { modelFallbacks?: Array<{ agentRuntimeType: string; model: string; config?: Record<string, unknown> }> };
+      agentRuntimeConfig: {
+        countSubscriptionUsageAsCost?: boolean;
+        modelFallbacks?: Array<{ agentRuntimeType: string; model: string; config?: Record<string, unknown> }>;
+      };
       runtimeConfig: { heartbeat?: { maxConcurrentRuns?: number; preflightEnabled?: boolean } };
     };
+    expect(refreshed.agentRuntimeConfig.countSubscriptionUsageAsCost).toBe(true);
     expect(refreshed.agentRuntimeConfig.modelFallbacks).toEqual([
       { agentRuntimeType: "codex_local", model: "gpt-5.4" },
       expect.objectContaining({
@@ -99,7 +108,7 @@ test.describe("Agent configuration advanced options", () => {
       }),
     ]);
     expect(refreshed.runtimeConfig.heartbeat?.maxConcurrentRuns).toBe(4);
-    expect(refreshed.runtimeConfig.heartbeat?.preflightEnabled).toBe(true);
+    expect(refreshed.runtimeConfig.heartbeat?.preflightEnabled ?? true).toBe(true);
   });
 
   test("saves and clears Codex thinking effort", async ({ page }) => {

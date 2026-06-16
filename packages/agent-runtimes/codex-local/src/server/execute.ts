@@ -33,6 +33,7 @@ import {
   realizeManagedCodexSkillEntries,
   resolveManagedCodexHomeDir,
 } from "./codex-home.js";
+import { estimateCodexCostUsd } from "./cost.js";
 import { isCodexUnknownSessionError, parseCodexJsonl } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -157,6 +158,14 @@ function resolveCodexBiller(env: Record<string, string>, billingType: "api" | "s
   return billingType === "subscription" ? "chatgpt" : openAiCompatibleBiller ?? "openai";
 }
 
+function resolveCodexResultBillingType(
+  billingType: "api" | "subscription",
+  countSubscriptionUsageAsCost: boolean,
+): "api" | "subscription" | "metered_api" {
+  if (billingType === "subscription" && countSubscriptionUsageAsCost) return "metered_api";
+  return billingType;
+}
+
 export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentRuntimeExecutionResult> {
   const { runId, agent, runtime, config, context, onLog, onMeta, onSpawn, authToken } = ctx;
 
@@ -166,6 +175,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   );
   const command = asString(config.command, "codex");
   const model = asString(config.model, "");
+  const countSubscriptionUsageAsCost = asBoolean(config.countSubscriptionUsageAsCost, false);
   const modelReasoningEffort = asString(
     config.modelReasoningEffort,
     asString(config.reasoningEffort, ""),
@@ -637,6 +647,12 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       stderrLine ||
       `Codex exited with code ${attempt.proc.exitCode ?? -1}`;
 
+    const resultBillingType = resolveCodexResultBillingType(billingType, countSubscriptionUsageAsCost);
+    const estimatedCostUsd =
+      billingType === "subscription" && countSubscriptionUsageAsCost
+        ? estimateCodexCostUsd(model, attempt.parsed.usage)
+        : null;
+
     return {
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
@@ -652,8 +668,8 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       provider: "openai",
       biller: resolveCodexBiller(effectiveEnv, billingType),
       model,
-      billingType,
-      costUsd: null,
+      billingType: resultBillingType,
+      costUsd: estimatedCostUsd,
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,

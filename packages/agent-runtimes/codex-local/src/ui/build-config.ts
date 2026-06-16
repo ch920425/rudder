@@ -1,6 +1,7 @@
 import { normalizeModelFallbacks, type CreateConfigValues } from "@rudderhq/agent-runtime-utils";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
+  DEFAULT_CODEX_LOCAL_COUNT_SUBSCRIPTION_USAGE_AS_COST,
   DEFAULT_CODEX_LOCAL_MODEL,
   DEFAULT_CODEX_LOCAL_SEARCH,
 } from "../index.js";
@@ -91,6 +92,10 @@ export function buildCodexLocalConfig(v: CreateConfigValues): Record<string, unk
     typeof v.search === "boolean"
       ? v.search
       : DEFAULT_CODEX_LOCAL_SEARCH;
+  ac.countSubscriptionUsageAsCost =
+    typeof v.countSubscriptionUsageAsCost === "boolean"
+      ? v.countSubscriptionUsageAsCost
+      : DEFAULT_CODEX_LOCAL_COUNT_SUBSCRIPTION_USAGE_AS_COST;
   ac.dangerouslyBypassApprovalsAndSandbox =
     typeof v.dangerouslyBypassSandbox === "boolean"
       ? v.dangerouslyBypassSandbox
