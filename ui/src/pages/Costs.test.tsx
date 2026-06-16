@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { CostTrendChart } from "./Costs";
 
 describe("CostTrendChart", () => {
-  it("exposes exact daily cost data on each trend bar", () => {
+  it("exposes daily cost data on each trend bar", () => {
     const rows: CostTrendPoint[] = [
       {
         date: "2026-05-07",
@@ -24,11 +24,33 @@ describe("CostTrendChart", () => {
     );
 
     expect(html).toContain(
-      'aria-label="May 7, 2026: 1,075 tokens (1,000 input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
+      'aria-label="May 7, 2026: 1.1K tokens (1.0K input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
     );
     expect(html).toContain("data-slot=\"tooltip-trigger\"");
     expect(html).toContain("Tokens");
     expect(html).toContain("Estimated spend");
+  });
+
+  it("renders compact token units in the trend tooltip", () => {
+    const rows: CostTrendPoint[] = [
+      {
+        date: "2026-06-13",
+        costCents: 230,
+        inputTokens: 299_639_485,
+        cachedInputTokens: 280_413_568,
+        outputTokens: 1_200_287,
+        totalTokens: 300_839_772,
+        eventCount: 138,
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <CostTrendChart rows={rows} from="2026-06-13T00:00:00.000Z" to="2026-06-13T23:59:59.999Z" />,
+    );
+
+    expect(html).toContain(
+      'aria-label="Jun 13, 2026: 300.8M tokens (299.6M input, 280.4M cached, 1.2M output), $2.30 estimated spend, 138 events"',
+    );
   });
 
   it("renders agent and project trend filters when options are available", () => {

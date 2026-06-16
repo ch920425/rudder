@@ -165,6 +165,13 @@ function formatExactCount(value: number): string {
   return Math.round(value).toLocaleString("en-US");
 }
 
+function formatTrendTokenCount(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return formatExactCount(value);
+}
+
 function trendAgentLabel(row: CostByAgent): string {
   return row.agentName ?? row.agentId;
 }
@@ -226,7 +233,7 @@ export function CostTrendChart({
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground sm:justify-end">
               <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
-                Tokens <span className="font-medium text-foreground tabular-nums">{formatTokens(totalTokens)}</span>
+                Tokens <span className="font-medium text-foreground tabular-nums">{formatTrendTokenCount(totalTokens)}</span>
               </span>
               <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1">
                 Estimated spend <span className="font-medium text-foreground tabular-nums">{formatCents(totalCost)}</span>
@@ -304,7 +311,7 @@ export function CostTrendChart({
                   const tokenHeight = Math.max(3, (row.totalTokens / maxTokens) * 100);
                   const costBottom = Math.max(2, (row.costCents / maxCost) * 100);
                   const dateLabel = fullDayLabel(row.date);
-                  const accessibleLabel = `${dateLabel}: ${formatExactCount(row.totalTokens)} tokens (${formatExactCount(row.inputTokens)} input, ${formatExactCount(row.cachedInputTokens)} cached, ${formatExactCount(row.outputTokens)} output), ${formatCents(row.costCents)} estimated spend, ${formatExactCount(row.eventCount)} events`;
+                  const accessibleLabel = `${dateLabel}: ${formatTrendTokenCount(row.totalTokens)} tokens (${formatTrendTokenCount(row.inputTokens)} input, ${formatTrendTokenCount(row.cachedInputTokens)} cached, ${formatTrendTokenCount(row.outputTokens)} output), ${formatCents(row.costCents)} estimated spend, ${formatExactCount(row.eventCount)} events`;
                   return (
                     <TooltipProvider key={row.date}>
                       <Tooltip>
@@ -336,13 +343,13 @@ export function CostTrendChart({
                             <div className="font-medium text-background">{dateLabel}</div>
                             <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
                               <dt className="text-background/70">Tokens</dt>
-                              <dd className="font-mono tabular-nums">{formatExactCount(row.totalTokens)}</dd>
+                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.totalTokens)}</dd>
                               <dt className="text-background/70">Input</dt>
-                              <dd className="font-mono tabular-nums">{formatExactCount(row.inputTokens)}</dd>
+                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.inputTokens)}</dd>
                               <dt className="text-background/70">Cached</dt>
-                              <dd className="font-mono tabular-nums">{formatExactCount(row.cachedInputTokens)}</dd>
+                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.cachedInputTokens)}</dd>
                               <dt className="text-background/70">Output</dt>
-                              <dd className="font-mono tabular-nums">{formatExactCount(row.outputTokens)}</dd>
+                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.outputTokens)}</dd>
                               <dt className="text-background/70">Estimated spend</dt>
                               <dd className="font-mono tabular-nums">{formatCents(row.costCents)}</dd>
                               <dt className="text-background/70">Events</dt>
