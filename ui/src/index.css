@@ -930,16 +930,6 @@
     backdrop-filter: blur(24px) saturate(118%);
   }
 
-  .breadcrumb-issue-search-menu {
-    background: color-mix(in oklab, var(--surface-overlay) 68%, transparent);
-    -webkit-backdrop-filter: blur(28px) saturate(138%);
-    backdrop-filter: blur(28px) saturate(138%);
-  }
-
-  html.dark .breadcrumb-issue-search-menu {
-    background: color-mix(in oklab, var(--surface-overlay) 58%, transparent);
-  }
-
   .glass-popover.glass-popover {
     border-radius: var(--radius-md);
     background:

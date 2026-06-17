@@ -432,7 +432,7 @@ export function BreadcrumbBar({
                   data-testid="breadcrumb-issue-result-menu"
                   role="listbox"
                   className={cn(
-                    "breadcrumb-issue-search-menu relative z-50 mt-2 w-full overflow-hidden rounded-[var(--radius-sm)] border border-[color:var(--border-base)] py-1 shadow-lg",
+                    "relative z-50 mt-2 w-full overflow-hidden rounded-[var(--radius-sm)] border border-[color:var(--border-base)] bg-[color:var(--surface-panel)] py-1 shadow-lg",
                     isIssueDetailRoute
                       ? "xl:w-[26rem] xl:-translate-x-[calc(100%+0.5rem)]"
                       : null,
@@ -466,7 +466,7 @@ export function BreadcrumbBar({
                 <div
                   id="issue-search-menu"
                   data-testid="breadcrumb-issue-search-scope-menu"
-                  className="breadcrumb-issue-search-menu absolute left-0 top-full z-[70] mt-2 w-full overflow-hidden rounded-[var(--radius-sm)] border border-[color:var(--border-base)] shadow-[0_22px_60px_-34px_rgb(0_0_0/0.72)] dark:border-[color:var(--border-strong)]"
+                  className="absolute left-0 top-full z-[70] mt-2 w-full overflow-hidden rounded-[var(--radius-sm)] border border-[color:var(--border-base)] bg-[color:var(--surface-overlay)] shadow-[0_22px_60px_-34px_rgb(0_0_0/0.72)] dark:border-[color:var(--border-strong)]"
                 >
                   <div className="border-b border-[color:var(--border-soft)] px-3 py-2">
                     <div className="text-xs font-medium text-foreground">Search in</div>

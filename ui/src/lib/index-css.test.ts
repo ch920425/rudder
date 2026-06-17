@@ -152,15 +152,6 @@ describe("index.css motion rules", () => {
     expect(glassPopover).toContain("backdrop-filter: blur(34px) saturate(150%)");
   });
 
-  it("adds blur to breadcrumb issue search menus without taking over their component layout", () => {
-    const issueSearchMenu = cssBlock(".breadcrumb-issue-search-menu");
-
-    expect(issueSearchMenu).toContain("background: color-mix(in oklab, var(--surface-overlay) 68%, transparent)");
-    expect(issueSearchMenu).toContain("backdrop-filter: blur(28px) saturate(138%)");
-    expect(issueSearchMenu).not.toContain("border-radius");
-    expect(issueSearchMenu).not.toContain("box-shadow");
-  });
-
   it("uses glass surfaces for modals", () => {
     const glassModal = cssBlock(".glass-modal.glass-modal");
 
