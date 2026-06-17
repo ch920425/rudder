@@ -46,6 +46,7 @@ import { issueLowSignalContentOnlyActivitySql } from "./issue-activity-filters.j
 
 const ISSUE_ACTIVITY_ACTIONS = [
   "issue.updated",
+  "issue.followed",
   "issue.approval_linked",
   "issue.work_product_created",
   "issue.work_product_updated",
@@ -534,6 +535,8 @@ function summarizeIssueActivity(activity: IssueActivityRow, issue: IssueUniverse
       const changedField = issueUpdatedChangedKeys(details)[0];
       return changedField ? `${humanizeIssueUpdateField(changedField)} changed` : "Issue details changed";
     }
+    case "issue.followed":
+      return "Followed";
     case "issue.approval_linked":
       return "Approval linked";
     case "issue.work_product_created":

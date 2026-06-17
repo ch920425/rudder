@@ -241,6 +241,64 @@ describe("LiveUpdatesProvider notification preferences", () => {
     });
   });
 
+  it("refreshes Messenger and sidebar queries without a toast for automation issue follow notifications", () => {
+    const toasts: unknown[] = [];
+    const invalidations: unknown[] = [];
+    const queryClient = {
+      invalidateQueries: (input: unknown) => {
+        invalidations.push(input);
+      },
+      getQueryData: () => undefined,
+    };
+
+    __liveUpdatesTestUtils.handleLiveEvent(
+      queryClient as never,
+      "organization-1",
+      "/ORG/dashboard",
+      {
+        type: "activity.logged",
+        orgId: "organization-1",
+        payload: {
+          entityType: "issue",
+          entityId: "issue-1",
+          action: "issue.followed",
+          actorType: "system",
+          actorId: "automation-issue-notifier",
+          details: {
+            identifier: "ORG-1",
+            title: "Automation created issue",
+            userId: "user-1",
+            source: "automation.issue_created_notification",
+          },
+        },
+      } as never,
+      (toast) => {
+        toasts.push(toast);
+        return "toast-1";
+      },
+      { cooldownHits: new Map(), suppressUntil: 0 },
+      { userId: "user-1", agentId: null },
+      { issueNotifications: true, chatNotifications: true },
+    );
+
+    expect(toasts).toEqual([]);
+    expect(invalidations).toContainEqual({
+      queryKey: queryKeys.sidebarBadges("organization-1"),
+    });
+    expect(invalidations).toContainEqual({
+      queryKey: queryKeys.messenger.threads("organization-1"),
+    });
+    expect(invalidations).toContainEqual({
+      queryKey: queryKeys.messenger.threadPages("organization-1"),
+    });
+    expect(invalidations).toContainEqual({
+      queryKey: queryKeys.messenger.threadPreview("organization-1"),
+    });
+    expect(invalidations).toContainEqual({
+      queryKey: queryKeys.messenger.issues("organization-1"),
+    });
+  });
+
   it("labels field-level issue update toasts for goals, projects, and unknown fields", () => {
     const toasts: Array<{ body?: string; title?: string }> = [];
     const gate = { cooldownHits: new Map(), suppressUntil: 0 };

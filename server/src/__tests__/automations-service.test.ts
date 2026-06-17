@@ -33,6 +33,8 @@ import { automationService } from "../services/automations.ts";
 import { ChatAssistantStreamError } from "../services/chat-assistant.ts";
 import { claimChatGeneration } from "../services/chat-generation-locks.ts";
 import { issueService } from "../services/issues.ts";
+import { messengerService } from "../services/messenger.ts";
+import { sidebarBadgeService } from "../services/sidebar-badges.ts";
 
 type EmbeddedPostgresInstance = {
   initialise(): Promise<void>;
@@ -469,11 +471,13 @@ describe("automation service live-execution coalescing", () => {
     expect(follows).toHaveLength(0);
   });
 
-  it("follows the fresh execution issue when issue-created notifications are enabled", async () => {
+  it("follows the fresh execution issue and surfaces it as unread in Messenger when issue-created notifications are enabled", async () => {
     const { agentId, automation, svc, wakeups } = await seedFixture();
     await svc.update(automation.id, { notifyOnIssueCreated: true }, { userId: "board-user" });
 
     const run = await svc.runAutomation(automation.id, { source: "manual" });
+    const messengerSvc = messengerService(db);
+    const sidebarBadges = sidebarBadgeService(db);
 
     expect(run.status).toBe("issue_created");
     expect(run.linkedIssueId).toBeTruthy();
@@ -510,6 +514,42 @@ describe("automation service live-execution coalescing", () => {
         }),
       }),
     ]);
+
+    const thread = await messengerSvc.getIssuesThread(automation.orgId, "board-user");
+    const issueItem = thread.detail.items.find((item) => item.issueId === run.linkedIssueId);
+    const summaries = await messengerSvc.listThreadSummaries(automation.orgId, "board-user");
+    const summaryPage = await messengerSvc.listThreadSummaryPage(automation.orgId, "board-user");
+    const issuesSummary = summaries.find((item) => item.threadKey === "issues");
+    const pagedIssuesSummary = summaryPage.items.find((item) => item.threadKey === "issues");
+
+    expect(issueItem).toMatchObject({
+      issueId: run.linkedIssueId,
+      metadata: expect.objectContaining({
+        followed: true,
+      }),
+    });
+    expect(issueItem?.title).toContain(automation.title);
+    expect(issueItem?.preview).toBe("Followed");
+    const expectedMessengerPreview = `${issueItem?.title} — Followed`;
+    expect(thread.detail.unreadCount).toBe(1);
+    expect(thread.detail.needsAttention).toBe(true);
+    expect(thread.summary.unreadCount).toBe(1);
+    expect(thread.summary.needsAttention).toBe(true);
+    expect(thread.summary.preview).toBe(expectedMessengerPreview);
+    expect(issuesSummary).toMatchObject({
+      threadKey: "issues",
+      unreadCount: 1,
+      needsAttention: true,
+      preview: expectedMessengerPreview,
+    });
+    expect(pagedIssuesSummary).toMatchObject({
+      threadKey: "issues",
+      unreadCount: 1,
+      needsAttention: true,
+      preview: expectedMessengerPreview,
+    });
+    await expect(messengerSvc.countUnreadIssueThreadEntries(automation.orgId, "board-user")).resolves.toBe(1);
+    await expect(sidebarBadges.countUnreadTouchedIssues(automation.orgId, "board-user")).resolves.toBe(1);
   });
 
   it("does not hold the issue follow foreign-key lock while waking the assignee", async () => {
