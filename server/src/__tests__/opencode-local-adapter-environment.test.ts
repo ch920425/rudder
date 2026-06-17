@@ -104,6 +104,52 @@ process.exit(1);
     }
   });
 
+  it("classifies hello probe Model not found output as model-unavailable warning", async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-env-model-not-found-cwd-"));
+    const binDir = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-env-model-not-found-bin-"));
+    const fakeOpencode = path.join(binDir, "opencode");
+    const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === "models") {
+  console.log("opencode/deepseek-v4-flash-free");
+  process.exit(0);
+}
+if (args[0] === "run") {
+  console.log(JSON.stringify({
+    type: "error",
+    sessionID: "session-model-not-found",
+    error: { name: "UnknownError", data: { message: "Model not found: deepseek/deepseek-chat. Did you mean: deepseek-chat?" } },
+  }));
+  process.exit(1);
+}
+process.exit(1);
+`;
+
+    try {
+      await fs.writeFile(fakeOpencode, script, "utf8");
+      await fs.chmod(fakeOpencode, 0o755);
+
+      const result = await testEnvironment({
+        orgId: "organization-1",
+        agentRuntimeType: "opencode_local",
+        config: {
+          command: fakeOpencode,
+          cwd,
+          model: "deepseek/deepseek-chat",
+        },
+      });
+
+      const modelCheck = result.checks.find((check) => check.code === "opencode_hello_probe_model_unavailable");
+      expect(modelCheck).toBeTruthy();
+      expect(modelCheck?.level).toBe("warn");
+      expect(modelCheck?.detail).toContain("Model not found: deepseek/deepseek-chat");
+      expect(result.status).toBe("warn");
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+      await fs.rm(binDir, { recursive: true, force: true });
+    }
+  });
+
   it("allows custom provider/model ids that are not listed by discovery when the hello probe succeeds", async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-env-custom-model-cwd-"));
     const binDir = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-opencode-env-custom-model-bin-"));
