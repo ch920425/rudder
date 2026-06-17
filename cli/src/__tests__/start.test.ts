@@ -34,6 +34,7 @@ import {
   resolveDesktopAssetCacheDir,
   resolveDesktopAssetCandidates,
   resolveDesktopAssetName,
+  resolveDesktopInstallLockPath,
   resolveDesktopAssetTarget,
   resolveDesktopInstallPaths,
   resolveDesktopReleaseTag,
@@ -45,6 +46,7 @@ import {
   selectDesktopShellAsset,
   startCommand,
   waitForProcessExit,
+  withDesktopInstallLock,
 } from "../commands/start.js";
 import {
   CLI_NPM_PACKAGE_NAME,
@@ -160,6 +162,16 @@ function responseFromChunks(chunks: string[], headers: Record<string, string> = 
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("persistent CLI install helpers", () => {
@@ -415,6 +427,131 @@ describe("desktop start command helpers", () => {
     } finally {
       stdout.mockRestore();
       stderr.mockRestore();
+    }
+  });
+
+  it("serializes desktop install work for the same install target", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-desktop-install-lock."));
+    try {
+      const paths = resolveDesktopInstallPaths(
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        path.join(root, "Applications"),
+      );
+      const firstEntered = createDeferred();
+      const releaseFirst = createDeferred();
+      const order: string[] = [];
+      let secondEntered = false;
+
+      const first = withDesktopInstallLock(paths, async () => {
+        order.push("first");
+        firstEntered.resolve();
+        await releaseFirst.promise;
+        return "first";
+      }, { pollMs: 5, timeoutMs: 1_000 });
+
+      await firstEntered.promise;
+
+      const second = withDesktopInstallLock(paths, async () => {
+        secondEntered = true;
+        order.push("second");
+        return "second";
+      }, { pollMs: 5, timeoutMs: 1_000 });
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(secondEntered).toBe(false);
+
+      releaseFirst.resolve();
+      await expect(Promise.all([first, second])).resolves.toEqual(["first", "second"]);
+      expect(order).toEqual(["first", "second"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("clears stale desktop install locks from dead processes", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-desktop-stale-lock."));
+    try {
+      const paths = resolveDesktopInstallPaths(
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        path.join(root, "Applications"),
+      );
+      const lockPath = resolveDesktopInstallLockPath(paths);
+      await mkdir(path.dirname(lockPath), { recursive: true });
+      await writeFile(
+        lockPath,
+        JSON.stringify({
+          pid: 999_999_999,
+          installRoot: paths.installRoot,
+          createdAt: new Date().toISOString(),
+        }),
+        "utf8",
+      );
+
+      await expect(
+        withDesktopInstallLock(paths, async () => "recovered", { pollMs: 5, timeoutMs: 1_000 }),
+      ).resolves.toBe("recovered");
+      await expect(access(lockPath)).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not steal desktop install locks from live processes", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-desktop-live-lock."));
+    try {
+      const paths = resolveDesktopInstallPaths(
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        path.join(root, "Applications"),
+      );
+      const lockPath = resolveDesktopInstallLockPath(paths);
+      await mkdir(path.dirname(lockPath), { recursive: true });
+      await writeFile(
+        lockPath,
+        JSON.stringify({
+          lockId: "other-lock",
+          pid: process.pid,
+          installRoot: paths.installRoot,
+          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        }),
+        "utf8",
+      );
+
+      await expect(
+        withDesktopInstallLock(paths, async () => "unexpected", { pollMs: 5, timeoutMs: 20 }),
+      ).rejects.toThrow("Timed out waiting for Rudder Desktop install lock");
+
+      await expect(readFile(lockPath, "utf8")).resolves.toContain("other-lock");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not remove another desktop install lock holder on release", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "rudder-desktop-lock-owner."));
+    try {
+      const paths = resolveDesktopInstallPaths(
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        path.join(root, "Applications"),
+      );
+      const lockPath = resolveDesktopInstallLockPath(paths);
+
+      await withDesktopInstallLock(paths, async () => {
+        await writeFile(
+          lockPath,
+          JSON.stringify({
+            lockId: "other-lock",
+            pid: process.pid,
+            installRoot: paths.installRoot,
+            createdAt: new Date().toISOString(),
+          }),
+          "utf8",
+        );
+        return "done";
+      }, { pollMs: 5, timeoutMs: 1_000 });
+
+      await expect(readFile(lockPath, "utf8")).resolves.toContain("other-lock");
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 

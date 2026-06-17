@@ -49,6 +49,11 @@ export function createDesktopUpdateFlow(context: {
 }) {
   let latestDesktopUpdateProgress: DesktopUpdateProgressEvent | null = null;
   const activeDesktopUpdates = new Map<string, { version: string; stdin: NodeJS.WritableStream | null }>();
+  let activeDesktopUpdateAttempt: {
+    updateId: string;
+    version: string;
+    promise: Promise<DesktopUpdateInstallResult>;
+  } | null = null;
   let startupUpdateNoticeShown = false;
 
   type DesktopUpdateInstallResult =
@@ -227,6 +232,25 @@ export function createDesktopUpdateFlow(context: {
     return version.startsWith("v") ? version : `v${version}`;
   }
 
+  function clearActiveDesktopUpdateAttempt(updateId: string): void {
+    if (activeDesktopUpdateAttempt?.updateId === updateId) {
+      activeDesktopUpdateAttempt = null;
+    }
+  }
+
+  function reuseActiveDesktopUpdateAttempt(requestedVersion: string): Promise<DesktopUpdateInstallResult> | null {
+    const active = activeDesktopUpdateAttempt;
+    if (!active) return null;
+    if (active.version !== requestedVersion) {
+      console.info("[rudder-desktop] update request ignored while another update is active", {
+        activeVersion: active.version,
+        requestedVersion,
+        updateId: active.updateId,
+      });
+    }
+    return active.promise;
+  }
+
   async function showUpdateInstallFallbackDialog(installResult: Exclude<DesktopUpdateInstallResult, { status: "started" } | { status: "waiting" }>): Promise<void> {
     await showMessageBox({
       type: installResult.status === "blocked" ? "warning" : "error",
@@ -354,7 +378,6 @@ export function createDesktopUpdateFlow(context: {
 
   async function installUpdate(version: string | null | undefined): Promise<DesktopUpdateInstallResult> {
     const normalizedVersion = version?.trim();
-    const updateId = randomUUID();
     if (!app.isPackaged) {
       return {
         status: "unavailable",
@@ -368,6 +391,20 @@ export function createDesktopUpdateFlow(context: {
       };
     }
 
+    const existingUpdate = reuseActiveDesktopUpdateAttempt(normalizedVersion);
+    if (existingUpdate) return existingUpdate;
+
+    const updateId = randomUUID();
+    const installPromise = Promise.resolve().then(() => installUpdateWithLock(updateId, normalizedVersion));
+    activeDesktopUpdateAttempt = {
+      updateId,
+      version: normalizedVersion,
+      promise: installPromise,
+    };
+    return installPromise;
+  }
+
+  async function installUpdateWithLock(updateId: string, normalizedVersion: string): Promise<DesktopUpdateInstallResult> {
     try {
       updateDesktopUpdateProgress(updateId, normalizedVersion, {
         phase: "starting",
@@ -383,6 +420,7 @@ export function createDesktopUpdateFlow(context: {
             message: "Update paused because active runs are still running.",
             totalRuns: activeRuns.totalRuns,
           });
+          clearActiveDesktopUpdateAttempt(updateId);
           return {
             status: "blocked",
             totalRuns: activeRuns.totalRuns,
@@ -451,6 +489,7 @@ export function createDesktopUpdateFlow(context: {
       child.on("error", (error) => {
         updateChildFinalized = true;
         activeDesktopUpdates.delete(updateId);
+        clearActiveDesktopUpdateAttempt(updateId);
         updateDesktopUpdateProgress(updateId, normalizedVersion, {
           phase: "failed",
           message: "Update failed to start.",
@@ -461,6 +500,7 @@ export function createDesktopUpdateFlow(context: {
         if (updateChildFinalized) return;
         updateChildFinalized = true;
         activeDesktopUpdates.delete(updateId);
+        clearActiveDesktopUpdateAttempt(updateId);
         if (stdoutBuffer.trim()) {
           diagnosticStdout = appendBoundedDesktopUpdateOutput(diagnosticStdout, `${stdoutBuffer}\n`);
         }
@@ -490,6 +530,7 @@ export function createDesktopUpdateFlow(context: {
       }
       return { status: "started", version: normalizedVersion, updateId };
     } catch (error) {
+      clearActiveDesktopUpdateAttempt(updateId);
       updateDesktopUpdateProgress(updateId, normalizedVersion ?? "unknown", {
         phase: "failed",
         message: "Update failed to start.",

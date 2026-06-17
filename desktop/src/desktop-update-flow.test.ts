@@ -46,7 +46,17 @@ function createMockUpdateChild() {
   return child;
 }
 
-function createFlow() {
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function createFlow(overrides: Partial<Parameters<typeof createDesktopUpdateFlow>[0]> = {}) {
   const sentProgressEvents: unknown[] = [];
   const mainWindow = {
     isDestroyed: () => false,
@@ -64,6 +74,7 @@ function createFlow() {
     listActiveRunsForQuit: async () => ({ totalRuns: 0 }),
     formatQuitRunDetail: () => "",
     showMainWindow: vi.fn(),
+    ...overrides,
   });
   return { flow, sentProgressEvents };
 }
@@ -109,5 +120,110 @@ describe("desktop update flow", () => {
       message: "Update failed to start.",
       error: "spawn EACCES",
     });
+  });
+
+  it("reuses the active update attempt instead of starting a second version download", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const activeRuns = createDeferred<{ totalRuns: number }>();
+    const { flow } = createFlow({
+      listActiveRunsForQuit: vi.fn(() => activeRuns.promise),
+    });
+
+    const firstInstall = flow.installUpdate("0.3.5-canary.8");
+    const secondInstall = flow.installUpdate("0.3.5-canary.9");
+    expect(spawnMock).not.toHaveBeenCalled();
+
+    activeRuns.resolve({ totalRuns: 0 });
+    const [firstResult, secondResult] = await Promise.all([firstInstall, secondInstall]);
+
+    expect(firstResult).toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.8",
+      updateId: secondResult.updateId,
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the active attempt when setup fails synchronously", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    let failProgressSend = true;
+    const mainWindow = {
+      isDestroyed: () => false,
+      webContents: {
+        send: () => {
+          if (failProgressSend) throw new Error("send failed");
+        },
+      },
+    };
+    const { flow } = createFlow({
+      getMainWindow: () => mainWindow,
+    });
+
+    await expect(flow.installUpdate("0.3.5-canary.8")).rejects.toThrow("send failed");
+
+    failProgressSend = false;
+    await expect(flow.installUpdate("0.3.5-canary.9")).resolves.toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.9",
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the waiting result when an update is deferred for active runs", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow({
+      listActiveRunsForQuit: vi.fn(async () => ({ totalRuns: 2 })),
+      promptForDeferredUpdate: vi.fn(async () => "wait"),
+    });
+
+    const firstResult = await flow.installUpdate("0.3.5-canary.8");
+    const secondResult = await flow.installUpdate("0.3.5-canary.9");
+
+    expect(secondResult).toMatchObject({
+      status: "waiting",
+      version: "0.3.5-canary.8",
+      updateId: firstResult.updateId,
+      totalRuns: 2,
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a spawned update child exclusive while it is downloading or waiting to apply", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow();
+
+    const firstResult = await flow.installUpdate("0.3.5-canary.8");
+    const secondResult = await flow.installUpdate("0.3.5-canary.9");
+
+    expect(secondResult).toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.8",
+      updateId: firstResult.updateId,
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the update lock after the child closes so a later update can start", async () => {
+    const firstChild = createMockUpdateChild();
+    const secondChild = createMockUpdateChild();
+    spawnMock.mockReturnValueOnce(firstChild).mockReturnValueOnce(secondChild);
+    const { flow } = createFlow();
+
+    await expect(flow.installUpdate("0.3.5-canary.8")).resolves.toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.8",
+    });
+
+    firstChild.emit("close", 0);
+
+    await expect(flow.installUpdate("0.3.5-canary.9")).resolves.toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.9",
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(2);
   });
 });
