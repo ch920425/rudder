@@ -31,6 +31,13 @@ export interface AgentInstructionRuntimeContext {
   promptContext: Record<string, unknown>;
 }
 
+export function shouldIncludeRuntimeHeartbeatInstructions(context: Record<string, unknown>): boolean {
+  if (context.rudderScene !== "heartbeat") return false;
+
+  const wakeReason = typeof context.wakeReason === "string" ? context.wakeReason.trim() : "";
+  return wakeReason !== "issue_commented" && wakeReason !== "issue_comment_mentioned";
+}
+
 export function toPromptPath(pathValue: string): string {
   return pathValue.split(path.sep).join("/");
 }

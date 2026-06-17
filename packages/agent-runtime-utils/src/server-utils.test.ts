@@ -15,6 +15,7 @@ import {
   RUDDER_AGENT_OPERATING_CONTRACT,
   runChildProcess,
   selectPromptTemplate,
+  shouldIncludeRuntimeHeartbeatInstructions,
 } from "./server-utils.js";
 
 const ORIGINAL_HOME = process.env.HOME;
@@ -418,6 +419,14 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.metrics.runtimeHeartbeatChars).toBeGreaterThan(0);
     expect(loaded.metrics.heartbeatFileChars).toBe(0);
     expect(loaded.metrics.heartbeatChars).toBe(loaded.metrics.runtimeHeartbeatChars);
+  });
+
+  it("does not request runtime heartbeat instructions for comment-triggered issue wakes", () => {
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat" })).toBe(true);
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_assigned" })).toBe(true);
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "chat" })).toBe(false);
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_commented" })).toBe(false);
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_comment_mentioned" })).toBe(false);
   });
 
   it("loads the operating contract and entry instructions when no sibling memory file exists", async () => {

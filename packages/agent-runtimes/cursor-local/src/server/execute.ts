@@ -23,6 +23,7 @@ import {
   resolveRudderDesiredSkillNames,
   runChildProcess,
   selectPromptTemplate,
+  shouldIncludeRuntimeHeartbeatInstructions,
   syncLocalCliCredentialHomeEntries,
 } from "@rudderhq/agent-runtime-utils/server-utils";
 import fs from "node:fs/promises";
@@ -249,7 +250,6 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     asString(config.promptTemplate, ""),
     context,
   );
-  const runtimeScene = asString(context.rudderScene, "");
   const command = asString(config.command, "cursor-agent");
   const model = asString(config.model, DEFAULT_CURSOR_LOCAL_MODEL).trim();
   const mode = normalizeMode(asString(config.mode, ""));
@@ -440,7 +440,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const instructionRuntimeContext = prepareAgentInstructionRuntimeContext(context as Record<string, unknown>);
   const loadedInstructions = await loadAgentInstructionsPrefix({
     instructionsFilePath,
-    includeHeartbeatInstructions: runtimeScene === "heartbeat",
+    includeHeartbeatInstructions: shouldIncludeRuntimeHeartbeatInstructions(context as Record<string, unknown>),
     contextSectionsBeforeCurrentTime: instructionRuntimeContext.contextSectionsBeforeCurrentTime,
     onLog,
   });
