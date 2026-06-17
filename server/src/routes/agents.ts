@@ -6,6 +6,7 @@ import {
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@rudderhq/agent-runtime-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@rudderhq/agent-runtime-gemini-local";
 import { ensureOpenCodeModelConfiguredAndAvailable } from "@rudderhq/agent-runtime-opencode-local/server";
+import { ensurePiModelConfiguredAndAvailable } from "@rudderhq/agent-runtime-pi-local/server";
 import type { Db } from "@rudderhq/db";
 import { agents as agentsTable, organizations } from "@rudderhq/db";
 import {
@@ -559,11 +560,15 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     agentRuntimeType: string | null | undefined,
     agentRuntimeConfig: Record<string, unknown>,
   ) {
-    if (agentRuntimeType !== "opencode_local") return;
+    if (agentRuntimeType !== "opencode_local" && agentRuntimeType !== "pi_local") return;
     const { config: runtimeConfig } = await secretsSvc.resolveAdapterConfigForRuntime(orgId, agentRuntimeConfig);
     const runtimeEnv = asRecord(runtimeConfig.env) ?? {};
     try {
-      await ensureOpenCodeModelConfiguredAndAvailable({
+      const ensureModelConfigured =
+        agentRuntimeType === "pi_local"
+          ? ensurePiModelConfiguredAndAvailable
+          : ensureOpenCodeModelConfiguredAndAvailable;
+      await ensureModelConfigured({
         model: runtimeConfig.model,
         command: runtimeConfig.command,
         cwd: runtimeConfig.cwd,
@@ -571,7 +576,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      throw unprocessable(`Invalid opencode_local agentRuntimeConfig: ${reason}`);
+      throw unprocessable(`Invalid ${agentRuntimeType} agentRuntimeConfig: ${reason}`);
     }
   }
 

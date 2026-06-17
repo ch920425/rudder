@@ -6,6 +6,7 @@ import { agentRoutes } from "../routes/agents.js";
 
 const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
+  getInternalById: vi.fn(),
   update: vi.fn(),
   create: vi.fn(),
   resolveByReference: vi.fn(),
@@ -236,6 +237,7 @@ describe("agent skill routes", () => {
       ambiguous: false,
       agent: makeAgent("claude_local"),
     });
+    mockAgentService.getInternalById.mockResolvedValue(makeAgent("claude_local"));
     mockSecretService.resolveAdapterConfigForRuntime.mockResolvedValue({ config: { env: {} } });
     mockCompanySkillService.list.mockResolvedValue([
       {
@@ -497,6 +499,65 @@ describe("agent skill routes", () => {
     const createInput = mockAgentService.create.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
     expect(createInput).toBeDefined();
     expect(createInput).not.toHaveProperty("name");
+  });
+
+  it("persists custom Pi and OpenCode provider/model values during direct creation", async () => {
+    mockSecretService.resolveAdapterConfigForRuntime.mockImplementation(
+      async (_orgId: string, config: Record<string, unknown>) => ({
+        config: {
+          ...config,
+          env: {},
+        },
+      }),
+    );
+
+    for (const agentRuntimeType of ["pi_local", "opencode_local"]) {
+      const res = await request(createApp())
+        .post("/api/orgs/organization-1/agents")
+        .send({
+          name: `${agentRuntimeType} custom model`,
+          role: "engineer",
+          agentRuntimeType,
+          agentRuntimeConfig: {
+            model: "deepseek/deepseek-chat",
+          },
+        });
+
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+      const createInput = mockAgentService.create.mock.calls.at(-1)?.[1] as
+        | { agentRuntimeConfig?: Record<string, unknown> }
+        | undefined;
+      expect(createInput?.agentRuntimeConfig?.model).toBe("deepseek/deepseek-chat");
+    }
+  });
+
+  it("rejects Pi updates that clear the required provider/model value", async () => {
+    mockAgentService.getInternalById.mockResolvedValue({
+      ...makeAgent("pi_local"),
+      agentRuntimeConfig: {
+        model: "kimi-coding/kimi-for-coding",
+      },
+    });
+    mockSecretService.resolveAdapterConfigForRuntime.mockImplementation(
+      async (_orgId: string, config: Record<string, unknown>) => ({
+        config: {
+          ...config,
+          env: {},
+        },
+      }),
+    );
+
+    const res = await request(createApp())
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111")
+      .send({
+        agentRuntimeConfig: {
+          model: "",
+        },
+      });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error).toContain("Pi requires `agentRuntimeConfig.model`");
+    expect(mockAgentService.update).not.toHaveBeenCalled();
   });
 
   it("generates a DiceBear avatar instead of preserving legacy named icons during direct creation", async () => {

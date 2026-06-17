@@ -174,25 +174,23 @@ export async function ensurePiModelConfiguredAndAvailable(input: {
   if (!model) {
     throw new Error("Pi requires `agentRuntimeConfig.model` in provider/model format.");
   }
-
-  const models = await discoverPiModelsCached({
-    command: input.command,
-    cwd: input.cwd,
-    env: input.env,
-  });
-
-  if (models.length === 0) {
-    throw new Error("Pi returned no models. Run `pi --list-models` and verify provider auth.");
+  const [provider, modelId] = model.split("/", 2).map((part) => part.trim());
+  if (!provider || !modelId) {
+    throw new Error("Pi requires `agentRuntimeConfig.model` in provider/model format.");
   }
 
-  if (!models.some((entry) => entry.id === model)) {
-    const sample = models.slice(0, 12).map((entry) => entry.id).join(", ");
-    throw new Error(
-      `Configured Pi model is unavailable: ${model}. Available models: ${sample}${models.length > 12 ? ", ..." : ""}`,
-    );
+  try {
+    return await discoverPiModelsCached({
+      command: input.command,
+      cwd: input.cwd,
+      env: input.env,
+    });
+  } catch {
+    // Model discovery is diagnostic only. Custom providers may still work when
+    // passed directly to the Pi CLI, so execution should let the CLI be the
+    // source of truth after the provider/model contract is satisfied.
+    return [];
   }
-
-  return models;
 }
 
 export async function listPiModels(): Promise<AgentRuntimeModel[]> {

@@ -136,9 +136,9 @@ export async function testEnvironment(
       } else {
         checks.push({
           code: "opencode_models_empty",
-          level: "error",
+          level: "warn",
           message: "OpenCode returned no models.",
-          hint: "Run `opencode models` and verify provider authentication.",
+          hint: "Run `opencode models` to verify provider authentication, or keep the custom provider/model and rely on the hello probe below.",
         });
       }
     } catch (err) {
@@ -154,9 +154,9 @@ export async function testEnvironment(
       } else {
         checks.push({
           code: "opencode_models_discovery_failed",
-          level: "error",
+          level: "warn",
           message: errMsg || "OpenCode model discovery failed.",
-          hint: "Run `opencode models` manually to verify provider auth and config.",
+          hint: "Run `opencode models` manually to verify provider auth and config, or keep the custom provider/model and rely on the hello probe below.",
         });
       }
     }
@@ -193,7 +193,12 @@ export async function testEnvironment(
 
   const modelUnavailable = checks.some((check) => check.code === "opencode_hello_probe_model_unavailable");
   if (!configuredModel && !modelUnavailable) {
-    // No model configured – skip model requirement if no model-related checks exist
+    checks.push({
+      code: "opencode_model_required",
+      level: "error",
+      message: "OpenCode requires a configured model in provider/model format.",
+      hint: "Set agentRuntimeConfig.model, for example `opencode/deepseek-v4-flash-free`.",
+    });
   } else if (configuredModel && canRunProbe) {
     try {
       await ensureOpenCodeModelConfiguredAndAvailable({

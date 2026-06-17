@@ -70,6 +70,69 @@ describe("pi_local environment diagnostics", () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
+  it("passes a hello probe when a custom model is not in discovered suggestions", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `rudder-pi-local-custom-model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(cwd, { recursive: true });
+    await writeFakePiCommand(binDir, "success");
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "pi_local",
+      config: {
+        command: "pi",
+        cwd,
+        model: "deepseek/deepseek-chat",
+        env: {
+          DEEPSEEK_API_KEY: "test-key",
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    expect(result.status).toBe("pass");
+    const customModelCheck = result.checks.find((check) => check.code === "pi_model_not_discovered");
+    expect(customModelCheck?.level).toBe("info");
+    expect(customModelCheck?.hint).toContain("hello probe");
+    expect(result.checks.some((check) => check.code === "pi_hello_probe_passed")).toBe(true);
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it("fails before hello probe when model is not provider/model", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `rudder-pi-local-invalid-model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(cwd, { recursive: true });
+    await writeFakePiCommand(binDir, "success");
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "pi_local",
+      config: {
+        command: "pi",
+        cwd,
+        model: "deepseek-chat",
+        env: {
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    expect(result.status).toBe("fail");
+    expect(result.checks.find((check) => check.code === "pi_model_invalid")?.level).toBe("error");
+    expect(result.checks.some((check) => check.code === "pi_hello_probe_passed")).toBe(false);
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
   it("surfaces stale configured package installs with a targeted hint", async () => {
     const root = path.join(
       os.tmpdir(),

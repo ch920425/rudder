@@ -28,10 +28,12 @@ import { organizationSkillsApi } from "../api/organizationSkills";
 import { defaultCreateValues } from "../components/agent-config-defaults";
 import { roleLabels } from "../components/agent-config-primitives";
 import { AgentConfigForm, type CreateConfigValues } from "../components/AgentConfigForm";
+import { defaultModelForRuntime } from "../components/AgentConfigForm.helpers";
 import { ReportsToPicker } from "../components/ReportsToPicker";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { queryKeys } from "../lib/queryKeys";
+import { explicitProviderModelError, isProviderModelFormat, requiresExplicitProviderModel } from "../lib/runtime-models";
 import { agentUrl, cn } from "../lib/utils";
 
 const SUPPORTED_ADVANCED_ADAPTER_TYPES = new Set<CreateConfigValues["agentRuntimeType"]>([
@@ -59,8 +61,8 @@ function createValuesForAdapterType(
     nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
   } else if (agentRuntimeType === "cursor") {
     nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
-  } else if (agentRuntimeType === "opencode_local") {
-    nextValues.model = "";
+  } else if (requiresExplicitProviderModel(agentRuntimeType)) {
+    nextValues.model = defaultModelForRuntime(agentRuntimeType);
   }
   return nextValues;
 }
@@ -94,9 +96,6 @@ export function NewAgent() {
 
   const {
     data: adapterModels,
-    error: adapterModelsError,
-    isLoading: adapterModelsLoading,
-    isFetching: adapterModelsFetching,
   } = useQuery({
     queryKey: selectedOrganizationId
       ? queryKeys.agents.adapterModels(selectedOrganizationId, configValues.agentRuntimeType)
@@ -232,31 +231,10 @@ export function NewAgent() {
       setFormError("Agent name is required.");
       return;
     }
-    if (configValues.agentRuntimeType === "opencode_local") {
+    if (requiresExplicitProviderModel(configValues.agentRuntimeType)) {
       const selectedModel = configValues.model.trim();
-      if (!selectedModel) {
-        setFormError("OpenCode requires an explicit model in provider/model format.");
-        return;
-      }
-      if (adapterModelsError) {
-        setFormError(
-          adapterModelsError instanceof Error
-            ? adapterModelsError.message
-            : "Failed to load OpenCode models.",
-        );
-        return;
-      }
-      if (adapterModelsLoading || adapterModelsFetching) {
-        setFormError("OpenCode models are still loading. Please wait and try again.");
-        return;
-      }
-      const discovered = adapterModels ?? [];
-      if (!discovered.some((entry) => entry.id === selectedModel)) {
-        setFormError(
-          discovered.length === 0
-            ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
-            : `Configured OpenCode model is unavailable: ${selectedModel}`,
-        );
+      if (!isProviderModelFormat(selectedModel)) {
+        setFormError(explicitProviderModelError(configValues.agentRuntimeType));
         return;
       }
     }

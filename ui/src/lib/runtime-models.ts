@@ -11,6 +11,52 @@ const FALLBACK_MODELS_BY_RUNTIME: Record<string, readonly AgentRuntimeModel[]> =
   gemini_local: geminiLocalModels,
 };
 
+export const PROVIDER_MODEL_RUNTIME_TYPES = ["opencode_local", "pi_local"] as const;
+
+export function requiresExplicitProviderModel(agentRuntimeType: string): boolean {
+  return PROVIDER_MODEL_RUNTIME_TYPES.includes(
+    agentRuntimeType as (typeof PROVIDER_MODEL_RUNTIME_TYPES)[number],
+  );
+}
+
+export function isProviderModelFormat(model: string): boolean {
+  const [provider, modelId] = model.split("/", 2).map((part) => part.trim());
+  return Boolean(provider && modelId);
+}
+
+export function runtimeModelEmptyLabel(agentRuntimeType: string, required = false): string {
+  if (requiresExplicitProviderModel(agentRuntimeType)) return "Select or enter provider/model";
+  if (required) return "Select model";
+  return "Default";
+}
+
+export function runtimeModelSearchPlaceholder(agentRuntimeType: string): string {
+  return requiresExplicitProviderModel(agentRuntimeType)
+    ? "Search or enter provider/model..."
+    : "Search models...";
+}
+
+export function runtimeModelEmptyMessage(agentRuntimeType: string, loading = false): string {
+  if (loading) return "Loading models...";
+  if (agentRuntimeType === "pi_local") {
+    return "No models discovered. Run `pi --list-models`, authenticate the provider, or enter provider/model and run Test now.";
+  }
+  if (agentRuntimeType === "opencode_local") {
+    return "No models discovered. Run `opencode models`, authenticate the provider, or enter provider/model and run Test now.";
+  }
+  return "No models found.";
+}
+
+export function explicitProviderModelError(agentRuntimeType: string): string {
+  if (agentRuntimeType === "pi_local") {
+    return "Pi requires provider/model, for example kimi-coding/kimi-for-coding.";
+  }
+  if (agentRuntimeType === "opencode_local") {
+    return "OpenCode requires provider/model, for example opencode/deepseek-v4-flash-free.";
+  }
+  return "This runtime requires provider/model.";
+}
+
 export function resolveRuntimeModels(
   agentRuntimeType: string,
   ...modelLists: Array<readonly AgentRuntimeModel[] | null | undefined>

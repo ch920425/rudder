@@ -855,7 +855,10 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
       );
       patchData.agentRuntimeConfig = syncInstructionsBundleConfigFromFilePath(existing, normalizedEffectiveAdapterConfig);
     }
-    if (touchesAdapterConfiguration && requestedAdapterType === "opencode_local") {
+    if (
+      touchesAdapterConfiguration &&
+      (requestedAdapterType === "opencode_local" || requestedAdapterType === "pi_local")
+    ) {
       const effectiveAdapterConfig = asRecord(patchData.agentRuntimeConfig) ?? {};
       await assertAdapterConfigConstraints(
         existing.orgId,

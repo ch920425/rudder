@@ -1,11 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogPortal } from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover";
 import { useLocation, useNavigate, useParams } from "@/lib/router";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
@@ -49,16 +44,22 @@ import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
 import { useDialog } from "../context/DialogContext";
 import { useOrganization } from "../context/OrganizationContext";
-import {
-  extractModelName,
-  extractProviderIdWithFallback
-} from "../lib/model-utils";
 import { parseOnboardingGoalInput } from "../lib/onboarding-goal";
 import { resolveRouteOnboardingOptions } from "../lib/onboarding-route";
 import { queryKeys } from "../lib/queryKeys";
-import { resolveRuntimeModels } from "../lib/runtime-models";
+import {
+  explicitProviderModelError,
+  isProviderModelFormat,
+  requiresExplicitProviderModel,
+  resolveRuntimeModels,
+  runtimeModelEmptyLabel,
+  runtimeModelEmptyMessage,
+  runtimeModelSearchPlaceholder,
+} from "../lib/runtime-models";
 import { cn } from "../lib/utils";
 import { defaultCreateValues } from "./agent-config-defaults";
+import { defaultModelForRuntime } from "./AgentConfigForm.helpers";
+import { ModelDropdown } from "./AgentConfigForm.model-dropdown";
 import { AsciiArtAnimation } from "./AsciiArtAnimation";
 import { AdapterEnvironmentResult } from "./OnboardingWizard.environment";
 import {
@@ -102,7 +103,6 @@ export function OnboardingWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modelOpen, setModelOpen] = useState(false);
-  const [modelSearch, setModelSearch] = useState("");
   // Step 1
   const [organizationName, setCompanyName] = useState("");
   const [companyGoal, setCompanyGoal] = useState("");
@@ -328,7 +328,6 @@ export function OnboardingWizard() {
   }, [effectiveOnboardingOpen, queryClient]);
   const {
     data: adapterModels,
-    error: adapterModelsError,
     isLoading: adapterModelsLoading,
     isFetching: adapterModelsFetching
   } = useQuery({
@@ -393,7 +392,7 @@ export function OnboardingWizard() {
     () => resolveRuntimeModels(agentRuntimeType, adapterModels),
     [agentRuntimeType, adapterModels]
   );
-  const selectedModel = availableAdapterModels.find((m) => m.id === model);
+  const requiresProviderModel = requiresExplicitProviderModel(agentRuntimeType);
   const hasAnthropicApiKeyOverrideCheck =
     adapterEnvResult?.checks.some(
       (check) =>
@@ -403,41 +402,6 @@ export function OnboardingWizard() {
     agentRuntimeType === "claude_local" &&
     adapterEnvResult?.status === "fail" &&
     hasAnthropicApiKeyOverrideCheck;
-  const filteredModels = useMemo(() => {
-    const query = modelSearch.trim().toLowerCase();
-    return availableAdapterModels.filter((entry) => {
-      if (!query) return true;
-      const provider = extractProviderIdWithFallback(entry.id, "");
-      return (
-        entry.id.toLowerCase().includes(query) ||
-        entry.label.toLowerCase().includes(query) ||
-        provider.toLowerCase().includes(query)
-      );
-    });
-  }, [availableAdapterModels, modelSearch]);
-  const groupedModels = useMemo(() => {
-    if (agentRuntimeType !== "opencode_local") {
-      return [
-        {
-          provider: "models",
-          entries: [...filteredModels].sort((a, b) => a.id.localeCompare(b.id))
-        }
-      ];
-    }
-    const groups = new Map<string, Array<{ id: string; label: string }>>();
-    for (const entry of filteredModels) {
-      const provider = extractProviderIdWithFallback(entry.id);
-      const bucket = groups.get(provider) ?? [];
-      bucket.push(entry);
-      groups.set(provider, bucket);
-    }
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([provider, entries]) => ({
-        provider,
-        entries: [...entries].sort((a, b) => a.id.localeCompare(b.id))
-      }));
-  }, [filteredModels, agentRuntimeType]);
   function reset() {
     setStep(1);
     setLoading(false);
@@ -662,35 +626,10 @@ export function OnboardingWizard() {
         setError("Agent name is required.");
         return;
       }
-      if (agentRuntimeType === "opencode_local") {
+      if (requiresProviderModel) {
         const selectedModelId = model.trim();
-        if (!selectedModelId) {
-          setError(
-            "OpenCode requires an explicit model in provider/model format."
-          );
-          return;
-        }
-        if (adapterModelsError) {
-          setError(
-            adapterModelsError instanceof Error
-              ? adapterModelsError.message
-              : "Failed to load OpenCode models."
-          );
-          return;
-        }
-        if (adapterModelsLoading || adapterModelsFetching) {
-          setError(
-            "OpenCode models are still loading. Please wait and try again."
-          );
-          return;
-        }
-        const discoveredModels = adapterModels ?? [];
-        if (!discoveredModels.some((entry) => entry.id === selectedModelId)) {
-          setError(
-            discoveredModels.length === 0
-              ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
-              : `Configured OpenCode model is unavailable: ${selectedModelId}`
-          );
+        if (!isProviderModelFormat(selectedModelId)) {
+          setError(explicitProviderModelError(agentRuntimeType));
           return;
         }
       }
@@ -1031,12 +970,7 @@ export function OnboardingWizard() {
                           )} onClick={() => {
                             const nextType = opt.value as AdapterType;
                             setAdapterType(nextType);
-                            if (nextType === "codex_local" && !model) {
-                              setModel(DEFAULT_CODEX_LOCAL_MODEL);
-                            }
-                            if (nextType !== "codex_local") {
-                              setModel("");
-                            }
+                            setModel(defaultModelForRuntime(nextType));
                           }} >
                           {opt.recommended && (
                             <span className="absolute -top-1.5 right-1.5 bg-green-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
@@ -1100,21 +1034,7 @@ export function OnboardingWizard() {
                               if (opt.comingSoon) return;
                               const nextType = opt.value as AdapterType;
                               setAdapterType(nextType);
-                              if (nextType === "gemini_local" && !model) {
-                                setModel(DEFAULT_GEMINI_LOCAL_MODEL);
-                                return;
-                              }
-                              if (nextType === "cursor" && !model) {
-                                setModel(DEFAULT_CURSOR_LOCAL_MODEL);
-                                return;
-                              }
-                              if (nextType === "opencode_local") {
-                                if (!model.includes("/")) {
-                                  setModel("");
-                                }
-                                return;
-                              }
-                              setModel("");
+                              setModel(defaultModelForRuntime(nextType));
                             }} >
                             <opt.icon className="h-4 w-4" />
                             <span className="font-medium">{opt.label}</span>
@@ -1132,72 +1052,25 @@ export function OnboardingWizard() {
                     agentRuntimeType === "pi_local" ||
                     agentRuntimeType === "cursor") && (
                     <div className="space-y-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">
-                          Model
-                        </label>
-                        <Popover
-                          open={modelOpen} onOpenChange={(next) => {
-                            setModelOpen(next);
-                            if (!next) setModelSearch("");
-                          }} >
-                          <PopoverTrigger asChild>
-                            <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm hover:bg-accent/50 transition-colors w-full justify-between">
-                              <span className={cn(
-                                  !model && "text-muted-foreground"
-                                )} >
-                                {selectedModel
-                                  ? selectedModel.label
-                                  : model ||
-                                    (agentRuntimeType === "opencode_local"
-                                      ? "Select model (required)"
-                                      : "Default")} </span>
-                              <ChevronDown className="h-3 w-3 text-muted-foreground" /> </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1"
-                            align="start" >
-                            <input className="w-full px-2 py-1.5 text-xs bg-transparent outline-none border-b border-border mb-1 placeholder:text-muted-foreground/50" placeholder="Search models..." value={modelSearch} onChange={(e) => setModelSearch(e.target.value)}
-                              autoFocus />
-                            {agentRuntimeType !== "opencode_local" && (
-                              <button className={cn(
-                                  "flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent/50",
-                                  !model && "bg-accent"
-                                )} onClick={() => {
-                                  setModel("");
-                                  setModelOpen(false);
-                                }} >
-                                Default </button>
-                            )}
-                            <div className="max-h-[240px] overflow-y-auto">
-                              {groupedModels.map((group) => (
-                                <div key={group.provider} className="mb-1 last:mb-0" >
-                                  {agentRuntimeType === "opencode_local" && (
-                                    <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                      {group.provider} ({group.entries.length}) </div>
-                                  )}
-                                  {group.entries.map((m) => (
-                                    <button key={m.id} className={cn(
-                                        "flex items-center w-full px-2 py-1.5 text-sm rounded hover:bg-accent/50",
-                                        m.id === model && "bg-accent"
-                                      )} onClick={() => {
-                                        setModel(m.id);
-                                        setModelOpen(false);
-                                      }} >
-                                      <span className="block w-full text-left truncate" title={m.id} >
-                                        {agentRuntimeType === "opencode_local"
-                                          ? extractModelName(m.id)
-                                          : m.label} </span> </button>
-                                  ))} </div>
-                              ))} </div>
-                            {filteredModels.length === 0 && (
-                              <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                                {adapterModelsLoading || adapterModelsFetching
-                                  ? "Loading models..."
-                                  : "No models discovered."}
-                              </p>
-                            )}
-                          </PopoverContent>
-                        </Popover> </div> </div>
+                      <ModelDropdown
+                        label="Model"
+                        models={availableAdapterModels}
+                        value={model}
+                        onChange={setModel}
+                        open={modelOpen}
+                        onOpenChange={setModelOpen}
+                        allowDefault={!requiresProviderModel}
+                        required={requiresProviderModel}
+                        groupByProvider={requiresProviderModel}
+                        emptyLabel={runtimeModelEmptyLabel(agentRuntimeType, requiresProviderModel)}
+                        searchPlaceholder={runtimeModelSearchPlaceholder(agentRuntimeType)}
+                        emptyMessage={runtimeModelEmptyMessage(
+                          agentRuntimeType,
+                          adapterModelsLoading || adapterModelsFetching,
+                        )}
+                        allowCustom
+                      />
+                    </div>
                   )}
                   {isLocalAdapter && (
                     <div className="space-y-2 rounded-md border border-border p-3">

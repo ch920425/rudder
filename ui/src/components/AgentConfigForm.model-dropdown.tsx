@@ -33,6 +33,8 @@ export function ModelDropdown({
   required,
   groupByProvider,
   emptyLabel,
+  searchPlaceholder = "Search models...",
+  emptyMessage = "No models found.",
   triggerTestId,
 }: {
   label: string;
@@ -48,6 +50,8 @@ export function ModelDropdown({
   required: boolean;
   groupByProvider: boolean;
   emptyLabel: string;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
   triggerTestId?: string;
 }) {
   const [modelSearch, setModelSearch] = useState("");
@@ -117,7 +121,7 @@ export function ModelDropdown({
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
           <input
             className="w-full px-2 py-1.5 text-xs bg-transparent outline-none border-b border-border mb-1 placeholder:text-muted-foreground/50"
-            placeholder="Search models..."
+            placeholder={searchPlaceholder}
             value={modelSearch}
             onChange={(e) => setModelSearch(e.target.value)}
             autoFocus
@@ -191,7 +195,7 @@ export function ModelDropdown({
               </div>
             ))}
             {filteredModels.length === 0 && !canUseCustomModel && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">No models found.</p>
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyMessage}</p>
             )}
           </div>
         </PopoverContent>
@@ -246,4 +250,3 @@ export function ThinkingEffortDropdown({
     </Field>
   );
 }
-

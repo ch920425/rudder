@@ -12,7 +12,13 @@ import type { AgentRuntimeConfigFieldsProps } from "../agent-runtimes/types";
 import type { AgentRuntimeModel } from "../api/agents";
 import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
-import { resolveRuntimeModels } from "../lib/runtime-models";
+import {
+  requiresExplicitProviderModel,
+  resolveRuntimeModels,
+  runtimeModelEmptyLabel,
+  runtimeModelEmptyMessage,
+  runtimeModelSearchPlaceholder,
+} from "../lib/runtime-models";
 import { cn, formatTime } from "../lib/utils";
 import {
   CollapsibleSection,
@@ -175,6 +181,7 @@ export function RuntimeProviderCard({
     () => resolveRuntimeModels(runtimeType, fetchedModels, externalModels),
     [runtimeType, fetchedModels, externalModels],
   );
+  const requiresProviderModel = requiresExplicitProviderModel(runtimeType);
   const thinkingEffortKey = thinkingEffortKeyForRuntime(runtimeType);
   const currentThinkingEffort = createValues
     ? createValues.thinkingEffort
@@ -227,10 +234,12 @@ export function RuntimeProviderCard({
           onChange={onModelChange}
           open={modelOpen}
           onOpenChange={setModelOpen}
-          allowDefault={runtimeType !== "opencode_local" && !onRemove}
-          required={runtimeType === "opencode_local" || Boolean(onRemove)}
-          groupByProvider={runtimeType === "opencode_local"}
-          emptyLabel={runtimeType === "opencode_local" || onRemove ? "Select model" : "Default"}
+          allowDefault={!requiresProviderModel && !onRemove}
+          required={requiresProviderModel || Boolean(onRemove)}
+          groupByProvider={requiresProviderModel}
+          emptyLabel={runtimeModelEmptyLabel(runtimeType, Boolean(onRemove))}
+          searchPlaceholder={runtimeModelSearchPlaceholder(runtimeType)}
+          emptyMessage={runtimeModelEmptyMessage(runtimeType)}
           allowCustom
           triggerTestId={triggerTestId}
         />

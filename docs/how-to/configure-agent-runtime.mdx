@@ -84,6 +84,32 @@ The instructions file should be an absolute path, for example:
 
 Rudder injects its shared operating contract separately. For Codex, repository-scoped `AGENTS.md` files may still be applied by Codex itself when the agent works inside that repository.
 
+### Use a custom provider/model
+
+Some local runtimes use provider-qualified model IDs. Pi and OpenCode require a model in `provider/model` format. The model picker shows discovered models when the CLI can list them, but discovery is only a suggestion list. If your provider is configured locally and the model does not appear yet, enter the ID directly and run the environment test.
+
+Examples:
+
+```text
+opencode/deepseek-v4-flash-free
+kimi-coding/kimi-for-coding
+deepseek/deepseek-chat
+```
+
+For Pi, verify local provider setup with:
+
+```sh
+pi --list-models
+```
+
+For OpenCode, verify local provider setup with:
+
+```sh
+opencode models
+```
+
+If discovery returns no models but the custom model is valid for your local provider configuration, keep the custom `provider/model` value and use **Test now**. The test runs the runtime CLI with that model and reports the real provider error if credentials, provider name, or model name are wrong.
+
 Codex-specific options include web search and sandbox bypass. Enable search only when the agent should use web results during runs. Enable sandbox bypass only for trusted local work that needs broader filesystem or network access.
 
 Claude Code options include Chrome access, permission behavior, and max turns per run. Keep these tight for routine work; loosen them only when the agent needs that capability.

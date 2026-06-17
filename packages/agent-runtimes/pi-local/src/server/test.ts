@@ -47,6 +47,11 @@ function normalizeEnv(input: unknown): Record<string, string> {
   return env;
 }
 
+function isProviderModelFormat(model: string): boolean {
+  const [provider, modelId] = model.split("/", 2).map((part) => part.trim());
+  return Boolean(provider && modelId);
+}
+
 const PI_AUTH_REQUIRED_RE =
   /(?:auth(?:entication)?\s+required|api[-_\s]*key|invalid\s*api[-_\s]*key|x[-_\s]*api[-_\s]*key|not\s+logged\s+in|free\s+usage\s+exceeded)/i;
 const PI_STALE_PACKAGE_RE = /pi-driver|npm:\s*pi-driver/i;
@@ -157,12 +162,20 @@ export async function testEnvironment(
   }
 
   const configuredModel = asString(config.model, "").trim();
+  const configuredModelHasProvider = isProviderModelFormat(configuredModel);
   if (!configuredModel) {
     checks.push({
       code: "pi_model_required",
       level: "error",
       message: "Pi requires a configured model in provider/model format.",
       hint: "Set agentRuntimeConfig.model using an ID from `pi --list-models`.",
+    });
+  } else if (!configuredModelHasProvider) {
+    checks.push({
+      code: "pi_model_invalid",
+      level: "error",
+      message: "Pi requires a configured model in provider/model format.",
+      hint: "Use provider/model, for example `kimi-coding/kimi-for-coding`.",
     });
   } else if (canRunProbe) {
     // Verify model is in the list
@@ -177,10 +190,10 @@ export async function testEnvironment(
         });
       } else {
         checks.push({
-          code: "pi_model_not_found",
-          level: "warn",
-          message: `Configured model "${configuredModel}" not found in available models.`,
-          hint: "Run `pi --list-models` and choose a currently available provider/model ID.",
+          code: "pi_model_not_discovered",
+          level: "info",
+          message: `Configured model "${configuredModel}" was not found in discovered model suggestions.`,
+          hint: "Keep this custom provider/model if your local Pi provider config supports it; the hello probe below is the source of truth.",
         });
       }
     } catch {
@@ -193,7 +206,7 @@ export async function testEnvironment(
     }
   }
 
-  if (canRunProbe && configuredModel) {
+  if (canRunProbe && configuredModel && configuredModelHasProvider) {
     // Parse model for probe
     const provider = configuredModel.includes("/") 
       ? configuredModel.slice(0, configuredModel.indexOf("/")) 
