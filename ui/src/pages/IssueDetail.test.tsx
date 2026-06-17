@@ -7,6 +7,7 @@ import { IssueDetail, buildIssueChatHref, buildIssueHeaderBreadcrumbs } from "./
 
 let capturedMentions: Array<Record<string, unknown>> = [];
 let capturedCommentThreadProps: Record<string, unknown> | null = null;
+let capturedInlineEditorProps: Array<Record<string, unknown>> = [];
 let mockSourceBreadcrumb: { label: string; href: string } | null = null;
 let mockIssuePluginSlots: Array<Record<string, unknown>> = [];
 
@@ -303,7 +304,9 @@ vi.mock("../api/projects", () => ({
 }));
 
 vi.mock("../components/InlineEditor", () => ({
-  InlineEditor: ({ value, placeholder, mentions }: { value?: string; placeholder?: string; mentions?: Array<Record<string, unknown>> }) => {
+  InlineEditor: (props: { value?: string; placeholder?: string; mentions?: Array<Record<string, unknown>> }) => {
+    const { value, placeholder, mentions } = props;
+    capturedInlineEditorProps.push(props);
     capturedMentions = mentions ?? [];
     return <div>{value ?? placeholder ?? ""}</div>;
   },
@@ -574,6 +577,7 @@ describe("IssueDetail", () => {
   beforeEach(() => {
     capturedMentions = [];
     capturedCommentThreadProps = null;
+    capturedInlineEditorProps = [];
     mockSourceBreadcrumb = null;
     mockIssuePluginSlots = [];
     queryData.set(JSON.stringify(["issues", "detail", "ORG2-1"]), parentIssue);
@@ -644,6 +648,19 @@ describe("IssueDetail", () => {
 
     expect(html).toContain('href="/issues/issue-parent"');
     expect(html).toContain("issue-pa");
+  });
+
+  it("keeps the description in the markdown editor surface before focus", () => {
+    renderToStaticMarkup(<IssueDetail />);
+
+    const descriptionEditorProps = capturedInlineEditorProps.find(
+      (props) => props.placeholder === "Add a description...",
+    );
+    expect(descriptionEditorProps).toMatchObject({
+      multiline: true,
+      alwaysEdit: true,
+      editorEngine: "milkdown",
+    });
   });
 
   it("renders linked Library files with a stable icon affordance", () => {
