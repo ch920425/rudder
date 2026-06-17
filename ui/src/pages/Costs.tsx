@@ -18,7 +18,7 @@ import {
 } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Coins, DollarSign, ReceiptText } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
 import { budgetsApi } from "../api/budgets";
 import { costsApi } from "../api/costs";
 import { AgentIdentity } from "../components/AgentAvatar";
@@ -42,6 +42,32 @@ import { billingTypeDisplayName, cn, formatCents, formatTokens, providerDisplayN
 const NO_ORGANIZATION = "__none__";
 
 type CostTrendFilterKind = "all" | "agent" | "project";
+
+type AgentTrendSeries = {
+  agent: CostByAgent;
+  rows: CostTrendPoint[];
+};
+
+type CostTrendScaleTick = {
+  value: number;
+  label: string;
+  position: number;
+};
+
+const agentTrendPalette = [
+  "#2563eb",
+  "#f97316",
+  "#10b981",
+  "#8b5cf6",
+  "#06b6d4",
+  "#e11d48",
+  "#f59e0b",
+  "#64748b",
+  "#14b8a6",
+  "#a855f7",
+  "#0f766e",
+  "#737373",
+];
 
 function currentWeekRange(): { from: string; to: string } {
   const now = new Date();
@@ -172,6 +198,71 @@ function formatTrendTokenCount(value: number): string {
   return formatExactCount(value);
 }
 
+function buildTokenScale(maxValue: number): CostTrendScaleTick[] {
+  const maxTick = Math.max(1, Math.ceil(maxValue));
+  const middleTick = Math.round(maxTick / 2);
+  return [maxTick, middleTick, 0]
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .map((value) => ({
+      value,
+      label: formatTrendTokenCount(value),
+      position: value / maxTick,
+    }));
+}
+
+function chartColumnMotionStyle(index: number): CSSProperties {
+  return { "--dashboard-chart-index": index } as CSSProperties;
+}
+
+function CostTrendScaleLabels({ ticks }: { ticks: CostTrendScaleTick[] }) {
+  return (
+    <div className="relative h-44" aria-hidden="true" data-testid="cost-trend-scale">
+      {ticks.map((tick) => (
+        <span
+          key={`${tick.value}:${tick.label}`}
+          className="absolute right-0 translate-y-1/2 text-[9px] leading-none text-muted-foreground/50 tabular-nums"
+          style={{ bottom: `${tick.position * 100}%` }}
+        >
+          {tick.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CostTrendGridLines({ ticks }: { ticks: CostTrendScaleTick[] }) {
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      {ticks.map((tick) => (
+        <span
+          key={`${tick.value}:${tick.label}`}
+          className="absolute left-0 right-0 border-t border-border/35"
+          style={{ bottom: `${tick.position * 100}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CostTrendLegend({
+  items,
+  className,
+}: {
+  items: { color: string; label: string }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-wrap gap-x-2.5 gap-y-1", className)}>
+      {items.map((item) => (
+        <span key={item.label} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+          <span className="max-w-36 truncate">{item.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function trendAgentLabel(row: CostByAgent): string {
   return row.agentName ?? row.agentId;
 }
@@ -184,51 +275,79 @@ export function CostTrendChart({
   rows,
   from,
   to,
+  agentSeries = [],
   agentOptions = [],
   projectOptions = [],
   filterKind = "all",
-  selectedAgentId = "",
   selectedProjectId = "",
   onFilterKindChange,
-  onAgentChange,
   onProjectChange,
   isLoading = false,
 }: {
   rows: CostTrendPoint[];
   from?: string;
   to?: string;
+  agentSeries?: AgentTrendSeries[];
   agentOptions?: CostByAgent[];
   projectOptions?: CostByProject[];
   filterKind?: CostTrendFilterKind;
-  selectedAgentId?: string;
   selectedProjectId?: string;
   onFilterKindChange?: (kind: CostTrendFilterKind) => void;
-  onAgentChange?: (agentId: string) => void;
   onProjectChange?: (projectId: string) => void;
   isLoading?: boolean;
 }) {
   const series = buildTrendSeries(rows, from, to);
-  const maxTokens = Math.max(...series.map((row) => row.totalTokens), 1);
-  const maxCost = Math.max(...series.map((row) => row.costCents), 1);
-  const totalTokens = series.reduce((sum, row) => sum + row.totalTokens, 0);
-  const totalCost = series.reduce((sum, row) => sum + row.costCents, 0);
+  const comparisonSeries = agentSeries.map((entry) => ({
+    ...entry,
+    rows: buildTrendSeries(entry.rows, from, to),
+  }));
+  const comparisonDays = comparisonSeries[0]?.rows.map((row) => row.date) ?? series.map((row) => row.date);
+  const comparisonRowsByAgent = new Map(
+    comparisonSeries.map((entry) => [entry.agent.agentId, new Map(entry.rows.map((row) => [row.date, row]))]),
+  );
+  const isAgentComparison = filterKind === "agent";
+  const totalTokens = isAgentComparison
+    ? comparisonSeries.reduce((sum, entry) => sum + entry.rows.reduce((entrySum, row) => entrySum + row.totalTokens, 0), 0)
+    : series.reduce((sum, row) => sum + row.totalTokens, 0);
+  const totalCost = isAgentComparison
+    ? comparisonSeries.reduce((sum, entry) => sum + entry.rows.reduce((entrySum, row) => entrySum + row.costCents, 0), 0)
+    : series.reduce((sum, row) => sum + row.costCents, 0);
   const hasData = totalTokens > 0 || totalCost > 0;
-  const activeAgentId = agentOptions.some((row) => row.agentId === selectedAgentId)
-    ? selectedAgentId
-    : agentOptions[0]?.agentId ?? "";
   const activeProjectId = projectOptions.some((row) => row.projectId === selectedProjectId)
     ? selectedProjectId
     : projectOptions[0]?.projectId ?? "";
   const hasAgentOptions = agentOptions.length > 0;
   const hasProjectOptions = projectOptions.length > 0;
+  const maxTokens = Math.max(
+    ...(isAgentComparison
+      ? comparisonSeries.flatMap((entry) => entry.rows.map((row) => row.totalTokens))
+      : series.map((row) => row.totalTokens)),
+    1,
+  );
+  const scaleTicks = buildTokenScale(maxTokens);
+  const chartMinWidth = isAgentComparison
+    ? Math.max(560, comparisonDays.length * Math.max(34, comparisonSeries.length * 10))
+    : Math.max(520, series.length * 30);
+  const tokenLegendItems = [
+    { color: "#3b82f6", label: "Uncached input" },
+    { color: "#06b6d4", label: "Cached" },
+    { color: "#10b981", label: "Output" },
+  ];
+  const agentLegendItems = comparisonSeries.map((entry, index) => ({
+    color: agentTrendPalette[index % agentTrendPalette.length]!,
+    label: trendAgentLabel(entry.agent),
+  }));
+  const chartSubtitle = isAgentComparison
+    ? "Daily token usage grouped by agent, with estimated spend in tooltips."
+    : "Daily token volume and estimated spend in the selected period.";
 
   return (
-    <Card data-testid="cost-trend-chart">
-      <CardHeader className="px-5 pt-5 pb-2">
+    <div className="space-y-4 rounded-lg border border-border p-4" data-testid="cost-trend-chart">
+      <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">Inference trend</CardTitle>
-            <CardDescription>Daily token volume and estimated spend in the selected period.</CardDescription>
+            <h3 className="text-xs font-medium text-muted-foreground">Inference trend</h3>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/60">{chartSubtitle}</p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground sm:justify-end">
@@ -258,18 +377,9 @@ export function CostTrendChart({
                   </button>
                 ))}
                 {filterKind === "agent" && hasAgentOptions ? (
-                  <select
-                    aria-label="Filter trend by agent"
-                    value={activeAgentId}
-                    onChange={(event) => onAgentChange?.(event.target.value)}
-                    className="h-7 max-w-48 rounded-[calc(var(--radius-sm)-1px)] border border-border bg-background px-2 text-xs text-foreground"
-                  >
-                    {agentOptions.map((row) => (
-                      <option key={row.agentId} value={row.agentId}>
-                        {trendAgentLabel(row)}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="rounded-[calc(var(--radius-sm)-1px)] border border-border px-2.5 py-1 text-muted-foreground">
+                    {agentOptions.length} agent{agentOptions.length === 1 ? "" : "s"}
+                  </span>
                 ) : null}
                 {filterKind === "project" && hasProjectOptions ? (
                   <select
@@ -289,84 +399,181 @@ export function CostTrendChart({
             ) : null}
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="px-5 pb-5 pt-2">
+      </div>
+      <div>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading trend…</p>
+          <p className="text-xs text-muted-foreground">Loading trend...</p>
         ) : !hasData ? (
-          <p className="text-sm text-muted-foreground">No cost trend yet.</p>
+          <p className="text-xs text-muted-foreground">No cost trend yet.</p>
         ) : (
-          <div className="space-y-3">
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm bg-sky-500" /> Tokens
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Estimated spend
-              </span>
-            </div>
-            <div className="overflow-x-auto pb-1">
-              <div className="flex h-40 min-w-[520px] items-end gap-2">
-                {series.map((row, index) => {
-                  const tokenHeight = Math.max(3, (row.totalTokens / maxTokens) * 100);
-                  const costBottom = Math.max(2, (row.costCents / maxCost) * 100);
-                  const dateLabel = fullDayLabel(row.date);
-                  const accessibleLabel = `${dateLabel}: ${formatTrendTokenCount(row.totalTokens)} tokens (${formatTrendTokenCount(row.inputTokens)} input, ${formatTrendTokenCount(row.cachedInputTokens)} cached, ${formatTrendTokenCount(row.outputTokens)} output), ${formatCents(row.costCents)} estimated spend, ${formatExactCount(row.eventCount)} events`;
-                  return (
-                    <TooltipProvider key={row.date}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label={accessibleLabel}
-                            className="group flex min-w-7 flex-1 flex-col justify-end gap-1 rounded-[calc(var(--radius-sm)-1px)] bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                          >
-                            <span className="relative h-32 w-full rounded-[calc(var(--radius-sm)-1px)] bg-muted/35">
-                              <span
-                                className="absolute inset-x-1 bottom-0 rounded-t-[calc(var(--radius-sm)-1px)] bg-sky-500/60 transition-colors group-hover:bg-sky-500 group-focus-visible:bg-sky-500"
-                                style={{ height: `${row.totalTokens > 0 ? tokenHeight : 0}%` }}
-                              />
-                              {row.costCents > 0 ? (
-                                <span
-                                  className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-background bg-emerald-500 shadow-sm"
-                                  style={{ bottom: `calc(${costBottom}% - 5px)` }}
-                                />
-                              ) : null}
-                            </span>
-                            <span className="h-3 w-full text-center text-[10px] tabular-nums text-muted-foreground">
-                              {shouldShowDayLabel(index, series.length) ? dayLabel(row.date) : null}
-                            </span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" sideOffset={8} className="w-56 p-3 text-xs">
-                          <div className="space-y-2">
-                            <div className="font-medium text-background">{dateLabel}</div>
-                            <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
-                              <dt className="text-background/70">Tokens</dt>
-                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.totalTokens)}</dd>
-                              <dt className="text-background/70">Input</dt>
-                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.inputTokens)}</dd>
-                              <dt className="text-background/70">Cached</dt>
-                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.cachedInputTokens)}</dd>
-                              <dt className="text-background/70">Output</dt>
-                              <dd className="font-mono tabular-nums">{formatTrendTokenCount(row.outputTokens)}</dd>
-                              <dt className="text-background/70">Estimated spend</dt>
-                              <dd className="font-mono tabular-nums">{formatCents(row.costCents)}</dd>
-                              <dt className="text-background/70">Events</dt>
-                              <dd className="font-mono tabular-nums">{formatExactCount(row.eventCount)}</dd>
-                            </dl>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  );
-                })}
+          <TooltipProvider delayDuration={120}>
+            <div className="dashboard-chart-motion space-y-3">
+              <div className="overflow-x-auto pb-1">
+                <div style={{ minWidth: chartMinWidth }}>
+                  <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-1.5">
+                    <CostTrendScaleLabels ticks={scaleTicks} />
+                    <div className="relative h-44 min-w-0">
+                      <CostTrendGridLines ticks={scaleTicks} />
+                      <div className="relative z-10 flex h-full items-end gap-[3px]">
+                        {isAgentComparison
+                          ? comparisonDays.map((day, dayIndex) => {
+                              const dayRows = comparisonSeries.map((entry, agentIndex) => {
+                                const row = comparisonRowsByAgent.get(entry.agent.agentId)?.get(day) ?? emptyTrendPoint(day);
+                                return { ...entry, row, color: agentTrendPalette[agentIndex % agentTrendPalette.length]! };
+                              });
+                              const dayTotalTokens = dayRows.reduce((sum, entry) => sum + entry.row.totalTokens, 0);
+                              const dayTotalCost = dayRows.reduce((sum, entry) => sum + entry.row.costCents, 0);
+                              const dateLabel = fullDayLabel(day);
+                              const accessibleLabel = `${dateLabel}: ${dayRows.map((entry) => `${trendAgentLabel(entry.agent)} ${formatTrendTokenCount(entry.row.totalTokens)} tokens, ${formatCents(entry.row.costCents)}`).join("; ")}`;
+                              return (
+                                <Tooltip key={day}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      aria-label={accessibleLabel}
+                                      className="flex h-full min-w-0 flex-1 appearance-none flex-col justify-end rounded-[4px] bg-transparent p-0 text-left transition-colors hover:bg-black/3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                    >
+                                      <span className="flex h-full items-end justify-center gap-[2px] px-0.5">
+                                        {dayRows.map((entry, agentIndex) => {
+                                          const heightPct = (entry.row.totalTokens / maxTokens) * 100;
+                                          return entry.row.totalTokens > 0 ? (
+                                            <span
+                                              key={entry.agent.agentId}
+                                              className="dashboard-chart-bar min-w-[5px] flex-1 rounded-t-[3px]"
+                                              style={{
+                                                ...chartColumnMotionStyle(dayIndex * Math.max(comparisonSeries.length, 1) + agentIndex),
+                                                height: `${heightPct}%`,
+                                                minHeight: 2,
+                                                backgroundColor: entry.color,
+                                              }}
+                                            />
+                                          ) : (
+                                            <span
+                                              key={entry.agent.agentId}
+                                              className="dashboard-chart-empty-bar min-w-[5px] flex-1 rounded-sm bg-muted/30"
+                                              style={chartColumnMotionStyle(dayIndex * Math.max(comparisonSeries.length, 1) + agentIndex)}
+                                            />
+                                          );
+                                        })}
+                                      </span>
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" sideOffset={8} className="min-w-[260px] px-3 py-2">
+                                    <div className="space-y-2">
+                                      <div className="border-b border-background/15 pb-2">
+                                        <div className="font-medium text-background">{dateLabel}</div>
+                                        <div className="text-[11px] text-background/70">
+                                          {formatTrendTokenCount(dayTotalTokens)} tokens · {formatCents(dayTotalCost)} estimated spend
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        {dayRows.map((entry) => (
+                                          <div key={entry.agent.agentId} className="flex items-center justify-between gap-3 text-xs">
+                                            <div className="flex min-w-0 items-center gap-1.5 text-background/80">
+                                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                                              <span className="truncate">{trendAgentLabel(entry.agent)}</span>
+                                            </div>
+                                            <span className="shrink-0 font-medium text-background tabular-nums">
+                                              {formatTrendTokenCount(entry.row.totalTokens)} · {formatCents(entry.row.costCents)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })
+                          : series.map((row, index) => {
+                              const usage = summarizeTokenUsage(row);
+                              const tokenHeight = (usage.totalTokens / maxTokens) * 100;
+                              const dateLabel = fullDayLabel(row.date);
+                              const accessibleLabel = `${dateLabel}: ${formatTrendTokenCount(usage.totalTokens)} tokens (${formatTrendTokenCount(usage.uncachedInputTokens)} uncached input, ${formatTrendTokenCount(usage.cachedInputTokens)} cached, ${formatTrendTokenCount(usage.outputTokens)} output), ${formatCents(row.costCents)} estimated spend, ${formatExactCount(row.eventCount)} events`;
+                              return (
+                                <Tooltip key={row.date}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      aria-label={accessibleLabel}
+                                      className="flex h-full min-w-0 flex-1 appearance-none flex-col justify-end rounded-[4px] bg-transparent p-0 text-left transition-colors hover:bg-black/3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                    >
+                                      {usage.totalTokens > 0 ? (
+                                        <span
+                                          className="dashboard-chart-bar flex flex-col-reverse gap-px overflow-hidden"
+                                          style={{ ...chartColumnMotionStyle(index), height: `${tokenHeight}%`, minHeight: 2 }}
+                                        >
+                                          {usage.uncachedInputTokens > 0 ? (
+                                            <span className="bg-blue-500" style={{ flex: usage.uncachedInputTokens }} />
+                                          ) : null}
+                                          {usage.cachedInputTokens > 0 ? (
+                                            <span className="bg-cyan-500" style={{ flex: usage.cachedInputTokens }} />
+                                          ) : null}
+                                          {usage.outputTokens > 0 ? (
+                                            <span className="bg-emerald-500" style={{ flex: usage.outputTokens }} />
+                                          ) : null}
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className="dashboard-chart-empty-bar rounded-sm bg-muted/30"
+                                          style={{ ...chartColumnMotionStyle(index), height: 2 }}
+                                        />
+                                      )}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" sideOffset={8} className="min-w-[220px] px-3 py-2">
+                                    <div className="space-y-2">
+                                      <div className="border-b border-background/15 pb-2">
+                                        <div className="font-medium text-background">{dateLabel}</div>
+                                        <div className="text-[11px] text-background/70">
+                                          {formatTrendTokenCount(usage.totalTokens)} tokens · {formatCents(row.costCents)} estimated spend
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between gap-3 text-xs">
+                                          <span className="text-background/80">Uncached input</span>
+                                          <span className="font-medium text-background">{formatTrendTokenCount(usage.uncachedInputTokens)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-xs">
+                                          <span className="text-background/80">Cached</span>
+                                          <span className="font-medium text-background">{formatTrendTokenCount(usage.cachedInputTokens)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-xs">
+                                          <span className="text-background/80">Output</span>
+                                          <span className="font-medium text-background">{formatTrendTokenCount(usage.outputTokens)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 text-xs">
+                                          <span className="text-background/80">Events</span>
+                                          <span className="font-medium text-background">{formatExactCount(row.eventCount)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-1.5">
+                    <div aria-hidden="true" />
+                    <div className="mt-1.5 flex gap-[3px]">
+                      {(isAgentComparison ? comparisonDays : series.map((row) => row.date)).map((day, index, days) => (
+                        <div key={day} className="flex-1 text-center">
+                          {shouldShowDayLabel(index, days.length) ? (
+                            <span className="text-[9px] text-muted-foreground tabular-nums">{dayLabel(day)}</span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
+              <CostTrendLegend items={isAgentComparison ? agentLegendItems : tokenLegendItems} />
             </div>
-          </div>
+          </TooltipProvider>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -430,7 +637,6 @@ export function Costs() {
   const [activeProvider, setActiveProvider] = useState("all");
   const [activeBiller, setActiveBiller] = useState("all");
   const [trendFilterKind, setTrendFilterKind] = useState<CostTrendFilterKind>("all");
-  const [trendAgentId, setTrendAgentId] = useState("");
   const [trendProjectId, setTrendProjectId] = useState("");
 
   const {
@@ -575,24 +781,19 @@ export function Costs() {
     () => (spendData?.byProject ?? []).filter((row) => row.projectId && (hasTokenUsage(row) || row.costCents > 0)),
     [spendData?.byProject],
   );
-  const effectiveTrendAgentId = trendAgentOptions.some((row) => row.agentId === trendAgentId)
-    ? trendAgentId
-    : trendAgentOptions[0]?.agentId ?? "";
   const effectiveTrendProjectId = trendProjectOptions.some((row) => row.projectId === trendProjectId)
     ? trendProjectId
     : trendProjectOptions[0]?.projectId ?? "";
   const effectiveTrendFilterKind =
-    trendFilterKind === "agent" && effectiveTrendAgentId
+    trendFilterKind === "agent" && trendAgentOptions.length > 0
       ? "agent"
       : trendFilterKind === "project" && effectiveTrendProjectId
         ? "project"
         : "all";
   const trendFilterId =
-    effectiveTrendFilterKind === "agent"
-      ? effectiveTrendAgentId
-      : effectiveTrendFilterKind === "project"
-        ? effectiveTrendProjectId
-        : "";
+    effectiveTrendFilterKind === "project"
+      ? effectiveTrendProjectId
+      : "";
 
   const { data: trendData, isLoading: trendLoading, error: trendError } = useQuery({
     queryKey: queryKeys.costTrend(
@@ -607,13 +808,32 @@ export function Costs() {
         orgId,
         from || undefined,
         to || undefined,
-        effectiveTrendFilterKind === "agent"
-          ? { agentId: trendFilterId }
-          : effectiveTrendFilterKind === "project"
+        effectiveTrendFilterKind === "project"
             ? { projectId: trendFilterId }
             : undefined,
       ),
-    enabled: !!selectedOrganizationId && customReady,
+    enabled: !!selectedOrganizationId && customReady && effectiveTrendFilterKind !== "agent",
+  });
+
+  const { data: agentTrendData, isLoading: agentTrendLoading, error: agentTrendError } = useQuery({
+    queryKey: [
+      "costs",
+      "trend-agent-comparison",
+      orgId,
+      from || undefined,
+      to || undefined,
+      trendAgentOptions.map((row) => row.agentId).join(","),
+    ],
+    queryFn: async () => {
+      const rows = await Promise.all(
+        trendAgentOptions.map(async (agent) => ({
+          agent,
+          rows: await costsApi.trend(orgId, from || undefined, to || undefined, { agentId: agent.agentId }),
+        })),
+      );
+      return rows;
+    },
+    enabled: !!selectedOrganizationId && customReady && effectiveTrendFilterKind === "agent" && trendAgentOptions.length > 0,
   });
 
   const { data: providerData } = useQuery({
@@ -861,7 +1081,7 @@ export function Costs() {
 
   const showCustomPrompt = preset === "custom" && !customReady;
   const showOverviewLoading = (spendLoading || financeLoading) && customReady;
-  const overviewError = spendError ?? financeError ?? trendError;
+  const overviewError = spendError ?? financeError ?? (effectiveTrendFilterKind === "agent" ? agentTrendError : trendError);
 
   return (
     <div className="space-y-6">
@@ -990,25 +1210,20 @@ export function Costs() {
                 rows={trendData ?? []}
                 from={from || undefined}
                 to={to || undefined}
+                agentSeries={agentTrendData ?? []}
                 agentOptions={trendAgentOptions}
                 projectOptions={trendProjectOptions}
                 filterKind={effectiveTrendFilterKind}
-                selectedAgentId={effectiveTrendAgentId}
                 selectedProjectId={effectiveTrendProjectId}
                 onFilterKindChange={(kind) => {
-                  if (kind === "agent" && effectiveTrendAgentId) setTrendAgentId(effectiveTrendAgentId);
                   if (kind === "project" && effectiveTrendProjectId) setTrendProjectId(effectiveTrendProjectId);
                   setTrendFilterKind(kind);
-                }}
-                onAgentChange={(agentId) => {
-                  setTrendAgentId(agentId);
-                  setTrendFilterKind("agent");
                 }}
                 onProjectChange={(projectId) => {
                   setTrendProjectId(projectId);
                   setTrendFilterKind("project");
                 }}
-                isLoading={trendLoading}
+                isLoading={effectiveTrendFilterKind === "agent" ? agentTrendLoading : trendLoading}
               />
 
               <div className="grid gap-4 xl:grid-cols-[1.3fr,1fr]">

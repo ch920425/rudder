@@ -24,11 +24,12 @@ describe("CostTrendChart", () => {
     );
 
     expect(html).toContain(
-      'aria-label="May 7, 2026: 1.1K tokens (1.0K input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
+      'aria-label="May 7, 2026: 1.1K tokens (750 uncached input, 250 cached, 75 output), $0.42 estimated spend, 3 events"',
     );
     expect(html).toContain("data-slot=\"tooltip-trigger\"");
     expect(html).toContain("Tokens");
     expect(html).toContain("Estimated spend");
+    expect(html).toContain("data-testid=\"cost-trend-scale\"");
   });
 
   it("renders compact token units in the trend tooltip", () => {
@@ -49,11 +50,11 @@ describe("CostTrendChart", () => {
     );
 
     expect(html).toContain(
-      'aria-label="Jun 13, 2026: 300.8M tokens (299.6M input, 280.4M cached, 1.2M output), $2.30 estimated spend, 138 events"',
+      'aria-label="Jun 13, 2026: 300.8M tokens (19.2M uncached input, 280.4M cached, 1.2M output), $2.30 estimated spend, 138 events"',
     );
   });
 
-  it("renders agent and project trend filters when options are available", () => {
+  it("renders all agent trend series when the agent filter is selected", () => {
     const agentOptions = [
       {
         agentId: "agent-1",
@@ -65,6 +66,22 @@ describe("CostTrendChart", () => {
         inputTokens: 10,
         cachedInputTokens: 0,
         outputTokens: 5,
+        apiRunCount: 1,
+        subscriptionRunCount: 0,
+        subscriptionCachedInputTokens: 0,
+        subscriptionInputTokens: 0,
+        subscriptionOutputTokens: 0,
+      },
+      {
+        agentId: "agent-2",
+        agentName: "Mina",
+        agentIcon: null,
+        agentRole: "engineer",
+        agentStatus: "active",
+        costCents: 5,
+        inputTokens: 8,
+        cachedInputTokens: 0,
+        outputTokens: 3,
         apiRunCount: 1,
         subscriptionRunCount: 0,
         subscriptionCachedInputTokens: 0,
@@ -86,10 +103,37 @@ describe("CostTrendChart", () => {
     const html = renderToStaticMarkup(
       <CostTrendChart
         rows={[]}
+        from="2026-05-07T00:00:00.000Z"
+        to="2026-05-07T23:59:59.999Z"
+        agentSeries={[
+          {
+            agent: agentOptions[0],
+            rows: [{
+              date: "2026-05-07",
+              costCents: 7,
+              inputTokens: 10,
+              cachedInputTokens: 0,
+              outputTokens: 5,
+              totalTokens: 15,
+              eventCount: 1,
+            }],
+          },
+          {
+            agent: agentOptions[1],
+            rows: [{
+              date: "2026-05-07",
+              costCents: 5,
+              inputTokens: 8,
+              cachedInputTokens: 0,
+              outputTokens: 3,
+              totalTokens: 11,
+              eventCount: 1,
+            }],
+          },
+        ]}
         agentOptions={agentOptions}
         projectOptions={projectOptions}
         filterKind="agent"
-        selectedAgentId="agent-1"
         onFilterKindChange={() => {}}
       />,
     );
@@ -97,7 +141,10 @@ describe("CostTrendChart", () => {
     expect(html).toContain(">All</button>");
     expect(html).toContain(">Agent</button>");
     expect(html).toContain(">Project</button>");
-    expect(html).toContain('aria-label="Filter trend by agent"');
+    expect(html).not.toContain('aria-label="Filter trend by agent"');
+    expect(html).toContain("2 agents");
     expect(html).toContain("Ella");
+    expect(html).toContain("Mina");
+    expect(html).toContain("May 7, 2026: Ella 15 tokens, $0.07; Mina 11 tokens, $0.05");
   });
 });

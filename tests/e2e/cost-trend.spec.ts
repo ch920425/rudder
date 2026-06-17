@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 function daysAgoUtc(days: number): string {
-  const now = new Date();
-  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days, 12, 0, 0, 0));
+  const date = new Date(Date.now() - days * 86_400_000 - 60_000);
   return date.toISOString();
 }
 
@@ -29,13 +28,26 @@ test.describe("Cost trend chart", () => {
     expect(agentRes.ok()).toBe(true);
     const agent = await agentRes.json() as { id: string };
 
+    const secondAgentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+      data: {
+        name: "Budget Reviewer",
+        role: "engineer",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: {
+          model: "gpt-5.4",
+        },
+      },
+    });
+    expect(secondAgentRes.ok()).toBe(true);
+    const secondAgent = await secondAgentRes.json() as { id: string };
+
     for (const event of [
-      { inputTokens: 600, cachedInputTokens: 150, outputTokens: 250, costCents: 123, occurredAt: daysAgoUtc(0) },
-      { inputTokens: 300, cachedInputTokens: 50, outputTokens: 450, costCents: 456, occurredAt: daysAgoUtc(0) },
+      { agentId: agent.id, inputTokens: 600, cachedInputTokens: 150, outputTokens: 250, costCents: 123, occurredAt: daysAgoUtc(0) },
+      { agentId: agent.id, inputTokens: 300, cachedInputTokens: 50, outputTokens: 450, costCents: 456, occurredAt: daysAgoUtc(0) },
+      { agentId: secondAgent.id, inputTokens: 700, cachedInputTokens: 100, outputTokens: 200, costCents: 234, occurredAt: daysAgoUtc(0) },
     ]) {
       const eventRes = await page.request.post(`/api/orgs/${organization.id}/cost-events`, {
         data: {
-          agentId: agent.id,
           provider: "openai",
           biller: "openai",
           billingType: "metered_api",
@@ -55,10 +67,13 @@ test.describe("Cost trend chart", () => {
     const chart = page.getByTestId("cost-trend-chart");
     await expect(chart).toBeVisible();
     await expect(chart.getByText("Inference trend")).toBeVisible();
-    await expect(chart.getByText("Tokens", { exact: true })).toBeVisible();
-    await expect(chart.getByText("1.8k")).toBeVisible();
-    await expect(chart.getByText("Estimated spend", { exact: true })).toBeVisible();
-    await expect(chart.getByText("$5.79")).toBeVisible();
+    await expect(chart.getByText(/Estimated spend\s+\$8\.13/)).toBeVisible();
+    await expect(chart.getByText("$8.13")).toBeVisible();
+
+    await chart.getByRole("button", { name: "Agent" }).click();
+    await expect(chart.getByText("2 agents")).toBeVisible();
+    await expect(chart.getByText("Cost Analyst")).toBeVisible();
+    await expect(chart.getByText("Budget Reviewer")).toBeVisible();
   });
 
   test("loads month-to-date costs when token aggregates exceed the Postgres int4 range", async ({ page }) => {
@@ -119,7 +134,7 @@ test.describe("Cost trend chart", () => {
 
     await expect(page.getByText("Internal server error")).toHaveCount(0);
     await expect(page.getByTestId("cost-trend-chart")).toBeVisible();
-    await expect(page.getByText("2.7B tokens across request-scoped events", { exact: true })).toBeVisible();
-    await expect(page.getByText("large-token-project", { exact: true })).toBeVisible();
+    await expect(page.getByText(/2\.7B tokens across request-scoped events/)).toBeVisible();
+    await expect(page.getByTestId("workspace-main-card").getByText("large-token-project", { exact: true })).toBeVisible();
   });
 });
