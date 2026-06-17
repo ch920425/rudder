@@ -108,9 +108,9 @@ export function ApprovalDetailDialog({
   const initialChatIssueLabelKey = initialChatIssueLabelIds.join("\u0000");
   const chatConversationId = chatConversationIdFromApprovalPayload(payload);
   const { data: chatConversation } = useQuery({
-    queryKey: queryKeys.chats.detail(chatConversationId ?? "__none__"),
+    queryKey: queryKeys.chats.detail(resolvedOrgId ?? "__none__", chatConversationId ?? "__none__"),
     queryFn: () => chatsApi.get(chatConversationId!),
-    enabled: Boolean(chatConversationId && open),
+    enabled: Boolean(resolvedOrgId && chatConversationId && open),
   });
 
   const { data: currentBoardAccess } = useQuery({

@@ -191,8 +191,8 @@ export function SidebarChatSessions() {
     if (!selectedOrganizationId) return;
     await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "active") });
     if (chatId) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(chatId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(selectedOrganizationId, chatId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(selectedOrganizationId, chatId) });
     }
   };
 
@@ -286,13 +286,13 @@ export function SidebarChatSessions() {
                   renameDraft={renameDraft}
                   onRenameDraftChange={setRenameDraft}
                   onSelect={() => {
-                    void prefetchChatConversation(queryClient, conversation.id);
+                    void prefetchChatConversation(queryClient, selectedOrganizationId, conversation.id);
                     navigate(`/chat/${conversation.id}`);
                     if (isMobile) setSidebarOpen(false);
                   }}
                   onPrefetch={() => {
                     if (conversation.id !== activeConversationId) {
-                      void prefetchChatConversation(queryClient, conversation.id);
+                      void prefetchChatConversation(queryClient, selectedOrganizationId, conversation.id);
                     }
                   }}
                   onStartRename={() => {
@@ -328,13 +328,13 @@ export function SidebarChatSessions() {
                   renameDraft={renameDraft}
                   onRenameDraftChange={setRenameDraft}
                   onSelect={() => {
-                    void prefetchChatConversation(queryClient, conversation.id);
+                    void prefetchChatConversation(queryClient, selectedOrganizationId, conversation.id);
                     navigate(`/chat/${conversation.id}`);
                     if (isMobile) setSidebarOpen(false);
                   }}
                   onPrefetch={() => {
                     if (conversation.id !== activeConversationId) {
-                      void prefetchChatConversation(queryClient, conversation.id);
+                      void prefetchChatConversation(queryClient, selectedOrganizationId, conversation.id);
                     }
                   }}
                   onStartRename={() => {

@@ -1098,8 +1098,8 @@ export function ThreeColumnContextSidebar() {
     if (!selectedOrganizationId) return;
     await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "active") });
     if (chatId) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(chatId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(selectedOrganizationId, chatId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(selectedOrganizationId, chatId) });
     }
   };
 

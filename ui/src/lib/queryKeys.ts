@@ -77,8 +77,8 @@ export const queryKeys = {
       ["chats", orgId, status] as const,
     search: (orgId: string, q: string, status: "active" | "resolved" | "archived" | "all" = "all") =>
       ["chats", orgId, status, "search", q] as const,
-    detail: (chatId: string) => ["chats", "detail", chatId] as const,
-    messages: (chatId: string) => ["chats", "messages", chatId] as const,
+    detail: (orgId: string, chatId: string) => ["chats", orgId, "detail", chatId] as const,
+    messages: (orgId: string, chatId: string) => ["chats", orgId, "messages", chatId] as const,
   },
   messenger: {
     threads: (orgId: string) => ["messenger", orgId, "threads"] as const,

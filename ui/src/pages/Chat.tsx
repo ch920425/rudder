@@ -161,10 +161,13 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     queryFn: () => chatsApi.list(selectedOrganizationId!, "active"), enabled: !!selectedOrganizationId && isMobile, }); const mentionConversationsQuery = useQuery({
     queryKey: queryKeys.chats.list(selectedOrganizationId ?? "__none__", "active"),
     queryFn: () => chatsApi.list(selectedOrganizationId!, "active"), enabled: !!selectedOrganizationId, }); const conversationQuery = useQuery({
-    queryKey: queryKeys.chats.detail(conversationId ?? "__none__"),
-    queryFn: () => chatsApi.get(conversationId!), enabled: !!conversationId, }); const messagesQuery = useQuery({
-    queryKey: queryKeys.chats.messages(conversationId ?? "__none__"),
-    queryFn: () => chatsApi.listMessages(conversationId!, { includeTranscript: false }), enabled: !!conversationId, });
+    queryKey: queryKeys.chats.detail(selectedOrganizationId ?? "__none__", conversationId ?? "__none__"),
+    queryFn: () => chatsApi.get(conversationId!), enabled: !!selectedOrganizationId && !!conversationId, }); const activeConversationFromList = conversationsQuery.data?.find((conversation) => conversation.id === conversationId) ?? null; const activeConversationBelongsToSelectedOrganization =
+    conversationQuery.data
+      ? conversationQuery.data.orgId === selectedOrganizationId
+      : activeConversationFromList?.orgId === selectedOrganizationId; const messagesQuery = useQuery({
+    queryKey: queryKeys.chats.messages(selectedOrganizationId ?? "__none__", conversationId ?? "__none__"),
+    queryFn: () => chatsApi.listMessages(conversationId!, { includeTranscript: false }), enabled: !!conversationId && activeConversationBelongsToSelectedOrganization, });
   const { data: agents, error: agentsError } = useQuery({
     queryKey: queryKeys.agents.list(selectedOrganizationId ?? "__none__"),
     queryFn: () => agentsApi.list(selectedOrganizationId!), enabled: !!selectedOrganizationId, }); const liveAgents = useMemo(() => selectableChatAgents(agents), [agents]);
@@ -223,7 +226,9 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     pendingProjectPrefill,
     projects,
     searchParams,
-    selectedOrganizationId, visibleProjects, draftPreferredAgentId, ]); const selectedConversation = conversationQuery.data ?? conversationsQuery.data?.find((conversation) => conversation.id === conversationId) ?? null; const selectedConversationGenerating = Boolean(selectedConversation && (streamDrafts[selectedConversation.id] || sendInFlightByChatId[selectedConversation.id])); const draftIssueContext = !selectedConversation ? resolveDraftIssueContext(issues, pendingIssueId) : null; const draftIssueContextId = !selectedConversation && pendingIssueId ? draftIssueContext?.id ?? pendingIssueId : null; const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId; const selectedConversationProjectId = projectContextId(selectedConversation);
+    selectedOrganizationId, visibleProjects, draftPreferredAgentId, ]); const selectedConversation = activeConversationBelongsToSelectedOrganization
+    ? conversationQuery.data ?? activeConversationFromList
+    : null; const selectedConversationGenerating = Boolean(selectedConversation && (streamDrafts[selectedConversation.id] || sendInFlightByChatId[selectedConversation.id])); const draftIssueContext = !selectedConversation ? resolveDraftIssueContext(issues, pendingIssueId) : null; const draftIssueContextId = !selectedConversation && pendingIssueId ? draftIssueContext?.id ?? pendingIssueId : null; const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId; const selectedConversationProjectId = projectContextId(selectedConversation);
   const pendingSelectedConversationProjectId = selectedConversation && pendingProjectContextOverride?.chatId === selectedConversation.id ? pendingProjectContextOverride.projectId : undefined; const activeProjectId = selectedConversation ? (pendingSelectedConversationProjectId ?? selectedConversationProjectId ?? NO_PROJECT_ID) : draftProjectId; const activePlanMode = pendingPlanModeOverride ?? selectedConversation?.planMode ?? draftPlanMode; const activeSkillAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId; const activeSkillAgent = activeSkillAgentId ? (agents ?? []).find((agent) => agent.id === activeSkillAgentId) ?? null : null; const draftProjectScopeKey = `${selectedOrganizationId ?? "__none__"}:${conversationId ?? "new"}:${pendingIssueId || "__no_issue__"}`; const draftIssueProjectKey = draftIssueContext?.projectId ?? "__no_issue_project__"; const draftProjectDefaultKey = selectedConversation ? null : `${draftProjectScopeKey}:${activeSkillAgentId ?? "__no_agent__"}:${draftIssueProjectKey}`;
   const {
     data: organizationSkills,
@@ -291,6 +296,10 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       issue: draftIssueContext,
       agentId: activeSkillAgentId,
     })); }, [activeSkillAgentId, draftIssueContext, draftProjectDefaultKey, issues, pendingIssueId, pendingProjectPrefill, projects, selectedConversation, selectedOrganizationId, visibleProjects]);
+  useEffect(() => {
+    if (!conversationId || !conversationQuery.data || activeConversationBelongsToSelectedOrganization) return;
+    navigate(chatRootPath, { replace: true });
+  }, [activeConversationBelongsToSelectedOrganization, chatRootPath, conversationId, conversationQuery.data, navigate]);
   const showConversationLoading = Boolean(
     conversationId && !selectedConversation && conversationQuery.isPending && conversationQuery.data === undefined,
   );
@@ -298,8 +307,8 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "active") }),
       queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "all") }), invalidateMessengerThreadSummaryQueries(queryClient, selectedOrganizationId), ]);
-    if (chatId) { await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(chatId) }); } await queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedOrganizationId) }); }; const upsertConversation = (conversation: ChatConversation) => { queryClient.setQueryData(queryKeys.chats.detail(conversation.id), conversation);
+    if (chatId) { await queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(selectedOrganizationId, chatId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(selectedOrganizationId, chatId) }); } await queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedOrganizationId) }); }; const upsertConversation = (conversation: ChatConversation) => { queryClient.setQueryData(queryKeys.chats.detail(conversation.orgId, conversation.id), conversation);
     for (const status of ["active", "all"] as const) {
       queryClient.setQueryData<ChatConversation[]>(
         queryKeys.chats.list(selectedOrganizationId ?? "__none__", status), (current) => mergeChatConversationsForStatus(current ?? [], conversation, status), ); } }; const upsertMessengerThreadSummary = useCallback((
@@ -316,7 +325,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     upsertMessengerThreadSummary(optimisticConversation, {
       latestActivityAt: sentAt, preview: body, }); return optimisticConversation; }; const upsertMessages = (chatId: string, incoming: ChatMessage[]) => {
     queryClient.setQueryData<ChatMessage[]>(
-      queryKeys.chats.messages(chatId), (current) => mergeChatMessages(current ?? [], incoming), ); }; const acquireNewConversationSendLock = useCallback(() => { if (newConversationSendLockRef.current) return false; newConversationSendLockRef.current = true; setNewConversationSendInFlight(true); return true; }, []); const releaseNewConversationSendLock = useCallback(() => { if (!newConversationSendLockRef.current) return; newConversationSendLockRef.current = false; setNewConversationSendInFlight(false); }, []); const acquireChatSendLock = useCallback((chatId: string) => { if (chatSendLocksRef.current[chatId]) return false;
+      queryKeys.chats.messages(selectedOrganizationId ?? "__none__", chatId), (current) => mergeChatMessages(current ?? [], incoming), ); }; const acquireNewConversationSendLock = useCallback(() => { if (newConversationSendLockRef.current) return false; newConversationSendLockRef.current = true; setNewConversationSendInFlight(true); return true; }, []); const releaseNewConversationSendLock = useCallback(() => { if (!newConversationSendLockRef.current) return; newConversationSendLockRef.current = false; setNewConversationSendInFlight(false); }, []); const acquireChatSendLock = useCallback((chatId: string) => { if (chatSendLocksRef.current[chatId]) return false;
     chatSendLocksRef.current = { ...chatSendLocksRef.current, [chatId]: true, }; return true; }, []); const releaseChatSendLock = useCallback((chatId: string) => { if (!(chatId in chatSendLocksRef.current)) return; const { [chatId]: _removed, ...rest } = chatSendLocksRef.current; chatSendLocksRef.current = rest; }, []); const setProcessOpenForMessage = useCallback((messageId: string, open: boolean) => {
     setOpenProcessMessageIds((current) => {
       if (open) { if (current[messageId]) return current;
@@ -328,7 +337,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       const transcript = response.transcript as TranscriptEntry[];
       setLoadedTranscriptsByMessageId((current) => ({ ...current, [messageId]: transcript }));
       queryClient.setQueryData<ChatMessage[]>(
-        queryKeys.chats.messages(chatId),
+        queryKeys.chats.messages(selectedOrganizationId ?? "__none__", chatId),
         (current) => (current ?? []).map((message) =>
           message.id === messageId
             ? { ...message, transcript }
@@ -349,7 +358,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         return rest;
       });
     }
-  }, [loadingTranscriptMessageIds, pushToast, queryClient, setProcessOpenForMessage]); const keepProcessOpenForMessages = useCallback((messages: ChatMessage[]) => { const messageIds = messages .filter((message) => { const transcript = (message.transcript ?? []) as TranscriptEntry[];
+  }, [loadingTranscriptMessageIds, pushToast, queryClient, selectedOrganizationId, setProcessOpenForMessage]); const keepProcessOpenForMessages = useCallback((messages: ChatMessage[]) => { const messageIds = messages .filter((message) => { const transcript = (message.transcript ?? []) as TranscriptEntry[];
         return transcript.length > 0 && (
             message.role === "assistant"
             || message.kind === "issue_proposal" || message.kind === "operation_proposal" ); }) .map((message) => message.id); if (messageIds.length === 0) return;
@@ -1212,13 +1221,13 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                         <ChevronDown className="h-4 w-4 shrink-0 opacity-60" /> </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="surface-overlay max-h-[min(60vh,320px)] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto text-foreground" >
                         {conversations.map((c) => (
-                          <DropdownMenuItem key={c.id} className={cn(c.id === selectedConversation.id && "bg-[color:var(--surface-active)]")} onClick={() => { void prefetchChatConversation(queryClient, c.id); navigate(chatConversationPath(c.id));
+                          <DropdownMenuItem key={c.id} className={cn(c.id === selectedConversation.id && "bg-[color:var(--surface-active)]")} onClick={() => { void prefetchChatConversation(queryClient, selectedOrganizationId, c.id); navigate(chatConversationPath(c.id));
                             }} onPointerDown={() => {
                               if (c.id !== selectedConversation.id) {
-                                void prefetchChatConversation(queryClient, c.id); }
+                                void prefetchChatConversation(queryClient, selectedOrganizationId, c.id); }
                             }} onMouseEnter={() => {
                               if (c.id !== selectedConversation.id) {
-                                void prefetchChatConversation(queryClient, c.id); }
+                                void prefetchChatConversation(queryClient, selectedOrganizationId, c.id); }
                             }} >
                             <span className="flex min-w-0 items-center gap-2">
                               <span className="truncate">{conversationDisplayTitle(c)}</span>
@@ -1371,7 +1380,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                         projectName={activeProject ? projectDisplayName(activeProject) : null}
                         visible={showEmptyStateSupplementalContent}
                         conversationPath={chatConversationPath}
-                        onPrefetchConversation={(conversationId) => void prefetchChatConversation(queryClient, conversationId)}
+                        onPrefetchConversation={(conversationId) => void prefetchChatConversation(queryClient, selectedOrganizationId, conversationId)}
                         hasMoreConversations={hasMoreRecentProjectConversations}
                         onLoadMoreConversations={loadMoreRecentProjectConversations}
                       />

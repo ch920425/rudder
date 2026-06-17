@@ -50,8 +50,8 @@ vi.mock("@tanstack/react-query", () => ({
     if (queryKey[0] === "chats" && queryKey[2] === "active") {
       return { data: mockState.conversations, isPending: false, isLoading: false, error: null };
     }
-    if (queryKey[0] === "chats" && queryKey[1] === "detail") {
-      if (mockState.pendingChatDetailIds.has(String(queryKey[2]))) {
+    if (queryKey[0] === "chats" && queryKey[2] === "detail") {
+      if (mockState.pendingChatDetailIds.has(String(queryKey[3]))) {
         return {
           data: undefined,
           isPending: true,
@@ -60,15 +60,15 @@ vi.mock("@tanstack/react-query", () => ({
         };
       }
       return {
-        data: mockState.conversations.find((chat) => chat.id === queryKey[2]) ?? null,
+        data: mockState.conversations.find((chat) => chat.id === queryKey[3]) ?? null,
         isPending: false,
         isLoading: false,
         error: null,
       };
     }
-    if (queryKey[0] === "chats" && queryKey[1] === "messages") {
+    if (queryKey[0] === "chats" && queryKey[2] === "messages") {
       return {
-        data: mockState.messagesByChatId[String(queryKey[2])] ?? [],
+        data: mockState.messagesByChatId[String(queryKey[3])] ?? [],
         isPending: false,
         isLoading: false,
         error: null,
@@ -625,6 +625,24 @@ describe("Chat mention sources", () => {
 });
 
 describe("Chat unread state", () => {
+  it("does not render a Messenger chat that belongs to another organization", async () => {
+    mockState.conversations = [
+      chat({ id: "chat-1", orgId: "org-old", title: "Old organization chat" }),
+    ];
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "old-org-message", body: "Old org content" })],
+    };
+
+    const { container } = renderChat();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockState.navigate).toHaveBeenCalledWith(expect.stringMatching(/^\/(?:messenger\/)?chat$/), { replace: true });
+    expect(container.textContent).not.toContain("Old org content");
+    expect(mockState.queryKeys).not.toContainEqual(["chats", "org-1", "messages", "chat-1"]);
+  });
+
   it("optimistically clears the selected Messenger chat before mark-read finishes", () => {
     const unreadChat = chat({
       id: "chat-1",
@@ -653,7 +671,7 @@ describe("Chat unread state", () => {
     expect(mockState.markRead).toHaveBeenCalledWith("chat-1");
 
     const detailUpdater = mockState.setQueryData.mock.calls.find((call) =>
-      Array.isArray(call[0]) && call[0][0] === "chats" && call[0][1] === "detail" && call[0][2] === "chat-1",
+      Array.isArray(call[0]) && call[0][0] === "chats" && call[0][1] === "org-1" && call[0][2] === "detail" && call[0][3] === "chat-1",
     )?.[1] as ((current: ChatConversation) => ChatConversation) | undefined;
     expect(detailUpdater?.(unreadChat)).toMatchObject({
       isUnread: false,

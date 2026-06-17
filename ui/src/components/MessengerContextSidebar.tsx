@@ -2711,8 +2711,8 @@ export function MessengerContextSidebar() {
     ]);
     if (chatId) {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(chatId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(model.selectedOrganizationId, chatId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(model.selectedOrganizationId, chatId) }),
       ]);
     }
   };

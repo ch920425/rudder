@@ -225,7 +225,7 @@ export function markMessengerChatPinnedInCache(
   pinned: boolean,
 ) {
   queryClient.setQueryData<ChatConversation>(
-    queryKeys.chats.detail(conversationId),
+    queryKeys.chats.detail(orgId, conversationId),
     (current) => current ? markChatConversationPinned(current, pinned) : current,
   );
   for (const status of ["active", "all"] as const) {
@@ -247,7 +247,7 @@ export function renameMessengerChatInCache(
   title: string,
 ) {
   queryClient.setQueryData<ChatConversation>(
-    queryKeys.chats.detail(conversationId),
+    queryKeys.chats.detail(orgId, conversationId),
     (current) => current ? renameChatConversation(current, title) : current,
   );
   for (const status of ["active", "resolved", "archived", "all"] as const) {
@@ -280,7 +280,7 @@ export function archiveMessengerChatInCache(
   conversationId: string,
 ) {
   queryClient.setQueryData<ChatConversation>(
-    queryKeys.chats.detail(conversationId),
+    queryKeys.chats.detail(orgId, conversationId),
     (current) => current ? archiveChatConversation(current) : current,
   );
   queryClient.setQueryData<ChatConversation[]>(
@@ -338,7 +338,7 @@ export function markMessengerChatReadInCache(
   const nextConversation = markChatConversationRead(conversation, nextReadAt);
 
   queryClient.setQueryData<ChatConversation>(
-    queryKeys.chats.detail(conversation.id),
+    queryKeys.chats.detail(orgId, conversation.id),
     (current) => current ? markChatConversationRead(current, nextReadAt) : nextConversation,
   );
   for (const status of ["active", "all"] as const) {

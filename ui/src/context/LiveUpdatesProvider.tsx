@@ -668,8 +668,8 @@ function invalidateActivityQueries(
   if (entityType === "chat") {
     queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(orgId, "active") });
     if (entityId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(entityId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(entityId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(orgId, entityId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(orgId, entityId) });
     }
     queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(orgId) });
     const issueRefs = buildIssueRefsForPayload(payload);

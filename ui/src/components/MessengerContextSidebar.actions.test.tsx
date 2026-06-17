@@ -381,7 +381,7 @@ describe("MessengerContextSidebar chat actions", () => {
       await Promise.resolve();
     });
 
-    expect(setQueryData).toHaveBeenCalledWith(["chats", "detail", "chat-1"], expect.any(Function));
+    expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "detail", "chat-1"], expect.any(Function));
     expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "active"], expect.any(Function));
     expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));
     expect(setQueryData.mock.invocationCallOrder[0]).toBeLessThan(mockUpdateUserState.mock.invocationCallOrder[0]);
@@ -455,7 +455,7 @@ describe("MessengerContextSidebar chat actions", () => {
       await Promise.resolve();
     });
 
-    expect(setQueryData).toHaveBeenCalledWith(["chats", "detail", "chat-1"], expect.any(Function));
+    expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "detail", "chat-1"], expect.any(Function));
     expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "active"], expect.any(Function));
     expect(setQueryData).toHaveBeenCalledWith(["messenger", "org-1", "threads"], expect.any(Function));
     expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));

@@ -130,7 +130,7 @@ describe("Messenger optimistic action cache helpers", () => {
     const chat = conversation({ id: "chat-1", orgId, title: "Planning" });
     const chatThread = thread({ threadKey: "chat:chat-1", title: "Planning" });
 
-    queryClient.setQueryData(queryKeys.chats.detail("chat-1"), chat);
+    queryClient.setQueryData(queryKeys.chats.detail(orgId, "chat-1"), chat);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "active"), [chat]);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "all"), [chat]);
     queryClient.setQueryData(queryKeys.messenger.threads(orgId), [chatThread]);
@@ -145,7 +145,7 @@ describe("Messenger optimistic action cache helpers", () => {
 
     markMessengerChatPinnedInCache(queryClient, orgId, "chat-1", true);
 
-    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail("chat-1"))?.isPinned).toBe(true);
+    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail(orgId, "chat-1"))?.isPinned).toBe(true);
     expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "active"))?.[0]?.isPinned).toBe(true);
     expect(queryClient.getQueryData<MessengerThreadSummary[]>(queryKeys.messenger.threads(orgId))?.[0]?.isPinned).toBe(true);
     expect(queryClient.getQueryData<{
@@ -182,7 +182,7 @@ describe("Messenger optimistic action cache helpers", () => {
     const chatThread = thread({ threadKey: "chat:chat-1", title: "Old planning title" });
     const otherThread = thread({ threadKey: "chat:chat-2", title: "Other chat" });
 
-    queryClient.setQueryData(queryKeys.chats.detail("chat-1"), chat);
+    queryClient.setQueryData(queryKeys.chats.detail(orgId, "chat-1"), chat);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "active"), [chat]);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "all"), [chat]);
     queryClient.setQueryData(queryKeys.messenger.threads(orgId), [chatThread, otherThread]);
@@ -197,7 +197,7 @@ describe("Messenger optimistic action cache helpers", () => {
 
     renameMessengerChatInCache(queryClient, orgId, "chat-1", "New planning title");
 
-    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail("chat-1"))?.title).toBe("New planning title");
+    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail(orgId, "chat-1"))?.title).toBe("New planning title");
     expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "active"))?.[0]?.title).toBe("New planning title");
     expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "all"))?.[0]?.title).toBe("New planning title");
     expect(queryClient.getQueryData<MessengerThreadSummary[]>(queryKeys.messenger.threads(orgId))?.map((item) => item.title))
@@ -219,7 +219,7 @@ describe("Messenger optimistic action cache helpers", () => {
     const chatThread = thread({ threadKey: "chat:chat-1", title: "Planning" });
     const otherThread = thread({ threadKey: "chat:chat-2", title: "Other" });
 
-    queryClient.setQueryData(queryKeys.chats.detail("chat-1"), chat);
+    queryClient.setQueryData(queryKeys.chats.detail(orgId, "chat-1"), chat);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "active"), [chat, other]);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "all"), [chat, other]);
     queryClient.setQueryData(queryKeys.messenger.threads(orgId), [chatThread, otherThread]);
@@ -234,7 +234,7 @@ describe("Messenger optimistic action cache helpers", () => {
 
     archiveMessengerChatInCache(queryClient, orgId, "chat-1");
 
-    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail("chat-1"))?.status).toBe("archived");
+    expect(queryClient.getQueryData<ChatConversation>(queryKeys.chats.detail(orgId, "chat-1"))?.status).toBe("archived");
     expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "active"))?.map((item) => item.id)).toEqual(["chat-2"]);
     expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "all"))?.find((item) => item.id === "chat-1")?.status).toBe("archived");
     expect(queryClient.getQueryData<MessengerThreadSummary[]>(queryKeys.messenger.threads(orgId))?.map((item) => item.threadKey)).toEqual(["chat:chat-2"]);
@@ -334,7 +334,7 @@ describe("markMessengerThreadReadInCache", () => {
       alerts: 0,
     };
 
-    queryClient.setQueryData(queryKeys.chats.detail("chat-1"), unreadConversation);
+    queryClient.setQueryData(queryKeys.chats.detail(orgId, "chat-1"), unreadConversation);
     queryClient.setQueryData(queryKeys.chats.list(orgId, "active"), [unreadConversation]);
     queryClient.setQueryData(queryKeys.messenger.threadPages(orgId, true), {
       pages: [{ items: [unreadChat], pageInfo: { limit: 40, nextCursor: null, hasMore: false } }],
@@ -344,7 +344,7 @@ describe("markMessengerThreadReadInCache", () => {
 
     markMessengerChatReadInCache(queryClient, orgId, unreadConversation, { decrementSidebarBadge: true });
 
-    expect(queryClient.getQueryData<typeof unreadConversation>(queryKeys.chats.detail("chat-1"))).toMatchObject({
+    expect(queryClient.getQueryData<typeof unreadConversation>(queryKeys.chats.detail(orgId, "chat-1"))).toMatchObject({
       isUnread: false,
       unreadCount: 0,
       needsAttention: false,
