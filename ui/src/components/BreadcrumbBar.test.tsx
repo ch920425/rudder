@@ -264,7 +264,8 @@ describe("BreadcrumbBar", () => {
     const scopeMenu = container.querySelector<HTMLElement>('[data-testid="breadcrumb-issue-search-scope-menu"]');
     expect(scopeMenu).not.toBeNull();
     expect(scopeMenu?.className).toContain("w-full");
-    expect(scopeMenu?.className).toContain("bg-[color:var(--surface-overlay)]");
+    expect(scopeMenu?.className).toContain("breadcrumb-issue-search-menu");
+    expect(scopeMenu?.className).toContain("rounded-[var(--radius-sm)]");
     expect(scopeMenu?.className).toContain("z-[70]");
     expect(scopeMenu?.textContent).toContain("Search in");
     expect(scopeMenu?.textContent).toContain("Title");
@@ -333,6 +334,7 @@ describe("BreadcrumbBar", () => {
     expect(header?.className).toContain("items-start");
     expect(menu?.getAttribute("data-testid")).toBe("breadcrumb-issue-result-menu");
     expect(menu?.className).toContain("relative");
+    expect(menu?.className).toContain("breadcrumb-issue-search-menu");
     expect(menu?.className).toContain("xl:-translate-x-[calc(100%+0.5rem)]");
     expect(menu?.className).toContain("xl:w-[26rem]");
     expect(menu?.querySelector(".max-h-32")).not.toBeNull();
