@@ -3040,7 +3040,7 @@ export function OrganizationWorkspaceBrowser({
   const requestedResourceAttachmentId = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("resource"));
   const requestedDirectoryPath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("directory"));
   const cachedRequestedEntryPath = normalizeRequestedPath(
-    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath,
+    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath ?? null,
   );
   const initialOpenFileTabState = useMemo(
     () => readStoredWorkspaceOpenFileTabState(viewedOrganizationId),
@@ -4118,6 +4118,7 @@ export function OrganizationWorkspaceBrowser({
     rootPath: "",
     directoryPath: "",
     entries: [],
+    message: null,
   };
 
   const handleSelectFile = (filePath: string) => {
