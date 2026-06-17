@@ -44,7 +44,8 @@ From: {{comment.authorLabel}} ({{comment.authorKind}})
 
 Please review the comment above and respond or take action as appropriate.
 A mention-triggered comment wake is a request for attention or collaboration, not an automatic transfer of issue ownership. Plain structured agent links such as \`agent://agent-id\` are reference-only. Only checkout or self-assign when the comment explicitly asks you to take ownership and the normal issue workflow allows it.
-If the issue is not assigned to you, including user-owned or unassigned issues, and the comment does not explicitly ask you to implement, modify files, close the issue, or take ownership, strictly respond to the comment's content instead of broadening the wake into issue execution. For example, answer questions, acknowledge corrections, explain status, or handle only the narrow action explicitly requested by the comment.`;
+If the issue is not assigned to you, including user-owned or unassigned issues, and the comment does not explicitly ask you to implement, modify files, close the issue, or take ownership, strictly respond to the comment's content instead of broadening the wake into issue execution. For example, answer questions, acknowledge corrections, explain status, or handle only the narrow action explicitly requested by the comment.
+If the issue has related attachments, such as images or articles, please ensure you have thoroughly researched and read these resources before proceeding with the next action. It's important to read all the attachments before taking any action.`;
 
 export const ISSUE_COMMENTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). There is a new comment on an issue you own.
 
