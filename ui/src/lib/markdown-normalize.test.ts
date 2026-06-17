@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRelaxedMarkdownSyntax } from "./markdown-normalize";
+import { normalizeEscapedMarkdownNewlines, normalizeMarkdownHtmlBreaks, normalizeRelaxedMarkdownSyntax, normalizeRenderedMarkdownSource } from "./markdown-normalize";
 
 describe("normalizeRelaxedMarkdownSyntax", () => {
   it("repairs hard-wrapped URL link destinations", () => {
@@ -25,5 +25,36 @@ describe("normalizeRelaxedMarkdownSyntax", () => {
     ].join("\n");
 
     expect(normalizeRelaxedMarkdownSyntax(source)).toBe(source);
+  });
+});
+
+describe("normalizeEscapedMarkdownNewlines", () => {
+  it("turns escaped newline blocks into real markdown newlines", () => {
+    expect(normalizeEscapedMarkdownNewlines("Plan complete.\\n\\n1. Confirm\\n2. Ship")).toBe(
+      "Plan complete.\n\n1. Confirm\n2. Ship",
+    );
+  });
+
+  it("leaves isolated escaped newline examples alone", () => {
+    expect(normalizeEscapedMarkdownNewlines("Use `\\n` for newline examples.")).toBe("Use `\\n` for newline examples.");
+  });
+});
+
+describe("normalizeMarkdownHtmlBreaks", () => {
+  it("removes standalone html break tags from prose while preserving the surrounding text", () => {
+    expect(normalizeMarkdownHtmlBreaks("First line\n<br />\nSecond line\nDone<br />again")).toBe(
+      "First line\n\nSecond line\nDone\nagain",
+    );
+  });
+
+  it("preserves html break examples inside code and markdown link labels", () => {
+    const source = "Use `<br />` in docs.\n\n```html\n<br />\n```\n\nSee [literal <br />](https://example.com).";
+    expect(normalizeMarkdownHtmlBreaks(source)).toBe(source);
+  });
+});
+
+describe("normalizeRenderedMarkdownSource", () => {
+  it("applies escaped newline, html break, and relaxed markdown normalization together", () => {
+    expect(normalizeRenderedMarkdownSource("Plan\\n\\n-[]todo\\n<br />\\nDone")).toBe("Plan\n\n- [ ] todo\n\nDone");
   });
 });

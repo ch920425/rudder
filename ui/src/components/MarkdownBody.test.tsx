@@ -1066,7 +1066,7 @@ describe("MarkdownBody", () => {
       issueId: "issue-789",
       authorAgentId: "agent-1",
       authorUserId: null,
-      body: "Reviewer said **render the comment body** instead of issue metadata.",
+      body: "Reviewer said **render the comment body** instead of issue metadata.\n<br />\nFollow-up text stays visible.",
       createdAt: new Date("2026-06-13T17:38:56.776Z"),
       updatedAt: new Date("2026-06-13T17:38:56.776Z"),
     });
@@ -1086,6 +1086,8 @@ describe("MarkdownBody", () => {
     expect(card?.textContent).toContain("Issue comment");
     expect(card?.textContent).toContain("Auth flow polish");
     expect(card?.textContent).toContain("Reviewer said render the comment body instead of issue metadata.");
+    expect(card?.textContent).toContain("Follow-up text stays visible.");
+    expect(card?.textContent).not.toContain("<br");
     expect(card?.textContent).not.toContain("In Review");
     expect(card?.textContent).not.toContain("High");
     expect(card?.querySelector("[data-testid='issue-comment-preview-body']")?.classList.contains("scrollbar-auto-hide")).toBe(true);

@@ -14,6 +14,7 @@ import { issuesApi } from "../api/issues";
 import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
 import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
+import { normalizeRenderedMarkdownSource } from "../lib/markdown-normalize";
 import { mentionChipNavigationPath, parseMentionChipHref, type ParsedMentionChip } from "../lib/mention-chips";
 import { applyOrganizationPrefix, extractOrganizationPrefixFromPath } from "../lib/organization-routes";
 import { formatPriorityLabel } from "../lib/priorities";
@@ -559,6 +560,7 @@ function previewSummaryLinkHref(href: string | null | undefined) {
 
 function IssueCommentPreviewBody({ body }: { body: string }) {
   const scrollRef = useScrollbarActivityRef();
+  const normalizedBody = normalizeRenderedMarkdownSource(body);
   return (
     <div
       ref={scrollRef}
@@ -566,7 +568,7 @@ function IssueCommentPreviewBody({ body }: { body: string }) {
       data-testid="issue-comment-preview-body"
     >
       <Markdown remarkPlugins={[remarkGfm]} components={previewMarkdownComponents} urlTransform={(url) => url}>
-        {body}
+        {normalizedBody}
       </Markdown>
     </div>
   );
@@ -574,10 +576,11 @@ function IssueCommentPreviewBody({ body }: { body: string }) {
 
 function PreviewSummary({ summary }: { summary: string }) {
   const scrollRef = useScrollbarActivityRef();
+  const normalizedSummary = normalizeRenderedMarkdownSource(summary);
   return (
     <div ref={scrollRef} className="rudder-entity-preview-summary scrollbar-auto-hide">
       <Markdown remarkPlugins={[remarkGfm]} components={previewMarkdownComponents} urlTransform={(url) => url}>
-        {summary}
+        {normalizedSummary}
       </Markdown>
     </div>
   );
