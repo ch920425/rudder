@@ -1,5 +1,6 @@
 import {
   applyPendingMigrations,
+  agents,
   createDb,
   ensurePostgresDatabase,
   organizationSkills,
@@ -97,6 +98,7 @@ describe("organization skill references", () => {
   }, 20_000);
 
   afterEach(async () => {
+    await db.delete(agents);
     await db.delete(organizationSkills);
     await db.delete(organizations);
   });
@@ -219,6 +221,111 @@ describe("organization skill references", () => {
       sourceLabel: "Bundled by Rudder",
       editable: false,
     });
+  });
+
+  it("keeps external adapter skills visible and loadable across runtime switches", { timeout: 30000 }, async () => {
+    const orgId = randomUUID();
+    const agentId = randomUUID();
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "rudder-cross-runtime-skills-"));
+    const codexSkillDir = path.join(home, ".codex", "skills", "build-advisor");
+    const claudeSkillDir = path.join(home, ".claude", "skills", "crack-python");
+
+    fs.mkdirSync(codexSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(codexSkillDir, "SKILL.md"),
+      "---\nname: build-advisor\ndescription: Codex advisor.\n---\n",
+      "utf8",
+    );
+    fs.mkdirSync(claudeSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeSkillDir, "SKILL.md"),
+      "---\nname: crack-python\ndescription: Claude helper.\n---\n",
+      "utf8",
+    );
+
+    try {
+      await db.insert(organizations).values({
+        id: orgId,
+        name: "Cross Runtime Skills",
+        urlKey: "cross-runtime-skills",
+        issuePrefix: "CRS",
+        status: "active",
+        requireBoardApprovalForNewAgents: false,
+      });
+      await db.insert(agents).values({
+        id: agentId,
+        orgId,
+        name: "Builder",
+        workspaceKey: "builder",
+        role: "engineer",
+        status: "active",
+        agentRuntimeType: "claude_local",
+        agentRuntimeConfig: {
+          env: {
+            HOME: home,
+          },
+        },
+      });
+
+      const agent = {
+        id: agentId,
+        orgId,
+        agentRuntimeType: "claude_local",
+        agentRuntimeConfig: {
+          env: {
+            HOME: home,
+          },
+        },
+      };
+      const snapshot = await skillSvc.buildAgentSkillSnapshot(agent, { env: { HOME: home } });
+
+      expect(snapshot.entries).toContainEqual(expect.objectContaining({
+        key: "build-advisor",
+        selectionKey: "adapter:codex_local:build-advisor",
+        sourceClass: "adapter_home",
+        state: "external",
+        locationLabel: "~/.codex/skills",
+        sourcePath: codexSkillDir,
+      }));
+      expect(snapshot.entries).toContainEqual(expect.objectContaining({
+        key: "crack-python",
+        selectionKey: "adapter:claude_local:crack-python",
+        sourceClass: "adapter_home",
+        state: "external",
+        locationLabel: "~/.claude/skills",
+        sourcePath: claudeSkillDir,
+      }));
+
+      const enabledSelection = ["adapter:codex_local:build-advisor"];
+      const enabledSnapshot = await skillSvc.buildAgentSkillSnapshot(
+        agent,
+        { env: { HOME: home } },
+      );
+      await skillSvc.replaceEnabledSkillKeysForAgent(orgId, agentId, enabledSelection);
+      const refreshedSnapshot = await skillSvc.buildAgentSkillSnapshot(agent, { env: { HOME: home } });
+      expect(refreshedSnapshot.entries).toContainEqual(expect.objectContaining({
+        selectionKey: "adapter:codex_local:build-advisor",
+        state: "configured",
+        desired: true,
+      }));
+      expect(enabledSnapshot.entries.find((entry) => entry.selectionKey === enabledSelection[0])?.state).toBe("external");
+
+      const runtimeEntries = await skillSvc.listRealizedSkillEntriesForAgent(
+        orgId,
+        agentId,
+        "claude_local",
+        { env: { HOME: home } },
+        enabledSelection,
+      );
+      expect(runtimeEntries).toContainEqual(expect.objectContaining({
+        key: "adapter:codex_local:build-advisor",
+        runtimeName: "build-advisor",
+        source: codexSkillDir,
+        description: "Codex advisor.",
+      }));
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
   });
 
   it("creates stable org url keys and keeps them immutable on update", async () => {
