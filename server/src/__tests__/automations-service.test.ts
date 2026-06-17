@@ -490,6 +490,26 @@ describe("automation service live-execution coalescing", () => {
         userId: "board-user",
       },
     ]);
+    const followActivity = await db
+      .select()
+      .from(activityLog)
+      .where(eq(activityLog.entityId, run.linkedIssueId!));
+    expect(followActivity).toEqual([
+      expect.objectContaining({
+        orgId: automation.orgId,
+        action: "issue.followed",
+        entityType: "issue",
+        entityId: run.linkedIssueId,
+        actorType: "system",
+        actorId: "automation-issue-notifier",
+        details: expect.objectContaining({
+          issueId: run.linkedIssueId,
+          automationId: automation.id,
+          userId: "board-user",
+          source: "automation.issue_created_notification",
+        }),
+      }),
+    ]);
   });
 
   it("does not hold the issue follow foreign-key lock while waking the assignee", async () => {

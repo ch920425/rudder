@@ -173,6 +173,44 @@ export function automationService(db: Db, deps: AutomationServiceDeps = {}) {
       });
   }
 
+  async function notifyAutomationIssueFollowed(input: {
+    automation: AutomationRow;
+    run: typeof automationRuns.$inferSelect;
+  }) {
+    if (
+      input.run.status !== "issue_created" ||
+      input.automation.outputMode !== "track_issue" ||
+      !input.automation.notifyOnIssueCreated ||
+      !input.automation.notifyOnIssueCreatedUserId ||
+      !input.run.linkedIssueId
+    ) {
+      return;
+    }
+
+    try {
+      await logActivity(db, {
+        orgId: input.automation.orgId,
+        actorType: "system",
+        actorId: "automation-issue-notifier",
+        action: "issue.followed",
+        entityType: "issue",
+        entityId: input.run.linkedIssueId,
+        details: {
+          issueId: input.run.linkedIssueId,
+          automationId: input.automation.id,
+          automationTitle: input.automation.title,
+          userId: input.automation.notifyOnIssueCreatedUserId,
+          source: "automation.issue_created_notification",
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { err, automationId: input.automation.id, runId: input.run.id, issueId: input.run.linkedIssueId },
+        "failed to publish automation issue follow notification",
+      );
+    }
+  }
+
   function assertChatOutputDestination(input: {
     outputMode: string;
     chatConversationId: string | null | undefined;
@@ -1485,6 +1523,8 @@ export function automationService(db: Db, deps: AutomationServiceDeps = {}) {
         logger.warn({ err, automationId: input.automation.id, runId: run.id }, "failed to log automated run");
       }
     }
+
+    await notifyAutomationIssueFollowed({ automation: input.automation, run });
 
     if (autoStartChatOutputRuns && input.automation.outputMode === "chat_output" && run.status === "running") {
       void executeChatOutputAutomationRun(run.id).catch((err) => {
