@@ -52,6 +52,26 @@ function isProviderModelFormat(model: string): boolean {
   return Boolean(provider && modelId);
 }
 
+const PROVIDER_API_KEY_HINTS: Record<string, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  deepseek: ["DEEPSEEK_API_KEY"],
+  google: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  kimi: ["KIMI_API_KEY"],
+  "kimi-coding": ["KIMI_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  xai: ["XAI_API_KEY"],
+};
+
+function buildProviderAuthHint(provider: string): string {
+  const normalizedProvider = provider.trim().toLowerCase();
+  const envKeys = PROVIDER_API_KEY_HINTS[normalizedProvider];
+  if (envKeys && envKeys.length > 0) {
+    const formattedKeys = envKeys.map((key) => `\`${key}\``).join(" or ");
+    return `Set ${formattedKeys} for provider "${provider}" in the agent runtime env or run Pi /login, then retry.`;
+  }
+  return `Set the API key for provider "${provider}" in the agent runtime env or run Pi /login, then retry.`;
+}
+
 const PI_AUTH_REQUIRED_RE =
   /(?:auth(?:entication)?\s+required|api[-_\s]*key|invalid\s*api[-_\s]*key|x[-_\s]*api[-_\s]*key|not\s+logged\s+in|free\s+usage\s+exceeded)/i;
 const PI_STALE_PACKAGE_RE = /pi-driver|npm:\s*pi-driver/i;
@@ -275,7 +295,7 @@ export async function testEnvironment(
           level: "warn",
           message: "Pi is installed, but provider authentication is not ready.",
           ...(detail ? { detail } : {}),
-          hint: "Set provider API key environment variable (e.g., ANTHROPIC_API_KEY, XAI_API_KEY) and retry.",
+          hint: buildProviderAuthHint(provider),
         });
       } else {
         checks.push({

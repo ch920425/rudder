@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-async function writeFakePiCommand(binDir: string, mode: "success" | "stale-package"): Promise<void> {
+async function writeFakePiCommand(
+  binDir: string,
+  mode: "success" | "auth-required" | "stale-package",
+): Promise<void> {
   const commandPath = path.join(binDir, "pi");
   const script =
     mode === "success"
@@ -26,6 +29,16 @@ console.log(JSON.stringify({
   },
   toolResults: []
 }));
+`
+      : mode === "auth-required"
+        ? `#!/usr/bin/env node
+if (process.argv.includes("--list-models")) {
+  console.log("provider  model");
+  console.log("kimi-coding  kimi-for-coding");
+  process.exit(0);
+}
+console.error('No API key found for deepseek.');
+process.exit(1);
 `
       : `#!/usr/bin/env node
 if (process.argv.includes("--list-models")) {
@@ -100,6 +113,37 @@ describe("pi_local environment diagnostics", () => {
     expect(customModelCheck?.level).toBe("info");
     expect(customModelCheck?.hint).toContain("hello probe");
     expect(result.checks.some((check) => check.code === "pi_hello_probe_passed")).toBe(true);
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it("surfaces the provider-specific API key when DeepSeek auth is missing", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `rudder-pi-local-deepseek-auth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(cwd, { recursive: true });
+    await writeFakePiCommand(binDir, "auth-required");
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "pi_local",
+      config: {
+        command: "pi",
+        cwd,
+        model: "deepseek/deepseek-chat",
+        env: {
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    const authCheck = result.checks.find((check) => check.code === "pi_hello_probe_auth_required");
+    expect(result.status).toBe("warn");
+    expect(authCheck?.level).toBe("warn");
+    expect(authCheck?.hint).toContain("DEEPSEEK_API_KEY");
     await fs.rm(root, { recursive: true, force: true });
   });
 
