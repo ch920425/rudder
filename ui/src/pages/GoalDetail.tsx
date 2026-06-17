@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useNavigate, useParams } from "@/lib/router";
-import type { ActivityEvent, Issue, Project } from "@rudderhq/shared";
+import { GOAL_STATUSES, type ActivityEvent, type GoalStatus, type Issue, type Project } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect } from "react";
+import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { activityApi } from "../api/activity";
 import { agentsApi } from "../api/agents";
 import { assetsApi } from "../api/assets";
@@ -24,7 +25,7 @@ import { useOrganization } from "../context/OrganizationContext";
 import { usePanel } from "../context/PanelContext";
 import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
-import { formatDate, issueUrl, projectUrl } from "../lib/utils";
+import { cn, formatDate, issueUrl, projectUrl } from "../lib/utils";
 
 function SummaryMetric({
   label,
@@ -119,6 +120,59 @@ function ActivityList({ events }: { events: ActivityEvent[] }) {
   );
 }
 
+function formatGoalStatusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function GoalStatusControl({
+  status,
+  disabled,
+  onChange,
+}: {
+  status: GoalStatus;
+  disabled?: boolean;
+  onChange: (status: GoalStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-auto gap-1 px-0 py-0 hover:bg-transparent"
+          disabled={disabled}
+          aria-label={`Change goal status: ${formatGoalStatusLabel(status)}`}
+        >
+          <StatusBadge status={status} />
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-44 p-1">
+        {GOAL_STATUSES.map((candidate) => (
+          <Button
+            key={candidate}
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("w-full justify-start gap-2 text-xs", candidate === status && "bg-accent")}
+            disabled={candidate === status || disabled}
+            onClick={() => {
+              onChange(candidate);
+              setOpen(false);
+            }}
+          >
+            <Check className={cn("h-3.5 w-3.5", candidate === status ? "opacity-100" : "opacity-0")} />
+            {formatGoalStatusLabel(candidate)}
+          </Button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function GoalDetail() {
   const { goalId } = useParams<{ goalId: string }>();
   const { selectedOrganizationId, setSelectedOrganizationId } = useOrganization();
@@ -202,6 +256,13 @@ export function GoalDetail() {
       }
       queryClient.invalidateQueries({
         queryKey: queryKeys.goals.dependencies(goalId!)
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: "Failed to update goal",
+        body: error instanceof Error ? error.message : undefined,
+        tone: "error",
       });
     }
   });
@@ -322,7 +383,11 @@ export function GoalDetail() {
             <span className="text-xs uppercase text-muted-foreground">
               {goal.level}
             </span>
-            <StatusBadge status={goal.status} />
+            <GoalStatusControl
+              status={goal.status}
+              disabled={updateGoal.isPending}
+              onChange={(status) => updateGoal.mutate({ status })}
+            />
           </div>
           <div className="flex items-center gap-2">
             <Button

@@ -8,6 +8,7 @@ type Organization = {
 type Goal = {
   id: string;
   title: string;
+  status: string;
 };
 
 test.describe("Goal detail lifecycle controls", () => {
@@ -60,10 +61,26 @@ test.describe("Goal detail lifecycle controls", () => {
 
     await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Change goal status: Active" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Work \(1\)/ })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Sub-Goals \(1\)/ })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Activity \(/ })).toBeVisible();
     await expect(page.getByText("Issues (1)")).toBeVisible();
+
+    const statusResponse = page.waitForResponse((response) =>
+      response.request().method() === "PATCH"
+      && response.url().endsWith(`/api/goals/${goal.id}`)
+      && response.ok(),
+    );
+    await page.getByRole("button", { name: "Change goal status: Active" }).click();
+    await page.getByRole("button", { name: "Achieved" }).click();
+    await statusResponse;
+    await expect(page.getByRole("button", { name: "Change goal status: Achieved" })).toBeVisible();
+
+    const updatedGoalResponse = await page.request.get(`/api/goals/${goal.id}`);
+    expect(updatedGoalResponse.ok()).toBe(true);
+    const updatedGoal = await updatedGoalResponse.json() as Goal;
+    expect(updatedGoal.status).toBe("achieved");
 
     const renameResponse = page.waitForResponse((response) =>
       response.request().method() === "PATCH"
