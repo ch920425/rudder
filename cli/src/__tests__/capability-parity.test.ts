@@ -884,6 +884,69 @@ describe("CLI automation/chat/runs parity", () => {
     });
   });
 
+  it("prints non-empty chat run transcript rows from Run Intelligence", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      run: {
+        id: "run-chat-1",
+        status: "succeeded",
+        invocationSource: "chat",
+        triggerDetail: "chat_assistant_reply_stream",
+      },
+      order: "newest",
+      output: "compact",
+      page: {
+        cursor: null,
+        nextCursor: null,
+        hasMore: false,
+        order: "newest",
+        turnLimit: 20,
+        returnedSteps: 1,
+        totalFilteredSteps: 1,
+      },
+      rows: [
+        {
+          id: "step-1",
+          index: 1,
+          turnIndex: 1,
+          kind: "assistant",
+          ts: "2026-06-17T09:00:01.000Z",
+          label: "assistant",
+          preview: "Chat reply from the agent",
+          detailPreview: "Chat reply from the agent",
+          isError: false,
+          output: {
+            text: "Chat reply from the agent",
+            clipped: false,
+            originalLength: 25,
+          },
+        },
+      ],
+      trace: { turnCount: 1, stepCount: 1, payloadStepCount: 0, filteredStepCount: 1 },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const output = captureOutput();
+
+    await expect(runCli([
+      process.execPath,
+      "rudder",
+      "runs",
+      "transcript",
+      "run-chat-1",
+      "--include-output",
+      "--api-base",
+      "http://localhost:3100",
+      "--api-key",
+      "token-1",
+    ])).resolves.toBe(0);
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const requestedUrl = new URL(url);
+    expect(requestedUrl.pathname).toBe("/api/run-intelligence/runs/run-chat-1/transcript");
+    expect(output.stdoutText()).toContain("step-1");
+    expect(output.stdoutText()).toContain("assistant");
+    expect(output.stdoutText()).toContain("Chat reply from the agent");
+  });
+
   it("surfaces mutation permission failures without swallowing attribution context", async () => {
     process.env.RUDDER_AGENT_ID = "agent-1";
     process.env.RUDDER_RUN_ID = "run-1";
