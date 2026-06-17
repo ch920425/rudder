@@ -1,5 +1,5 @@
 import type { TranscriptEntry } from "../../agent-runtimes";
-import { asRecord, ChatTranscriptTurn, compactWhitespace, filterRoutineStdout, humanizeLabel, isTurnStartedText, pluralize, shouldCollapseEventText, TranscriptBlock, TranscriptDensity, TranscriptTodoListItem, TranscriptToolSemanticInfo, truncate } from "./RunTranscriptView.common";
+import { asRecord, ChatTranscriptTurn, compactWhitespace, filterRoutineStdout, humanizeLabel, isInternalAgentInstructionText, isTurnStartedText, pluralize, shouldCollapseEventText, TranscriptBlock, TranscriptDensity, TranscriptTodoListItem, TranscriptToolSemanticInfo, truncate } from "./RunTranscriptView.common";
 import { describeToolSemanticInfo, extractSkillSlugFromEntryPath, extractToolUseId, isCommandTool, parseStructuredToolResult, readStringField } from "./RunTranscriptView.semantic";
 import { parseFileChangeSystemText, parseMemoryUpdateSystemText } from "./RunTranscriptView.shell";
 
@@ -296,6 +296,21 @@ export function normalizeTranscript(
 
     if (entry.kind === "assistant" || entry.kind === "user") {
       if (entry.kind === "user") {
+        if (isInternalAgentInstructionText(entry.text)) {
+          if (options?.showDeveloperDiagnostics) {
+            blocks.push({
+              type: "event",
+              ts: entry.ts,
+              label: "agent instruction",
+              tone: "info",
+              text: "Runtime-loaded agent instruction",
+              detail: entry.text,
+              collapseByDefault: true,
+            });
+          }
+          continue;
+        }
+
         const skillContext = parseClaudeSkillContext(entry.text);
         if (skillContext) {
           const matchingTool = [...blocks].reverse().find((block): block is Extract<TranscriptBlock, { type: "tool" }> => {

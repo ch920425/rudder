@@ -63,7 +63,10 @@ export const sessionCodec: AgentRuntimeSessionCodec = {
 export { execute } from "./execute.js";
 export {
   discoverOpenCodeModels,
-  ensureOpenCodeModelConfiguredAndAvailable, listOpenCodeModels, resetOpenCodeModelsCacheForTests
+  ensureOpenCodeModelConfiguredAndAvailable,
+  listOpenCodeModels,
+  resetOpenCodeModelsCacheForTests,
+  validateOpenCodeModelConfig
 } from "./models.js";
 export { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
 export { listOpenCodeSkills, syncOpenCodeSkills } from "./skills.js";

@@ -12,7 +12,7 @@ import {
   parseObject,
   runChildProcess,
 } from "@rudderhq/agent-runtime-utils/server-utils";
-import { discoverOpenCodeModels, ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
+import { discoverOpenCodeModels, validateOpenCodeModelConfig } from "./models.js";
 import { parseOpenCodeJsonl } from "./parse.js";
 
 function summarizeStatus(checks: AgentRuntimeEnvironmentCheck[]): AgentRuntimeEnvironmentTestResult["status"] {
@@ -49,6 +49,8 @@ function normalizeEnv(input: unknown): Record<string, string> {
 
 const OPENCODE_AUTH_REQUIRED_RE =
   /(?:auth(?:entication)?\s+required|api\s*key|invalid\s*api\s*key|not\s+logged\s+in|opencode\s+auth\s+login|free\s+usage\s+exceeded)/i;
+const OPENCODE_MODEL_UNAVAILABLE_RE =
+  /(?:ProviderModelNotFoundError|Model\s+not\s+found:)/i;
 
 export async function testEnvironment(
   ctx: AgentRuntimeEnvironmentTestContext,
@@ -123,10 +125,12 @@ export async function testEnvironment(
 
   let modelValidationPassed = false;
   const configuredModel = asString(config.model, "").trim();
+  let discoveredModels: Awaited<ReturnType<typeof discoverOpenCodeModels>> | null = null;
 
   if (canRunProbe && configuredModel) {
     try {
       const discovered = await discoverOpenCodeModels({ command, cwd, env: runtimeEnv });
+      discoveredModels = discovered;
       if (discovered.length > 0) {
         checks.push({
           code: "opencode_models_discovered",
@@ -138,12 +142,12 @@ export async function testEnvironment(
           code: "opencode_models_empty",
           level: "warn",
           message: "OpenCode returned no models.",
-          hint: "Run `opencode models` to verify provider authentication, or keep the custom provider/model and rely on the hello probe below.",
+          hint: "Rudder will still run the configured model probe. Run `opencode models` manually if the probe fails.",
         });
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (/ProviderModelNotFoundError/i.test(errMsg)) {
+      if (OPENCODE_MODEL_UNAVAILABLE_RE.test(errMsg)) {
         checks.push({
           code: "opencode_hello_probe_model_unavailable",
           level: "warn",
@@ -156,13 +160,14 @@ export async function testEnvironment(
           code: "opencode_models_discovery_failed",
           level: "warn",
           message: errMsg || "OpenCode model discovery failed.",
-          hint: "Run `opencode models` manually to verify provider auth and config, or keep the custom provider/model and rely on the hello probe below.",
+          hint: "Rudder will still run the configured model probe. Run `opencode models` manually if the probe fails.",
         });
       }
     }
   } else if (canRunProbe && !configuredModel) {
     try {
       const discovered = await discoverOpenCodeModels({ command, cwd, env: runtimeEnv });
+      discoveredModels = discovered;
       if (discovered.length > 0) {
         checks.push({
           code: "opencode_models_discovered",
@@ -172,7 +177,7 @@ export async function testEnvironment(
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (/ProviderModelNotFoundError/i.test(errMsg)) {
+      if (OPENCODE_MODEL_UNAVAILABLE_RE.test(errMsg)) {
         checks.push({
           code: "opencode_hello_probe_model_unavailable",
           level: "warn",
@@ -201,17 +206,20 @@ export async function testEnvironment(
     });
   } else if (configuredModel && canRunProbe) {
     try {
-      await ensureOpenCodeModelConfiguredAndAvailable({
-        model: configuredModel,
-        command,
-        cwd,
-        env: runtimeEnv,
-      });
+      validateOpenCodeModelConfig({ model: configuredModel });
       checks.push({
         code: "opencode_model_configured",
         level: "info",
         message: `Configured model: ${configuredModel}`,
       });
+      if (discoveredModels && !discoveredModels.some((entry) => entry.id === configuredModel)) {
+        checks.push({
+          code: "opencode_model_not_listed",
+          level: "info",
+          message: `Configured model "${configuredModel}" was not listed by \`opencode models\`; using the hello probe as source of truth.`,
+          hint: "This is expected for some custom provider/model setups.",
+        });
+      }
       modelValidationPassed = true;
     } catch (err) {
       checks.push({
@@ -279,7 +287,7 @@ export async function testEnvironment(
                 hint: "Run `opencode run --format json` manually and prompt `Respond with hello` to inspect output.",
               }),
         });
-      } else if (/ProviderModelNotFoundError/i.test(authEvidence)) {
+      } else if (OPENCODE_MODEL_UNAVAILABLE_RE.test(authEvidence)) {
         checks.push({
           code: "opencode_hello_probe_model_unavailable",
           level: "warn",

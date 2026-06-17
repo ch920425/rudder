@@ -1,5 +1,11 @@
+import { parseClaudeStdoutLine } from "@rudderhq/agent-runtime-claude-local/ui";
 import { parseCodexStdoutLine } from "@rudderhq/agent-runtime-codex-local/ui";
+import { parseCursorStdoutLine } from "@rudderhq/agent-runtime-cursor-local/ui";
+import { parseGeminiStdoutLine } from "@rudderhq/agent-runtime-gemini-local/ui";
+import { parseOpenCodeStdoutLine } from "@rudderhq/agent-runtime-opencode-local/ui";
+import { parsePiStdoutLine } from "@rudderhq/agent-runtime-pi-local/ui";
 import { describe, expect, it } from "vitest";
+import { filterRenderableTranscriptEntries } from "../components/transcript/RunTranscriptView.common";
 import { buildTranscript, type RunLogChunk } from "./transcript";
 
 describe("buildTranscript", () => {
@@ -214,6 +220,132 @@ describe("buildTranscript", () => {
         toolUseId: "mcp_1",
         toolName: "mcp__github__fetch_pr",
         content: "PR title: transcript UI",
+        isError: false,
+      },
+    ]);
+  });
+
+  it("keeps runtime-loaded instruction user messages out of the shared operator transcript contract", () => {
+    const instructionText = "# Rudder Agent Operating Contract\n\nYour home directory is $AGENT_HOME.\n\nUse these paths consistently:";
+    const cases = [
+      {
+        name: "claude",
+        parser: parseClaudeStdoutLine,
+        line: JSON.stringify({
+          type: "user",
+          message: { content: [{ type: "text", text: instructionText }] },
+        }),
+      },
+      {
+        name: "cursor",
+        parser: parseCursorStdoutLine,
+        line: JSON.stringify({
+          type: "user",
+          message: { content: [{ type: "text", text: instructionText }] },
+        }),
+      },
+      {
+        name: "gemini",
+        parser: parseGeminiStdoutLine,
+        line: JSON.stringify({
+          type: "message",
+          role: "user",
+          content: instructionText,
+        }),
+      },
+    ];
+
+    for (const item of cases) {
+      const parsed = item.parser(item.line, ts);
+      expect(parsed, item.name).toEqual([
+        { kind: "user", ts, text: instructionText },
+      ]);
+      expect(filterRenderableTranscriptEntries(parsed), item.name).toEqual([]);
+    }
+  });
+
+  it("keeps provider tool responses renderable even when a provider reports them inside user-role events", () => {
+    const claudeEntries = parseClaudeStdoutLine(JSON.stringify({
+      type: "user",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tool-1",
+            content: "tool response body",
+            is_error: false,
+          },
+        ],
+      },
+    }), ts);
+    expect(filterRenderableTranscriptEntries(claudeEntries)).toEqual([
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "tool-1",
+        content: "tool response body",
+        isError: false,
+      },
+    ]);
+
+    expect(parseCodexStdoutLine(JSON.stringify({
+      type: "item.completed",
+      item: {
+        id: "tool-1",
+        type: "tool_result",
+        content: "codex tool response",
+      },
+    }), ts)).toEqual([
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "tool-1",
+        content: "codex tool response",
+        isError: false,
+      },
+    ]);
+
+    expect(parseOpenCodeStdoutLine(JSON.stringify({
+      type: "tool_use",
+      part: {
+        callID: "tool-1",
+        tool: "read",
+        state: {
+          status: "completed",
+          input: { path: "README.md" },
+          output: "opencode tool response",
+        },
+      },
+    }), ts)).toEqual([
+      {
+        kind: "tool_call",
+        ts,
+        name: "read",
+        toolUseId: "tool-1",
+        input: { path: "README.md" },
+      },
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "tool-1",
+        content: "status: completed\n\nopencode tool response",
+        isError: false,
+      },
+    ]);
+
+    expect(parsePiStdoutLine(JSON.stringify({
+      type: "tool_execution_end",
+      toolCallId: "tool-1",
+      toolName: "read",
+      result: [{ type: "text", text: "pi tool response" }],
+      isError: false,
+    }), ts)).toEqual([
+      {
+        kind: "tool_result",
+        ts,
+        toolUseId: "tool-1",
+        toolName: "read",
+        content: "pi tool response",
         isError: false,
       },
     ]);

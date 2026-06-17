@@ -281,6 +281,25 @@ export function isRudderDeveloperDiagnosticContinuationLine(trimmed: string): bo
   return /^[\s./~,-]/.test(trimmed) || /^[A-Za-z]:[\\/]/.test(trimmed);
 }
 
+export function isInternalAgentInstructionText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  const firstLine = trimmed.split(/\r?\n/, 1)[0]?.replace(/^#+\s*/, "").trim().toLowerCase() ?? "";
+  const normalized = compactWhitespace(trimmed).toLowerCase();
+
+  if (firstLine === "rudder agent operating contract") return true;
+  if (normalized.includes("rudder protocol by delivering a progress update")) return true;
+  if (
+    normalized.includes("your home directory is $agent_home")
+    && normalized.includes("use these paths consistently")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function filterRoutineStdout(value: string, showDeveloperDiagnostics: boolean): string {
   if (showDeveloperDiagnostics) return value.trim();
   let suppressRudderContinuation = false;
@@ -321,6 +340,7 @@ export function filterRenderableTranscriptEntries(
 
   for (const entry of entries) {
     if (entry.kind === "init") continue;
+    if (entry.kind === "user" && isInternalAgentInstructionText(entry.text)) continue;
 
     if (entry.kind !== "stderr") {
       result.push(entry);
@@ -544,4 +564,3 @@ export function humanizeLabel(value: string): string {
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
-

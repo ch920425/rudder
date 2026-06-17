@@ -171,14 +171,7 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
   cwd?: unknown;
   env?: unknown;
 }): Promise<AgentRuntimeModel[]> {
-  const model = asString(input.model, "").trim();
-  if (!model) {
-    throw new Error("OpenCode requires `agentRuntimeConfig.model` in provider/model format.");
-  }
-  const [provider, modelId] = model.split("/", 2).map((part) => part.trim());
-  if (!provider || !modelId) {
-    throw new Error("OpenCode requires `agentRuntimeConfig.model` in provider/model format.");
-  }
+  validateOpenCodeModelConfig(input);
 
   try {
     return await discoverOpenCodeModelsCached({
@@ -192,6 +185,18 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
     // the source of truth after the provider/model contract is satisfied.
     return [];
   }
+}
+
+export function validateOpenCodeModelConfig(input: { model?: unknown }): string {
+  const model = asString(input.model, "").trim();
+  if (!model) {
+    throw new Error("OpenCode requires `agentRuntimeConfig.model` in provider/model format.");
+  }
+  const [provider, modelId] = model.split("/", 2).map((part) => part.trim());
+  if (!provider || !modelId) {
+    throw new Error("OpenCode requires `agentRuntimeConfig.model` in provider/model format.");
+  }
+  return model;
 }
 
 export async function listOpenCodeModels(): Promise<AgentRuntimeModel[]> {
