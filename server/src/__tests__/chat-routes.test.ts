@@ -1635,7 +1635,7 @@ describe("chat routes", () => {
     });
   });
 
-  it("keeps chat sending successful when lightweight title generation is not configured", async () => {
+  it("falls back to the first user message when lightweight title generation is not configured", async () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Need help");
     const assistantMessage = createMessage("message-assistant", "assistant", "message", "Working on it");
@@ -1665,11 +1665,11 @@ describe("chat routes", () => {
     expect(mockChatAssistantService.streamChatAssistantReply).toHaveBeenCalled();
     await waitUntil(() => {
       expect(mockProductIntelligenceService.execute).toHaveBeenCalled();
+      expect(mockChatService.updateDefaultTitle).toHaveBeenCalledWith("chat-1", "Need help");
     });
-    expect(mockChatService.updateDefaultTitle).not.toHaveBeenCalled();
   });
 
-  it("does not update a chat title from failed lightweight title generation output", async () => {
+  it("falls back to the first user message instead of failed lightweight title output", async () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Need a migration plan");
     const assistantMessage = createMessage("message-assistant", "assistant", "message", "Working on it");
@@ -1704,8 +1704,8 @@ describe("chat routes", () => {
     expect(res.status).toBe(201);
     await waitUntil(() => {
       expect(mockProductIntelligenceService.execute).toHaveBeenCalled();
+      expect(mockChatService.updateDefaultTitle).toHaveBeenCalledWith("chat-1", "Need a migration plan");
     });
-    expect(mockChatService.updateDefaultTitle).not.toHaveBeenCalled();
   });
 
   it("bounds long chat title generation prompts", async () => {
@@ -2447,6 +2447,39 @@ describe("chat routes", () => {
         prompt: expect.stringContaining("Plan the migration"),
       }));
       expect(mockChatService.updateDefaultTitle).toHaveBeenCalledWith("chat-1", "Migration plan");
+    });
+  });
+
+  it("falls back to the first user message for streamed messages when lightweight title generation fails", async () => {
+    const conversation = createConversation();
+    const userMessage = createMessage("message-user", "user", "message", "Plan the migration");
+    const assistantMessage = createMessage("message-assistant", "assistant", "message", "I will plan it.");
+
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.listMessages.mockResolvedValue([userMessage]);
+    mockChatService.addMessage.mockResolvedValueOnce(assistantMessage);
+    mockProductIntelligenceService.execute.mockRejectedValueOnce(new Error("No lightweight profile configured"));
+    mockChatAssistantService.streamChatAssistantReply.mockResolvedValue({
+      outcome: "completed",
+      partialBody: "I will plan it.",
+      replyingAgentId: "agent-1",
+      reply: {
+        kind: "message",
+        body: "I will plan it.",
+        structuredPayload: null,
+        replyingAgentId: "agent-1",
+      },
+    });
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/messages/stream")
+      .send({ body: "Plan the migration" });
+
+    expect(res.status).toBe(201);
+    await waitUntil(() => {
+      expect(mockProductIntelligenceService.execute).toHaveBeenCalled();
+      expect(mockChatService.updateDefaultTitle).toHaveBeenCalledWith("chat-1", "Plan the migration");
     });
   });
 

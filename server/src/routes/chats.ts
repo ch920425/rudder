@@ -5,6 +5,7 @@ import {
   addChatMessageSchema,
   chatAutomationCreateFromStructuredPayload,
   createChatConversationSchema,
+  formatMessengerTitle,
   updateChatConversationSchema,
   type ChatAttachment,
   type ChatContextLink,
@@ -206,9 +207,14 @@ export function chatRoutes(db: Db, storage: StorageService) {
       : title;
   }
 
+  function fallbackChatTitleFromBody(body: string) {
+    return formatMessengerTitle(body, { max: CHAT_TITLE_MAX_LENGTH });
+  }
+
   function startChatTitleGeneration(conversation: ChatConversation, body: string) {
     if (conversation.title !== "New chat" || body.trim().length === 0) return;
     const prompt = buildChatTitlePrompt(body);
+    const fallbackTitle = fallbackChatTitleFromBody(body);
     void (async () => {
       try {
         const result = await productIntelligence.execute({
@@ -218,8 +224,9 @@ export function chatRoutes(db: Db, storage: StorageService) {
           prompt,
         });
         const title = sanitizeGeneratedChatTitle(runtimeResultText(result));
-        if (!title) return;
-        await svc.updateDefaultTitle(conversation.id, title);
+        if (title ?? fallbackTitle) {
+          await svc.updateDefaultTitle(conversation.id, title ?? fallbackTitle!);
+        }
       } catch (error) {
         logger.warn(
           {
@@ -229,8 +236,20 @@ export function chatRoutes(db: Db, storage: StorageService) {
           },
           "Failed to generate chat title with organization lightweight model",
         );
+        if (fallbackTitle) {
+          await svc.updateDefaultTitle(conversation.id, fallbackTitle);
+        }
       }
-    })();
+    })().catch((error) => {
+      logger.warn(
+        {
+          err: error,
+          conversationId: conversation.id,
+          orgId: conversation.orgId,
+        },
+        "Failed to update chat title",
+      );
+    });
   }
 
   function positiveIntegerQuery(value: unknown, fallback: number, max: number) {
