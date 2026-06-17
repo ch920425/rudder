@@ -76,6 +76,83 @@ test.describe("Cost trend chart", () => {
     await expect(chart.getByText("Budget Reviewer")).toBeVisible();
   });
 
+  test("auto-aligns the narrow agent comparison chart to recent data", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 });
+
+    const orgRes = await page.request.post("/api/orgs", {
+      data: {
+        name: `Cost-Mobile-Agent-Trend-${Date.now()}`,
+      },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json() as { id: string; issuePrefix: string };
+
+    const agents: { id: string }[] = [];
+    for (const name of ["Atlas", "Beacon", "Comet", "Delta"]) {
+      const agentRes = await page.request.post(`/api/orgs/${organization.id}/agents`, {
+        data: {
+          name,
+          role: "engineer",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {
+            model: "gpt-5.4",
+          },
+        },
+      });
+      expect(agentRes.ok()).toBe(true);
+      agents.push(await agentRes.json() as { id: string });
+    }
+
+    for (const [index, agent] of agents.entries()) {
+      const eventRes = await page.request.post(`/api/orgs/${organization.id}/cost-events`, {
+        data: {
+          agentId: agent.id,
+          provider: "openai",
+          biller: "openai",
+          billingType: "metered_api",
+          model: "gpt-5.4",
+          inputTokens: 300 + index * 100,
+          cachedInputTokens: 50,
+          outputTokens: 100 + index * 20,
+          costCents: 100 + index,
+          occurredAt: daysAgoUtc(0),
+        },
+      });
+      expect(eventRes.ok()).toBe(true);
+    }
+
+    await page.addInitScript((orgId: string) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+
+    await page.goto(`/${organization.issuePrefix}/costs`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Last 30 Days" }).click();
+
+    const chart = page.getByTestId("cost-trend-chart");
+    await chart.getByRole("button", { name: "Agent" }).click();
+    await expect(chart.getByText("4 agents")).toBeVisible();
+
+    const scrollRegion = chart.getByTestId("cost-trend-chart-scroll");
+    await expect.poll(async () =>
+      scrollRegion.evaluate((element) => element.scrollWidth - element.clientWidth),
+    ).toBeGreaterThan(0);
+    await expect.poll(async () =>
+      scrollRegion.evaluate((element) => element.scrollLeft),
+    ).toBeGreaterThan(0);
+    await expect.poll(async () =>
+      scrollRegion.evaluate((element) => {
+        const regionRect = element.getBoundingClientRect();
+        return Array.from(element.querySelectorAll(".dashboard-chart-bar")).some((bar) => {
+          const barRect = bar.getBoundingClientRect();
+          return barRect.width > 0
+            && barRect.height > 0
+            && barRect.right > regionRect.left
+            && barRect.left < regionRect.right;
+        });
+      }),
+    ).toBe(true);
+  });
+
   test("loads month-to-date costs when token aggregates exceed the Postgres int4 range", async ({ page }) => {
     const orgRes = await page.request.post("/api/orgs", {
       data: {

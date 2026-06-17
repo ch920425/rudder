@@ -18,7 +18,7 @@ import {
 } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Coins, DollarSign, ReceiptText } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
 import { budgetsApi } from "../api/budgets";
 import { costsApi } from "../api/costs";
 import { AgentIdentity } from "../components/AgentAvatar";
@@ -36,6 +36,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { PRESET_KEYS, PRESET_LABELS, useDateRange } from "../hooks/useDateRange";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { queryKeys } from "../lib/queryKeys";
 import { billingTypeDisplayName, cn, formatCents, formatTokens, providerDisplayName } from "../lib/utils";
 
@@ -187,6 +188,36 @@ function shouldShowDayLabel(index: number, count: number): boolean {
   return index === 0 || index === count - 1 || index === Math.floor((count - 1) / 2);
 }
 
+function hasCostTrendActivity(row: CostTrendPoint): boolean {
+  return row.totalTokens > 0 || row.costCents > 0;
+}
+
+export function calculateCostTrendInitialScrollLeft({
+  dayCount,
+  targetDayIndex,
+  scrollWidth,
+  clientWidth,
+  axisWidth = 32,
+  trailingPadding = 12,
+}: {
+  dayCount: number;
+  targetDayIndex: number;
+  scrollWidth: number;
+  clientWidth: number;
+  axisWidth?: number;
+  trailingPadding?: number;
+}): number {
+  const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
+  if (dayCount <= 0 || targetDayIndex < 0 || scrollWidth <= 0 || clientWidth <= 0 || maxScrollLeft <= 0) return 0;
+
+  const boundedTargetDayIndex = Math.min(targetDayIndex, dayCount - 1);
+  const plotWidth = Math.max(0, scrollWidth - axisWidth);
+  const targetDayRightEdge = axisWidth + ((boundedTargetDayIndex + 1) / dayCount) * plotWidth;
+  const desiredScrollLeft = targetDayRightEdge - clientWidth + trailingPadding;
+
+  return Math.min(maxScrollLeft, Math.max(0, Math.ceil(desiredScrollLeft)));
+}
+
 function formatExactCount(value: number): string {
   return Math.round(value).toLocaleString("en-US");
 }
@@ -328,6 +359,43 @@ export function CostTrendChart({
   const chartMinWidth = isAgentComparison
     ? Math.max(560, comparisonDays.length * Math.max(34, comparisonSeries.length * 10))
     : Math.max(520, series.length * 30);
+  const chartDays = isAgentComparison ? comparisonDays : series.map((row) => row.date);
+  const latestDataDayIndex = (() => {
+    if (isAgentComparison) {
+      for (let index = comparisonDays.length - 1; index >= 0; index -= 1) {
+        const day = comparisonDays[index]!;
+        if (comparisonSeries.some((entry) => {
+          const row = comparisonRowsByAgent.get(entry.agent.agentId)?.get(day);
+          return row ? hasCostTrendActivity(row) : false;
+        })) {
+          return index;
+        }
+      }
+      return -1;
+    }
+
+    for (let index = series.length - 1; index >= 0; index -= 1) {
+      if (hasCostTrendActivity(series[index]!)) return index;
+    }
+    return -1;
+  })();
+  const chartScrollRef = useRef<HTMLDivElement | null>(null);
+  const chartScrollbarActivityRef = useScrollbarActivityRef();
+  const setChartScrollElement = useCallback((element: HTMLDivElement | null) => {
+    chartScrollRef.current = element;
+    chartScrollbarActivityRef(element);
+  }, [chartScrollbarActivityRef]);
+  useEffect(() => {
+    const element = chartScrollRef.current;
+    if (!element || !hasData) return;
+
+    element.scrollLeft = calculateCostTrendInitialScrollLeft({
+      dayCount: chartDays.length,
+      targetDayIndex: latestDataDayIndex,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    });
+  }, [chartDays.length, chartMinWidth, filterKind, hasData, latestDataDayIndex]);
   const tokenLegendItems = [
     { color: "#3b82f6", label: "Uncached input" },
     { color: "#06b6d4", label: "Cached" },
@@ -408,7 +476,7 @@ export function CostTrendChart({
         ) : (
           <TooltipProvider delayDuration={120}>
             <div className="dashboard-chart-motion space-y-3">
-              <div className="overflow-x-auto pb-1">
+              <div ref={setChartScrollElement} className="scrollbar-auto-hide overflow-x-auto pb-1" data-testid="cost-trend-chart-scroll">
                 <div style={{ minWidth: chartMinWidth }}>
                   <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-1.5">
                     <CostTrendScaleLabels ticks={scaleTicks} />

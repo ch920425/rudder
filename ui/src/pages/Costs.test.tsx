@@ -3,7 +3,7 @@
 import type { CostByAgent, CostByProject, CostTrendPoint } from "@rudderhq/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CostTrendChart } from "./Costs";
+import { CostTrendChart, calculateCostTrendInitialScrollLeft } from "./Costs";
 
 describe("CostTrendChart", () => {
   it("exposes daily cost data on each trend bar", () => {
@@ -146,5 +146,37 @@ describe("CostTrendChart", () => {
     expect(html).toContain("Ella");
     expect(html).toContain("Mina");
     expect(html).toContain("May 7, 2026: Ella 15 tokens, $0.07; Mina 11 tokens, $0.05");
+  });
+
+  it("aligns an overflowing trend chart to the latest day with data", () => {
+    expect(calculateCostTrendInitialScrollLeft({
+      dayCount: 30,
+      targetDayIndex: 29,
+      scrollWidth: 1_052,
+      clientWidth: 360,
+    })).toBe(692);
+
+    expect(calculateCostTrendInitialScrollLeft({
+      dayCount: 30,
+      targetDayIndex: 24,
+      scrollWidth: 1_052,
+      clientWidth: 360,
+    })).toBe(534);
+  });
+
+  it("keeps the trend chart at the left edge when the target is already visible", () => {
+    expect(calculateCostTrendInitialScrollLeft({
+      dayCount: 30,
+      targetDayIndex: 0,
+      scrollWidth: 1_052,
+      clientWidth: 360,
+    })).toBe(0);
+
+    expect(calculateCostTrendInitialScrollLeft({
+      dayCount: 30,
+      targetDayIndex: 29,
+      scrollWidth: 360,
+      clientWidth: 360,
+    })).toBe(0);
   });
 });
