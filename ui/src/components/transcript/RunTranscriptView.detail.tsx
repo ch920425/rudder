@@ -3,7 +3,7 @@ import type { TranscriptEntry } from "../../agent-runtimes";
 import { cn, formatTokens } from "../../lib/utils";
 import { formatTranscriptLabel, TranscriptActivityRow, TranscriptEventRow, TranscriptMessageBlock, TranscriptStdoutRow, TranscriptThinkingBlock, TranscriptTodoListRow, TranscriptToolCard } from "./RunTranscriptView.blocks";
 import { TranscriptChatTurn } from "./RunTranscriptView.chat";
-import { TranscriptBlock, TranscriptDensity, TranscriptMarkdownLinkClickHandler } from "./RunTranscriptView.common";
+import { isInternalAgentInstructionText, TranscriptBlock, TranscriptDensity, TranscriptMarkdownLinkClickHandler } from "./RunTranscriptView.common";
 import { formatTodoListRaw, normalizeChatTranscriptTurns, parseClaudeSkillContext } from "./RunTranscriptView.normalize";
 import { formatToolPayload } from "./RunTranscriptView.semantic";
 
@@ -227,7 +227,7 @@ export function RawTranscriptView({
 }
 
 function formatRawTranscriptLabel(entry: TranscriptEntry): string {
-  return entry.kind === "user" && parseClaudeSkillContext(entry.text)
-    ? "Skill Context"
-    : formatTranscriptLabel(entry.kind);
+  if (entry.kind === "user" && isInternalAgentInstructionText(entry.text)) return "Agent Instruction";
+  if (entry.kind === "user" && parseClaudeSkillContext(entry.text)) return "Skill Context";
+  return formatTranscriptLabel(entry.kind);
 }

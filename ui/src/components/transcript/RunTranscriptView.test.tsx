@@ -901,6 +901,149 @@ describe("RunTranscriptView", () => {
     expect(visibleHtml).toContain("Recoverable adapter warning");
   });
 
+  it("hides runtime-loaded agent instruction user messages from operator transcript views", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "system",
+        ts: "2026-06-17T08:00:00.000Z",
+        text: "turn started",
+      },
+      {
+        kind: "user",
+        ts: "2026-06-17T08:00:01.000Z",
+        text: [
+          "# Rudder Agent Operating Contract",
+          "",
+          "Your home directory is $AGENT_HOME. Everything personal to you lives there.",
+          "",
+          "Use these paths consistently:",
+          "- Personal instructions live under $AGENT_HOME/instructions.",
+        ].join("\n"),
+      },
+      {
+        kind: "assistant",
+        ts: "2026-06-17T08:00:02.000Z",
+        text: "I can use coding, debugging, Rudder operations, memory workflows, and skill-authoring workflows.",
+      },
+      {
+        kind: "user",
+        ts: "2026-06-17T08:00:03.000Z",
+        text: [
+          "Following communication protocol",
+          "",
+          "I need to respond following the Rudder protocol by delivering a progress update, a special marker, and then JSON.",
+        ].join("\n"),
+      },
+      {
+        kind: "assistant",
+        ts: "2026-06-17T08:00:04.000Z",
+        text: "Got it. What would you like to work on next?",
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, false);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ type: "message", role: "assistant" });
+    expect(blocks[0]).toEqual(expect.objectContaining({
+      text: expect.stringContaining("coding, debugging, Rudder operations"),
+    }));
+    expect(blocks[0]).toEqual(expect.objectContaining({
+      text: expect.stringContaining("Got it. What would you like to work on next?"),
+    }));
+    expect(blocks).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "user" }),
+    ]));
+
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView density="compact" presentation="chat" entries={entries} />
+      </ThemeProvider>,
+    );
+
+    expect(html).not.toContain("User</span>");
+    expect(html).not.toContain("Rudder Agent Operating Contract");
+    expect(html).not.toContain("Following communication protocol");
+    expect(html).not.toContain("Use these paths consistently");
+    expect(html).toContain("coding, debugging, Rudder operations");
+    expect(html).toContain("Got it. What would you like to work on next?");
+  });
+
+  it("labels runtime-loaded agent instructions as diagnostics instead of user messages when diagnostics are enabled", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "user",
+        ts: "2026-06-17T08:00:01.000Z",
+        text: "# Rudder Agent Operating Contract\n\nYour home directory is $AGENT_HOME.\n\nUse these paths consistently:",
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, false, { showDeveloperDiagnostics: true });
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        type: "event",
+        label: "agent instruction",
+        text: "Runtime-loaded agent instruction",
+        detail: expect.stringContaining("Rudder Agent Operating Contract"),
+      }),
+    ]);
+
+    const detailHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="detail"
+          entries={entries}
+          showDeveloperDiagnostics
+        />
+      </ThemeProvider>,
+    );
+    expect(detailHtml).toContain("Agent Instruction");
+    expect(detailHtml).toContain("Runtime-loaded agent instruction");
+    expect(detailHtml).not.toContain("User</span>");
+
+    const rawHtml = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          mode="raw"
+          density="compact"
+          entries={entries}
+          showDeveloperDiagnostics
+        />
+      </ThemeProvider>,
+    );
+    expect(rawHtml).toContain("Agent Instruction");
+    expect(rawHtml).not.toContain(">User<");
+  });
+
+  it("keeps normal user messages that mention communication protocol", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "user",
+        ts: "2026-06-17T08:00:01.000Z",
+        text: "Following communication protocol is important in our team, but this is a normal user note.",
+      },
+      {
+        kind: "assistant",
+        ts: "2026-06-17T08:00:02.000Z",
+        text: "Understood.",
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, false);
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        type: "message",
+        role: "user",
+        text: expect.stringContaining("normal user note"),
+      }),
+      expect.objectContaining({
+        type: "message",
+        role: "assistant",
+        text: "Understood.",
+      }),
+    ]);
+  });
+
   it("normalizes agent memory file changes into dedicated memory update blocks", () => {
     const entries: TranscriptEntry[] = [
       {
