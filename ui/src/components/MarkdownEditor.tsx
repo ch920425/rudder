@@ -1,22 +1,14 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type RefObject,
-} from "react";
-import { createPortal } from "react-dom";
+import { ImagePreviewDialog, type ImagePreviewState } from "@/components/ImagePreviewDialog";
+import { useI18n } from "@/context/I18nContext";
+import { translateLegacyString } from "@/i18n/legacyPhrases";
+import { useNavigate } from "@/lib/router";
 import {
   CodeMirrorEditor,
   MDXEditor,
+  addImportVisitor$,
   codeBlockPlugin,
   codeMirrorPlugin,
-  type CodeBlockEditorDescriptor,
-  type MDXEditorMethods,
+  createRootEditorSubscription$,
   headingsPlugin,
   imagePlugin,
   linkDialogPlugin,
@@ -24,24 +16,16 @@ import {
   listsPlugin,
   markdownShortcutPlugin,
   quotePlugin,
+  realmPlugin,
   tablePlugin,
   thematicBreakPlugin,
-  type Translation,
-  type RealmPlugin,
+  type CodeBlockEditorDescriptor,
+  type MDXEditorMethods,
   type MdastImportVisitor,
-  realmPlugin,
-  addImportVisitor$,
-  createRootEditorSubscription$,
+  type RealmPlugin,
+  type Translation,
 } from "@mdxeditor/editor";
-import { Boxes, FileText, Folder, MessageSquare } from "lucide-react";
 import { buildAgentMentionHref, buildChatMentionHref, buildIssueMentionHref, buildLibraryDirectoryMentionHref, buildLibraryDocMentionHref, buildLibraryEntryMentionHref, buildLibraryFileMentionHref, buildProjectMentionHref, type AgentRole } from "@rudderhq/shared";
-import { useI18n } from "@/context/I18nContext";
-import { useNavigate } from "@/lib/router";
-import { translateLegacyString } from "@/i18n/legacyPhrases";
-import { ImagePreviewDialog, type ImagePreviewState } from "@/components/ImagePreviewDialog";
-import { AgentIcon } from "./AgentIconPicker";
-import { ProjectIcon } from "./ProjectIdentity";
-import { StatusIcon } from "./StatusIcon";
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -54,6 +38,28 @@ import {
   type LexicalNode,
   type TextNode,
 } from "lexical";
+import { Boxes, FileText, Folder, MessageSquare } from "lucide-react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
+import { useMarkdownMentions } from "../context/MarkdownMentionsContext";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
+import {
+  findAdjacentAtomicInlineTokenElement,
+  readAtomicInlineTokenElement,
+  removeAtomicInlineTokenFromMarkdown,
+  type AtomicInlineTokenElement,
+} from "../lib/inline-token-dom";
+import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
 import {
   applyMentionChipDecoration,
   clearMentionChipDecoration,
@@ -61,40 +67,32 @@ import {
   parseMentionChipHref,
   stripMentionChipLabelPrefix,
 } from "../lib/mention-chips";
-import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
 import { mentionDeletionPlugin } from "../lib/mention-deletion";
+import { filterMentionOptions } from "../lib/mention-filter";
+import {
+  getMentionMenuPositionForViewport,
+  getMentionPanelPositionForViewport
+} from "../lib/mention-menu-position";
 import { $createMentionTokenNode, mentionTokenPlugin } from "../lib/mention-token-node";
 import {
   applySkillTokenDecoration,
   clearSkillTokenDecoration,
   parseSkillReference,
 } from "../lib/skill-reference";
-import {
-  findAdjacentAtomicInlineTokenElement,
-  readAtomicInlineTokenElement,
-  removeAtomicInlineTokenFromMarkdown,
-  type AtomicInlineTokenElement,
-} from "../lib/inline-token-dom";
-import { filterMentionOptions } from "../lib/mention-filter";
 import { $createSkillTokenNode, skillTokenPlugin } from "../lib/skill-token-node";
-import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
-import { useMarkdownMentions } from "../context/MarkdownMentionsContext";
 import { cn, formatDateTime, relativeTime } from "../lib/utils";
+import { AgentIcon } from "./AgentIconPicker";
 import {
   MilkdownMarkdownEditor,
   readCanonicalFragmentMarkdown,
   shouldCopySelectionAsMarkdown,
 } from "./MilkdownMarkdownEditor";
-import {
-  getMentionMenuPositionForViewport,
-  getMentionPanelPositionForViewport,
-  type MentionMenuAnchor,
-  type MentionMenuContainerAnchor,
-} from "../lib/mention-menu-position";
+import { ProjectIcon } from "./ProjectIdentity";
+import { StatusIcon } from "./StatusIcon";
 
 export {
   getMentionMenuPositionForViewport,
-  getMentionPanelPositionForViewport,
+  getMentionPanelPositionForViewport
 };
 
 /* ---- Mention types ---- */

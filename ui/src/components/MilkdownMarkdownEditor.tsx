@@ -1,3 +1,25 @@
+import { useI18n } from "@/context/I18nContext";
+import { translateLegacyString } from "@/i18n/legacyPhrases";
+import { defaultValueCtx, Editor, editorViewCtx, rootCtx } from "@milkdown/kit/core";
+import { history } from "@milkdown/kit/plugin/history";
+import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { gfm } from "@milkdown/kit/preset/gfm";
+import { Plugin as ProsePlugin, TextSelection } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { $prose, getMarkdown, insert, replaceAll } from "@milkdown/kit/utils";
+import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
+import {
+  buildAgentMentionHref,
+  buildChatMentionHref,
+  buildIssueMentionHref,
+  buildLibraryDirectoryMentionHref,
+  buildLibraryDocMentionHref,
+  buildLibraryEntryMentionHref,
+  buildLibraryFileMentionHref,
+  buildProjectMentionHref,
+} from "@rudderhq/shared";
+import { Boxes, FileText, Folder, MessageSquare } from "lucide-react";
 import {
   forwardRef,
   useCallback,
@@ -12,30 +34,8 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
-import { Editor, defaultValueCtx, editorViewCtx, rootCtx } from "@milkdown/kit/core";
-import { commonmark } from "@milkdown/kit/preset/commonmark";
-import { gfm } from "@milkdown/kit/preset/gfm";
-import { history } from "@milkdown/kit/plugin/history";
-import { TextSelection } from "@milkdown/kit/prose/state";
-import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
-import { Plugin as ProsePlugin } from "@milkdown/kit/prose/state";
-import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
-import { $prose, getMarkdown, insert, replaceAll } from "@milkdown/kit/utils";
-import {
-  buildAgentMentionHref,
-  buildChatMentionHref,
-  buildIssueMentionHref,
-  buildLibraryDirectoryMentionHref,
-  buildLibraryDocMentionHref,
-  buildLibraryEntryMentionHref,
-  buildLibraryFileMentionHref,
-  buildProjectMentionHref,
-} from "@rudderhq/shared";
-import { Boxes, FileText, Folder, MessageSquare } from "lucide-react";
-import { useI18n } from "@/context/I18nContext";
-import { translateLegacyString } from "@/i18n/legacyPhrases";
 import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
+import { normalizeRelaxedMarkdownSyntax } from "../lib/markdown-normalize";
 import {
   applyMentionChipDecoration,
   clearMentionChipDecoration,
@@ -45,21 +45,20 @@ import {
   stripMentionChipLabelPrefix,
   type ParsedMentionChip,
 } from "../lib/mention-chips";
-import {
-  parseSkillReference,
-  skillTokenIconInlineStyle,
-} from "../lib/skill-reference";
 import { filterMentionOptions } from "../lib/mention-filter";
-import { normalizeRelaxedMarkdownSyntax } from "../lib/markdown-normalize";
-import { cn } from "../lib/utils";
-import { AgentIcon } from "./AgentIconPicker";
-import { ProjectIcon } from "./ProjectIdentity";
-import { StatusIcon } from "./StatusIcon";
-import type { InlineTokenClickEvent, MarkdownEditorProps, MarkdownEditorRef, MentionOption } from "./MarkdownEditor";
 import {
   getMentionMenuPositionForViewport,
   getMentionPanelPositionForViewport,
 } from "../lib/mention-menu-position";
+import {
+  parseSkillReference,
+  skillTokenIconInlineStyle,
+} from "../lib/skill-reference";
+import { cn } from "../lib/utils";
+import { AgentIcon } from "./AgentIconPicker";
+import type { InlineTokenClickEvent, MarkdownEditorProps, MarkdownEditorRef, MentionOption } from "./MarkdownEditor";
+import { ProjectIcon } from "./ProjectIdentity";
+import { StatusIcon } from "./StatusIcon";
 
 export type MentionState = {
   trigger: "@" | "$";

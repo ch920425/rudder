@@ -1,21 +1,21 @@
+import { buildAgentMentionHref } from "@rudderhq/shared";
+import { Check, Copy, Github, Globe2 } from "lucide-react";
 import { isValidElement, useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type MouseEvent, type ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { buildAgentMentionHref } from "@rudderhq/shared";
-import { Check, Copy, Github, Globe2 } from "lucide-react";
-import { cn } from "../lib/utils";
-import { useTheme } from "../context/ThemeContext";
 import { useMarkdownMentions } from "../context/MarkdownMentionsContext";
-import { mentionChipInlineStyle, mentionChipNavigationPath, parseMentionChipHref, stripMentionChipLabelPrefix } from "../lib/mention-chips";
+import { useTheme } from "../context/ThemeContext";
 import { normalizeRenderedMarkdownSource } from "../lib/markdown-normalize";
+import { mentionChipInlineStyle, mentionChipNavigationPath, parseMentionChipHref, stripMentionChipLabelPrefix } from "../lib/mention-chips";
 import { applyOrganizationPrefix, extractOrganizationPrefixFromPath } from "../lib/organization-routes";
 import { formatSkillReferenceDisplayLabel, parseSkillReference } from "../lib/skill-reference";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { cn } from "../lib/utils";
 import { ImagePreviewDialog, type ImagePreviewState } from "./ImagePreviewDialog";
 import { InspectableImage } from "./InspectableImage";
 import { RudderEntityPreview } from "./RudderEntityPreview";
 import { SkillReferenceToken, type MarkdownSkillReferencePreview } from "./SkillReferenceToken";
 import { StatusIcon } from "./StatusIcon";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 interface MarkdownBodyProps {
   children: string;

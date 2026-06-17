@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from "vitest";
 import {
   buildAgentMentionHref,
   buildChatMentionHref,
@@ -10,6 +9,9 @@ import {
   buildLibraryFileMentionHref,
   buildProjectMentionHref,
 } from "@rudderhq/shared";
+import { describe, expect, it } from "vitest";
+import { normalizeRelaxedMarkdownSyntax } from "../lib/markdown-normalize";
+import type { MentionOption } from "./MarkdownEditor";
 import {
   applyMention,
   fragmentContainsRudderToken,
@@ -19,8 +21,8 @@ import {
   insertTextAfterRudderTokenBoundary,
   isMilkdownEditableUnexpectedlyBlank,
   isRudderTokenHref,
-  milkdownMentionDecorationAttrs,
   mentionMarkdown,
+  milkdownMentionDecorationAttrs,
   moveSelectionAfterRudderTokenBoundary,
   readCanonicalFragmentMarkdown,
   refreshMilkdownMentionTokenStyles,
@@ -29,8 +31,6 @@ import {
   shouldCopySelectionAsMarkdown,
   shouldParsePastedMarkdown,
 } from "./MilkdownMarkdownEditor";
-import { normalizeRelaxedMarkdownSyntax } from "../lib/markdown-normalize";
-import type { MentionOption } from "./MarkdownEditor";
 
 describe("isMilkdownEditableUnexpectedlyBlank", () => {
   it("detects a non-empty markdown document whose editable DOM came back empty", () => {

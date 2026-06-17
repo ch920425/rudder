@@ -1,6 +1,6 @@
 import {
-  applyPendingMigrations,
   agents,
+  applyPendingMigrations,
   createDb,
   ensurePostgresDatabase,
   organizationSkills,
