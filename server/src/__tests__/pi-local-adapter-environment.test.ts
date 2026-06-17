@@ -144,6 +144,7 @@ describe("pi_local environment diagnostics", () => {
     expect(result.status).toBe("warn");
     expect(authCheck?.level).toBe("warn");
     expect(authCheck?.hint).toContain("DEEPSEEK_API_KEY");
+    expect(authCheck?.hint).toContain("Pi /login");
     await fs.rm(root, { recursive: true, force: true });
   });
 
