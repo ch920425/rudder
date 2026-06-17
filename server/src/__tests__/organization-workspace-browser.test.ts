@@ -366,6 +366,8 @@ describe("organization workspace browser", () => {
     const created = await workspaceBrowser.createFile(orgId, "projects/work/original.md", "# Original\n");
     expect(created.libraryEntryId).toEqual(expect.any(String));
     const entryId = created.libraryEntryId!;
+    expect(created.mentionHref).toBe(`library-entry://${entryId}?p=projects%2Fwork%2Foriginal.md`);
+    expect(created.markdownLink).toBe(`[original.md](library-entry://${entryId}?p=projects%2Fwork%2Foriginal.md)`);
 
     const listed = await workspaceBrowser.listFiles(orgId, "projects/work");
     expect(listed.entries).toContainEqual(expect.objectContaining({
@@ -381,6 +383,8 @@ describe("organization workspace browser", () => {
     }));
     const afterRename = await workspaceBrowser.readFile(orgId, "projects/work/renamed.md");
     expect(afterRename.libraryEntryId).toBe(entryId);
+    expect(afterRename.mentionHref).toBe(`library-entry://${entryId}?p=projects%2Fwork%2Frenamed.md`);
+    expect(afterRename.markdownLink).toBe(`[renamed.md](library-entry://${entryId}?p=projects%2Fwork%2Frenamed.md)`);
 
     await workspaceBrowser.createDirectory(orgId, "projects/final");
     const moved = await workspaceBrowser.moveEntry(orgId, "projects/work/renamed.md", "projects/final");

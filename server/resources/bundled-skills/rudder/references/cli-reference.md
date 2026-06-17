@@ -132,9 +132,12 @@ printf '%s\n' "$result" | jq -r .markdownLink
 The relevant JSON fields are:
 
 - `libraryEntryId`: stable identity for the Library file.
-- `mentionHref`: raw `library-entry://<id>` target.
+- `mentionHref`: raw `library-entry://<id>` target, optionally with a
+  Rudder-generated `p` query parameter as a path hint for the current Library
+  path.
 - `markdownLink`: complete Markdown link that the renderer turns into a Library
-  chip and that continues resolving after Rudder-managed rename or move.
+  chip. Its identity remains the entry id; any `p` query value is only a
+  synchronous navigation hint and agents should not hand-write it.
 
 Use `rudder library file get/put` only when local filesystem access to the
 Library is unavailable, such as remote or restricted runtimes. `rudder library

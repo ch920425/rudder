@@ -1218,8 +1218,10 @@ describe("agent CLI e2e", () => {
       mentionHref: expect.stringContaining("library-entry://"),
       markdownLink: expect.stringContaining("library-entry://"),
     });
+    expect(libraryFileRef.mentionHref).toContain(libraryFileRef.libraryEntryId);
+    expect(libraryFileRef.mentionHref).toContain("p=projects%2Fagent-team%2Fagent-team-design.md");
     expect(libraryFileRef.markdownLink).toContain(libraryRelativeFile);
-    expect(libraryFileRef.markdownLink).not.toContain("projects%2Fagent-team%2Fagent-team-design.md");
+    expect(libraryFileRef.markdownLink).toContain("p=projects%2Fagent-team%2Fagent-team-design.md");
 
     const libraryFile = await runCliJson<OrganizationWorkspaceFileDetail>(
       ["library", "file", "get", libraryFilePath],

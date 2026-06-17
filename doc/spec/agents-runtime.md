@@ -158,9 +158,11 @@ Organization resources and project resources are intentionally different:
   there with normal filesystem tools. When an agent cites a Library file in a
   chat reply, issue comment, review, blocker, or done note, it should use
   `rudder library file ref ... --json` and paste the returned `markdownLink`.
-  That link uses `library-entry://<entry-id>` when stable Library identity is
-  available. Posting that returned link is the Rudder-visible handoff
-  checkpoint for direct filesystem writes. `rudder library file get/put
+  That link uses `library-entry://<entry-id>` as the stable identity when
+  available, and Rudder may append `?p=<url-encoded-path-hint>` for synchronous
+  UI navigation before entry metadata finishes loading. Agents should not
+  hand-write the path hint; posting the returned link is the Rudder-visible
+  handoff checkpoint for direct filesystem writes. `rudder library file get/put
   "$RUDDER_PROJECT_LIBRARY_PATH/<relative-file>"` remains a fallback for remote
   or restricted runtimes without local filesystem access.
 - When a heartbeat or chat run resolves a `projectId`, Rudder loads only that

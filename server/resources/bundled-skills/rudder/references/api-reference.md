@@ -197,8 +197,8 @@ Workspace file detail responses include renderable reference fields:
 {
   "filePath": "projects/rudder/RUD-123.md",
   "libraryEntryId": "entry-uuid",
-  "mentionHref": "library-entry://entry-uuid",
-  "markdownLink": "[RUD-123.md](library-entry://entry-uuid)"
+  "mentionHref": "library-entry://entry-uuid?p=projects%2Frudder%2FRUD-123.md",
+  "markdownLink": "[RUD-123.md](library-entry://entry-uuid?p=projects%2Frudder%2FRUD-123.md)"
 }
 ```
 
@@ -213,6 +213,11 @@ writes. If `$RUDDER_PROJECT_LIBRARY_ROOT` is unset or inaccessible, use
 the remote or restricted runtime fallback. `library-file://...` is legacy weak
 path syntax and should not be used for new durable Library references when
 `libraryEntryId` is available.
+
+The `libraryEntryId` remains the strong identity. The optional `p` query value
+is a Rudder-generated synchronous path hint for fast UI navigation before entry
+metadata is available; agents should copy returned links instead of constructing
+or editing that URL by hand.
 
 ## Approval Workflows
 

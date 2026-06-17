@@ -9,17 +9,19 @@ describe("bundled rudder skill docs", () => {
       "utf8",
     );
 
-  it("do not teach Library entry display metadata in mention URLs", async () => {
+  it("does not teach agent-authored Library entry display metadata in mention URLs", async () => {
     const docs = [
       "server/resources/bundled-skills/rudder/SKILL.md",
       "server/resources/bundled-skills/rudder/references/api-reference.md",
       "server/resources/bundled-skills/rudder/references/cli-reference.md",
     ];
-    const legacyLibraryEntryMetadataPattern = /library-entry:\/\/[^\s)`\]]+\?(?=[^)\]`\s]*(?:t|p)=)/;
+    const legacyLibraryEntryTitleMetadataPattern = /library-entry:\/\/[^\s)`\]]+\?(?=[^)\]`\s]*t=)/;
 
     for (const doc of docs) {
       const contents = await fs.readFile(path.join(process.cwd(), doc), "utf8");
-      expect(contents, doc).not.toMatch(legacyLibraryEntryMetadataPattern);
+      expect(contents, doc).not.toMatch(legacyLibraryEntryTitleMetadataPattern);
+      expect(contents, doc).toContain("Rudder-generated");
+      expect(contents, doc).toContain("path hint");
     }
   });
 
