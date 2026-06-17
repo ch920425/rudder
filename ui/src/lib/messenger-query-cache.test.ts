@@ -6,6 +6,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
   archiveMessengerChatInCache,
+  cancelMessengerChatRenameQueries,
   markMessengerChatPinnedInCache,
   markMessengerChatReadInCache,
   markMessengerThreadPinnedInCache,
@@ -13,6 +14,14 @@ import {
   renameMessengerChatInCache,
   upsertMessengerThreadSummaryQueries,
 } from "./messenger-query-cache";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 function thread(overrides: Partial<MessengerThreadSummary> & Pick<MessengerThreadSummary, "threadKey" | "title">): MessengerThreadSummary {
   return {
@@ -209,6 +218,51 @@ describe("Messenger optimistic action cache helpers", () => {
     expect(queryClient.getQueryData<{
       items: MessengerThreadSummary[];
     }>(queryKeys.messenger.threadPreview(orgId))?.items[0]?.title).toBe("New planning title");
+  });
+
+  it("keeps an optimistic chat rename when stale in-flight title queries resolve later", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const orgId = "org-1";
+    const oldChat = conversation({ id: "chat-1", orgId, title: "Old planning title" });
+    const oldThread = thread({ threadKey: "chat:chat-1", title: "Old planning title" });
+    const staleList = deferred<ChatConversation[]>();
+    const stalePage = deferred<{
+      pages: Array<{ items: MessengerThreadSummary[]; pageInfo: { limit: number; nextCursor: string | null; hasMore: boolean } }>;
+      pageParams: unknown[];
+    }>();
+    queryClient.setQueryData(queryKeys.chats.list(orgId, "active"), [oldChat]);
+    queryClient.setQueryData(queryKeys.messenger.threadPages(orgId, true), {
+      pages: [{ items: [oldThread], pageInfo: { limit: 40, nextCursor: null, hasMore: false } }],
+      pageParams: [null],
+    });
+
+    const staleListFetch = queryClient.fetchQuery({
+      queryKey: queryKeys.chats.list(orgId, "active"),
+      queryFn: () => staleList.promise,
+    }).catch(() => undefined);
+    const stalePageFetch = queryClient.fetchQuery({
+      queryKey: queryKeys.messenger.threadPages(orgId, true),
+      queryFn: () => stalePage.promise,
+    }).catch(() => undefined);
+
+    await cancelMessengerChatRenameQueries(queryClient, orgId);
+    renameMessengerChatInCache(queryClient, orgId, "chat-1", "New planning title");
+
+    staleList.resolve([oldChat]);
+    stalePage.resolve({
+      pages: [{ items: [oldThread], pageInfo: { limit: 40, nextCursor: null, hasMore: false } }],
+      pageParams: [null],
+    });
+    await Promise.allSettled([staleListFetch, stalePageFetch]);
+
+    expect(queryClient.getQueryData<ChatConversation[]>(queryKeys.chats.list(orgId, "active"))?.[0]?.title)
+      .toBe("New planning title");
+    expect(queryClient.getQueryData<{
+      pages: Array<{ items: MessengerThreadSummary[] }>;
+    }>(queryKeys.messenger.threadPages(orgId, true))?.pages[0]?.items[0]?.title)
+      .toBe("New planning title");
   });
 
   it("archives a chat by removing it from active Messenger caches while preserving all-chat history", () => {

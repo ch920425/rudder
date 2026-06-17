@@ -29,6 +29,7 @@ import { displayChatTitle } from "@/lib/chat-title";
 import { rememberMessengerPath } from "@/lib/messenger-memory";
 import {
   archiveMessengerChatInCache,
+  cancelMessengerChatRenameQueries,
   invalidateMessengerThreadSummaryQueries,
   markMessengerChatPinnedInCache,
   markMessengerThreadPinnedInCache,
@@ -2732,6 +2733,25 @@ export function MessengerContextSidebar() {
     },
   });
 
+  const renameConversationMutation = useMutation({
+    mutationFn: ({ chatId, title }: { chatId: string; title: string }) =>
+      chatsApi.update(chatId, { title }),
+    onMutate: async ({ chatId, title }) => {
+      if (!model.selectedOrganizationId) return;
+      await cancelMessengerChatRenameQueries(queryClient, model.selectedOrganizationId);
+      renameMessengerChatInCache(queryClient, model.selectedOrganizationId, chatId, title);
+    },
+    onSuccess: async (conversation) => {
+      if (model.selectedOrganizationId) {
+        renameMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id, conversation.title);
+      }
+      await refreshChatViews(conversation.id);
+    },
+    onError: async (_error, variables) => {
+      await refreshChatViews(variables.chatId);
+    },
+  });
+
   const deleteConversationMutation = useMutation({
     mutationFn: async ({ chatId, generating }: { chatId: string; generating: boolean }) => {
       if (generating) {
@@ -2811,13 +2831,10 @@ export function MessengerContextSidebar() {
       setRenamingConversationId(null);
       return;
     }
-    if (model.selectedOrganizationId) {
-      renameMessengerChatInCache(queryClient, model.selectedOrganizationId, renamingConversationId, trimmed);
-    }
     setRenamingConversationId(null);
-    updateConversationMutation.mutate({
+    renameConversationMutation.mutate({
       chatId: renamingConversationId,
-      data: { title: trimmed },
+      title: trimmed,
     });
   };
 

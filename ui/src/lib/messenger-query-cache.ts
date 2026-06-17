@@ -198,6 +198,13 @@ export function invalidateMessengerThreadSummaryQueries(queryClient: QueryClient
   ]);
 }
 
+export function cancelMessengerChatRenameQueries(queryClient: QueryClient, orgId: string) {
+  return Promise.all([
+    queryClient.cancelQueries({ queryKey: ["chats", orgId] }),
+    queryClient.cancelQueries({ queryKey: queryKeys.messenger.threads(orgId) }),
+  ]);
+}
+
 export function markMessengerThreadPinnedInCache(
   queryClient: QueryClient,
   orgId: string,

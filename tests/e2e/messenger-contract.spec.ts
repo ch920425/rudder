@@ -2412,11 +2412,11 @@ test.describe("Messenger unified threads contract", () => {
   test("supports chat pin, archive, and delete actions from Messenger menus", async ({ page }) => {
     const organization = await createOrganization(page, `Messenger-Actions-${Date.now()}`);
 
-    async function createChat(title: string) {
+    async function createChat(title: string, summary = `${title} summary`) {
       const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
         data: {
           title,
-          summary: `${title} summary`,
+          summary,
           issueCreationMode: "manual_approval",
           planMode: false,
         },
@@ -2426,9 +2426,33 @@ test.describe("Messenger unified threads contract", () => {
     }
 
     const pinChat = await createChat("Pin action chat");
+    const renameChat = await createChat("Rename action chat", "Rename action stable summary");
     const archiveChat = await createChat("Archive action chat");
     const deleteChat = await createChat("Delete action chat");
     const sidebarDeleteChat = await createChat("Sidebar delete action chat");
+
+    let releaseRenamePatch!: () => void;
+    const renamePatchGate = new Promise<void>((resolve) => {
+      releaseRenamePatch = resolve;
+    });
+    await page.route(`**/api/chats/${renameChat.id}`, async (route) => {
+      if (route.request().method() === "PATCH") {
+        await renamePatchGate;
+      }
+      await route.continue();
+    });
+
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+    const renameRow = page.getByTestId(threadTestId(`chat:${renameChat.id}`));
+    await expect(renameRow).toContainText("Rename action chat", { timeout: 15_000 });
+    await renameRow.hover();
+    await renameRow.getByRole("button", { name: "Chat actions" }).click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await renameRow.locator("input").fill("Renamed action chat");
+    await renameRow.locator("input").press("Enter");
+    await expect(renameRow).toContainText("Renamed action chat");
+    releaseRenamePatch();
+    await expect.poll(async () => (await (await page.request.get(`/api/chats/${renameChat.id}`)).json()).title).toBe("Renamed action chat");
 
     await page.goto(`/${organization.issuePrefix}/messenger/chat/${pinChat.id}`, { waitUntil: "commit" });
     await page.getByTestId("chat-actions-trigger").click();
