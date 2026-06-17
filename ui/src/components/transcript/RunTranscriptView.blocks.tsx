@@ -10,6 +10,7 @@ import {
   User
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useScrollbarActivityRef } from "../../hooks/useScrollbarActivityRef";
 import { readDesktopShell } from "../../lib/desktop-shell";
 import { cn } from "../../lib/utils";
 import { MarkdownBody } from "../MarkdownBody";
@@ -45,6 +46,74 @@ async function writeTranscriptClipboardText(text: string) {
 
 function formatCommandCopyText(command: string, output: string | null) {
   return output ? `${command}\n\n${output}` : command;
+}
+
+const TRANSCRIPT_RESPONSE_COLLAPSED_LINE_LIMIT = 14;
+const TRANSCRIPT_RESPONSE_COLLAPSED_CHAR_LIMIT = 1400;
+
+function isLikelyLongTranscriptResponse(text: string) {
+  if (text.length > TRANSCRIPT_RESPONSE_COLLAPSED_CHAR_LIMIT) return true;
+  return text.split("\n").length > TRANSCRIPT_RESPONSE_COLLAPSED_LINE_LIMIT;
+}
+
+export function ExpandableTranscriptResponsePre({
+  text,
+  className,
+  collapsedLabel = "response",
+}: {
+  text: string;
+  className?: string;
+  collapsedLabel?: string;
+}) {
+  const preRef = useRef<HTMLPreElement | null>(null);
+  const scrollbarActivityRef = useScrollbarActivityRef();
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(() => isLikelyLongTranscriptResponse(text));
+  const toggleLabel = expanded ? "Show less" : `Show full ${collapsedLabel}`;
+
+  const setPreRef = useCallback((element: HTMLPreElement | null) => {
+    preRef.current = element;
+    scrollbarActivityRef(element);
+  }, [scrollbarActivityRef]);
+
+  useEffect(() => {
+    setExpanded(false);
+    setCanExpand(isLikelyLongTranscriptResponse(text));
+  }, [text]);
+
+  useEffect(() => {
+    const element = preRef.current;
+    if (!element || expanded) return;
+    if (element.scrollHeight > element.clientHeight + 1) {
+      setCanExpand(true);
+    }
+  }, [expanded, text]);
+
+  return (
+    <div className="space-y-1.5">
+      <pre
+        ref={setPreRef}
+        className={cn(
+          "scrollbar-auto-hide overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px]",
+          canExpand && !expanded && "max-h-72 overflow-y-auto overscroll-contain pr-1",
+          className,
+        )}
+        data-transcript-response-collapsed={canExpand && !expanded ? "true" : undefined}
+      >
+        {text}
+      </pre>
+      {canExpand ? (
+        <button
+          type="button"
+          className="inline-flex h-6 items-center rounded-md px-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+        >
+          {toggleLabel}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function TranscriptMessageBlock({
@@ -318,12 +387,14 @@ export function CommandTerminalDetail({
           {command}
         </pre>
         {output ? (
-          <pre className={cn(
-            "mt-3 overflow-x-auto whitespace-pre-wrap break-words",
-            status === "error" ? "text-red-300" : "text-neutral-200",
-          )}>
-            {output}
-          </pre>
+          <ExpandableTranscriptResponsePre
+            text={output}
+            collapsedLabel="output"
+            className={cn(
+              "mt-3",
+              status === "error" ? "text-red-300" : "text-neutral-200",
+            )}
+          />
         ) : null}
       </div>
     </div>
@@ -442,12 +513,12 @@ export function TranscriptToolCard({
                   <div className="mb-1 text-[10px] font-semibold tracking-[0.06em] text-muted-foreground">
                     Response
                   </div>
-                  <pre className={cn(
-                    "overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px]",
-                    block.status === "error" ? "text-red-700 dark:text-red-300" : "text-foreground/80",
-                  )}>
-                    {responseText ?? "No response"}
-                  </pre>
+                  <ExpandableTranscriptResponsePre
+                    text={responseText ?? "No response"}
+                    className={cn(
+                      block.status === "error" ? "text-red-700 dark:text-red-300" : "text-foreground/80",
+                    )}
+                  />
                 </div>
               </div>
             </div>

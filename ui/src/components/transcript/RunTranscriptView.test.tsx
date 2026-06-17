@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { TranscriptEntry } from "../../agent-runtimes";
 import { ThemeProvider } from "../../context/ThemeContext";
 import { RunTranscriptView, normalizeTranscript, resolveTranscriptLocalFileTarget } from "./RunTranscriptView";
+import { TranscriptChatToolActionRow } from "./RunTranscriptView.chat";
 
 function countOccurrences(value: string, needle: string) {
   return value.split(needle).length - 1;
@@ -592,6 +593,34 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("tool response line 24");
     expect(html).not.toContain("data-transcript-response-collapsed=\"true\"");
     expect(html).not.toContain("Show full response");
+  });
+
+  it("limits long expanded chat tool responses behind a secondary disclosure", () => {
+    const longResponse = Array.from({ length: 24 }, (_, index) => `tool response line ${index + 1}`).join("\n");
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <TranscriptChatToolActionRow
+          density="compact"
+          inline
+          block={{
+            ts: "2026-03-12T00:00:02.000Z",
+            endTs: "2026-03-12T00:00:03.000Z",
+            name: "custom_tool",
+            input: { query: "large response" },
+            result: longResponse,
+            isError: true,
+            status: "error",
+          }}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Response");
+    expect(html).toContain("tool response line 24");
+    expect(html).toContain("data-transcript-response-collapsed=\"true\"");
+    expect(html).toContain("max-h-72");
+    expect(html).toContain("scrollbar-auto-hide");
+    expect(html).toContain("Show full response");
   });
 
   it("keeps compact chat tool rows tight and center-aligned", () => {
