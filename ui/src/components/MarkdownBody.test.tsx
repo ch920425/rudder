@@ -291,7 +291,7 @@ describe("MarkdownBody", () => {
       </ThemeProvider>,
     );
 
-    expect(html).toContain('href="/library?entry=entry-123"');
+    expect(html).toContain('href="/library?entry=entry-123&amp;path=docs%2Fproduct-brief.md"');
     expect(html).toContain('data-mention-kind="library_entry"');
     expect(html).toContain("product-brief.md");
   });
@@ -767,6 +767,34 @@ describe("MarkdownBody", () => {
     expect(window.location.search).toBe("?doc=doc-123");
     expect(popstate).toHaveBeenCalledTimes(1);
     window.removeEventListener("popstate", popstate);
+  });
+
+  it("prefetches Library entry metadata when entry mention chips render", async () => {
+    localStorageMock.values.set("rudder.selectedOrganizationId", "org-1");
+    entityPreviewApiMocks.getLibraryEntry.mockResolvedValue({
+      id: "entry-123",
+      orgId: "org-1",
+      kind: "file",
+      sourceType: "workspace_file",
+      currentPath: "projects/rudder/product-brief.md",
+      title: "Product brief",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[Product brief](${buildLibraryEntryMentionHref("entry-123", "Product brief")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(entityPreviewApiMocks.getLibraryEntry).toHaveBeenCalledWith("org-1", "entry-123");
   });
 
   it("renders issue mentions with status metadata using the issue status icon", () => {

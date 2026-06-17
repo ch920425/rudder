@@ -145,7 +145,11 @@ export function mentionChipNavigationPath(mention: ParsedMentionChip): string {
   }
   if (mention.kind === "chat") return `/messenger/chat/${mention.conversationId}`;
   if (mention.kind === "library_doc") return `/library?doc=${encodeURIComponent(mention.documentId)}`;
-  if (mention.kind === "library_entry") return `/library?entry=${encodeURIComponent(mention.entryId)}`;
+  if (mention.kind === "library_entry") {
+    const search = new URLSearchParams({ entry: mention.entryId });
+    if (mention.path) search.set("path", mention.path);
+    return `/library?${search.toString()}`;
+  }
   if (mention.kind === "library_file") return `/library?path=${encodeURIComponent(mention.filePath)}`;
   if (mention.kind === "library_directory") return `/library?directory=${encodeURIComponent(mention.directoryPath)}`;
   return `/agents/${mention.agentId}`;

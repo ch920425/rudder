@@ -78,6 +78,20 @@ describe("mention chips", () => {
     expect(element.classList.contains("rudder-mention-chip--library_doc")).toBe(true);
   });
 
+  it("keeps Library entry path hints in the chip navigation target", () => {
+    const mention = parseMentionChipHref("library-entry://entry-123?p=projects%2Frudder%2Fhandoff.md");
+
+    expect(mention).toEqual({
+      kind: "library_entry",
+      entryId: "entry-123",
+      title: null,
+      path: "projects/rudder/handoff.md",
+    });
+    expect(mention ? mentionChipNavigationPath(mention) : null).toBe(
+      "/library?entry=entry-123&path=projects%2Frudder%2Fhandoff.md",
+    );
+  });
+
   it("parses and decorates chat mention links", () => {
     expect(parseMentionChipHref("chat://chat-123?t=Launch%20planning")).toEqual({
       kind: "chat",

@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __clearLibraryEntryMetadataCacheForTests, __setLibraryEntryMetadataCacheForTests } from "../lib/library-entry-cache";
 import { OrganizationWorkspaceFilesSidebar, OrganizationWorkspaces, WorkspaceLaunchTargetIcon } from "./OrganizationWorkspaces";
 
 (
@@ -20,6 +21,7 @@ const mockState = vi.hoisted(() => ({
   viewedOrganizationIssuePrefix: "RUD",
   desktopShell: null as unknown,
   loadingWorkspaceFilePaths: new Set<string>(),
+  loadingLibraryEntryIds: new Set<string>(),
   markdownEditorValues: [] as string[],
 }));
 
@@ -188,6 +190,32 @@ vi.mock("@tanstack/react-query", () => ({
               key: "plan",
             },
           ],
+        },
+        isLoading: false,
+        error: null,
+      };
+    }
+    if (key[2] === "library-entry") {
+      const entryId = String(key[3] ?? "");
+      if (!entryId) return { data: null, isLoading: false, error: null };
+      if (mockState.loadingLibraryEntryIds.has(entryId)) {
+        return {
+          data: null,
+          isLoading: true,
+          error: null,
+        };
+      }
+      return {
+        data: {
+          id: entryId || "entry-1",
+          orgId: "org-1",
+          kind: "file",
+          sourceType: "workspace_file",
+          currentPath: "artifacts/chat-ui-review/notes.md",
+          title: "notes.md",
+          status: "active",
+          createdAt: new Date("2026-06-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-01T00:00:00.000Z"),
         },
         isLoading: false,
         error: null,
@@ -400,6 +428,7 @@ beforeEach(() => {
   mockState.viewedOrganizationId = "org-1";
   mockState.viewedOrganizationIssuePrefix = "RUD";
   mockState.loadingWorkspaceFilePaths.clear();
+  mockState.loadingLibraryEntryIds.clear();
   mockState.markdownEditorValues = [];
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -439,6 +468,7 @@ afterEach(() => {
   currentRoot = null;
   currentContainer = null;
   document.body.innerHTML = "";
+  __clearLibraryEntryMetadataCacheForTests();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -998,6 +1028,43 @@ describe("OrganizationWorkspaces scroll regions", () => {
     expect(document.querySelector("[data-testid='org-workspaces-editor-tabs']")).toBeNull();
     expect(mockState.markdownEditorValues).toEqual([]);
     expect(mockState.setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("opens cached Library entry links without the entry loading skeleton", () => {
+    mockState.searchParams = "entry=entry-1";
+    __setLibraryEntryMetadataCacheForTests("org-1", {
+      id: "entry-1",
+      orgId: "org-1",
+      kind: "file",
+      sourceType: "workspace_file",
+      currentPath: "artifacts/chat-ui-review/notes.md",
+      title: "notes.md",
+      status: "active",
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    renderWorkspacesPage();
+
+    expect(document.body.textContent).not.toContain("Loading file");
+    expect(document.querySelector("[data-testid='org-workspaces-editor-tabs']")?.textContent).toContain("notes.md");
+    expect(mockState.markdownEditorValues[0]).toContain(
+      "[README.md](library-file://file?p=artifacts%2Fchat-ui-review%2FREADME.md&t=README.md)",
+    );
+  });
+
+  it("opens path-hinted Library entry links while the entry metadata request is still pending", () => {
+    mockState.searchParams = "entry=entry-1&path=artifacts%2Fchat-ui-review%2Fnotes.md";
+    mockState.loadingLibraryEntryIds.add("entry-1");
+
+    renderWorkspacesPage();
+
+    expect(document.body.textContent).not.toContain("Loading file");
+    expect(document.body.textContent).not.toContain("This Library reference could not be found");
+    expect(document.querySelector("[data-testid='org-workspaces-editor-tabs']")?.textContent).toContain("notes.md");
+    expect(mockState.markdownEditorValues[0]).toContain(
+      "[README.md](library-file://file?p=artifacts%2Fchat-ui-review%2FREADME.md&t=README.md)",
+    );
   });
 
   it("replaces retained Library tabs when switching organizations without unmounting", () => {

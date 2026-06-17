@@ -14,6 +14,12 @@ import { issuesApi } from "../api/issues";
 import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
 import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
+import {
+  __clearLibraryEntryMetadataCacheForTests,
+  loadLibraryEntryMetadata,
+  prefetchLibraryEntryMetadata,
+  readSelectedOrganizationIdFromStorage,
+} from "../lib/library-entry-cache";
 import { normalizeRenderedMarkdownSource } from "../lib/markdown-normalize";
 import { mentionChipNavigationPath, parseMentionChipHref, type ParsedMentionChip } from "../lib/mention-chips";
 import { applyOrganizationPrefix, extractOrganizationPrefixFromPath } from "../lib/organization-routes";
@@ -105,7 +111,6 @@ type PreviewState =
   | { status: "ready"; preview: EntityPreview }
   | { status: "error"; message: string };
 
-const SELECTED_ORG_STORAGE_KEY = "rudder.selectedOrganizationId";
 const ENTITY_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
 export const RUDDER_ENTITY_PREVIEW_HOVER_DELAY_MS = 1000;
 const RUDDER_ENTITY_PREVIEW_CLOSE_DELAY_MS = 160;
@@ -121,12 +126,11 @@ const agentDetailCache = new Map<string, CachedPromise<AgentDetail>>();
 export function __clearRudderEntityPreviewCachesForTests() {
   entityPreviewCache.clear();
   agentDetailCache.clear();
+  __clearLibraryEntryMetadataCacheForTests();
 }
 
 function readSelectedOrgId() {
-  if (typeof window === "undefined") return null;
-  if (typeof window.localStorage?.getItem !== "function") return null;
-  return window.localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
+  return readSelectedOrganizationIdFromStorage();
 }
 
 function formatHumanLabel(value: string | null | undefined) {
@@ -370,7 +374,7 @@ async function loadPreviewUncached(mention: PreviewableMention, label: string, o
     return buildLibraryDocumentPreview(await organizationsApi.getLibraryDocument(orgId, mention.documentId));
   }
   if (mention.kind === "library_entry") {
-    const entry = await organizationsApi.getLibraryEntry(orgId, mention.entryId);
+    const entry = await loadLibraryEntryMetadata(orgId, mention.entryId);
     if (entry.status !== "active" || !entry.currentPath) {
       return {
         kind: "library",
@@ -625,6 +629,11 @@ export function RudderEntityPreview({ mention, label, children }: RudderEntityPr
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerWrapRef = useRef<HTMLSpanElement>(null);
   const orgId = useMemo(readSelectedOrgId, []);
+
+  useEffect(() => {
+    if (mention.kind !== "library_entry") return;
+    prefetchLibraryEntryMetadata(orgId, mention.entryId);
+  }, [mention, orgId]);
 
   const clearHoverTimer = () => {
     if (!hoverTimerRef.current) return;

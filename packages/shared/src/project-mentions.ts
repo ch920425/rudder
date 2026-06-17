@@ -221,9 +221,11 @@ export function parseLibraryDocMentionHref(href: string): ParsedLibraryDocMentio
 
 export function buildLibraryEntryMentionHref(entryId: string, title?: string | null, pathHint?: string | null): string {
   void title;
-  void pathHint;
   const trimmedEntryId = entryId.trim();
-  return `${LIBRARY_ENTRY_MENTION_SCHEME}${trimmedEntryId}`;
+  const trimmedPathHint = pathHint?.trim() ?? "";
+  if (!trimmedPathHint) return `${LIBRARY_ENTRY_MENTION_SCHEME}${trimmedEntryId}`;
+  const search = new URLSearchParams({ p: trimmedPathHint });
+  return `${LIBRARY_ENTRY_MENTION_SCHEME}${trimmedEntryId}?${search.toString()}`;
 }
 
 function escapeMarkdownLinkLabel(label: string): string {
@@ -248,11 +250,12 @@ export function parseLibraryEntryMentionHref(href: string): ParsedLibraryEntryMe
 
   const entryId = `${url.hostname}${url.pathname}`.replace(/^\/+/, "").trim();
   if (!entryId) return null;
+  const path = (url.searchParams.get("p") ?? url.searchParams.get("path") ?? "").trim();
 
   return {
     entryId,
     title: null,
-    path: null,
+    path: path || null,
   };
 }
 

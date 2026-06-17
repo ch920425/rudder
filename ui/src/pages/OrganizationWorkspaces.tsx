@@ -3036,19 +3036,21 @@ export function OrganizationWorkspaceBrowser({
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedDocumentId = normalizeRequestedPath(searchParams.get("doc"));
   const requestedEntryId = normalizeRequestedPath(searchParams.get("entry"));
+  const requestedEntryPathHint = requestedEntryId ? normalizeRequestedPath(searchParams.get("path")) : null;
   const requestedFilePath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("path"));
   const requestedResourceAttachmentId = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("resource"));
   const requestedDirectoryPath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("directory"));
   const cachedRequestedEntryPath = normalizeRequestedPath(
-    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath,
+    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath ?? null,
   );
+  const fastRequestedEntryPath = cachedRequestedEntryPath ?? requestedEntryPathHint;
   const initialOpenFileTabState = useMemo(
     () => readStoredWorkspaceOpenFileTabState(viewedOrganizationId),
     [viewedOrganizationId],
   );
   const initialSelectedFilePath = requestedDocumentId || requestedResourceAttachmentId || requestedDirectoryPath
     ? null
-    : cachedRequestedEntryPath ?? requestedFilePath ?? initialOpenFileTabState.selectedFilePath;
+    : fastRequestedEntryPath ?? requestedFilePath ?? initialOpenFileTabState.selectedFilePath;
   const initialSafeSelectedFilePath = isLegacyAgentHeartbeatInstructionPath(initialSelectedFilePath)
     ? null
     : initialSelectedFilePath;
@@ -3091,7 +3093,7 @@ export function OrganizationWorkspaceBrowser({
   const [rootDropActive, setRootDropActive] = useState(false);
   const [draggedEntryPath, setDraggedEntryPath] = useState<string | null>(null);
   const [activeEntryPath, setActiveEntryPath] = useState<string | null>(
-    cachedRequestedEntryPath ?? requestedFilePath ?? requestedDirectoryPath,
+    fastRequestedEntryPath ?? requestedFilePath ?? requestedDirectoryPath,
   );
   const [createTarget, setCreateTarget] = useState<{
     parent: OrganizationWorkspaceFileEntry;
@@ -3249,7 +3251,7 @@ export function OrganizationWorkspaceBrowser({
   const requestedEntryPath = normalizeRequestedPath(
     libraryEntryQuery.data?.status === "active"
       ? libraryEntryQuery.data.currentPath
-      : cachedRequestedEntryPath,
+      : fastRequestedEntryPath,
   );
   const projectResourceTree = useProjectResourceTreeGroups(viewedOrganizationId);
   const selectedProjectResource = useMemo(

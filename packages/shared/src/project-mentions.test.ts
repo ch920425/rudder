@@ -151,20 +151,20 @@ describe("project-mentions", () => {
     expect(extractLibraryDocMentionIds(`[@Product principles](${href})`)).toEqual(["doc-123"]);
   });
 
-  it("builds library entry mentions with only the stable entry id", () => {
+  it("builds library entry mentions with the stable entry id and optional path hint", () => {
     const href = buildLibraryEntryMentionHref("entry-123", "Product brief", "projects/rudder/product-brief.md");
-    expect(href).toBe("library-entry://entry-123");
+    expect(href).toBe("library-entry://entry-123?p=projects%2Frudder%2Fproduct-brief.md");
     expect(parseLibraryEntryMentionHref(href)).toEqual({
       entryId: "entry-123",
       title: null,
-      path: null,
+      path: "projects/rudder/product-brief.md",
     });
     expect(extractLibraryEntryMentionIds(`[@Product brief](${href})`)).toEqual(["entry-123"]);
   });
 
   it("builds library mention markdown without requiring agents to hand-write URLs", () => {
     expect(buildLibraryEntryMentionMarkdown("entry-123", "Product [brief]", "projects/rudder/product-brief.md"))
-      .toBe("[Product \\[brief\\]](library-entry://entry-123)");
+      .toBe("[Product \\[brief\\]](library-entry://entry-123?p=projects%2Frudder%2Fproduct-brief.md)");
     expect(buildLibraryFileMentionMarkdown("projects/rudder/product-brief.md", "Product brief"))
       .toBe("[Product brief](library-file://file?p=projects%2Frudder%2Fproduct-brief.md)");
   });
