@@ -1,7 +1,12 @@
 export const type = "pi_local";
 export const label = "Pi (local)";
 
-export const models: Array<{ id: string; label: string }> = [];
+export const models: Array<{ id: string; label: string }> = [
+  { id: "kimi-coding/kimi-for-coding", label: "Kimi for Coding" },
+  { id: "kimi-coding/kimi-k2-thinking", label: "Kimi K2 Thinking" },
+  { id: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
+  { id: "openrouter/deepseek/deepseek-chat", label: "DeepSeek Chat (OpenRouter)" },
+];
 
 export const agentConfigurationDoc = `# pi_local agent configuration
 
@@ -22,7 +27,7 @@ Core fields:
 - cwd (string, optional): default absolute working directory fallback for the agent process (created if missing when possible)
 - instructionsFilePath (string, optional): absolute path to a markdown role/persona instructions file such as SOUL.md; Rudder's shared operating contract is appended separately at runtime
 - promptTemplate (string, optional): user prompt template passed as the headless --print message
-- model (string, required): Pi model id in provider/model format (for example kimi-coding/kimi-for-coding)
+- model (string, required): Pi model id in provider/model format (for example kimi-coding/kimi-for-coding or deepseek/deepseek-chat)
 - modelFallbacks (array, optional): ordered fallback attempts as { agentRuntimeType, model, config? }; each may use a different runtime/provider
 - thinking (string, optional): thinking level (off, minimal, low, medium, high, xhigh)
 - command (string, optional): defaults to "pi"
@@ -33,14 +38,17 @@ Operational fields:
 - graceSec (number, optional): SIGTERM grace period in seconds
 
 Notes:
-- Pi supports multiple providers and models. Use \`pi --list-models\` to list available options.
+- Pi supports multiple providers and models. Rudder shows known starter models even when \`pi --list-models\` cannot discover them yet; use \`pi --list-models\` to inspect the local Pi profile.
 - Rudder requires an explicit \`model\` value for \`pi_local\` agents.
 - Custom provider/model IDs may be typed directly in Rudder. Use \`provider/model\`,
   for example \`deepseek/deepseek-chat\`. For native DeepSeek, authenticate Pi
-  with \`DEEPSEEK_API_KEY\` or \`pi /login\`. If Pi reports an OpenRouter
-  credential error for a DeepSeek-looking model ID, set \`OPENROUTER_API_KEY\`
-  or add a native DeepSeek provider/model to \`~/.pi/agent/models.json\`. Use
-  Rudder's environment test as the source of truth.
+  with \`DEEPSEEK_API_KEY\` in the runtime env or \`pi /login\`. Rudder onboarding
+  exposes a provider API key field for these models, stores it as an organization
+  secret, and references that secret from the agent runtime env. If Pi reports
+  an OpenRouter credential error for a DeepSeek-looking model ID, set
+  \`OPENROUTER_API_KEY\` or add a native DeepSeek provider/model to
+  \`~/.pi/agent/models.json\`. Use Rudder's environment test as the source of
+  truth.
 - Sessions are stored in ~/.pi/paperclips/ and resumed with --session.
 - Rudder realizes only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page.
 - Selected skills are linked into a Rudder-managed Pi home for the run; unselected skills already present in the real user home do not load.

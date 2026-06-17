@@ -1,6 +1,8 @@
 import { models as codexFallbackModels } from "@rudderhq/agent-runtime-codex-local";
 import { models as cursorFallbackModels } from "@rudderhq/agent-runtime-cursor-local";
 import { resetOpenCodeModelsCacheForTests } from "@rudderhq/agent-runtime-opencode-local/server";
+import { models as piFallbackModels } from "@rudderhq/agent-runtime-pi-local";
+import { resetPiModelsCacheForTests } from "@rudderhq/agent-runtime-pi-local/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCodexModelsCacheForTests } from "../agent-runtimes/codex-models.js";
 import { resetCursorModelsCacheForTests, setCursorModelsRunnerForTests } from "../agent-runtimes/cursor-models.js";
@@ -10,10 +12,12 @@ describe("adapter model listing", () => {
   beforeEach(() => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.RUDDER_OPENCODE_COMMAND;
+    delete process.env.RUDDER_PI_COMMAND;
     resetCodexModelsCacheForTests();
     resetCursorModelsCacheForTests();
     setCursorModelsRunnerForTests(null);
     resetOpenCodeModelsCacheForTests();
+    resetPiModelsCacheForTests();
     vi.restoreAllMocks();
   });
 
@@ -106,5 +110,13 @@ describe("adapter model listing", () => {
 
     const models = await listAgentRuntimeModels("opencode_local");
     expect(models).toEqual([]);
+  });
+
+  it("returns Pi starter models when CLI discovery is unavailable", async () => {
+    process.env.RUDDER_PI_COMMAND = "__paperclip_missing_pi_command__";
+
+    const models = await listAgentRuntimeModels("pi_local");
+    expect(models).toEqual(piFallbackModels);
+    expect(models.map((model) => model.id)).toContain("deepseek/deepseek-chat");
   });
 });

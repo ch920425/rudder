@@ -42,6 +42,7 @@ import { issuesApi } from "../api/issues";
 import { onboardingApi } from "../api/onboarding";
 import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
+import { secretsApi } from "../api/secrets";
 import { useDialog } from "../context/DialogContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { parseOnboardingGoalInput } from "../lib/onboarding-goal";
@@ -58,6 +59,8 @@ import {
   runtimeModelEmptyLabel,
   runtimeModelEmptyMessage,
   runtimeModelSearchPlaceholder,
+  runtimeProviderCredentialEnvKey,
+  runtimeProviderCredentialLabel,
   runtimeProviderSetupHint,
 } from "../lib/runtime-models";
 import { cn } from "../lib/utils";
@@ -120,6 +123,12 @@ export function OnboardingWizard() {
   const [model, setModel] = useState("");
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
+  const [providerApiKey, setProviderApiKey] = useState("");
+  const [providerSecretBinding, setProviderSecretBinding] = useState<{
+    envKey: string;
+    value: string;
+    secretId: string;
+  } | null>(null);
   const [url, setUrl] = useState("");
   const [adapterEnvResult, setAdapterEnvResult] =
     useState<AgentRuntimeEnvironmentTestResult | null>(null);
@@ -381,7 +390,7 @@ export function OnboardingWizard() {
     if (step !== 2) return;
     setAdapterEnvResult(null);
     setAdapterEnvError(null);
-  }, [step, agentRuntimeType, model, command, args, url]);
+  }, [step, agentRuntimeType, model, command, args, providerApiKey, url]);
   useEffect(() => {
     if (!effectiveOnboardingOpen) return;
     const handlePageHide = () => {
@@ -398,6 +407,8 @@ export function OnboardingWizard() {
   );
   const requiresProviderModel = requiresExplicitProviderModel(agentRuntimeType);
   const providerSetupHint = runtimeProviderSetupHint(agentRuntimeType, model);
+  const providerCredentialEnvKey = runtimeProviderCredentialEnvKey(agentRuntimeType, model);
+  const providerCredentialLabel = runtimeProviderCredentialLabel(agentRuntimeType, model);
   const adapterEnvBlockingMessage = adapterEnvResult
     ? blockingRuntimeEnvironmentMessage(adapterEnvResult)
     : null;
@@ -410,6 +421,21 @@ export function OnboardingWizard() {
     agentRuntimeType === "claude_local" &&
     adapterEnvResult?.status === "fail" &&
     hasAnthropicApiKeyOverrideCheck;
+  function selectRuntimeType(nextType: AdapterType) {
+    setAdapterType(nextType);
+    setModel(defaultModelForRuntime(nextType));
+    setProviderApiKey("");
+    setProviderSecretBinding(null);
+  }
+  function selectModel(nextModel: string) {
+    const currentEnvKey = runtimeProviderCredentialEnvKey(agentRuntimeType, model);
+    const nextEnvKey = runtimeProviderCredentialEnvKey(agentRuntimeType, nextModel);
+    setModel(nextModel);
+    if (currentEnvKey !== nextEnvKey) {
+      setProviderApiKey("");
+      setProviderSecretBinding(null);
+    }
+  }
   function reset() {
     setStep(1);
     setLoading(false);
@@ -424,6 +450,8 @@ export function OnboardingWizard() {
     setModel("");
     setCommand("");
     setArgs("");
+    setProviderApiKey("");
+    setProviderSecretBinding(null);
     setUrl("");
     setAdapterEnvResult(null);
     setAdapterEnvError(null);
@@ -458,8 +486,14 @@ export function OnboardingWizard() {
       );
     }
   }
-  function buildAdapterConfig(): Record<string, unknown> {
+  function buildAdapterConfig(
+    providerCredential?: { envKey: string; binding: Record<string, unknown> } | null,
+  ): Record<string, unknown> {
     const adapter = getUIAdapter(agentRuntimeType);
+    const envBindings: Record<string, unknown> = {};
+    if (providerCredential) {
+      envBindings[providerCredential.envKey] = providerCredential.binding;
+    }
     const config = adapter.buildAdapterConfig({
       ...defaultCreateValues,
       agentRuntimeType,
@@ -482,7 +516,8 @@ export function OnboardingWizard() {
       dangerouslyBypassSandbox:
         agentRuntimeType === "codex_local"
           ? DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX
-          : defaultCreateValues.dangerouslyBypassSandbox
+          : defaultCreateValues.dangerouslyBypassSandbox,
+      envBindings,
     });
     if (agentRuntimeType === "claude_local" && forceUnsetAnthropicApiKey) {
       const env =
@@ -495,6 +530,48 @@ export function OnboardingWizard() {
       config.env = env;
     }
     return config;
+  }
+  async function ensureProviderCredentialBinding(): Promise<{
+    envKey: string;
+    binding: Record<string, unknown>;
+  } | null> {
+    const envKey = providerCredentialEnvKey;
+    const value = providerApiKey.trim();
+    if (!envKey || !value) return null;
+    if (!createdCompanyId) {
+      throw new Error("Complete organization setup before storing provider credentials.");
+    }
+    if (
+      providerSecretBinding &&
+      providerSecretBinding.envKey === envKey &&
+      providerSecretBinding.value === value
+    ) {
+      return {
+        envKey,
+        binding: {
+          type: "secret_ref",
+          secretId: providerSecretBinding.secretId,
+          version: "latest",
+        },
+      };
+    }
+    const secret = await secretsApi.create(createdCompanyId, {
+      name: `onboarding-${envKey.toLowerCase().replace(/_/g, "-")}-${Date.now()}`,
+      value,
+      description: `Created from onboarding for ${model.trim() || envKey}.`,
+    });
+    setProviderSecretBinding({ envKey, value, secretId: secret.id });
+    return {
+      envKey,
+      binding: {
+        type: "secret_ref",
+        secretId: secret.id,
+        version: "latest",
+      },
+    };
+  }
+  async function buildAdapterConfigWithProviderSecret(): Promise<Record<string, unknown>> {
+    return buildAdapterConfig(await ensureProviderCredentialBinding());
   }
   async function runAdapterEnvironmentTest(
     agentRuntimeConfigOverride?: Record<string, unknown>
@@ -511,7 +588,7 @@ export function OnboardingWizard() {
         createdCompanyId,
         agentRuntimeType,
         {
-          agentRuntimeConfig: agentRuntimeConfigOverride ?? buildAdapterConfig()
+          agentRuntimeConfig: agentRuntimeConfigOverride ?? (await buildAdapterConfigWithProviderSecret())
         }
       );
       setAdapterEnvResult(result);
@@ -641,8 +718,9 @@ export function OnboardingWizard() {
           return;
         }
       }
+      const agentRuntimeConfig = await buildAdapterConfigWithProviderSecret();
       if (isLocalAdapter) {
-        const result = adapterEnvResult ?? (await runAdapterEnvironmentTest());
+        const result = adapterEnvResult ?? (await runAdapterEnvironmentTest(agentRuntimeConfig));
         if (!result) return;
         const blockingMessage = blockingRuntimeEnvironmentMessage(result);
         if (blockingMessage) {
@@ -655,7 +733,7 @@ export function OnboardingWizard() {
         role: "ceo",
         title: DEFAULT_FIRST_AGENT_TITLE,
         agentRuntimeType,
-        agentRuntimeConfig: buildAdapterConfig(),
+        agentRuntimeConfig,
         runtimeConfig: {
           heartbeat: {
             enabled: true,
@@ -982,8 +1060,7 @@ export function OnboardingWizard() {
                               : "border-border hover:bg-accent/50"
                           )} onClick={() => {
                             const nextType = opt.value as AdapterType;
-                            setAdapterType(nextType);
-                            setModel(defaultModelForRuntime(nextType));
+                            selectRuntimeType(nextType);
                           }} >
                           {opt.recommended && (
                             <span className="absolute -top-1.5 right-1.5 bg-green-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
@@ -1046,8 +1123,7 @@ export function OnboardingWizard() {
                             )} onClick={() => {
                               if (opt.comingSoon) return;
                               const nextType = opt.value as AdapterType;
-                              setAdapterType(nextType);
-                              setModel(defaultModelForRuntime(nextType));
+                              selectRuntimeType(nextType);
                             }} >
                             <opt.icon className="h-4 w-4" />
                             <span className="font-medium">{opt.label}</span>
@@ -1069,7 +1145,7 @@ export function OnboardingWizard() {
                         label="Model"
                         models={availableAdapterModels}
                         value={model}
-                        onChange={setModel}
+                        onChange={selectModel}
                         open={modelOpen}
                         onOpenChange={setModelOpen}
                         allowDefault={!requiresProviderModel}
@@ -1086,6 +1162,24 @@ export function OnboardingWizard() {
                       {providerSetupHint ? (
                         <div className="rounded-md border border-border/70 bg-muted/35 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
                           {providerSetupHint}
+                        </div>
+                      ) : null}
+                      {providerCredentialEnvKey ? (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-muted-foreground block">
+                            {providerCredentialLabel}
+                          </label>
+                          <input
+                            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                            type="password"
+                            autoComplete="off"
+                            placeholder={`Paste ${providerCredentialEnvKey}`}
+                            value={providerApiKey}
+                            onChange={(event) => setProviderApiKey(event.currentTarget.value)}
+                          />
+                          <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            Stored as a Rudder secret and referenced by this agent runtime for Test now and future runs.
+                          </p>
                         </div>
                       ) : null}
                     </div>

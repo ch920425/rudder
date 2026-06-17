@@ -59,12 +59,14 @@ export function explicitProviderModelError(agentRuntimeType: string): string {
 }
 
 export function providerFromModelId(model: string): string | null {
-  const [provider] = model.split("/", 2).map((part) => part.trim());
+  const slash = model.indexOf("/");
+  const provider = slash >= 0 ? model.slice(0, slash).trim() : model.trim();
   return provider || null;
 }
 
 export function modelNameFromProviderModelId(model: string): string | null {
-  const [, modelId] = model.split("/", 2).map((part) => part.trim());
+  const slash = model.indexOf("/");
+  const modelId = slash >= 0 ? model.slice(slash + 1).trim() : "";
   return modelId || null;
 }
 
@@ -88,16 +90,32 @@ export function runtimeProviderSetupHint(agentRuntimeType: string, model: string
   return null;
 }
 
+export function runtimeProviderCredentialEnvKey(agentRuntimeType: string, model: string): string | null {
+  const provider = providerFromModelId(model);
+  if (agentRuntimeType === "pi_local") {
+    if (provider === "deepseek") return "DEEPSEEK_API_KEY";
+    if (provider === "openrouter") return "OPENROUTER_API_KEY";
+    if (provider === "kimi-coding" || provider === "kimi") return "KIMI_API_KEY";
+  }
+  return null;
+}
+
+export function runtimeProviderCredentialLabel(agentRuntimeType: string, model: string): string | null {
+  const envKey = runtimeProviderCredentialEnvKey(agentRuntimeType, model);
+  if (!envKey) return null;
+  return `${envKey} for ${model.trim() || "this provider"}`;
+}
+
 export function runtimeManualProbeCommand(agentRuntimeType: string, command: string, model: string): string {
   const executable = command.trim();
   if (agentRuntimeType === "cursor") {
     return `${executable} --trust -p --mode ask --output-format json "Respond with hello."`;
   }
   if (agentRuntimeType === "codex_local") {
-    return `${executable} exec --json -`;
+    return `${executable} exec --dangerously-bypass-approvals-and-sandbox --json "Respond with hello."`;
   }
   if (agentRuntimeType === "gemini_local") {
-    return `${executable} --output-format json "Respond with hello."`;
+    return `${executable} -p "Respond with hello." --approval-mode yolo --skip-trust --output-format json`;
   }
   if (agentRuntimeType === "opencode_local") {
     const modelArg = model.trim() ? ` --model ${model.trim()}` : "";
@@ -108,7 +126,7 @@ export function runtimeManualProbeCommand(agentRuntimeType: string, command: str
     const modelId = modelNameFromProviderModelId(model) ?? "<model>";
     return `${executable} -p "Respond with hello." --mode json --provider ${provider} --model ${modelId} --tools read`;
   }
-  return `${executable} --print - --output-format stream-json --verbose`;
+  return `${executable} -p "Respond with hello." --output-format json --no-session-persistence --permission-mode bypassPermissions --bare --tools ""`;
 }
 
 export function runtimeAuthRecoveryHint(agentRuntimeType: string, model: string): string {

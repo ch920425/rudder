@@ -9,6 +9,8 @@ import {
   runtimeModelEmptyLabel,
   runtimeModelEmptyMessage,
   runtimeModelSearchPlaceholder,
+  runtimeProviderCredentialEnvKey,
+  runtimeProviderCredentialLabel,
   runtimeProviderSetupHint,
 } from "../lib/runtime-models";
 import { defaultCommandForRuntime, defaultConfigForRuntime, defaultModelForRuntime } from "./AgentConfigForm.helpers";
@@ -57,15 +59,27 @@ describe("AgentConfigForm runtime defaults", () => {
   it("gives Pi and OpenCode provider-specific onboarding commands", () => {
     expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
     expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("~/.pi/agent/models.json");
+    expect(runtimeProviderCredentialEnvKey("pi_local", "deepseek/deepseek-chat")).toBe("DEEPSEEK_API_KEY");
+    expect(runtimeProviderCredentialLabel("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
     expect(runtimeManualProbeCommand("pi_local", "pi", "deepseek/deepseek-chat"))
       .toBe('pi -p "Respond with hello." --mode json --provider deepseek --model deepseek-chat --tools read');
+    expect(runtimeProviderCredentialEnvKey("pi_local", "openrouter/deepseek/deepseek-chat")).toBe("OPENROUTER_API_KEY");
+    expect(runtimeManualProbeCommand("pi_local", "pi", "openrouter/deepseek/deepseek-chat"))
+      .toBe('pi -p "Respond with hello." --mode json --provider openrouter --model deepseek/deepseek-chat --tools read');
+    expect(runtimeProviderCredentialEnvKey("opencode_local", "opencode/deepseek-v4-flash-free")).toBeNull();
     expect(runtimeAuthRecoveryHint("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
     expect(runtimeAuthRecoveryHint("pi_local", "deepseek/deepseek-chat")).not.toContain("claude auth login");
 
     expect(runtimeManualProbeCommand("opencode_local", "opencode", "opencode/deepseek-v4-flash-free"))
       .toBe('opencode run --format json --model opencode/deepseek-v4-flash-free "Respond with hello."');
+    expect(runtimeManualProbeCommand("codex_local", "codex", "gpt-5.1-codex-mini"))
+      .toContain("--dangerously-bypass-approvals-and-sandbox");
+    expect(runtimeManualProbeCommand("gemini_local", "gemini", "gemini-3-flash-preview"))
+      .toContain("--approval-mode yolo --skip-trust");
     expect(runtimeManualProbeCommand("cursor", "cursor-agent", "auto"))
       .toBe('cursor-agent --trust -p --mode ask --output-format json "Respond with hello."');
+    expect(runtimeManualProbeCommand("claude_local", "claude", "claude-sonnet-4-6"))
+      .toContain("--permission-mode bypassPermissions");
   });
 
   it("blocks onboarding when the runtime hello probe fails or needs provider auth", () => {

@@ -102,13 +102,14 @@ For Pi, verify local provider setup with:
 pi --list-models
 ```
 
-For Pi + DeepSeek, Pi needs both credentials and a provider/model entry. Native
-DeepSeek uses `DEEPSEEK_API_KEY` or `pi /login`. Some Pi model IDs route through
-OpenRouter unless the native provider is selected; if Pi reports
-`No API key found for openrouter`, either set `OPENROUTER_API_KEY` or add a
-native DeepSeek provider/model in `~/.pi/agent/models.json`. Enter the matching
-`provider/model` value in Rudder, for example `deepseek/deepseek-chat`, and use
-**Test now** as the source of truth.
+For Pi + DeepSeek, choose or enter `deepseek/deepseek-chat` in Rudder. The
+onboarding form will show a `DEEPSEEK_API_KEY` field, store the value as a
+Rudder organization secret, and reference that secret from the agent runtime
+config. Native DeepSeek also works if you already ran `pi /login` locally. Some
+Pi model IDs route through OpenRouter unless the native provider is selected; if
+Pi reports `No API key found for openrouter`, either set `OPENROUTER_API_KEY` or
+add a native DeepSeek provider/model in `~/.pi/agent/models.json`. Use **Test
+now** as the source of truth.
 
 For OpenCode, verify local provider setup with:
 
