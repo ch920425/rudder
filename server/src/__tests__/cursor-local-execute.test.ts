@@ -69,11 +69,13 @@ type CapturePayload = {
 function setManagedCursorEnv(root: string) {
   const previous = {
     HOME: process.env.HOME,
+    RUDDER_OPERATOR_HOME: process.env.RUDDER_OPERATOR_HOME,
     RUDDER_HOME: process.env.RUDDER_HOME,
     RUDDER_INSTANCE_ID: process.env.RUDDER_INSTANCE_ID,
     RUDDER_LOCAL_ENV: process.env.RUDDER_LOCAL_ENV,
   };
   process.env.HOME = root;
+  process.env.RUDDER_OPERATOR_HOME = root;
   process.env.RUDDER_HOME = path.join(root, ".rudder");
   process.env.RUDDER_INSTANCE_ID = "default";
   delete process.env.RUDDER_LOCAL_ENV;
@@ -81,6 +83,8 @@ function setManagedCursorEnv(root: string) {
   return () => {
     if (previous.HOME === undefined) delete process.env.HOME;
     else process.env.HOME = previous.HOME;
+    if (previous.RUDDER_OPERATOR_HOME === undefined) delete process.env.RUDDER_OPERATOR_HOME;
+    else process.env.RUDDER_OPERATOR_HOME = previous.RUDDER_OPERATOR_HOME;
     if (previous.RUDDER_HOME === undefined) delete process.env.RUDDER_HOME;
     else process.env.RUDDER_HOME = previous.RUDDER_HOME;
     if (previous.RUDDER_INSTANCE_ID === undefined) delete process.env.RUDDER_INSTANCE_ID;
