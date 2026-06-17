@@ -27,6 +27,7 @@ const mockSetStreamDraftForChat = vi.hoisted(() => vi.fn());
 const mockConfirm = vi.hoisted(() => vi.fn(async () => true));
 const mockMarkThreadRead = vi.hoisted(() => vi.fn());
 const invalidateQueries = vi.fn();
+const cancelQueries = vi.fn();
 const setQueryData = vi.fn();
 const setQueriesData = vi.fn();
 
@@ -42,11 +43,13 @@ let clipboardWriteText: ReturnType<typeof vi.fn>;
 vi.mock("@tanstack/react-query", () => ({
   useMutation: (options: {
     mutationFn: (variables: any) => Promise<any>;
+    onMutate?: (variables: any) => Promise<unknown> | unknown;
     onSuccess?: (data: any, variables: any) => Promise<void> | void;
     onError?: (error: unknown, variables: any) => Promise<void> | void;
   }) => ({
     mutate: vi.fn(async (variables: any) => {
       try {
+        await options.onMutate?.(variables);
         const result = await options.mutationFn(variables);
         await options.onSuccess?.(result, variables);
       } catch (error) {
@@ -55,7 +58,7 @@ vi.mock("@tanstack/react-query", () => ({
     }),
     isPending: false,
   }),
-  useQueryClient: () => ({ invalidateQueries, setQueryData, setQueriesData }),
+  useQueryClient: () => ({ cancelQueries, invalidateQueries, setQueryData, setQueriesData }),
   useQuery: (options: { queryKey?: unknown; enabled?: boolean }) => {
     if (options.enabled === false) return { data: undefined };
     const queryKey = Array.isArray(options.queryKey) ? options.queryKey : [];
@@ -364,6 +367,7 @@ describe("MessengerContextSidebar chat actions", () => {
     mockReorderCustomGroups.mockClear();
     mockReorderCustomGroupEntries.mockClear();
     mockUpdateConversation.mockClear();
+    cancelQueries.mockClear();
     invalidateQueries.mockClear();
     setQueryData.mockClear();
     setQueriesData.mockClear();

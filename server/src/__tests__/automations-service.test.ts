@@ -815,7 +815,7 @@ describe("automation service live-execution coalescing", () => {
     expect(messages).toHaveLength(2);
     const assistantMessage = messages[1]!;
     expect(assistantMessage.status).toBe("failed");
-    expect(assistantMessage.body).toBe("Automation chat run failed before it produced a final response.");
+    expect(assistantMessage.body).toBe("The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.");
     expect(assistantMessage.body).not.toContain("I will inspect the issue first.");
     expect((assistantMessage.structuredPayload as Record<string, unknown>).__chatTranscript).toEqual([
       expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." }),
