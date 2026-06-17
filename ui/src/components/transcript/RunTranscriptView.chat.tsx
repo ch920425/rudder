@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { TranscriptEntry } from "../../agent-runtimes";
 import { cn } from "../../lib/utils";
-import { CommandTerminalDetail, DisclosureChevron, areAllToolEntriesErrored, renderTranscriptBlock } from "./RunTranscriptView.blocks";
+import { CommandTerminalDetail, DisclosureChevron, ExpandableTranscriptResponsePre, areAllToolEntriesErrored, renderTranscriptBlock } from "./RunTranscriptView.blocks";
 import { ChatTranscriptAction, ChatTranscriptTurn, TranscriptActionIcon, TranscriptActionIconCategory, TranscriptActionIconSlot, TranscriptActionIconStack, TranscriptActionIconStatus, TranscriptBlock, TranscriptDensity, TranscriptMarkdownLinkClickHandler, TranscriptToolCardEntry, TranscriptToolSemanticInfo, asRecord, compactWhitespace, formatTranscriptDuration, getTranscriptTimestampTitle, truncate } from "./RunTranscriptView.common";
 import { formatSemanticDigest, normalizeChatTranscriptTurns } from "./RunTranscriptView.normalize";
 import { describeToolSemanticInfo, formatCommandTerminalOutput, formatToolPayload, isCommandTool } from "./RunTranscriptView.semantic";
@@ -157,7 +157,7 @@ export function TranscriptChatToolActionRow({
   block,
   density,
   inline = false,
-  defaultOpenOnError = true,
+  defaultOpenOnError = false,
   highlightError = true,
 }: {
   block: TranscriptToolCardEntry;
@@ -266,12 +266,12 @@ export function TranscriptChatToolActionRow({
                 <div className="mb-1 text-[10px] font-semibold text-muted-foreground">
                   Response
                 </div>
-                <pre className={cn(
-                  "overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px]",
-                  block.status === "error" ? "text-red-700 dark:text-red-300" : "text-foreground/80",
-                )}>
-                  {responseText}
-                </pre>
+                <ExpandableTranscriptResponsePre
+                  text={responseText}
+                  className={cn(
+                    block.status === "error" ? "text-red-700 dark:text-red-300" : "text-foreground/80",
+                  )}
+                />
               </div>
             ) : null}
           </div>
@@ -285,7 +285,7 @@ export function TranscriptChatActionRow({
   action,
   density,
   inline = false,
-  defaultOpenOnError = true,
+  defaultOpenOnError = false,
   highlightError = true,
 }: {
   action: ChatTranscriptAction;
@@ -433,7 +433,7 @@ export function TranscriptChatActionGroup({
         <TranscriptChatActionRow
           action={singleAction}
           density={density}
-          defaultOpenOnError={!detailVariant}
+          defaultOpenOnError={false}
           highlightError={!detailVariant}
         />
       </div>

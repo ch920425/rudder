@@ -552,6 +552,48 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Expand tool activity");
   });
 
+  it("keeps long failed chat tool responses collapsed by default", () => {
+    const longResponse = Array.from({ length: 24 }, (_, index) => `tool response line ${index + 1}`).join("\n");
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "system",
+              ts: "2026-03-12T00:00:01.000Z",
+              text: "turn started",
+            },
+            {
+              kind: "tool_call",
+              ts: "2026-03-12T00:00:02.000Z",
+              name: "custom_tool",
+              toolUseId: "tool-long-response-1",
+              input: { query: "large response" },
+            },
+            {
+              kind: "tool_result",
+              ts: "2026-03-12T00:00:03.000Z",
+              toolUseId: "tool-long-response-1",
+              content: longResponse,
+              isError: true,
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Custom Tool");
+    expect(html).toContain("Failed");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("Expand tool details");
+    expect(html).not.toContain("Response");
+    expect(html).not.toContain("tool response line 24");
+    expect(html).not.toContain("data-transcript-response-collapsed=\"true\"");
+    expect(html).not.toContain("Show full response");
+  });
+
   it("keeps compact chat tool rows tight and center-aligned", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
@@ -1199,8 +1241,10 @@ describe("RunTranscriptView", () => {
     expect(html).toContain("hover:bg-red-500/[0.05]");
     expect(html).toContain("bg-red-500/[0.08]");
     expect(html).toContain("-mx-2 rounded-lg bg-red-500/[0.04] px-2");
-    expect(html).toContain("First command failed");
-    expect(html).toContain("Second command failed");
+    expect(html).toContain("Expand command details");
+    expect(html).not.toContain("data-testid=\"command-terminal-detail\"");
+    expect(html).not.toContain("First command failed");
+    expect(html).not.toContain("Second command failed");
   });
 
   it("keeps errored tool details collapsed by default in detail presentation", () => {
@@ -1246,7 +1290,7 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("sh: vitest: command not found");
   });
 
-  it("renders command details without shell wrappers or result envelope metadata", () => {
+  it("keeps failed chat command response details collapsed without shell wrappers or result envelope metadata", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
         <RunTranscriptView
@@ -1281,12 +1325,14 @@ describe("RunTranscriptView", () => {
       </ThemeProvider>,
     );
 
-    expect(html).toContain("data-testid=\"command-terminal-detail\"");
-    expect(html).toContain("data-testid=\"command-terminal-copy-button\"");
-    expect(html).toContain("aria-label=\"Copy command output\"");
-    expect(html).toContain("group-hover/command-terminal:opacity-100");
-    expect(html).toContain("ls -la /Users/zeeland/.vercel 2&gt;/dev/null || true");
-    expect(html).toContain("ls: /Users/zeeland/.vercel: Permission denied");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("Expand command details");
+    expect(html).not.toContain("data-testid=\"command-terminal-detail\"");
+    expect(html).not.toContain("data-testid=\"command-terminal-copy-button\"");
+    expect(html).not.toContain("aria-label=\"Copy command output\"");
+    expect(html).not.toContain("group-hover/command-terminal:opacity-100");
+    expect(html).not.toContain("ls -la /Users/zeeland/.vercel 2&gt;/dev/null || true");
+    expect(html).not.toContain("ls: /Users/zeeland/.vercel: Permission denied");
     expect(html).not.toContain("Command activity");
     expect(html).not.toContain("command failed");
     expect(html).not.toContain("command completed");
