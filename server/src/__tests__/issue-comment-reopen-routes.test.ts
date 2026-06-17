@@ -84,6 +84,8 @@ function makeIssue(status: "todo" | "done") {
     createdByUserId: "local-board",
     identifier: "PAP-580",
     title: "Comment reopen default",
+    description: "Closed issue reopened by a comment.",
+    priority: "medium",
   };
 }
 

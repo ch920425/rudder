@@ -5,6 +5,16 @@ export const DEFAULT_AGENT_PROMPT_TEMPLATE =
 {{context.rudderWorkspace.orgResourcesPrompt}}
 `;
 
+export const COMMENT_TRIGGERED_ISSUE_WAKE_REASONS = new Set([
+  "issue_commented",
+  "issue_comment_mentioned",
+  "issue_reopened_via_comment",
+]);
+
+export function isCommentTriggeredIssueWakeReason(wakeReason: unknown): boolean {
+  return typeof wakeReason === "string" && COMMENT_TRIGGERED_ISSUE_WAKE_REASONS.has(wakeReason.trim());
+}
+
 export const ISSUE_ASSIGN_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). You have been assigned to work on an issue.
 
 {{context.rudderWorkspace.orgResourcesPrompt}}
@@ -168,7 +178,7 @@ Before changing the issue, inspect the current issue state and any side effects 
  * - issue_changes_requested:
  *   "A reviewer requested changes on an issue you own ..."
  *   Includes issue summary plus reviewer attribution/comment body so the assignee can act on feedback immediately.
- * - issue_commented:
+ * - issue_commented / issue_reopened_via_comment:
  *   "There is a new comment on an issue you own ..."
  *   Includes issue summary plus the newest comment author/body so the assignee can continue immediately.
  * - recovery:
@@ -230,7 +240,7 @@ export function selectPromptTemplate(
   if (wakeSource === "comment.mention" || wakeReason === "issue_comment_mentioned") {
     return COMMENT_MENTION_PROMPT_TEMPLATE;
   }
-  if (wakeReason === "issue_commented") {
+  if (isCommentTriggeredIssueWakeReason(wakeReason)) {
     return ISSUE_COMMENTED_PROMPT_TEMPLATE;
   }
 

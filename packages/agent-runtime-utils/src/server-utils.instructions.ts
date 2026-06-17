@@ -1,7 +1,7 @@
 import { promises as fs, constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { SENSITIVE_ENV_KEY, SpawnTarget } from "./server-utils.process.js";
-import { joinPromptSections, RUDDER_AGENT_HEARTBEAT_INSTRUCTION, RUDDER_AGENT_OPERATING_CONTRACT } from "./server-utils.prompts.js";
+import { isCommentTriggeredIssueWakeReason, joinPromptSections, RUDDER_AGENT_HEARTBEAT_INSTRUCTION, RUDDER_AGENT_OPERATING_CONTRACT } from "./server-utils.prompts.js";
 
 export interface LoadedAgentInstructionsPrefix {
   prefix: string;
@@ -34,8 +34,7 @@ export interface AgentInstructionRuntimeContext {
 export function shouldIncludeRuntimeHeartbeatInstructions(context: Record<string, unknown>): boolean {
   if (context.rudderScene !== "heartbeat") return false;
 
-  const wakeReason = typeof context.wakeReason === "string" ? context.wakeReason.trim() : "";
-  return wakeReason !== "issue_commented" && wakeReason !== "issue_comment_mentioned";
+  return !isCommentTriggeredIssueWakeReason(context.wakeReason);
 }
 
 export function toPromptPath(pathValue: string): string {

@@ -2230,6 +2230,88 @@ describe("issue lifecycle routes", () => {
     expect(renderedPrompt).toContain("please check the retry path");
   });
 
+  it("uses comment wake semantics when a comment reopens a closed issue", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: "done",
+        description: "Closed issue should resume from the reopen comment.",
+      }),
+    );
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) =>
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        status: patch.status as "todo",
+        description: "Closed issue should resume from the reopen comment.",
+      }),
+    );
+    mockIssueService.addComment.mockResolvedValue({
+      id: "comment-reopen-1",
+      issueId: "11111111-1111-4111-8111-111111111111",
+      orgId: "organization-1",
+      body: "please reopen and continue",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      authorAgentId: null,
+      authorUserId: "local-board",
+    });
+
+    const res = await request(createApp())
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body: "please reopen and continue", reopen: true });
+
+    expect(res.status).toBe(201);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      ASSIGNEE_AGENT_ID,
+      expect.objectContaining({
+        source: "automation",
+        reason: "issue_reopened_via_comment",
+        payload: expect.objectContaining({
+          issueId: "11111111-1111-4111-8111-111111111111",
+          commentId: "comment-reopen-1",
+          mutation: "comment",
+          reopenedFrom: "done",
+        }),
+        contextSnapshot: expect.objectContaining({
+          issueId: "11111111-1111-4111-8111-111111111111",
+          taskId: "11111111-1111-4111-8111-111111111111",
+          commentId: "comment-reopen-1",
+          wakeCommentId: "comment-reopen-1",
+          source: "issue.comment.reopen",
+          wakeReason: "issue_reopened_via_comment",
+          reopenedFrom: "done",
+          issue: expect.objectContaining({
+            id: "11111111-1111-4111-8111-111111111111",
+            title: "Lifecycle hardening",
+            status: "todo",
+            description: "Closed issue should resume from the reopen comment.",
+            priority: "medium",
+          }),
+          comment: expect.objectContaining({
+            id: "comment-reopen-1",
+            body: "please reopen and continue",
+            authorUserId: "local-board",
+          }),
+        }),
+      }),
+    );
+
+    const reopenWakeupCall = mockHeartbeatService.wakeup.mock.calls.find(
+      (call) => call[0] === ASSIGNEE_AGENT_ID,
+    );
+    const context = reopenWakeupCall?.[1]?.contextSnapshot as Record<string, unknown>;
+    const renderedPrompt = renderTemplate(selectPromptTemplate(undefined, context), {
+      agent: { id: ASSIGNEE_AGENT_ID, name: "Assigned Agent" },
+      context,
+      issue: context.issue,
+      comment: context.comment,
+    });
+    expect(renderedPrompt).toContain("There is a new comment on an issue you own.");
+    expect(renderedPrompt).toContain("Lifecycle hardening");
+    expect(renderedPrompt).toContain("please reopen and continue");
+  });
+
   it("does not wake the assignee when a comment explicitly wakes the reviewer", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({

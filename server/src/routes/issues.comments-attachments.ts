@@ -319,9 +319,23 @@ export function registerIssueCommentAttachmentRoutes(ctx: IssueCommentAttachment
               issueId: currentIssue.id,
               taskId: currentIssue.id,
               commentId: comment.id,
+              wakeCommentId: comment.id,
               source: "issue.comment.reopen",
               wakeReason: "issue_reopened_via_comment",
               reopenedFrom: reopenFromStatus,
+              issue: {
+                id: currentIssue.id,
+                title: currentIssue.title,
+                description: currentIssue.description,
+                status: currentIssue.status,
+                priority: currentIssue.priority,
+              },
+              comment: {
+                id: comment.id,
+                body: comment.body,
+                authorAgentId: comment.authorAgentId,
+                authorUserId: comment.authorUserId,
+              },
               ...(interruptedRunId ? { interruptedRunId } : {}),
             },
           });

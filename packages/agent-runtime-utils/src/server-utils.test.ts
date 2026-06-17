@@ -1,21 +1,21 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ensureLocalCliCredentialShimsInPath,
   ensureRudderCliInPath,
-  loadAgentInstructionsPrefix,
-  prepareAgentInstructionRuntimeContext,
-  renderTemplate,
   resolveLocalOperatorHome,
+  prepareAgentInstructionRuntimeContext,
+  syncLocalCliCredentialHomeEntries,
+  loadAgentInstructionsPrefix,
+  renderTemplate,
   RUDDER_AGENT_HEARTBEAT_INSTRUCTION,
   RUDDER_AGENT_OPERATING_CONTRACT,
   runChildProcess,
   selectPromptTemplate,
   shouldIncludeRuntimeHeartbeatInstructions,
-  syncLocalCliCredentialHomeEntries,
 } from "./server-utils.js";
 
 const ORIGINAL_HOME = process.env.HOME;
@@ -427,6 +427,7 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "chat" })).toBe(false);
     expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_commented" })).toBe(false);
     expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_comment_mentioned" })).toBe(false);
+    expect(shouldIncludeRuntimeHeartbeatInstructions({ rudderScene: "heartbeat", wakeReason: "issue_reopened_via_comment" })).toBe(false);
   });
 
   it("loads the operating contract and entry instructions when no sibling memory file exists", async () => {

@@ -53,4 +53,38 @@ describe("server-utils prompt contracts", () => {
     expect(RUDDER_AGENT_HEARTBEAT_INSTRUCTION).toContain("including user-owned or unassigned issues");
     expect(RUDDER_AGENT_HEARTBEAT_INSTRUCTION).toContain("respond to the comment itself instead of executing the whole issue");
   });
+
+  it("uses the assignee comment prompt for issue reopen comment wakes", () => {
+    const issue = {
+      id: "issue-685",
+      title: "Resume issue from comment",
+      status: "todo",
+      priority: "medium",
+      description: "A closed issue was reopened by a comment.",
+    };
+    const comment = {
+      id: "comment-685",
+      authorKind: "user",
+      authorLabel: "Zeeland",
+      body: "This still needs the reopen path covered.",
+    };
+    const context = {
+      wakeReason: "issue_reopened_via_comment",
+      issue,
+      comment,
+    };
+
+    const rendered = renderTemplate(selectPromptTemplate(undefined, context), {
+      agent: { id: "agent-685", name: "Wesley" },
+      context,
+      issue,
+      comment,
+    });
+
+    expect(rendered).toContain("There is a new comment on an issue you own.");
+    expect(rendered).toContain("Resume issue from comment");
+    expect(rendered).toContain("From: Zeeland (user)");
+    expect(rendered).toContain("This still needs the reopen path covered.");
+    expect(rendered).not.toContain("Continue your Rudder work.");
+  });
 });
