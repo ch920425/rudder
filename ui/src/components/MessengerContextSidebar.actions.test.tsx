@@ -27,6 +27,7 @@ const mockSetStreamDraftForChat = vi.hoisted(() => vi.fn());
 const mockConfirm = vi.hoisted(() => vi.fn(async () => true));
 const mockMarkThreadRead = vi.hoisted(() => vi.fn());
 const invalidateQueries = vi.fn();
+const cancelQueries = vi.fn(() => Promise.resolve());
 const setQueryData = vi.fn();
 const setQueriesData = vi.fn();
 
@@ -44,9 +45,11 @@ vi.mock("@tanstack/react-query", () => ({
     mutationFn: (variables: any) => Promise<any>;
     onSuccess?: (data: any, variables: any) => Promise<void> | void;
     onError?: (error: unknown, variables: any) => Promise<void> | void;
+    onMutate?: (variables: any) => Promise<void> | void;
   }) => ({
     mutate: vi.fn(async (variables: any) => {
       try {
+        if (options.onMutate) await options.onMutate(variables);
         const result = await options.mutationFn(variables);
         await options.onSuccess?.(result, variables);
       } catch (error) {
@@ -55,7 +58,7 @@ vi.mock("@tanstack/react-query", () => ({
     }),
     isPending: false,
   }),
-  useQueryClient: () => ({ invalidateQueries, setQueryData, setQueriesData }),
+  useQueryClient: () => ({ cancelQueries, invalidateQueries, setQueryData, setQueriesData }),
   useQuery: (options: { queryKey?: unknown; enabled?: boolean }) => {
     if (options.enabled === false) return { data: undefined };
     const queryKey = Array.isArray(options.queryKey) ? options.queryKey : [];
@@ -235,6 +238,7 @@ function renderSidebar() {
   act(() => {
     root.render(<MessengerContextSidebar />);
   });
+  return { container, root };
 }
 
 function cleanupSidebar() {
@@ -364,6 +368,7 @@ describe("MessengerContextSidebar chat actions", () => {
     mockReorderCustomGroups.mockClear();
     mockReorderCustomGroupEntries.mockClear();
     mockUpdateConversation.mockClear();
+    cancelQueries.mockClear();
     invalidateQueries.mockClear();
     setQueryData.mockClear();
     setQueriesData.mockClear();
@@ -461,6 +466,46 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));
     expect(setQueryData.mock.invocationCallOrder[0]).toBeLessThan(mockUpdateConversation.mock.invocationCallOrder[0]);
     expect(mockUpdateConversation).toHaveBeenCalledWith("chat-1", { title: "Renamed from sidebar" });
+  });
+
+  it("keeps a pending rename visible when stale thread data renders before the update resolves", async () => {
+    let resolveUpdate!: (value: unknown) => void;
+    mockUpdateConversation.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveUpdate = resolve;
+    }));
+    const { root } = renderSidebar();
+
+    const rename = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Rename") as HTMLButtonElement | undefined;
+
+    await act(async () => {
+      rename?.click();
+    });
+
+    const input = document.querySelector<HTMLInputElement>("input");
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      valueSetter?.call(input!, "Renamed from sidebar");
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+      input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("Renamed from sidebar");
+
+    chatList = [baseConversation({ title: "hi" })];
+    messengerModel = baseModel();
+    await act(async () => {
+      root.render(<MessengerContextSidebar />);
+    });
+
+    expect(document.body.textContent).toContain("Renamed from sidebar");
+    expect(document.body.textContent).not.toContain("hiHello Zee!");
+
+    await act(async () => {
+      resolveUpdate(baseConversation({ title: "Renamed from sidebar" }));
+      await Promise.resolve();
+    });
   });
 
   it("optimistically pins a split issue thread before the Messenger user-state request resolves", async () => {

@@ -1768,6 +1768,7 @@ export function MessengerContextSidebar() {
   const unreadLoadMoreRequestRef = useRef<{ requestId: number; loadedCount: number } | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [pendingChatRenameTitles, setPendingChatRenameTitles] = useState<Record<string, string>>({});
   const [customGroupEditor, setCustomGroupEditor] = useState<CustomGroupEditorState | null>(null);
   const [customGroupNameDraft, setCustomGroupNameDraft] = useState("");
   const [customGroupIconDraft, setCustomGroupIconDraft] = useState("folder");
@@ -1821,6 +1822,7 @@ export function MessengerContextSidebar() {
     const rule = readThreadOrganizationRule(model.selectedOrganizationId);
     setCollapsedThreadGroupKeys(readCollapsedThreadGroups(model.selectedOrganizationId, rule));
     setVisibleThreadGroupEntryLimits({});
+    setPendingChatRenameTitles({});
   }, [model.selectedOrganizationId]);
 
   useEffect(() => {
@@ -1959,10 +1961,13 @@ export function MessengerContextSidebar() {
       const customEntriesByThreadKey = new Map<string, OrganizedThreadEntry>();
       const groupSections = customGroups.map((group) => {
         const entries = group.entries.map((entry) => {
+          const conversationId = threadConversationId(entry.threadKey);
+          const pendingTitle = conversationId ? pendingChatRenameTitles[conversationId] : undefined;
+          const displayThread = pendingTitle ? { ...entry.thread, title: pendingTitle } : entry.thread;
           const organizedEntry = {
-            thread: entry.thread,
+            thread: displayThread,
             conversation: model.selectedOrganizationId
-              ? chatConversationForThreadSummary(entry.thread, model.selectedOrganizationId, conversationsById.get(threadConversationId(entry.threadKey) ?? "") ?? null)
+              ? chatConversationForThreadSummary(displayThread, model.selectedOrganizationId, conversationsById.get(conversationId ?? "") ?? null)
               : null,
             customGroupId: group.id,
           } satisfies OrganizedThreadEntry;
@@ -1981,10 +1986,12 @@ export function MessengerContextSidebar() {
         .map((thread) => {
           const conversationId = threadConversationId(thread.threadKey);
           const loadedConversation = conversationId ? conversationsById.get(conversationId) ?? null : null;
+          const pendingTitle = conversationId ? pendingChatRenameTitles[conversationId] : undefined;
+          const displayThread = pendingTitle ? { ...thread, title: pendingTitle } : thread;
           return {
-            thread,
+            thread: displayThread,
             conversation: model.selectedOrganizationId
-              ? chatConversationForThreadSummary(thread, model.selectedOrganizationId, loadedConversation)
+              ? chatConversationForThreadSummary(displayThread, model.selectedOrganizationId, loadedConversation)
               : null,
             customGroupId: null,
           } satisfies OrganizedThreadEntry;
@@ -2005,10 +2012,12 @@ export function MessengerContextSidebar() {
     const entries = threadSummaries.map((thread) => {
       const conversationId = threadConversationId(thread.threadKey);
       const loadedConversation = conversationId ? conversationsById.get(conversationId) ?? null : null;
+      const pendingTitle = conversationId ? pendingChatRenameTitles[conversationId] : undefined;
+      const displayThread = pendingTitle ? { ...thread, title: pendingTitle } : thread;
       return {
-        thread,
+        thread: displayThread,
         conversation: model.selectedOrganizationId
-          ? chatConversationForThreadSummary(thread, model.selectedOrganizationId, loadedConversation)
+          ? chatConversationForThreadSummary(displayThread, model.selectedOrganizationId, loadedConversation)
           : null,
       };
     });
@@ -2016,7 +2025,7 @@ export function MessengerContextSidebar() {
     return isManagedThreadGroupRule(threadOrganizationRule)
       ? sortManagedThreadSections(sections, threadOrganizationRule, projectOrderIds, threadSectionOrderIds)
       : sections;
-  }, [agentsById, conversationsById, customGroupedThreadKeys, customGroups, model.selectedOrganizationId, projectOrderIds, threadSectionOrderIds, splitIssueNotifications, threadOrganizationRule, visibleThreadSummaries]);
+  }, [agentsById, conversationsById, customGroupedThreadKeys, customGroups, model.selectedOrganizationId, pendingChatRenameTitles, projectOrderIds, threadSectionOrderIds, splitIssueNotifications, threadOrganizationRule, visibleThreadSummaries]);
   const customEntryGroupByThreadKey = useMemo(() => {
     const map = new Map<string, string>();
     for (const group of customGroups) {
@@ -2738,6 +2747,7 @@ export function MessengerContextSidebar() {
       chatsApi.update(chatId, { title }),
     onMutate: async ({ chatId, title }) => {
       if (!model.selectedOrganizationId) return;
+      setPendingChatRenameTitles((current) => ({ ...current, [chatId]: title }));
       await cancelMessengerChatRenameQueries(queryClient, model.selectedOrganizationId);
       renameMessengerChatInCache(queryClient, model.selectedOrganizationId, chatId, title);
     },
@@ -2746,9 +2756,21 @@ export function MessengerContextSidebar() {
         renameMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id, conversation.title);
       }
       await refreshChatViews(conversation.id);
+      setPendingChatRenameTitles((current) => {
+        if (!(conversation.id in current)) return current;
+        const next = { ...current };
+        delete next[conversation.id];
+        return next;
+      });
     },
     onError: async (_error, variables) => {
       await refreshChatViews(variables.chatId);
+      setPendingChatRenameTitles((current) => {
+        if (!(variables.chatId in current)) return current;
+        const next = { ...current };
+        delete next[variables.chatId];
+        return next;
+      });
     },
   });
 
