@@ -188,7 +188,7 @@ export async function testEnvironment(
       code: "pi_model_required",
       level: "error",
       message: "Pi requires a configured model in provider/model format.",
-      hint: "Set agentRuntimeConfig.model using an ID from `pi --list-models`.",
+      hint: "Set agentRuntimeConfig.model using an ID from `pi --list-models`, or enter a custom provider/model such as `deepseek/deepseek-chat` and run the hello probe.",
     });
   } else if (!configuredModelHasProvider) {
     checks.push({

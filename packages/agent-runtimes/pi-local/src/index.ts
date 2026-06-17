@@ -35,6 +35,12 @@ Operational fields:
 Notes:
 - Pi supports multiple providers and models. Use \`pi --list-models\` to list available options.
 - Rudder requires an explicit \`model\` value for \`pi_local\` agents.
+- Custom provider/model IDs may be typed directly in Rudder. Use \`provider/model\`,
+  for example \`deepseek/deepseek-chat\`. For native DeepSeek, authenticate Pi
+  with \`DEEPSEEK_API_KEY\` or \`pi /login\`. If Pi reports an OpenRouter
+  credential error for a DeepSeek-looking model ID, set \`OPENROUTER_API_KEY\`
+  or add a native DeepSeek provider/model to \`~/.pi/agent/models.json\`. Use
+  Rudder's environment test as the source of truth.
 - Sessions are stored in ~/.pi/paperclips/ and resumed with --session.
 - Rudder realizes only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page.
 - Selected skills are linked into a Rudder-managed Pi home for the run; unselected skills already present in the real user home do not load.

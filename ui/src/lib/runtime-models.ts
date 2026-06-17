@@ -39,7 +39,7 @@ export function runtimeModelSearchPlaceholder(agentRuntimeType: string): string 
 export function runtimeModelEmptyMessage(agentRuntimeType: string, loading = false): string {
   if (loading) return "Loading models...";
   if (agentRuntimeType === "pi_local") {
-    return "No models discovered. Run `pi --list-models`, authenticate the provider, or enter provider/model and run Test now.";
+    return "No models discovered. Run `pi --list-models`, authenticate the provider, or enter provider/model such as deepseek/deepseek-chat and run Test now.";
   }
   if (agentRuntimeType === "opencode_local") {
     return "No models discovered. Run `opencode models`, authenticate the provider, or enter provider/model and run Test now.";
@@ -55,6 +55,90 @@ export function explicitProviderModelError(agentRuntimeType: string): string {
     return "OpenCode requires provider/model, for example opencode/deepseek-v4-flash-free.";
   }
   return "This runtime requires provider/model.";
+}
+
+export function providerFromModelId(model: string): string | null {
+  const [provider] = model.split("/", 2).map((part) => part.trim());
+  return provider || null;
+}
+
+export function modelNameFromProviderModelId(model: string): string | null {
+  const [, modelId] = model.split("/", 2).map((part) => part.trim());
+  return modelId || null;
+}
+
+export function runtimeProviderSetupHint(agentRuntimeType: string, model: string): string | null {
+  const provider = providerFromModelId(model);
+  if (agentRuntimeType === "pi_local") {
+    if (provider === "deepseek") {
+      return "For Pi + DeepSeek, use provider/model such as deepseek/deepseek-chat. Native DeepSeek needs DEEPSEEK_API_KEY or pi /login; if Pi reports openrouter instead, set OPENROUTER_API_KEY or add a native DeepSeek provider/model in ~/.pi/agent/models.json. Use pi /login locally, or create/edit the agent in Advanced options and add provider env there. Test now is the source of truth.";
+    }
+    if (provider) {
+      return `For Pi, authenticate provider "${provider}" with pi /login, auth.json, or provider env, then use Test now to prove the selected model can answer.`;
+    }
+    return "Pi models use provider/model format. Use pi --list-models, or enter a custom provider/model and run Test now.";
+  }
+  if (agentRuntimeType === "opencode_local") {
+    if (provider) {
+      return `For OpenCode, authenticate provider "${provider}" with opencode auth login or provider env, then use Test now to prove the selected model can answer.`;
+    }
+    return "OpenCode models use provider/model format. Use opencode models, or enter a custom provider/model and run Test now.";
+  }
+  return null;
+}
+
+export function runtimeManualProbeCommand(agentRuntimeType: string, command: string, model: string): string {
+  const executable = command.trim();
+  if (agentRuntimeType === "cursor") {
+    return `${executable} --trust -p --mode ask --output-format json "Respond with hello."`;
+  }
+  if (agentRuntimeType === "codex_local") {
+    return `${executable} exec --json -`;
+  }
+  if (agentRuntimeType === "gemini_local") {
+    return `${executable} --output-format json "Respond with hello."`;
+  }
+  if (agentRuntimeType === "opencode_local") {
+    const modelArg = model.trim() ? ` --model ${model.trim()}` : "";
+    return `${executable} run --format json${modelArg} "Respond with hello."`;
+  }
+  if (agentRuntimeType === "pi_local") {
+    const provider = providerFromModelId(model) ?? "<provider>";
+    const modelId = modelNameFromProviderModelId(model) ?? "<model>";
+    return `${executable} -p "Respond with hello." --mode json --provider ${provider} --model ${modelId} --tools read`;
+  }
+  return `${executable} --print - --output-format stream-json --verbose`;
+}
+
+export function runtimeAuthRecoveryHint(agentRuntimeType: string, model: string): string {
+  const provider = providerFromModelId(model);
+  if (agentRuntimeType === "cursor") return "If auth fails, set CURSOR_API_KEY in env or run cursor-agent login.";
+  if (agentRuntimeType === "codex_local") return "If auth fails, run codex login or configure the OpenAI credentials Codex already uses locally.";
+  if (agentRuntimeType === "gemini_local") return "If auth fails, set GEMINI_API_KEY in env or run gemini auth.";
+  if (agentRuntimeType === "opencode_local") return "If auth fails, run opencode auth login or set the provider API key in env.";
+  if (agentRuntimeType === "pi_local" && provider === "deepseek") {
+    return "If auth fails, set DEEPSEEK_API_KEY for native Pi DeepSeek or run pi /login. If Pi asks for openrouter, set OPENROUTER_API_KEY or add a native DeepSeek provider/model in ~/.pi/agent/models.json.";
+  }
+  if (agentRuntimeType === "pi_local" && provider) {
+    return `If auth fails, authenticate provider "${provider}" with pi /login, ~/.pi/agent/auth.json, or provider env.`;
+  }
+  return "If login is required, run claude auth login and retry.";
+}
+
+export function blockingRuntimeEnvironmentMessage(
+  result: { status: string; checks: Array<{ code: string; level: string; message: string; hint?: string }> },
+): string | null {
+  const blockingCheck = result.checks.find((check) =>
+    check.level === "error"
+    || /_hello_probe_(auth_required|model_unavailable|timed_out|unexpected_output|failed)$/.test(check.code)
+  );
+  if (result.status === "fail" || blockingCheck) {
+    const detail = blockingCheck?.hint || blockingCheck?.message;
+    return detail
+      ? `Runtime environment test is not ready: ${detail}`
+      : "Runtime environment test is not ready. Fix the runtime setup and run Test now again.";
+  }
+  return null;
 }
 
 export function resolveRuntimeModels(

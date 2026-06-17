@@ -607,6 +607,7 @@ const TimelineList = memo(function TimelineList({
                   limit={4}
                   streaming={isActive}
                   collapseStdout
+                  presentation="chat"
                   emptyMessage={
                     hasOutput
                       ? "Waiting for transcript parsing..."

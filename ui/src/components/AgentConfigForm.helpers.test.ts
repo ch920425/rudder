@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  blockingRuntimeEnvironmentMessage,
   explicitProviderModelError,
   isProviderModelFormat,
   requiresExplicitProviderModel,
+  runtimeAuthRecoveryHint,
+  runtimeManualProbeCommand,
   runtimeModelEmptyLabel,
   runtimeModelEmptyMessage,
   runtimeModelSearchPlaceholder,
+  runtimeProviderSetupHint,
 } from "../lib/runtime-models";
 import { defaultCommandForRuntime, defaultConfigForRuntime, defaultModelForRuntime } from "./AgentConfigForm.helpers";
 
@@ -48,5 +52,77 @@ describe("AgentConfigForm runtime defaults", () => {
     expect(isProviderModelFormat("deepseek/deepseek-chat")).toBe(true);
     expect(isProviderModelFormat("deepseek-chat")).toBe(false);
     expect(isProviderModelFormat("deepseek/")).toBe(false);
+  });
+
+  it("gives Pi and OpenCode provider-specific onboarding commands", () => {
+    expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
+    expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("~/.pi/agent/models.json");
+    expect(runtimeManualProbeCommand("pi_local", "pi", "deepseek/deepseek-chat"))
+      .toBe('pi -p "Respond with hello." --mode json --provider deepseek --model deepseek-chat --tools read');
+    expect(runtimeAuthRecoveryHint("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
+    expect(runtimeAuthRecoveryHint("pi_local", "deepseek/deepseek-chat")).not.toContain("claude auth login");
+
+    expect(runtimeManualProbeCommand("opencode_local", "opencode", "opencode/deepseek-v4-flash-free"))
+      .toBe('opencode run --format json --model opencode/deepseek-v4-flash-free "Respond with hello."');
+    expect(runtimeManualProbeCommand("cursor", "cursor-agent", "auto"))
+      .toBe('cursor-agent --trust -p --mode ask --output-format json "Respond with hello."');
+  });
+
+  it("blocks onboarding when the runtime hello probe fails or needs provider auth", () => {
+    expect(blockingRuntimeEnvironmentMessage({
+      status: "warn",
+      checks: [
+        {
+          code: "pi_hello_probe_auth_required",
+          level: "warn",
+          message: "Pi is installed, but provider authentication is not ready.",
+          hint: "Set DEEPSEEK_API_KEY.",
+        },
+      ],
+    })).toContain("DEEPSEEK_API_KEY");
+
+    expect(blockingRuntimeEnvironmentMessage({
+      status: "warn",
+      checks: [
+        {
+          code: "opencode_hello_probe_model_unavailable",
+          level: "warn",
+          message: "The configured model was not found by the provider.",
+        },
+      ],
+    })).toContain("model was not found");
+
+    expect(blockingRuntimeEnvironmentMessage({
+      status: "warn",
+      checks: [
+        {
+          code: "pi_hello_probe_timed_out",
+          level: "warn",
+          message: "Pi hello probe timed out.",
+        },
+      ],
+    })).toContain("timed out");
+
+    expect(blockingRuntimeEnvironmentMessage({
+      status: "warn",
+      checks: [
+        {
+          code: "codex_hello_probe_unexpected_output",
+          level: "warn",
+          message: "Codex probe ran but did not return `hello` as expected.",
+        },
+      ],
+    })).toContain("did not return");
+
+    expect(blockingRuntimeEnvironmentMessage({
+      status: "warn",
+      checks: [
+        {
+          code: "pi_model_not_discovered",
+          level: "info",
+          message: "Custom model will be proven by hello probe.",
+        },
+      ],
+    })).toBeNull();
   });
 });

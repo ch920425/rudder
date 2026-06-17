@@ -3,7 +3,7 @@ import type { TranscriptEntry } from "../../agent-runtimes";
 import { cn } from "../../lib/utils";
 import { CommandTerminalDetail, DisclosureChevron, ExpandableTranscriptResponsePre, areAllToolEntriesErrored, renderTranscriptBlock } from "./RunTranscriptView.blocks";
 import { ChatTranscriptAction, ChatTranscriptTurn, TranscriptActionIcon, TranscriptActionIconCategory, TranscriptActionIconSlot, TranscriptActionIconStack, TranscriptActionIconStatus, TranscriptBlock, TranscriptDensity, TranscriptMarkdownLinkClickHandler, TranscriptToolCardEntry, TranscriptToolSemanticInfo, asRecord, compactWhitespace, formatTranscriptDuration, getTranscriptTimestampTitle, truncate } from "./RunTranscriptView.common";
-import { formatSemanticDigest, normalizeChatTranscriptTurns } from "./RunTranscriptView.normalize";
+import { formatSemanticDigest, normalizeChatTranscriptTurns, summarizeToolResult } from "./RunTranscriptView.normalize";
 import { describeToolSemanticInfo, formatCommandTerminalOutput, formatToolPayload, isCommandTool } from "./RunTranscriptView.semantic";
 import { stripWrappedShell } from "./RunTranscriptView.shell";
 
@@ -65,6 +65,16 @@ export function getToolCommand(block: TranscriptToolCardEntry): string | null {
 
 export function shouldHideChatToolResult(semantic: TranscriptToolSemanticInfo): boolean {
   return semantic.category === "read" || semantic.category === "skill";
+}
+
+function formatChatToolActionSummary(block: TranscriptToolCardEntry, semantic: TranscriptToolSemanticInfo, density: TranscriptDensity) {
+  if (
+    semantic.summary &&
+    !(semantic.summary === "Tool" && block.input == null && typeof block.result === "string" && block.result.trim())
+  ) {
+    return semantic.summary;
+  }
+  return summarizeToolResult(block.result, block.status === "error", density);
 }
 
 function TranscriptChatActionIconCell({
@@ -167,6 +177,7 @@ export function TranscriptChatToolActionRow({
   highlightError?: boolean;
 }) {
   const semantic = describeToolSemanticInfo(block.name, block.input);
+  const displaySummary = formatChatToolActionSummary(block, semantic, density);
   const compact = density === "compact";
   const isCommand = isCommandTool(block.name, block.input);
   const command = getToolCommand(block);
@@ -225,7 +236,7 @@ export function TranscriptChatToolActionRow({
       >
         <TranscriptChatActionIconCell category={semantic.category} status={iconStatus} compact={compact} />
         <span className={cn("min-w-0 flex-1 break-words text-foreground/84", compact ? "text-xs leading-5" : "text-sm leading-6")}>
-          {semantic.summary}
+          {displaySummary}
         </span>
         {duration ? (
           <span className={cn("text-[10px] font-medium tabular-nums text-muted-foreground", trailingOffsetClass)}>

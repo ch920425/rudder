@@ -437,6 +437,34 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("in the assistant message.");
   });
 
+  it("uses orphan tool result content as the chat action summary", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView
+          density="compact"
+          presentation="chat"
+          entries={[
+            {
+              kind: "tool_result",
+              ts: "2026-06-17T08:00:02.000Z",
+              toolUseId: "tool-1",
+              content: "Tool response visible to the operator.",
+              isError: false,
+            },
+            {
+              kind: "assistant",
+              ts: "2026-06-17T08:00:03.000Z",
+              text: "I can use the enabled Rudder skills.",
+            },
+          ]}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain("Tool response visible to the operator.");
+    expect(html).toContain("I can use the enabled Rudder skills.");
+  });
+
   it("renders chat thinking inline instead of behind a collapsed summary", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>

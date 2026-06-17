@@ -19,6 +19,10 @@ import {
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockConfirm = vi.hoisted(() => vi.fn(async () => true));
+const mockTranscriptState = vi.hoisted(() => ({
+  transcriptByRun: new Map<string, unknown[]>(),
+  hasOutputForRun: vi.fn(() => false),
+}));
 
 vi.mock("@/context/DialogContext", () => ({
   useDialog: () => ({ confirm: mockConfirm }),
@@ -119,19 +123,31 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 vi.mock("./transcript/useLiveRunTranscripts", () => ({
   useLiveRunTranscripts: () => ({
-    transcriptByRun: new Map(),
-    hasOutputForRun: () => false,
+    transcriptByRun: mockTranscriptState.transcriptByRun,
+    hasOutputForRun: mockTranscriptState.hasOutputForRun,
   }),
 }));
 
 vi.mock("./transcript/RunTranscriptView", () => ({
   RunTranscriptView: ({
     emptyMessage,
+    entries,
+    presentation,
     streaming,
   }: {
     emptyMessage?: string;
+    entries?: unknown[];
+    presentation?: string;
     streaming?: boolean;
-  }) => <div data-streaming={streaming ? "true" : "false"}>{emptyMessage ?? "Transcript details"}</div>,
+  }) => (
+    <div
+      data-presentation={presentation ?? "default"}
+      data-streaming={streaming ? "true" : "false"}
+      data-transcript-entry-count={entries?.length ?? 0}
+    >
+      {emptyMessage ?? "Transcript details"}
+    </div>
+  ),
 }));
 
 describe("CommentThread", () => {
@@ -204,6 +220,9 @@ describe("CommentThread", () => {
     cleanupFn?.();
     cleanupFn = null;
     document.body.innerHTML = "";
+    mockTranscriptState.transcriptByRun = new Map();
+    mockTranscriptState.hasOutputForRun.mockReset();
+    mockTranscriptState.hasOutputForRun.mockReturnValue(false);
     mockConfirm.mockReset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -414,6 +433,56 @@ describe("CommentThread", () => {
 
     expect(html).toContain('data-agent-mention-count="1"');
     expect(html).toContain('data-agent-mention-name="Holden"');
+  });
+
+  it("renders linked run transcripts with the chat-style runtime presentation", () => {
+    mockTranscriptState.transcriptByRun = new Map([
+      [
+        "run-1",
+        [
+          {
+            kind: "user",
+            ts: "2026-06-17T08:00:01.000Z",
+            text: "# Rudder Agent Operating Contract\n\nYour home directory is $AGENT_HOME.",
+          },
+          {
+            kind: "tool_result",
+            ts: "2026-06-17T08:00:02.000Z",
+            toolUseId: "tool-1",
+            content: "Tool response visible to the operator.",
+            isError: false,
+          },
+          {
+            kind: "assistant",
+            ts: "2026-06-17T08:00:03.000Z",
+            text: "I can use the enabled Rudder skills.",
+          },
+        ],
+      ],
+    ]);
+    mockTranscriptState.hasOutputForRun.mockReturnValue(true);
+
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <CommentThread
+          comments={[]}
+          linkedRuns={[
+            {
+              runId: "run-1",
+              agentId: "agent-1",
+              status: "running",
+              createdAt: new Date("2026-06-17T08:00:00.000Z"),
+              startedAt: new Date("2026-06-17T08:00:00.000Z"),
+              invocationSource: "manual",
+            },
+          ]}
+          onAdd={async () => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain('data-presentation="chat"');
+    expect(html).toContain('data-transcript-entry-count="3"');
   });
 
   it("uses the operator nickname for board-authored comments", () => {
