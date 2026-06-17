@@ -44,6 +44,35 @@ async function holdHeartbeatRuns(page: Page, orgId: string) {
   return release;
 }
 
+async function holdAgentSkillAnalytics(page: Page, orgId: string, agentId: string) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route(`**/api/agents/${agentId}/skills/analytics**`, async (route: Route) => {
+    await gate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      json: {
+        agentId,
+        orgId,
+        windowDays: 7,
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: new Date().toISOString().slice(0, 10),
+        totalCount: 0,
+        totalRunsWithSkills: 0,
+        evidenceCounts: { used: 0, requested: 0, loaded: 0 },
+        skills: [],
+        days: [],
+      },
+    });
+  });
+
+  return release;
+}
+
 test.describe("Agent detail loading state", () => {
   test("keeps the dashboard in a skeleton state until agent activity loads", async ({ page }) => {
     const { organization, agent } = await createAgentFixture(page, "Loading Dashboard Agent");
@@ -62,6 +91,26 @@ test.describe("Agent detail loading state", () => {
 
     await expect(mainContent.getByTestId("agent-dashboard-skeleton")).toHaveCount(0);
     await expect(mainContent.getByText("No recent issues.")).toBeVisible();
+  });
+
+  test("does not block the dashboard while skill analytics loads", async ({ page }) => {
+    const { organization, agent } = await createAgentFixture(page, "Slow Skills Agent");
+    const releaseSkillAnalytics = await holdAgentSkillAnalytics(page, organization.id, agent.id);
+
+    await page.goto(`/${organization.issuePrefix}/agents/${agent.id}/dashboard`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    const mainContent = page.locator("#main-content");
+    await expect(mainContent.getByRole("heading", { name: "Slow Skills Agent", exact: true })).toBeVisible();
+    await expect(mainContent.getByTestId("agent-dashboard-skeleton")).toHaveCount(0);
+    await expect(mainContent.getByText("No recent issues.")).toBeVisible();
+    await expect(mainContent.locator("h3").filter({ hasText: "Skills" })).toBeVisible();
+    await expect(mainContent.getByTestId("agent-skills-analytics-skeleton")).toBeVisible();
+
+    releaseSkillAnalytics();
+
+    await expect(mainContent.getByTestId("agent-skills-analytics-skeleton")).toHaveCount(0);
   });
 
   test("does not flash an empty runs state before runs have loaded", async ({ page }) => {

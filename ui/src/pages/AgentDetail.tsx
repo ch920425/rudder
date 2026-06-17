@@ -1431,7 +1431,6 @@ export function AgentDetail() {
     || isHeartbeatsLoading
     || isIssuesLoading
     || isRuntimeStateLoading
-    || isSkillAnalyticsLoading
   );
   const isRunsContentLoading = needsRunData && isHeartbeatsLoading;
 
@@ -1698,6 +1697,7 @@ export function AgentDetail() {
           chartIssues={filteredAssignedIssues}
           runtimeState={runtimeState}
           skillAnalytics={skillAnalytics}
+          isSkillAnalyticsLoading={isSkillAnalyticsLoading}
           costTrendRows={agentCostTrend ?? []}
           agentId={agent.id}
           agentRouteId={canonicalAgentRef}
@@ -1965,6 +1965,7 @@ function AgentOverview({
   chartIssues,
   runtimeState,
   skillAnalytics,
+  isSkillAnalyticsLoading,
   costTrendRows,
   agentId,
   agentRouteId,
@@ -1980,6 +1981,7 @@ function AgentOverview({
   chartIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[];
   runtimeState?: AgentRuntimeState;
   skillAnalytics?: AgentSkillAnalytics;
+  isSkillAnalyticsLoading?: boolean;
   costTrendRows: CostTrendPoint[];
   agentId: string;
   agentRouteId: string;
@@ -2016,7 +2018,7 @@ function AgentOverview({
         </ChartCard>
       </div>
 
-      {showDashboardFilters && shouldShowSkills ? (
+      {showDashboardFilters && (shouldShowSkills || isSkillAnalyticsLoading) ? (
         <div className="space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -2025,12 +2027,39 @@ function AgentOverview({
                 Skill usage per run for {rangeLabel}. Hover a day to inspect the breakdown.
               </p>
             </div>
-            <div className="text-right text-[11px] text-muted-foreground tabular-nums">
-              <div>{visibleSkillAnalytics.totalCount} skill uses</div>
-              <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage</div>
-            </div>
+            {visibleSkillAnalytics ? (
+              <div className="text-right text-[11px] text-muted-foreground tabular-nums">
+                <div>{visibleSkillAnalytics.totalCount} skill uses</div>
+                <div>{visibleSkillAnalytics.totalRunsWithSkills} runs with skill usage</div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Skeleton className="ml-auto h-3 w-20" />
+                <Skeleton className="ml-auto h-3 w-28" />
+              </div>
+            )}
           </div>
-          <SkillsUsageChart analytics={visibleSkillAnalytics} />
+          {visibleSkillAnalytics ? (
+            <SkillsUsageChart analytics={visibleSkillAnalytics} />
+          ) : (
+            <div
+              aria-busy="true"
+              aria-label="Loading skill usage"
+              className="space-y-3 rounded-lg border border-border p-4"
+              data-testid="agent-skills-analytics-skeleton"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <Skeleton className="h-36 w-full rounded-md" />
+              <div className="flex gap-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            </div>
+          )}
         </div>
       ) : null}
 
