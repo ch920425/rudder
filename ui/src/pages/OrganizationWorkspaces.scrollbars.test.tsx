@@ -70,6 +70,13 @@ vi.mock("@tanstack/react-query", () => ({
             entityType: "organization_workspace",
           },
           {
+            name: "proposal.html",
+            displayLabel: "proposal.html",
+            path: "artifacts/chat-ui-review/proposal.html",
+            isDirectory: false,
+            entityType: "organization_workspace",
+          },
+          {
             name: "README.md",
             displayLabel: "README.md",
             path: "artifacts/chat-ui-review/README.md",
@@ -113,6 +120,19 @@ vi.mock("@tanstack/react-query", () => ({
         return {
           data: null,
           isLoading: true,
+          error: null,
+        };
+      }
+      if (String(filePath).endsWith(".html")) {
+        return {
+          data: {
+            filePath,
+            content: "<!doctype html><html><body><h1>Rendered proposal</h1><p>HTML output.</p></body></html>",
+            contentType: "text/html",
+            previewKind: "text",
+            truncated: false,
+          },
+          isLoading: false,
           error: null,
         };
       }
@@ -715,6 +735,41 @@ describe("OrganizationWorkspaces scroll regions", () => {
       "false",
       "true",
     ]);
+  });
+
+  it("renders Library HTML files as sandboxed previews instead of raw source", async () => {
+    renderWorkspacesPage();
+
+    const htmlFileButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "proposal.html",
+    );
+    expect(htmlFileButton).toBeTruthy();
+
+    await act(async () => {
+      htmlFileButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const preview = document.querySelector<HTMLIFrameElement>("[data-testid='org-workspaces-html-preview']");
+    expect(preview).not.toBeNull();
+    expect(preview?.getAttribute("sandbox")).toBe("");
+    expect(preview?.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(preview?.getAttribute("srcdoc")).toContain("Content-Security-Policy");
+    expect(preview?.getAttribute("srcdoc")).toContain("<h1>Rendered proposal</h1>");
+    expect(document.querySelector("[data-testid='org-workspaces-editor-textarea']")).toBeNull();
+    expect(document.querySelector("[data-testid='org-workspaces-html-preview-scroll']")?.textContent).not.toContain("<!doctype html>");
+
+    const sourceButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Source",
+    );
+    expect(sourceButton).toBeTruthy();
+
+    await act(async () => {
+      sourceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    const sourceTextarea = document.querySelector<HTMLTextAreaElement>("[data-testid='org-workspaces-editor-textarea']");
+    expect(sourceTextarea).not.toBeNull();
+    expect(sourceTextarea?.value).toContain("<h1>Rendered proposal</h1>");
   });
 
   it("uploads Library markdown images as assets instead of embedding data URLs", async () => {

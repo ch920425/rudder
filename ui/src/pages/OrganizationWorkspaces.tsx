@@ -84,6 +84,7 @@ import { readDesktopShell, type DesktopIdeTarget, type DesktopWorkspaceLaunchTar
 import { extractDocumentOutline, type DocumentOutlineItem } from "../lib/document-outline";
 import type { AtomicInlineTokenElement } from "../lib/inline-token-dom";
 import { libraryCopy } from "../lib/library-copy";
+import { getCachedLibraryEntryMetadata } from "../lib/library-entry-cache";
 import { parseMentionChipHref } from "../lib/mention-chips";
 import { queryKeys } from "../lib/queryKeys";
 import {
@@ -112,6 +113,9 @@ const WORKSPACE_LAUNCH_TARGET_IDS = [
   "finder",
 ] as const satisfies readonly DesktopWorkspaceLaunchTarget["id"][];
 const WORKSPACE_IMAGE_FILE_EXTENSIONS = new Set([".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
+const WORKSPACE_HTML_FILE_EXTENSIONS = new Set([".html", ".htm"]);
+const WORKSPACE_HTML_PREVIEW_CSP_META =
+  "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'\">";
 const WORKSPACE_TAB_CONTEXT_MENU_WIDTH = 220;
 const WORKSPACE_TAB_CONTEXT_MENU_MAX_HEIGHT = 256;
 const WORKSPACE_MARKDOWN_FILE_EXTENSIONS = new Set([".md", ".markdown", ".mdown"]);
@@ -455,6 +459,25 @@ function isWorkspaceImageFilePath(filePath: string | null) {
 function isWorkspaceMarkdownFilePath(filePath: string | null) {
   const extension = getWorkspaceFileExtension(filePath);
   return extension !== null && WORKSPACE_MARKDOWN_FILE_EXTENSIONS.has(extension);
+}
+
+function isWorkspaceHtmlFilePath(filePath: string | null) {
+  const extension = getWorkspaceFileExtension(filePath);
+  return extension !== null && WORKSPACE_HTML_FILE_EXTENSIONS.has(extension);
+}
+
+function isWorkspaceHtmlContentType(contentType: string | null | undefined) {
+  return typeof contentType === "string" && contentType.toLowerCase().split(";")[0]?.trim() === "text/html";
+}
+
+function buildWorkspaceHtmlPreviewSrcDoc(content: string) {
+  if (/<head(?:\s[^>]*)?>/iu.test(content)) {
+    return content.replace(/<head(?:\s[^>]*)?>/iu, (match) => `${match}\n${WORKSPACE_HTML_PREVIEW_CSP_META}`);
+  }
+  if (/<html(?:\s[^>]*)?>/iu.test(content)) {
+    return content.replace(/<html(?:\s[^>]*)?>/iu, (match) => `${match}\n<head>${WORKSPACE_HTML_PREVIEW_CSP_META}</head>`);
+  }
+  return `<!doctype html><html><head>${WORKSPACE_HTML_PREVIEW_CSP_META}</head><body>${content}</body></html>`;
 }
 
 function isWorkspaceTextDocumentFilePath(filePath: string | null) {
@@ -3016,17 +3039,21 @@ export function OrganizationWorkspaceBrowser({
   const requestedFilePath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("path"));
   const requestedResourceAttachmentId = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("resource"));
   const requestedDirectoryPath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("directory"));
+  const cachedRequestedEntryPath = normalizeRequestedPath(
+    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath,
+  );
   const initialOpenFileTabState = useMemo(
     () => readStoredWorkspaceOpenFileTabState(viewedOrganizationId),
     [viewedOrganizationId],
   );
   const initialSelectedFilePath = requestedDocumentId || requestedResourceAttachmentId || requestedDirectoryPath
     ? null
-    : requestedFilePath ?? initialOpenFileTabState.selectedFilePath;
+    : cachedRequestedEntryPath ?? requestedFilePath ?? initialOpenFileTabState.selectedFilePath;
   const initialSafeSelectedFilePath = isLegacyAgentHeartbeatInstructionPath(initialSelectedFilePath)
     ? null
     : initialSelectedFilePath;
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(initialSafeSelectedFilePath);
+  const [htmlFileMode, setHtmlFileMode] = useState<"preview" | "source">("preview");
   const [openFilePaths, setOpenFilePaths] = useState<string[]>(
     () => normalizeWorkspaceOpenFilePaths([...initialOpenFileTabState.openFilePaths, initialSafeSelectedFilePath])
       .filter((filePath) => !isLegacyAgentHeartbeatInstructionPath(filePath)),
@@ -3063,7 +3090,9 @@ export function OrganizationWorkspaceBrowser({
   );
   const [rootDropActive, setRootDropActive] = useState(false);
   const [draggedEntryPath, setDraggedEntryPath] = useState<string | null>(null);
-  const [activeEntryPath, setActiveEntryPath] = useState<string | null>(requestedFilePath ?? requestedDirectoryPath);
+  const [activeEntryPath, setActiveEntryPath] = useState<string | null>(
+    cachedRequestedEntryPath ?? requestedFilePath ?? requestedDirectoryPath,
+  );
   const [createTarget, setCreateTarget] = useState<{
     parent: OrganizationWorkspaceFileEntry;
     kind: "file" | "folder";
@@ -3102,6 +3131,10 @@ export function OrganizationWorkspaceBrowser({
   }, []);
   selectedFilePathRef.current = selectedFilePath;
   openFilePathsRef.current = openFilePaths;
+
+  useEffect(() => {
+    setHtmlFileMode("preview");
+  }, [selectedFilePath]);
 
   useEffect(() => {
     const clearRootDropState = () => {
@@ -3213,6 +3246,11 @@ export function OrganizationWorkspaceBrowser({
     enabled: !!viewedOrganizationId && !!requestedEntryId && !requestedDocumentId,
     refetchOnWindowFocus: false,
   });
+  const requestedEntryPath = normalizeRequestedPath(
+    libraryEntryQuery.data?.status === "active"
+      ? libraryEntryQuery.data.currentPath
+      : cachedRequestedEntryPath,
+  );
   const projectResourceTree = useProjectResourceTreeGroups(viewedOrganizationId);
   const selectedProjectResource = useMemo(
     () => findProjectResourceSelection(projectResourceTree.projects, requestedResourceAttachmentId),
@@ -3226,9 +3264,13 @@ export function OrganizationWorkspaceBrowser({
       return;
     }
     if (requestedEntryId) {
+      if (requestedEntryPath) {
+        setSelectedFilePath(requestedEntryPath);
+        setActiveEntryPath(requestedEntryPath);
+      }
       if (libraryEntryQuery.data?.status === "active" && libraryEntryQuery.data.currentPath) {
         updateSelectedPath(searchParams, setSearchParams, libraryEntryQuery.data.currentPath);
-      } else {
+      } else if (!requestedEntryPath) {
         setActiveEntryPath(null);
       }
       return;
@@ -3236,7 +3278,7 @@ export function OrganizationWorkspaceBrowser({
     if (selectedFilePath) setActiveEntryPath(selectedFilePath);
     else if (selectedResourcePath) setActiveEntryPath(selectedResourcePath);
     else if (requestedDirectoryPath) setActiveEntryPath(requestedDirectoryPath);
-  }, [libraryEntryQuery.data?.currentPath, requestedDirectoryPath, requestedDocumentId, requestedEntryId, searchParams, selectedFilePath, selectedResourcePath, setSearchParams]);
+  }, [libraryEntryQuery.data?.currentPath, requestedDirectoryPath, requestedDocumentId, requestedEntryId, requestedEntryPath, searchParams, selectedFilePath, selectedResourcePath, setSearchParams]);
   const agentWorkspaceEntriesQuery = useQuery({
     queryKey: queryKeys.organizations.workspaceFiles(viewedOrganizationId ?? "__none__", "agents"),
     queryFn: () => organizationsApi.listWorkspaceFiles(viewedOrganizationId!, "agents"),
@@ -3331,7 +3373,7 @@ export function OrganizationWorkspaceBrowser({
     allowDefaultFileOpenRef.current = true;
     const storedTabState = readStoredWorkspaceOpenFileTabState(viewedOrganizationId);
 
-    if (requestedDocumentId || requestedEntryId) {
+    if (requestedDocumentId || (requestedEntryId && !requestedEntryPath)) {
       setOpenFilePaths([]);
       setSelectedFilePath(null);
       setDraftFilePath(null);
@@ -3339,8 +3381,9 @@ export function OrganizationWorkspaceBrowser({
       return;
     }
 
-    const nextOpenFilePaths = requestedFilePath
-      ? normalizeWorkspaceOpenFilePaths([...storedTabState.openFilePaths, requestedFilePath])
+    const requestedWorkspaceFilePath = requestedEntryPath ?? requestedFilePath;
+    const nextOpenFilePaths = requestedWorkspaceFilePath
+      ? normalizeWorkspaceOpenFilePaths([...storedTabState.openFilePaths, requestedWorkspaceFilePath])
       : storedTabState.openFilePaths;
     const safeOpenFilePaths = nextOpenFilePaths.filter((filePath) => !isLegacyAgentHeartbeatInstructionPath(filePath));
     setOpenFilePaths(safeOpenFilePaths);
@@ -3351,16 +3394,16 @@ export function OrganizationWorkspaceBrowser({
       return;
     }
 
-    if (requestedFilePath) {
-      if (isLegacyAgentHeartbeatInstructionPath(requestedFilePath)) {
-        setLegacyHeartbeatDialogPath(requestedFilePath);
+    if (requestedWorkspaceFilePath) {
+      if (isLegacyAgentHeartbeatInstructionPath(requestedWorkspaceFilePath)) {
+        setLegacyHeartbeatDialogPath(requestedWorkspaceFilePath);
         setSelectedFilePath(null);
         setDraftFilePath(null);
-        setActiveEntryPath(requestedFilePath);
+        setActiveEntryPath(requestedWorkspaceFilePath);
         return;
       }
-      setSelectedFilePath(requestedFilePath);
-      setActiveEntryPath(requestedFilePath);
+      setSelectedFilePath(requestedWorkspaceFilePath);
+      setActiveEntryPath(requestedWorkspaceFilePath);
       return;
     }
 
@@ -3386,6 +3429,7 @@ export function OrganizationWorkspaceBrowser({
     requestedDirectoryPath,
     requestedDocumentId,
     requestedEntryId,
+    requestedEntryPath,
     requestedFilePath,
     requestedResourceAttachmentId,
     searchParams,
@@ -4049,7 +4093,7 @@ export function OrganizationWorkspaceBrowser({
     );
   }
 
-  if (rootQuery.isLoading) {
+  if (rootQuery.isLoading && !selectedFilePath && !requestedEntryPath && !requestedDirectoryPath && !selectedResourcePath) {
     return <PageSkeleton variant="detail" />;
   }
 
@@ -4058,19 +4102,23 @@ export function OrganizationWorkspaceBrowser({
   }
 
   if (requestedEntryId) {
-    if (libraryEntryQuery.isLoading) {
+    if (libraryEntryQuery.isLoading && !requestedEntryPath) {
       return <PageSkeleton variant="detail" />;
     }
-    if (libraryEntryQuery.error) {
+    if (libraryEntryQuery.error && !requestedEntryPath) {
       return <EmptyState icon={FileText} message="This Library reference could not be found or is not available in this organization." />;
     }
-    if (libraryEntryQuery.data?.status !== "active" || !libraryEntryQuery.data.currentPath) {
+    if (libraryEntryQuery.data && (libraryEntryQuery.data.status !== "active" || !libraryEntryQuery.data.currentPath)) {
       return <EmptyState icon={FileText} message="This Library reference no longer points to an active workspace file." />;
     }
   }
 
-  const workspace = rootQuery.data;
-  if (!workspace) return null;
+  const workspace = rootQuery.data ?? {
+    rootExists: true,
+    rootPath: "",
+    directoryPath: "",
+    entries: [],
+  };
 
   const handleSelectFile = (filePath: string) => {
     setTabContextMenu(null);
@@ -4174,6 +4222,15 @@ export function OrganizationWorkspaceBrowser({
     agentWorkspaceMentionOptions,
   );
   const selectedFileUsesMarkdownEditor = isWorkspaceMarkdownFilePath(selectedFilePath);
+  const selectedFileCanRenderHtml = Boolean(
+    selectedFileDetail?.content !== null
+    && selectedFileDetail?.previewKind === "text"
+    && (isWorkspaceHtmlFilePath(selectedFilePath) || isWorkspaceHtmlContentType(selectedFileDetail?.contentType)),
+  );
+  const selectedFileUsesHtmlPreview = selectedFileCanRenderHtml && htmlFileMode === "preview";
+  const selectedHtmlPreviewSrcDoc = selectedFileCanRenderHtml
+    ? buildWorkspaceHtmlPreviewSrcDoc(selectedEditorContent)
+    : "";
   const selectedMarkdownOutline = selectedFileUsesMarkdownEditor
     ? extractDocumentOutline(selectedMarkdownParts.body)
     : [];
@@ -4217,6 +4274,37 @@ export function OrganizationWorkspaceBrowser({
   const tabContextMenuIndex = tabContextMenu ? openFilePaths.indexOf(tabContextMenu.filePath) : -1;
   const canCloseOtherTabs = Boolean(tabContextMenu && openFilePaths.length > 1);
   const canCloseTabsToRight = tabContextMenuIndex >= 0 && tabContextMenuIndex < openFilePaths.length - 1;
+
+  function renderHtmlFileModeToggle(currentMode: "preview" | "source", surfaceClassName: string) {
+    return (
+      <div
+        className={cn("inline-flex shrink-0 overflow-hidden rounded-md border border-border p-0.5", surfaceClassName)}
+        role="group"
+        aria-label="HTML file mode"
+      >
+        <Button
+          type="button"
+          variant={currentMode === "preview" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 rounded-[4px] px-2 text-xs"
+          aria-pressed={currentMode === "preview"}
+          onClick={() => setHtmlFileMode("preview")}
+        >
+          Preview
+        </Button>
+        <Button
+          type="button"
+          variant={currentMode === "source" ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 rounded-[4px] px-2 text-xs"
+          aria-pressed={currentMode === "source"}
+          onClick={() => setHtmlFileMode("source")}
+        >
+          Source
+        </Button>
+      </div>
+    );
+  }
 
   function scrollToSelectedMarkdownOutlineItem(item: DocumentOutlineItem) {
     const editorScrollElement = editorScrollElementRef.current;
@@ -4898,6 +4986,27 @@ export function OrganizationWorkspaceBrowser({
                 <div className="px-4 py-6 text-sm text-muted-foreground">Loading file…</div>
               ) : fileQuery.error ? (
                 <div className="px-4 py-6 text-sm text-destructive">{fileQuery.error.message}</div>
+              ) : selectedFileUsesHtmlPreview ? (
+                <div
+                  ref={setEditorScrollElementRef}
+                  data-testid="org-workspaces-html-preview-scroll"
+                  className="scrollbar-auto-hide flex h-full min-h-[420px] flex-col overflow-auto bg-white"
+                >
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-[color:var(--surface-elevated)] px-4 py-2">
+                    <div className="min-w-0 truncate text-xs text-muted-foreground">
+                      {selectedFileDetail?.message ?? "HTML preview"}
+                    </div>
+                    {renderHtmlFileModeToggle("preview", "bg-[color:var(--surface-page)]")}
+                  </div>
+                  <iframe
+                    data-testid="org-workspaces-html-preview"
+                    title={selectedFilePath ?? "Library HTML preview"}
+                    srcDoc={selectedHtmlPreviewSrcDoc}
+                    sandbox=""
+                    referrerPolicy="no-referrer"
+                    className="block min-h-[420px] w-full flex-1 border-0 bg-white"
+                  />
+                </div>
               ) : canEditSelectedFile ? (
                 <div className="flex h-full min-h-0 flex-col">
                   {selectedFileDetail?.message ? (
@@ -4910,6 +5019,12 @@ export function OrganizationWorkspaceBrowser({
                       {saveWorkspaceFile.error instanceof Error
                         ? saveWorkspaceFile.error.message
                         : "Failed to save workspace file."}
+                    </div>
+                  ) : null}
+                  {selectedFileCanRenderHtml ? (
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-[color:var(--surface-page)] px-4 py-2">
+                      <div className="min-w-0 truncate text-xs text-muted-foreground">HTML source</div>
+                      {renderHtmlFileModeToggle("source", "bg-[color:var(--surface-elevated)]")}
                     </div>
                   ) : null}
                   {selectedFileUsesMarkdownEditor ? (
