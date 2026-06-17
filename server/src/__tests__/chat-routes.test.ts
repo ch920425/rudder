@@ -3,6 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { unprocessable } from "../errors.js";
 import { errorHandler } from "../middleware/index.js";
 import { chatRoutes } from "../routes/chats.js";
 import { claimChatGeneration, hasActiveChatGeneration } from "../services/chat-generation-locks.js";
@@ -1633,6 +1634,110 @@ describe("chat routes", () => {
       }));
       expect(mockChatService.updateDefaultTitle).toHaveBeenCalledWith("chat-1", "Debug release failure");
     });
+  });
+
+  it("regenerates an existing chat title with the organization lightweight model", async () => {
+    const conversation = createConversation({ title: "Old vague title" });
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([
+      createMessage("message-user", "user", "message", "Audit recent user feedback and runtime failures"),
+      createMessage("message-assistant", "assistant", "message", "I found three product gaps."),
+    ]);
+    mockProductIntelligenceService.execute.mockResolvedValueOnce({
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      resultJson: { stdout: "Feedback Runtime Audit" },
+    });
+    mockChatService.update.mockResolvedValueOnce(createConversation({ title: "Feedback Runtime Audit" }));
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/title/regenerate")
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(mockProductIntelligenceService.execute).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: "organization-1",
+      purpose: "lightweight",
+      feature: "chat_title",
+      prompt: expect.stringContaining("Audit recent user feedback and runtime failures"),
+    }));
+    expect(mockChatService.update).toHaveBeenCalledWith("chat-1", { title: "Feedback Runtime Audit" });
+    expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: "chat.title_regenerated",
+      entityType: "chat",
+      entityId: "chat-1",
+      details: expect.objectContaining({
+        previousTitle: "Old vague title",
+        title: "Feedback Runtime Audit",
+      }),
+    }));
+  });
+
+  it("bounds the regenerate title prompt to the latest chat messages", async () => {
+    const conversation = createConversation({ title: "Old title" });
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([
+      ...Array.from({ length: 12 }, (_, index) =>
+        createMessage(`old-message-${index}`, "user", "message", `Older context ${index}`),
+      ),
+      createMessage("latest-user", "user", "message", "Latest migration request"),
+      createMessage("latest-assistant", "assistant", "message", "Latest migration answer"),
+    ]);
+    mockProductIntelligenceService.execute.mockResolvedValueOnce({
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      stdout: "Latest Migration",
+    });
+    mockChatService.update.mockResolvedValueOnce(createConversation({ title: "Latest Migration" }));
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/title/regenerate")
+      .send();
+
+    expect(res.status).toBe(200);
+    const prompt = mockProductIntelligenceService.execute.mock.calls[0]?.[0]?.prompt as string;
+    expect(prompt).toContain("Latest migration request");
+    expect(prompt).toContain("Latest migration answer");
+    expect(prompt).not.toContain("Older context 0");
+    expect(prompt.length).toBeLessThanOrEqual(1500);
+  });
+
+  it("returns 422 without updating when Fast Intelligence is not configured for title regeneration", async () => {
+    const conversation = createConversation({ title: "Existing title" });
+    mockChatService.getById.mockResolvedValue(conversation);
+    mockChatService.listMessages.mockResolvedValue([
+      createMessage("message-user", "user", "message", "Find the right title"),
+    ]);
+    mockProductIntelligenceService.execute.mockRejectedValueOnce(unprocessable("Fast Intelligence is not configured"));
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-1/title/regenerate")
+      .send();
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Fast Intelligence is not configured" });
+    expect(mockChatService.update).not.toHaveBeenCalled();
+    expect(mockLogActivity).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: "chat.title_regenerated",
+    }));
+  });
+
+  it("requires board access to regenerate a chat title", async () => {
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: null,
+    }))
+      .post("/api/chats/chat-1/title/regenerate")
+      .send();
+
+    expect(res.status).toBe(403);
+    expect(mockChatService.getById).not.toHaveBeenCalled();
+    expect(mockProductIntelligenceService.execute).not.toHaveBeenCalled();
+    expect(mockChatService.update).not.toHaveBeenCalled();
   });
 
   it("falls back to the first user message when lightweight title generation is not configured", async () => {

@@ -19,6 +19,7 @@ const mockDeleteCustomGroup = vi.hoisted(() => vi.fn());
 const mockReorderCustomGroups = vi.hoisted(() => vi.fn());
 const mockReorderCustomGroupEntries = vi.hoisted(() => vi.fn());
 const mockUpdateConversation = vi.hoisted(() => vi.fn());
+const mockRegenerateTitle = vi.hoisted(() => vi.fn());
 const mockRemove = vi.hoisted(() => vi.fn());
 const mockStopMessageStream = vi.hoisted(() => vi.fn());
 const mockAbortChatStream = vi.hoisted(() => vi.fn());
@@ -36,6 +37,7 @@ let messengerRoute: any;
 let chatList: any[];
 let agentList: any[];
 let customGroupList: any[];
+let intelligenceProfiles: any[];
 let activeGeneratingChatIds: Set<string>;
 let cleanupFn: (() => void) | null = null;
 let clipboardWriteText: ReturnType<typeof vi.fn>;
@@ -63,6 +65,7 @@ vi.mock("@tanstack/react-query", () => ({
     if (options.enabled === false) return { data: undefined };
     const queryKey = Array.isArray(options.queryKey) ? options.queryKey : [];
     if (queryKey[0] === "agents") return { data: agentList };
+    if (queryKey[0] === "organizations" && queryKey[2] === "intelligence-profiles") return { data: intelligenceProfiles };
     if (queryKey[0] === "messenger" && queryKey[2] === "groups") return { data: { groups: customGroupList } };
     return { data: chatList };
   },
@@ -71,9 +74,16 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/api/chats", () => ({
   chatsApi: {
     update: mockUpdateConversation,
+    regenerateTitle: mockRegenerateTitle,
     remove: mockRemove,
     stopMessageStream: mockStopMessageStream,
     updateUserState: mockUpdateUserState,
+  },
+}));
+
+vi.mock("@/api/orgs", () => ({
+  organizationsApi: {
+    listIntelligenceProfiles: vi.fn(),
   },
 }));
 
@@ -282,6 +292,16 @@ describe("MessengerContextSidebar chat actions", () => {
     messengerRoute = { kind: "root" };
     chatList = [baseConversation()];
     customGroupList = [];
+    intelligenceProfiles = [
+      {
+        id: "profile-lightweight",
+        orgId: "org-1",
+        purpose: "lightweight",
+        status: "configured",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: { model: "gpt-5.4-mini" },
+      },
+    ];
     agentList = [
       {
         id: "agent-1",
@@ -306,6 +326,10 @@ describe("MessengerContextSidebar chat actions", () => {
       ...baseConversation(),
       id: chatId,
       ...data,
+    }));
+    mockRegenerateTitle.mockImplementation(async (chatId: string) => ({
+      ...baseConversation({ title: "Regenerated title" }),
+      id: chatId,
     }));
     mockRemove.mockImplementation(async (chatId: string) => ({
       ...baseConversation(),
@@ -509,6 +533,44 @@ describe("MessengerContextSidebar chat actions", () => {
       resolveUpdate(baseConversation({ title: "Renamed from sidebar" }));
       await Promise.resolve();
     });
+  });
+
+  it("regenerates a chat title from the actions menu when fast intelligence is configured", async () => {
+    renderSidebar();
+
+    const regenerate = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Regenerate title")) as HTMLButtonElement | undefined;
+
+    expect(regenerate).toBeTruthy();
+    await act(async () => {
+      regenerate?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockRegenerateTitle).toHaveBeenCalledWith("chat-1");
+    expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "detail", "chat-1"], expect.any(Function));
+    expect(setQueryData).toHaveBeenCalledWith(["messenger", "org-1", "threads"], expect.any(Function));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats", "org-1", "detail", "chat-1"] });
+  });
+
+  it("hides chat title regeneration when fast intelligence is not configured", () => {
+    intelligenceProfiles = [
+      {
+        id: "profile-lightweight",
+        orgId: "org-1",
+        purpose: "lightweight",
+        status: "disabled",
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: { model: "gpt-5.4-mini" },
+      },
+    ];
+
+    renderSidebar();
+
+    const regenerate = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Regenerate title"));
+
+    expect(regenerate).toBeUndefined();
   });
 
   it("optimistically pins a split issue thread before the Messenger user-state request resolves", async () => {

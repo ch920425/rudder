@@ -46,6 +46,8 @@ export const chatsApi = {
       resolvedAt: string | null;
     }>,
   ) => api.patch<ChatConversation>(`/chats/${chatId}`, data),
+  regenerateTitle: (chatId: string) =>
+    api.post<ChatConversation>(`/chats/${chatId}/title/regenerate`, {}),
   remove: (chatId: string, options: { cancelActive?: boolean } = {}) => {
     const query = options.cancelActive ? "?cancelActive=true" : "";
     return api.delete<ChatConversation>(`/chats/${chatId}${query}`);

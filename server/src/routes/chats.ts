@@ -83,6 +83,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
 
   const CHAT_TITLE_SOURCE_LIMIT = 1600;
   const CHAT_TITLE_MAX_LENGTH = 80;
+  const CHAT_TITLE_REGENERATION_MESSAGE_LIMIT = 12;
   const CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE =
     "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
 
@@ -162,7 +163,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
   }
 
-  function buildChatTitlePrompt(body: string) {
+  function buildChatTitlePrompt(body: string, sourceLabel = "First user message") {
     const normalized = body.replace(/\s+/g, " ").trim();
     const source = normalized.length > CHAT_TITLE_SOURCE_LIMIT
       ? `${normalized.slice(0, CHAT_TITLE_SOURCE_LIMIT)}\n\n[Input truncated for title generation.]`
@@ -174,7 +175,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       "- No quotes, markdown, emoji, or trailing punctuation.",
       `- Maximum ${CHAT_TITLE_MAX_LENGTH} characters.`,
       "",
-      "First user message:",
+      `${sourceLabel}:`,
       source,
     ].join("\n");
   }
@@ -186,6 +187,13 @@ export function chatRoutes(db: Db, storage: StorageService) {
     for (const key of ["output", "stdout", "text", "message", "summary"]) {
       const value = candidate[key];
       if (typeof value === "string" && value.trim().length > 0) return value;
+    }
+    if (candidate.resultJson && typeof candidate.resultJson === "object") {
+      const resultJson = candidate.resultJson as Record<string, unknown>;
+      for (const key of ["output", "stdout", "text", "message", "summary"]) {
+        const value = resultJson[key];
+        if (typeof value === "string" && value.trim().length > 0) return value;
+      }
     }
     return "";
   }
@@ -209,6 +217,16 @@ export function chatRoutes(db: Db, storage: StorageService) {
 
   function fallbackChatTitleFromBody(body: string) {
     return formatMessengerTitle(body, { max: CHAT_TITLE_MAX_LENGTH });
+  }
+
+  function buildChatTitlePromptFromMessages(messages: ChatMessage[]) {
+    const source = messages
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .slice(-CHAT_TITLE_REGENERATION_MESSAGE_LIMIT)
+      .map((message) => `${message.role}: ${message.body}`)
+      .join("\n\n")
+      .trim();
+    return source ? buildChatTitlePrompt(source, "Conversation excerpt") : null;
   }
 
   function startChatTitleGeneration(conversation: ChatConversation, body: string) {
@@ -250,6 +268,16 @@ export function chatRoutes(db: Db, storage: StorageService) {
         "Failed to update chat title",
       );
     });
+  }
+
+  async function generateChatTitle(orgId: string, prompt: string) {
+    const result = await productIntelligence.execute({
+      orgId,
+      purpose: "lightweight",
+      feature: "chat_title",
+      prompt,
+    });
+    return sanitizeGeneratedChatTitle(runtimeResultText(result));
   }
 
   function positiveIntegerQuery(value: unknown, fallback: number, max: number) {
@@ -1338,6 +1366,45 @@ export function chatRoutes(db: Db, storage: StorageService) {
       entityId: existing.id,
       details: req.body,
     });
+    res.json(updated ? await assistantSvc.enrichConversation(updated as ChatConversation) : null);
+  });
+
+  router.post("/chats/:id/title/regenerate", async (req, res) => {
+    assertBoard(req);
+    const existing = await assertConversationAccess(req, req.params.id as string);
+    if (!existing) {
+      res.status(404).json({ error: "Chat conversation not found" });
+      return;
+    }
+
+    const messages = await svc.listMessages(existing.id, { includeTranscript: false });
+    const prompt = buildChatTitlePromptFromMessages(messages as ChatMessage[]);
+    if (!prompt) {
+      throw unprocessable("No chat messages available to generate a title");
+    }
+
+    const title = await generateChatTitle(existing.orgId, prompt);
+    if (!title) {
+      throw unprocessable("Fast Intelligence did not return a usable chat title");
+    }
+
+    const updated = await svc.update(existing.id, { title });
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      orgId: existing.orgId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "chat.title_regenerated",
+      entityType: "chat",
+      entityId: existing.id,
+      details: {
+        previousTitle: existing.title,
+        title,
+      },
+    });
+
     res.json(updated ? await assistantSvc.enrichConversation(updated as ChatConversation) : null);
   });
 

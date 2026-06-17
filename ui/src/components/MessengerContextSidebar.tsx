@@ -3,6 +3,7 @@ import { authApi } from "@/api/auth";
 import { chatsApi } from "@/api/chats";
 import { ApiError } from "@/api/client";
 import { messengerApi } from "@/api/messenger";
+import { organizationsApi } from "@/api/orgs";
 import { AgentIcon } from "@/components/AgentAvatar";
 import { StatusIcon } from "@/components/StatusIcon";
 import {
@@ -87,6 +88,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -968,6 +970,7 @@ function ChatThreadRow({
   onRenameDraftChange,
   onCommitRename,
   onStartRename,
+  onRegenerateTitle,
   onArchive,
   onDelete,
   onTogglePin,
@@ -994,6 +997,7 @@ function ChatThreadRow({
   onRenameDraftChange: (value: string) => void;
   onCommitRename: () => void;
   onStartRename: () => void;
+  onRegenerateTitle?: () => void;
   onArchive: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
@@ -1164,6 +1168,12 @@ function ChatThreadRow({
                 <PencilLine className="h-4 w-4" />
                 Rename
               </DropdownMenuItem>
+              {onRegenerateTitle ? (
+                <DropdownMenuItem onClick={onRegenerateTitle}>
+                  <RefreshCw className="h-4 w-4" />
+                  Regenerate title
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onClick={onTogglePin}>
                 {conversation.isPinned ? (
                   <>
@@ -1905,6 +1915,11 @@ export function MessengerContextSidebar() {
     queryFn: () => agentsApi.list(model.selectedOrganizationId!),
     enabled: !!model.selectedOrganizationId,
   });
+  const intelligenceProfilesQuery = useQuery({
+    queryKey: queryKeys.organizations.intelligenceProfiles(model.selectedOrganizationId ?? "__none__"),
+    queryFn: () => organizationsApi.listIntelligenceProfiles(model.selectedOrganizationId!),
+    enabled: !!model.selectedOrganizationId,
+  });
   const customGroupsQuery = useQuery({
     queryKey: queryKeys.messenger.customGroups(model.selectedOrganizationId ?? "__none__"),
     queryFn: () => messengerApi.listCustomGroups(model.selectedOrganizationId!),
@@ -1925,6 +1940,11 @@ export function MessengerContextSidebar() {
     }
     return map;
   }, [agentsQuery.data]);
+
+  const canRegenerateChatTitles = useMemo(() => {
+    const profiles = intelligenceProfilesQuery.data ?? [];
+    return profiles.some((profile) => profile?.purpose === "lightweight" && profile.status === "configured");
+  }, [intelligenceProfilesQuery.data]);
 
   const customGroups = customGroupsQuery.data?.groups ?? [];
   const customGroupBySectionKey = useMemo(() => {
@@ -2441,6 +2461,7 @@ export function MessengerContextSidebar() {
             setRenamingConversationId(conversation.id);
             setRenameDraft(conversation.title);
           }}
+          onRegenerateTitle={canRegenerateChatTitles ? () => regenerateTitleMutation.mutate(conversation.id) : undefined}
           onArchive={() => {
             if (model.selectedOrganizationId) {
               archiveMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id);
@@ -2826,6 +2847,19 @@ export function MessengerContextSidebar() {
     },
     onError: async (_error, variables) => {
       await refreshChatViews(variables.chatId);
+    },
+  });
+
+  const regenerateTitleMutation = useMutation({
+    mutationFn: (chatId: string) => chatsApi.regenerateTitle(chatId),
+    onSuccess: async (conversation) => {
+      if (model.selectedOrganizationId) {
+        renameMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id, conversation.title);
+      }
+      await refreshChatViews(conversation.id);
+    },
+    onError: async (_error, chatId) => {
+      await refreshChatViews(chatId);
     },
   });
 
