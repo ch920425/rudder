@@ -84,7 +84,7 @@ import { readDesktopShell, type DesktopIdeTarget, type DesktopWorkspaceLaunchTar
 import { extractDocumentOutline, type DocumentOutlineItem } from "../lib/document-outline";
 import type { AtomicInlineTokenElement } from "../lib/inline-token-dom";
 import { libraryCopy } from "../lib/library-copy";
-import { getCachedLibraryEntryMetadata } from "../lib/library-entry-cache";
+import { getCachedLibraryEntryMetadata, loadLibraryEntryMetadata } from "../lib/library-entry-cache";
 import { parseMentionChipHref } from "../lib/mention-chips";
 import { queryKeys } from "../lib/queryKeys";
 import {
@@ -2185,6 +2185,7 @@ export function OrganizationWorkspaceFilesSidebar({ onCollapseSidebar }: { onCol
   const [rootDropActive, setRootDropActive] = useState(false);
   const [draggedEntryPath, setDraggedEntryPath] = useState<string | null>(null);
   const [activeEntryPath, setActiveEntryPath] = useState<string | null>(selectedFilePath ?? requestedDirectoryPath);
+  const cachedRequestedEntry = getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId);
 
   const rootQuery = useQuery({
     queryKey: queryKeys.organizations.workspaceFiles(viewedOrganizationId ?? "__none__", ""),
@@ -2194,8 +2195,9 @@ export function OrganizationWorkspaceFilesSidebar({ onCollapseSidebar }: { onCol
   });
   const libraryEntryQuery = useQuery({
     queryKey: queryKeys.organizations.libraryEntry(viewedOrganizationId ?? "__none__", requestedEntryId ?? ""),
-    queryFn: () => organizationsApi.getLibraryEntry(viewedOrganizationId!, requestedEntryId!),
+    queryFn: () => loadLibraryEntryMetadata(viewedOrganizationId!, requestedEntryId!),
     enabled: !!viewedOrganizationId && !!requestedEntryId,
+    initialData: () => cachedRequestedEntry ?? undefined,
     refetchOnWindowFocus: false,
   });
   const projectResourceTree = useProjectResourceTreeGroups(viewedOrganizationId);
@@ -3039,8 +3041,9 @@ export function OrganizationWorkspaceBrowser({
   const requestedFilePath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("path"));
   const requestedResourceAttachmentId = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("resource"));
   const requestedDirectoryPath = requestedEntryId || requestedDocumentId ? null : normalizeRequestedPath(searchParams.get("directory"));
+  const cachedRequestedEntry = getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId);
   const cachedRequestedEntryPath = normalizeRequestedPath(
-    getCachedLibraryEntryMetadata(viewedOrganizationId, requestedEntryId)?.currentPath,
+    cachedRequestedEntry?.currentPath ?? null,
   );
   const initialOpenFileTabState = useMemo(
     () => readStoredWorkspaceOpenFileTabState(viewedOrganizationId),
@@ -3242,8 +3245,9 @@ export function OrganizationWorkspaceBrowser({
   });
   const libraryEntryQuery = useQuery({
     queryKey: queryKeys.organizations.libraryEntry(viewedOrganizationId ?? "__none__", requestedEntryId ?? ""),
-    queryFn: () => organizationsApi.getLibraryEntry(viewedOrganizationId!, requestedEntryId!),
+    queryFn: () => loadLibraryEntryMetadata(viewedOrganizationId!, requestedEntryId!),
     enabled: !!viewedOrganizationId && !!requestedEntryId && !requestedDocumentId,
+    initialData: () => cachedRequestedEntry ?? undefined,
     refetchOnWindowFocus: false,
   });
   const requestedEntryPath = normalizeRequestedPath(
@@ -4114,10 +4118,13 @@ export function OrganizationWorkspaceBrowser({
   }
 
   const workspace = rootQuery.data ?? {
+    source: "org_root",
     rootExists: true,
     rootPath: "",
+    repoUrl: null,
     directoryPath: "",
     entries: [],
+    message: null,
   };
 
   const handleSelectFile = (filePath: string) => {
