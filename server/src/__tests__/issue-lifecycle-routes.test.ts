@@ -2230,6 +2230,43 @@ describe("issue lifecycle routes", () => {
     expect(renderedPrompt).toContain("please check the retry path");
   });
 
+  it("does not wake the assignee when a comment explicitly wakes the reviewer", async () => {
+    mockIssueService.getById.mockResolvedValue(
+      makeIssue({
+        assigneeAgentId: ASSIGNEE_AGENT_ID,
+        reviewerAgentId: REVIEWER_AGENT_ID,
+        status: "todo",
+      }),
+    );
+    mockIssueService.findMentionedAgents.mockResolvedValue([REVIEWER_AGENT_ID]);
+
+    const body = `[Reviewer](${buildAgentMentionHref(REVIEWER_AGENT_ID, "code", "wake")}) can you review this?`;
+    const res = await request(createApp())
+      .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
+      .send({ body });
+
+    expect(res.status).toBe(201);
+    await flushAsyncWork();
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(1);
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
+      REVIEWER_AGENT_ID,
+      expect.objectContaining({
+        source: "automation",
+        reason: "issue_comment_mentioned",
+        contextSnapshot: expect.objectContaining({
+          wakeSource: "comment.mention",
+          wakeReason: "issue_comment_mentioned",
+        }),
+      }),
+    );
+    expect(mockHeartbeatService.wakeup).not.toHaveBeenCalledWith(
+      ASSIGNEE_AGENT_ID,
+      expect.objectContaining({
+        reason: "issue_commented",
+      }),
+    );
+  });
+
   it("does not wake the assignee for ordinary comments on backlog issues", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({

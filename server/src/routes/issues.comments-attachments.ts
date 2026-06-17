@@ -292,7 +292,14 @@ export function registerIssueCommentAttachmentRoutes(ctx: IssueCommentAttachment
       const actorIsAgent = actor.actorType === "agent";
       const selfComment = actorIsAgent && actor.actorId === assigneeId;
       const backlogComment = currentIssue.status === "backlog";
-      const skipWake = selfComment || isClosed || backlogComment;
+      let mentionedIds: string[] = [];
+      try {
+        mentionedIds = await svc.findMentionedAgents(issue.orgId, req.body.body);
+      } catch (err) {
+        logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
+      }
+      const directedMentionToOtherAgent = mentionedIds.some((mentionedId) => mentionedId !== assigneeId);
+      const skipWake = selfComment || isClosed || backlogComment || directedMentionToOtherAgent;
       if (assigneeId && (reopened || !skipWake)) {
         if (reopened) {
           wakeups.set(assigneeId, {
@@ -355,13 +362,6 @@ export function registerIssueCommentAttachmentRoutes(ctx: IssueCommentAttachment
             },
           });
         }
-      }
-
-      let mentionedIds: string[] = [];
-      try {
-        mentionedIds = await svc.findMentionedAgents(issue.orgId, req.body.body);
-      } catch (err) {
-        logger.warn({ err, issueId: id }, "failed to resolve agent wake mentions");
       }
 
       for (const mentionedId of mentionedIds) {
