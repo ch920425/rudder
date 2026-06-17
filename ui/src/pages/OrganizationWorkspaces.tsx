@@ -4120,6 +4120,7 @@ export function OrganizationWorkspaceBrowser({
     rootPath: "",
     directoryPath: "",
     entries: [],
+    message: null,
   };
 
   const handleSelectFile = (filePath: string) => {

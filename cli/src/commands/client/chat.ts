@@ -383,6 +383,11 @@ function formatChatMessage(row: ChatMessage, maxOutputChars = 1200) {
     role: row.role,
     kind: row.kind,
     status: row.status,
+    ...(row.runId ? {
+      runId: row.runId,
+      runCommand: `rudder runs get ${row.runId}`,
+      transcriptCommand: `rudder runs transcript ${row.runId}`,
+    } : {}),
     createdAt: row.createdAt,
     body: clip(row.body, 220),
     transcriptEntries: row.transcriptSummary?.entryCount ?? row.transcript?.length ?? 0,
@@ -398,6 +403,11 @@ function formatChatTranscriptMessage(row: ChatMessage, maxChars: number) {
     role: row.role,
     kind: row.kind,
     status: row.status,
+    ...(row.runId ? {
+      runId: row.runId,
+      runCommand: `rudder runs get ${row.runId}`,
+      transcriptCommand: `rudder runs transcript ${row.runId}`,
+    } : {}),
     createdAt: row.createdAt,
     body: clip(row.body, 220),
   };

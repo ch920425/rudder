@@ -45,13 +45,16 @@ let clipboardWriteText: ReturnType<typeof vi.fn>;
 vi.mock("@tanstack/react-query", () => ({
   useMutation: (options: {
     mutationFn: (variables: any) => Promise<any>;
+    onMutate?: (variables: any) => Promise<unknown> | unknown;
     onSuccess?: (data: any, variables: any) => Promise<void> | void;
     onError?: (error: unknown, variables: any) => Promise<void> | void;
-    onMutate?: (variables: any) => Promise<void> | void;
   }) => ({
     mutate: vi.fn(async (variables: any) => {
       try {
-        if (options.onMutate) await options.onMutate(variables);
+        const mutationContext = options.onMutate?.(variables);
+        if (mutationContext && typeof (mutationContext as Promise<unknown>).then === "function") {
+          await mutationContext;
+        }
         const result = await options.mutationFn(variables);
         await options.onSuccess?.(result, variables);
       } catch (error) {
