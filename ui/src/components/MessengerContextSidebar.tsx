@@ -1529,6 +1529,7 @@ function chatConversationForThreadSummary(
   if (conversation) {
     return {
       ...conversation,
+      title: thread.title,
       preferredAgentId: conversation.preferredAgentId ?? preferredAgentId,
       routedAgentId: conversation.routedAgentId ?? routedAgentId,
       chatRuntime: {

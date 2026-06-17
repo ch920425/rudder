@@ -469,6 +469,9 @@ describe("MessengerContextSidebar chat actions", () => {
   });
 
   it("keeps a pending rename visible when stale thread data renders before the update resolves", async () => {
+    installLocalStorage({
+      "rudder.messengerThreadOrganizationByOrg": JSON.stringify({ "org-1": "project" }),
+    });
     let resolveUpdate!: (value: unknown) => void;
     mockUpdateConversation.mockImplementationOnce(() => new Promise((resolve) => {
       resolveUpdate = resolve;
