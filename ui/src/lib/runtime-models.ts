@@ -2,6 +2,7 @@ import { models as claudeLocalModels } from "@rudderhq/agent-runtime-claude-loca
 import { models as codexLocalModels } from "@rudderhq/agent-runtime-codex-local";
 import { models as cursorLocalModels } from "@rudderhq/agent-runtime-cursor-local";
 import { models as geminiLocalModels } from "@rudderhq/agent-runtime-gemini-local";
+import type { AgentRuntimeEnvironmentTestResult } from "@rudderhq/shared";
 import type { AgentRuntimeModel } from "../api/agents";
 
 const FALLBACK_MODELS_BY_RUNTIME: Record<string, readonly AgentRuntimeModel[]> = {
@@ -126,7 +127,7 @@ export function runtimeAuthRecoveryHint(agentRuntimeType: string, model: string)
 }
 
 export function blockingRuntimeEnvironmentMessage(
-  result: { status: string; checks: Array<{ code: string; level: string; message: string; hint?: string }> },
+  result: Pick<AgentRuntimeEnvironmentTestResult, "checks" | "status">,
 ): string | null {
   const blockingCheck = result.checks.find((check) =>
     check.level === "error"
