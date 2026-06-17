@@ -45,10 +45,12 @@ export function AdapterEnvironmentResult({
   const displayStatus = normalizeRuntimeEnvironmentDisplayStatus(result.status) ?? "pass";
   const visibleChecks = filterRuntimeEnvironmentDisplayChecks(result);
   const statusLabel =
-    displayStatus === "pass" ? "Passed" : "Failed";
+    displayStatus === "pass" ? "Passed" : displayStatus === "warn" ? "Needs setup" : "Failed";
   const statusClass =
     displayStatus === "pass"
       ? "text-green-700 dark:text-green-300 border-green-300 dark:border-green-500/40 bg-green-50 dark:bg-green-500/10"
+      : displayStatus === "warn"
+        ? "text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10"
       : "text-red-700 dark:text-red-300 border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10";
 
   return (
@@ -103,12 +105,16 @@ export function RuntimeEnvironmentStatusBadge({
   const label =
     displayStatus === "pass"
       ? "Env passed"
+      : displayStatus === "warn"
+        ? "Env needs setup"
       : displayStatus === "testing"
         ? "Testing env"
         : "Env failed";
   const className =
     displayStatus === "pass"
       ? "border-green-300 bg-green-50 text-green-700 dark:border-green-500/40 dark:bg-green-500/10 dark:text-green-300"
+      : displayStatus === "warn"
+        ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
       : displayStatus === "testing"
         ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300"
         : "border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300";

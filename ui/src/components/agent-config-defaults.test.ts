@@ -30,8 +30,8 @@ describe("agent config defaults", () => {
     ).toEqual([{ agentRuntimeType: "codex_local", model: "gpt-5.5" }]);
   });
 
-  it("suppresses warning-only environment results in the display layer", () => {
-    expect(normalizeRuntimeEnvironmentDisplayStatus("warn")).toBe("pass");
+  it("keeps warning environment results visible in the display layer", () => {
+    expect(normalizeRuntimeEnvironmentDisplayStatus("warn")).toBe("warn");
     expect(
       filterRuntimeEnvironmentDisplayChecks({
         checks: [
@@ -39,10 +39,12 @@ describe("agent config defaults", () => {
           { code: "warn_check", level: "warn", message: "Auth is optional" },
         ],
       }),
-    ).toEqual([]);
+    ).toEqual([
+      { code: "warn_check", level: "warn", message: "Auth is optional" },
+    ]);
   });
 
-  it("keeps error environment results visible in the display layer", () => {
+  it("keeps warning and error environment results visible in the display layer", () => {
     const checks = filterRuntimeEnvironmentDisplayChecks({
       checks: [
         { code: "warn_check", level: "warn", message: "Auth is optional" },
@@ -52,6 +54,7 @@ describe("agent config defaults", () => {
 
     expect(normalizeRuntimeEnvironmentDisplayStatus("fail")).toBe("fail");
     expect(checks).toEqual([
+      { code: "warn_check", level: "warn", message: "Auth is optional" },
       { code: "error_check", level: "error", message: "Command failed" },
     ]);
   });

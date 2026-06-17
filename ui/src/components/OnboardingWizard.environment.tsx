@@ -16,10 +16,12 @@ export function AdapterEnvironmentResult({
   const displayStatus = normalizeRuntimeEnvironmentDisplayStatus(result.status) ?? "pass";
   const visibleChecks = filterRuntimeEnvironmentDisplayChecks(result);
   const statusLabel =
-    displayStatus === "pass" ? "Passed" : "Failed";
+    displayStatus === "pass" ? "Passed" : displayStatus === "warn" ? "Needs setup" : "Failed";
   const statusClass =
     displayStatus === "pass"
       ? "text-green-700 dark:text-green-300 border-green-300 dark:border-green-500/40 bg-green-50 dark:bg-green-500/10"
+      : displayStatus === "warn"
+        ? "text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10"
       : "text-red-700 dark:text-red-300 border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10";
 
   return (
@@ -59,4 +61,3 @@ export function AdapterEnvironmentResult({
     </div>
   );
 }
-

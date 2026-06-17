@@ -267,7 +267,7 @@ export type RuntimeEnvironmentTestItemResult = RuntimeEnvironmentTestTarget & {
 };
 
 export type RuntimeEnvironmentStatus = AgentRuntimeEnvironmentTestResult["status"] | "testing" | "error";
-export type RuntimeEnvironmentDisplayStatus = Exclude<RuntimeEnvironmentStatus, "warn">;
+export type RuntimeEnvironmentDisplayStatus = RuntimeEnvironmentStatus;
 
 export function formatRuntimeEnvironmentLabel(target: Pick<RuntimeEnvironmentTestTarget, "title" | "runtimeType" | "model">) {
   const runtimeLabel = adapterLabels[target.runtimeType] ?? target.runtimeType;
@@ -279,14 +279,13 @@ export function formatRuntimeEnvironmentLabel(target: Pick<RuntimeEnvironmentTes
 export function normalizeRuntimeEnvironmentDisplayStatus(
   status?: RuntimeEnvironmentStatus,
 ): RuntimeEnvironmentDisplayStatus | undefined {
-  if (status === "warn") return "pass";
   return status;
 }
 
 export function filterRuntimeEnvironmentDisplayChecks(
   result: Pick<AgentRuntimeEnvironmentTestResult, "checks">,
 ) {
-  return result.checks.filter((check) => check.level === "error");
+  return result.checks.filter((check) => check.level === "warn" || check.level === "error");
 }
 
 /* ---- Form ---- */
