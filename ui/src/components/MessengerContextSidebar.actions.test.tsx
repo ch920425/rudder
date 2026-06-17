@@ -49,7 +49,10 @@ vi.mock("@tanstack/react-query", () => ({
   }) => ({
     mutate: vi.fn(async (variables: any) => {
       try {
-        await options.onMutate?.(variables);
+        const mutationContext = options.onMutate?.(variables);
+        if (mutationContext && typeof (mutationContext as Promise<unknown>).then === "function") {
+          await mutationContext;
+        }
         const result = await options.mutationFn(variables);
         await options.onSuccess?.(result, variables);
       } catch (error) {
