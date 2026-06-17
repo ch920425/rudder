@@ -1634,6 +1634,22 @@ describe("MarkdownBody", () => {
     expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("/rudder-logo.png");
   });
 
+  it("renders OpenAI website links with a brand icon and ordinary link label", () => {
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"Reference [Terms of Use](https://openai.com/policies/terms-of-use/)"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("https://openai.com/policies/terms-of-use/");
+    expect(link?.classList.contains("rudder-link-chip--website")).toBe(false);
+    expect(link?.textContent).toBe("Terms of Use");
+    expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("/brands/openai-logo.svg");
+  });
+
   it("keeps same-origin absolute markdown links in the current window", () => {
     const sameOriginHref = `${window.location.origin}/NEW/issues/NEW-13#comment-comment-1`;
     const container = render(

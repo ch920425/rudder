@@ -118,6 +118,22 @@ describe("index.css motion rules", () => {
     expect(commentImage).toContain("max-height: 11rem");
   });
 
+  it("keeps markdown website link icons attached to their labels", () => {
+    const websiteLink = cssBlock(".rudder-markdown a.rudder-website-link");
+    const websiteLinkIcon = cssBlock(".rudder-website-link-icon");
+    const websiteLinkLabel = cssBlock(".rudder-website-link-label");
+
+    expect(websiteLink).toContain("display: inline-flex");
+    expect(websiteLink).toContain("align-items: baseline");
+    expect(websiteLink).toContain("gap: 0.24em");
+    expect(websiteLink).toContain("max-width: 100%");
+    expect(websiteLink).toContain("overflow-wrap: normal");
+    expect(websiteLinkIcon).toContain("flex: 0 0 auto");
+    expect(websiteLinkIcon).not.toContain("margin-right");
+    expect(websiteLinkLabel).toContain("min-width: 0");
+    expect(websiteLinkLabel).toContain("overflow-wrap: anywhere");
+  });
+
   it("keeps entity and skill hover card text readable instead of single-line clipped", () => {
     const skillHoverCard = cssBlock(".rudder-skill-hover-card");
     const rowValue = cssBlock(".rudder-entity-preview-row-value");

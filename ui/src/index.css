@@ -3068,7 +3068,10 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
 }
 
 .rudder-markdown a.rudder-website-link {
-  display: inline;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.24em;
+  max-width: 100%;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -3076,7 +3079,7 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
   color: var(--rudder-doc-link);
   font-weight: 520;
   line-height: inherit;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-decoration: none;
   vertical-align: baseline;
 }
@@ -3089,9 +3092,9 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
 
 .rudder-website-link-icon {
   display: inline-block;
+  flex: 0 0 auto;
   width: 1em;
   height: 1em;
-  margin-right: 0.24em;
   color: currentColor;
   vertical-align: -0.12em;
 }
