@@ -90,9 +90,9 @@ const AGENT_CLI_CAPABILITIES: AgentCliCapability[] = [
   },
   {
     id: "agent.get",
-    command: "rudder agent get <agent-id-or-shortname>",
+    command: "rudder agent get <agent-id-or-shortname-or-agt-ref>",
     category: "agent",
-    description: "Read one agent by id or shortname.",
+    description: "Read one agent by id, shortname, or agt_<uuid-prefix> short ref.",
     mutating: false,
     contract: "compat",
     requiresOrgId: false,
@@ -247,9 +247,9 @@ const AGENT_CLI_CAPABILITIES: AgentCliCapability[] = [
   },
   {
     id: "issue.context",
-    command: "rudder issue context <issue>",
+    command: "rudder issue context <issue> [--wake-comment-id <comment-id-or-cmt-ref>]",
     category: "issue",
-    description: "Read the compact heartbeat context for an issue.",
+    description: "Read the compact heartbeat context for an issue; wake comments may be addressed by full id or cmt_<uuid-prefix>.",
     mutating: false,
     contract: "agent-v1",
     requiresOrgId: false,

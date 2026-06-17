@@ -165,7 +165,7 @@ export function printOutput(data: unknown, opts: { json?: boolean; label?: strin
 }
 
 export function formatInlineRecord(record: Record<string, unknown>): string {
-  const keyOrder = ["identifier", "id", "name", "status", "priority", "title", "action"];
+  const keyOrder = ["identifier", "shortRef", "id", "name", "status", "priority", "title", "action"];
   const seen = new Set<string>();
   const parts: string[] = [];
 

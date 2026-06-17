@@ -296,7 +296,7 @@ as `rudder runs transcript <run-id> --around-error step-12`.
 
 ```sh
 pnpm rudder agent list --org-id <org-id>
-pnpm rudder agent get <agent-id-or-shortname> [--org-id <org-id>]
+pnpm rudder agent get <agent-id-or-shortname-or-agt-ref> [--org-id <org-id>]
 pnpm rudder agent update [agent-id] [--org-id <org-id>] [--name "..."] [--role engineer] [--title "..."] [--description "..."]
 pnpm rudder agent config index
 pnpm rudder agent config doc <agent-runtime-type>
@@ -309,6 +309,11 @@ pnpm rudder agent skills enable <agent-id> <selection-ref...>
 pnpm rudder agent skills sync <agent-id> --desired-skills "<csv>"
 pnpm rudder agent local-cli <agent-id-or-shortname> --org-id <org-id>
 ```
+
+Agent responses include `shortRef` when available. `rudder agent get` accepts
+`agt_<uuid-prefix>`, and `rudder issue context <issue> --wake-comment-id`
+accepts `cmt_<uuid-prefix>` for wake-comment lookup. Use the full UUID when a
+short ref is ambiguous.
 
 `agent config index`, `agent config doc`, and `agent icons` print plain-text reference docs by default.
 Pass `--json` if you want the raw text wrapped as a JSON string.

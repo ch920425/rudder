@@ -351,6 +351,7 @@ export function registerAgentCommands(program: Command): void {
           for (const row of rows) {
             console.log(
               formatInlineRecord({
+                shortRef: row.shortRef,
                 id: row.id,
                 name: row.name,
                 role: row.role,

@@ -17,7 +17,7 @@ import {
   projects,
   projectWorkspaces,
 } from "@rudderhq/db";
-import { buildAgentMentionHref, deriveOrganizationUrlKey } from "@rudderhq/shared";
+import { buildAgentMentionHref, deriveOrganizationUrlKey, shortRefFor } from "@rudderhq/shared";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -649,9 +649,77 @@ describe("issueService.list participantAgentId", () => {
       svc.findMentionedAgents(orgId, `Wake request: [Wesley](${buildAgentMentionHref(agentId, "code", "wake")})`),
     ).resolves.toEqual([agentId]);
     await expect(
+      svc.findMentionedAgents(orgId, `Short wake request: [Wesley](${buildAgentMentionHref(shortRefFor("agent", agentId), null, "wake")})`),
+    ).resolves.toEqual([agentId]);
+    await expect(
       svc.findMentionedAgents(orgId, `Cross-org wake request: [OtherOrgAgent](${buildAgentMentionHref(otherOrgAgentId, "code", "wake")})`),
     ).resolves.toEqual([]);
+    await expect(
+      svc.findMentionedAgents(orgId, `Cross-org short wake request: [OtherOrgAgent](${buildAgentMentionHref(shortRefFor("agent", otherOrgAgentId), null, "wake")})`),
+    ).resolves.toEqual([]);
   });
+
+  it("canonicalizes short agent wake links before persisting issue comments", async () => {
+    const orgId = randomUUID();
+    const issueId = randomUUID();
+    const agentId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Short Wake Org",
+      urlKey: deriveOrganizationUrlKey("Short Wake Org"),
+      issuePrefix: `S${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Wesley",
+      role: "reviewer",
+      status: "active",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Short wake mention",
+      status: "todo",
+      priority: "medium",
+    });
+
+    const shortHref = buildAgentMentionHref(shortRefFor("agent", agentId), null, "wake");
+    const canonicalHref = buildAgentMentionHref(agentId, null, "wake");
+    const comment = await svc.addComment(issueId, `[Wesley](${shortHref}) please take a look.`, {
+      userId: "board-user",
+    });
+
+    expect(comment.body).toContain(`[Wesley](${canonicalHref})`);
+    expect(comment.body).not.toContain(shortHref);
+    await expect(svc.findMentionedAgents(orgId, comment.body)).resolves.toEqual([agentId]);
+
+    const codeExample = [
+      "Reference for docs:",
+      `\`${shortHref}\``,
+      "",
+      `[Wesley](${shortHref}) please take a look.`,
+    ].join("\n");
+    const codeComment = await svc.addComment(issueId, codeExample, {
+      userId: "board-user",
+    });
+    expect(codeComment.body).toContain(`\`${shortHref}\``);
+    expect(codeComment.body).toContain(`[Wesley](${canonicalHref})`);
+    expect(codeComment.body.match(new RegExp(agentId, "g"))).toHaveLength(1);
+
+    await expect(
+      svc.addComment(issueId, "[Unknown](agent://agt_ffffffff?intent=wake) should not persist.", {
+        userId: "board-user",
+      }),
+    ).rejects.toThrow("Agent short ref not found");
+  });
+
   it("persists and filters reviewer principals", async () => {
     const orgId = randomUUID();
     const reviewerAgentId = randomUUID();

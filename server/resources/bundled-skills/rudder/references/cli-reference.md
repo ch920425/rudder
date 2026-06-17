@@ -28,7 +28,7 @@ Direct API fallback is allowed for heartbeat close-out only when a required CLI 
 | `rudder agent skills sync <agent-id>` | Sync the desired enabled skill set for an agent. | yes | no | no | attached when available |
 | `rudder issue get <issue>` | Read a full issue by UUID or identifier. | no | no | no | no |
 | `rudder issue search <query> [--org-id <id>]` | Search issues with the server-side issue index across title, identifier, description, and comments. | no | required | no | no |
-| `rudder issue context <issue>` | Read the compact heartbeat context for an issue. | no | no | no | no |
+| `rudder issue context <issue> [--wake-comment-id <comment-id-or-cmt-ref>]` | Read the compact heartbeat context for an issue. | no | no | no | no |
 | `rudder issue checkout <issue>` | Atomically checkout an issue for the current or specified agent. | yes | no | required | attached when available |
 | `rudder issue comment <issue> --body-file <path> [--image <path>]` | Add a comment to an issue, optionally uploading images and appending Markdown image links. | yes | no | no | attached when available |
 | `rudder issue comments list <issue>` | List issue comments, optionally only newer comments after a cursor. | no | no | no | no |
@@ -167,7 +167,7 @@ Do not rely on a free-form reject or accept comment as the review outcome. The s
 ## Compatibility Commands
 
 - `rudder agent list --org-id <id>` — List agents for an organization.
-- `rudder agent get <agent-id-or-shortname>` — Read one agent by id or shortname.
+- `rudder agent get <agent-id-or-shortname-or-agt-ref>` — Read one agent by id, shortname, or `agt_<uuid-prefix>`.
 - `rudder agent hire --org-id <id> --payload <json>` — Create a new hire using the canonical hire workflow.
 - `rudder agent config index` — Read the installed agent runtime configuration index.
 - `rudder agent config doc <agent-runtime-type>` — Read adapter-specific configuration guidance for one runtime.
