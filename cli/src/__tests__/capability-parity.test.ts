@@ -515,6 +515,52 @@ describe("CLI automation/chat/runs parity", () => {
     });
   });
 
+  it("prints chat message run linkage and follow-up run commands in human output", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      messages: [
+        {
+          id: "message-2",
+          role: "assistant",
+          kind: "message",
+          status: "completed",
+          runId: "609695f1-f90a-4b17-be61-4f0c6fe37c42",
+          createdAt: "2026-06-11T00:00:00.000Z",
+          body: "done",
+          transcriptSummary: { entryCount: 3 },
+        },
+      ],
+      page: {
+        cursor: null,
+        nextCursor: null,
+        hasMore: false,
+        limit: 1,
+        order: "newest",
+        returnedMessages: 1,
+        totalMessages: 1,
+      },
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const output = captureOutput();
+
+    await expect(runCli([
+      process.execPath,
+      "rudder",
+      "chat",
+      "messages",
+      "chat-1",
+      "--limit",
+      "1",
+      "--api-base",
+      "http://localhost:3100",
+      "--api-key",
+      "token-1",
+    ])).resolves.toBe(0);
+
+    expect(output.stdoutText()).toContain("runId=609695f1-f90a-4b17-be61-4f0c6fe37c42");
+    expect(output.stdoutText()).toContain("runCommand=rudder runs get 609695f1-f90a-4b17-be61-4f0c6fe37c42");
+    expect(output.stdoutText()).toContain("transcriptCommand=rudder runs transcript 609695f1-f90a-4b17-be61-4f0c6fe37c42");
+  });
+
   it("sends agent-authored chat messages with agent and run attribution headers", async () => {
     process.env.RUDDER_AGENT_ID = "agent-1";
     process.env.RUDDER_RUN_ID = "run-1";
