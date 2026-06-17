@@ -8,6 +8,7 @@ export {
   listStaleBundledSkillIds,
   listStaleCommunityPresetSkillIds,
   normalizeGitHubSkillDirectory,
+  readAdapterSkillCatalogEntries,
   type ImportPackageSkillResult,
   type LocalSkillInventoryMode,
   type ProjectSkillScanTarget

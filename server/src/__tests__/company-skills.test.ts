@@ -8,6 +8,7 @@ import {
   findMissingLocalSkillIds,
   normalizeGitHubSkillDirectory,
   parseSkillImportSourceInput,
+  readAdapterSkillCatalogEntries,
   readLocalSkillImportFromDirectory,
 } from "../services/organization-skills.js";
 
@@ -213,6 +214,37 @@ describe("project workspace skill discovery", () => {
     );
 
     expect(imported.description).toBe("First line of the summary.\nSecond line of the summary.");
+  });
+});
+
+describe("adapter skill discovery", () => {
+  it("scans all known adapter skill homes independent of the current runtime", async () => {
+    const home = await makeTempDir("rudder-adapter-skill-homes-");
+    await writeSkillDir(path.join(home, ".codex", "skills", "build-advisor"), "Build Advisor");
+    await writeSkillDir(path.join(home, ".claude", "skills", "crack-python"), "Crack Python");
+
+    const entries = await readAdapterSkillCatalogEntries("organization-1", {
+      env: {
+        HOME: home,
+      },
+    });
+
+    expect(entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: "build-advisor",
+        selectionKey: "adapter:codex_local:build-advisor",
+        sourceClass: "adapter_home",
+        locationLabel: "~/.codex/skills",
+        sourcePath: path.join(home, ".codex", "skills", "build-advisor"),
+      }),
+      expect.objectContaining({
+        key: "crack-python",
+        selectionKey: "adapter:claude_local:crack-python",
+        sourceClass: "adapter_home",
+        locationLabel: "~/.claude/skills",
+        sourcePath: path.join(home, ".claude", "skills", "crack-python"),
+      }),
+    ]));
   });
 });
 

@@ -523,6 +523,34 @@ export async function readDiscoveredSkillEntries(
   return out;
 }
 
+export async function readAdapterSkillCatalogEntries(
+  orgId: string,
+  runtimeConfig: Record<string, unknown>,
+): Promise<AgentSkillCatalogEntry[]> {
+  const entries: AgentSkillCatalogEntry[] = [];
+  const seenAdapterSelectionKeys = new Set<string>();
+
+  for (const [adapterRuntimeType, adapterHome] of Object.entries(ADAPTER_SKILL_HOME_DEFINITIONS)) {
+    const discovered = await readDiscoveredSkillEntries(
+      orgId,
+      adapterHome.resolveRoot(runtimeConfig),
+      (slug) => buildAdapterSelectionKey(adapterRuntimeType, slug),
+      {
+        sourceClass: "adapter_home",
+        originLabel: "Adapter skill",
+        locationLabel: adapterHome.locationLabel,
+      },
+    );
+    for (const entry of discovered) {
+      if (seenAdapterSelectionKeys.has(entry.selectionKey)) continue;
+      seenAdapterSelectionKeys.add(entry.selectionKey);
+      entries.push(entry);
+    }
+  }
+
+  return entries;
+}
+
 export function buildDraftSkillMarkdown(input: OrganizationSkillCreateRequest) {
   return (input.markdown?.trim().length
     ? input.markdown

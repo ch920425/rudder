@@ -48,7 +48,6 @@ import {
   applyDesiredSelectionsToCatalog,
   arraysEqual,
   asString,
-  buildAdapterSelectionKey,
   buildAgentPrivateSkillEntry,
   buildAgentSelectionKey,
   buildBundledSelectionKey,
@@ -80,6 +79,7 @@ import {
   normalizeSkillSlug,
   parseSelectionKey,
   readDiscoveredSkillEntries,
+  readAdapterSkillCatalogEntries,
   resolveConfiguredHomeDir,
   resolveLocalSkillFilePath,
   resolveManagedSkillsRoot,
@@ -585,19 +585,7 @@ export function organizationSkillService(db: Db) {
       },
     ));
 
-    const adapterHome = ADAPTER_SKILL_HOME_DEFINITIONS[agentRuntimeType];
-    if (adapterHome) {
-      entries.push(...await readDiscoveredSkillEntries(
-        orgId,
-        adapterHome.resolveRoot(runtimeConfig),
-        (slug) => buildAdapterSelectionKey(agentRuntimeType, slug),
-        {
-          sourceClass: "adapter_home",
-          originLabel: "Adapter skill",
-          locationLabel: adapterHome.locationLabel,
-        },
-      ));
-    }
+    entries.push(...await readAdapterSkillCatalogEntries(orgId, runtimeConfig));
 
     return entries.sort((left, right) =>
       left.key.localeCompare(right.key) || left.selectionKey.localeCompare(right.selectionKey));
