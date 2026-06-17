@@ -29,6 +29,15 @@ export const CHAT_UNSUPPORTED_ADAPTER_TYPES = new Set<AgentRuntimeType>(["proces
 export const CHAT_RESULT_SENTINEL_PREFIX = "__RUDDER_RESULT_";
 export const CHAT_ASSISTANT_USER_ERROR_MESSAGE =
   "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.";
+export const CHAT_ASSISTANT_RECOVERABLE_FAILURE_MESSAGE =
+  "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
+
+export type ChatRecoverableFailureCode =
+  | "chat_result_missing_sentinel"
+  | "chat_result_malformed_json"
+  | "chat_timed_out"
+  | "chat_adapter_failed"
+  | "chat_runtime_exception";
 
 export interface ChatAttachmentPromptReference {
   localPath?: string;
@@ -100,19 +109,43 @@ export class ChatAssistantStreamError extends Error {
   partialBody: string;
   partialBodyUserVisible: boolean;
   generatedAttachments: ChatGeneratedAttachment[];
+  errorCode: ChatRecoverableFailureCode;
+  userMessage: string;
 
   constructor(
     message: string,
     partialBody: string,
     generatedAttachments: ChatGeneratedAttachment[] = [],
-    options: { partialBodyUserVisible?: boolean } = {},
+    options: {
+      partialBodyUserVisible?: boolean;
+      errorCode?: ChatRecoverableFailureCode;
+      userMessage?: string;
+    } = {},
   ) {
     super(message);
     this.name = "ChatAssistantStreamError";
     this.partialBody = partialBody;
     this.partialBodyUserVisible = options.partialBodyUserVisible === true;
     this.generatedAttachments = generatedAttachments;
+    this.errorCode = options.errorCode ?? "chat_runtime_exception";
+    this.userMessage = options.userMessage ?? recoverableFailureMessage(this.errorCode);
   }
+}
+
+export function recoverableFailureMessage(code: ChatRecoverableFailureCode) {
+  if (code === "chat_result_missing_sentinel") {
+    return "The assistant finished without a final Rudder reply. Rudder saved the attempt and transcript; retry when ready.";
+  }
+  if (code === "chat_result_malformed_json") {
+    return "The assistant returned an incomplete final reply. Rudder saved the attempt and transcript; retry when ready.";
+  }
+  if (code === "chat_timed_out") {
+    return "The assistant timed out before finishing. Rudder saved the partial attempt; retry when ready.";
+  }
+  if (code === "chat_adapter_failed") {
+    return "The assistant runtime failed before finishing. Rudder saved the attempt for diagnostics; retry when ready.";
+  }
+  return CHAT_ASSISTANT_RECOVERABLE_FAILURE_MESSAGE;
 }
 
 export function safeTrim(value: string | null | undefined) {
@@ -1158,7 +1191,9 @@ export function finalBodyFromRawAssistantText(rawText: string, resultSentinel: s
 
 export function userVisiblePartialBodyFromError(error: unknown) {
   if (!(error instanceof ChatAssistantStreamError)) return "";
-  return error.partialBodyUserVisible ? error.partialBody : "";
+  return error.partialBodyUserVisible
+    ? error.partialBody
+    : error.userMessage ?? CHAT_ASSISTANT_RECOVERABLE_FAILURE_MESSAGE;
 }
 
 export async function maybeEmitAssistantState(

@@ -1756,9 +1756,53 @@ describe("chatAssistantService operator profile prompt injection", () => {
       contextLinks: [],
     })).rejects.toMatchObject({
       message: "Chat adapter completed without the required Rudder result sentinel",
+      errorCode: "chat_result_missing_sentinel",
+      userMessage: "The assistant finished without a final Rudder reply. Rudder saved the attempt and transcript; retry when ready.",
       partialBody: "",
       partialBodyUserVisible: false,
     });
+    expect(mockChatAgentRuns.finalizeRun).toHaveBeenLastCalledWith(
+      "chat-run-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCode: "chat_result_missing_sentinel",
+        resultJson: expect.objectContaining({
+          recoverable: true,
+          fallbackEnvelope: true,
+        }),
+      }),
+    );
+  });
+
+  it("classifies malformed result sentinel JSON as a recoverable failed chat result", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async (ctx) => ({
+      summary: `Draft reply\n${sentinelFromContext(ctx)}{"kind":"message","body":`,
+      resultJson: null,
+      timedOut: false,
+      exitCode: 0,
+      errorMessage: null,
+    }));
+
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "Chat adapter emitted the Rudder result sentinel without a valid JSON payload",
+      errorCode: "chat_result_malformed_json",
+      userMessage: "The assistant returned an incomplete final reply. Rudder saved the attempt and transcript; retry when ready.",
+      partialBody: "",
+      partialBodyUserVisible: false,
+    });
+    expect(mockChatAgentRuns.finalizeRun).toHaveBeenLastCalledWith(
+      "chat-run-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCode: "chat_result_malformed_json",
+      }),
+    );
   });
 
   it("does not expose progress transcript text as failed partial body", async () => {
@@ -1794,9 +1838,22 @@ describe("chatAssistantService operator profile prompt injection", () => {
       contextLinks: [],
     })).rejects.toMatchObject({
       message: "runtime process exited",
+      errorCode: "chat_adapter_failed",
+      userMessage: "The assistant runtime failed before finishing. Rudder saved the attempt for diagnostics; retry when ready.",
       partialBody: "",
       partialBodyUserVisible: false,
     });
+    expect(mockChatAgentRuns.finalizeRun).toHaveBeenLastCalledWith(
+      "chat-run-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCode: "chat_adapter_failed",
+        resultJson: expect.objectContaining({
+          recoverable: true,
+          fallbackEnvelope: true,
+        }),
+      }),
+    );
   });
 
   it("keeps a completed result body visible when the runtime fails after emitting the result envelope", async () => {
@@ -1819,9 +1876,68 @@ describe("chatAssistantService operator profile prompt injection", () => {
       contextLinks: [],
     })).rejects.toMatchObject({
       message: "post-processing failed",
+      errorCode: "chat_adapter_failed",
       partialBody: "I have enough to answer.",
       partialBodyUserVisible: true,
     });
+  });
+
+  it("classifies chat timeouts as recoverable failed chat results", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async () => ({
+      summary: "",
+      resultJson: null,
+      timedOut: true,
+      exitCode: 0,
+      errorMessage: null,
+    }));
+
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "Chat request timed out",
+      errorCode: "chat_timed_out",
+      userMessage: "The assistant timed out before finishing. Rudder saved the partial attempt; retry when ready.",
+      partialBody: "",
+      partialBodyUserVisible: false,
+    });
+    expect(mockChatAgentRuns.finalizeRun).toHaveBeenLastCalledWith(
+      "chat-run-1",
+      expect.objectContaining({
+        status: "timed_out",
+        errorCode: "chat_timed_out",
+      }),
+    );
+  });
+
+  it("wraps runtime exceptions as recoverable failed chat results", async () => {
+    const svc = chatAssistantService({} as any);
+
+    mockAdapter.execute.mockImplementationOnce(async () => {
+      throw new Error("runtime exploded");
+    });
+
+    await expect(svc.streamChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    })).rejects.toMatchObject({
+      message: "runtime exploded",
+      errorCode: "chat_runtime_exception",
+      userMessage: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+      partialBody: "",
+      partialBodyUserVisible: false,
+    });
+    expect(mockChatAgentRuns.finalizeRun).toHaveBeenLastCalledWith(
+      "chat-run-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCode: "chat_runtime_exception",
+      }),
+    );
   });
 
   it("returns a stopped partial reply when the runtime abort signal fires", async () => {

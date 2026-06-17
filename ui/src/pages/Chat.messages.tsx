@@ -66,7 +66,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type ReactNode, type RefObject } from "react";
-import { ApprovalAction, AskUserAnswerRecord, AskUserAnswerValue, AttachmentPreviewState, ChatAttachmentList, PendingAttachmentPreview, approvalNeedsAction, askUserQuestionTitle, askUserRequestFromMessage, assistantStateLabel, canContinueInterruptedChatMessage, canRetryFailedChatMessage, formatAskUserAnswerMessage, issueProposalFromMessage, issueProposalPrincipalLabel, operationProposalDecisionNoteFromMessage, operationProposalFromMessage, operationProposalStatusFromMessage, pendingAttachmentKey, proposalReviewBannerCopy, proposalReviewStatus, statusChipClassName } from "./Chat.parts";
+import { ApprovalAction, AskUserAnswerRecord, AskUserAnswerValue, AttachmentPreviewState, ChatAttachmentList, PendingAttachmentPreview, approvalNeedsAction, askUserQuestionTitle, askUserRequestFromMessage, assistantStateLabel, canContinueInterruptedChatMessage, canRetryFailedChatMessage, formatAskUserAnswerMessage, issueProposalFromMessage, issueProposalPrincipalLabel, operationProposalDecisionNoteFromMessage, operationProposalFromMessage, operationProposalStatusFromMessage, pendingAttachmentKey, proposalReviewBannerCopy, proposalReviewStatus, recoverableFailureFromMessage, statusChipClassName } from "./Chat.parts";
 
 export function ChatAssistantAttributionRow({
   replyingAgentId,
@@ -1696,6 +1696,7 @@ export function ChatMessageItem({
   const statusLabel = !isUser ? assistantStateLabel(message.status) : null;
   const canContinueInterrupted = canContinueInterruptedChatMessage(message);
   const canRetryFailed = canRetryFailedChatMessage(message);
+  const recoverableFailure = message.status === "failed" ? recoverableFailureFromMessage(message) : null;
   const isEmptyStreamingAssistant = !isUser && message.status === "streaming" && message.body.trim().length === 0;
   const isInlineEditing = isUser && Boolean(inlineEdit);
 
@@ -1732,8 +1733,14 @@ export function ChatMessageItem({
               <div className="min-w-0 flex-1" role="alert" aria-live="assertive">
                 <div className="text-sm font-semibold leading-5">Response failed</div>
                 <div className="mt-0.5 text-xs leading-5 text-destructive/85">
-                  This assistant response failed before it completed.
+                  {recoverableFailure?.message ?? "This assistant response failed before it completed."}
                 </div>
+                {recoverableFailure ? (
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] leading-4 text-destructive/75">
+                    <span>Code {recoverableFailure.code}</span>
+                    {recoverableFailure.runId ? <span>Run {recoverableFailure.runId.slice(0, 8)}</span> : null}
+                  </div>
+                ) : null}
               </div>
               {canRetryFailed ? (
                 <button

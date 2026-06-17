@@ -1061,6 +1061,27 @@ export function canRetryFailedChatMessage(message: Pick<ChatMessage, "role" | "k
     && Boolean(message.chatTurnId);
 }
 
+export function recoverableFailureFromMessage(
+  message: Pick<ChatMessage, "structuredPayload" | "runId">,
+) {
+  const payload = message.structuredPayload;
+  const failure = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload.recoverableFailure
+    : null;
+  if (!failure || typeof failure !== "object" || Array.isArray(failure)) return null;
+  const candidate = failure as Record<string, unknown>;
+  const code = typeof candidate.code === "string" && candidate.code.trim()
+    ? candidate.code.trim()
+    : "chat_runtime_exception";
+  const detailMessage = typeof candidate.message === "string" && candidate.message.trim()
+    ? candidate.message.trim()
+    : "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
+  const runId = typeof candidate.runId === "string" && candidate.runId.trim()
+    ? candidate.runId.trim()
+    : message.runId ?? null;
+  return { code, message: detailMessage, runId };
+}
+
 export function findRetrySourceUserMessage(
   messages: ChatMessage[],
   failedMessage: Pick<ChatMessage, "chatTurnId" | "turnVariant">,

@@ -46,6 +46,8 @@ type ChatStreamRouteContext = {
 };
 
 export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
+  const CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE =
+    "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
   const {
     router,
     db,
@@ -87,6 +89,8 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
     linkChatRunMessages,
     attachGeneratedFilesToPartialMessage,
     persistPartialAssistantMessage,
+    recoverableFailurePayload,
+    recoverableFailureBody,
     writeStreamEvent,
   } = ctx;
   router.post("/chats/:id/messages/stream", async (req, res) => {
@@ -398,7 +402,11 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
           } catch (error) {
             finalChatStatus = "failed";
             if (error instanceof ChatAssistantStreamError) {
-              finalChatOutput = userVisiblePartialBodyFromError(error);
+              const failurePayload = recoverableFailurePayload(error, activeChatRunId);
+              finalChatOutput =
+                userVisiblePartialBodyFromError(error)
+                || recoverableFailureBody(failurePayload)
+                || CHAT_ASSISTANT_USER_ERROR_MESSAGE;
             }
             throw error;
           } finally {
@@ -447,7 +455,11 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
         },
       );
     } catch (err) {
-      const partialBody = userVisiblePartialBodyFromError(err);
+      const failurePayload = recoverableFailurePayload(err, activeChatRunId);
+      const partialBody =
+        userVisiblePartialBodyFromError(err)
+        || recoverableFailureBody(failurePayload)
+        || CHAT_ASSISTANT_USER_ERROR_MESSAGE;
       const generatedAttachments = err instanceof ChatAssistantStreamError ? err.generatedAttachments : [];
       const failedReplyingAgentId = chatReplyingAgentId(assistantConversationForPartial);
       let failedMessage = await persistPartialAssistantMessage(
@@ -459,6 +471,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
         failedReplyingAgentId,
         assistantProgressMessageId,
         activeChatRunId,
+        failurePayload,
       ).catch(() => null);
       await linkChatRunMessages(
         assistantConversationForPartial ?? (conversation as ChatConversation),
@@ -480,11 +493,15 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
       }
 
       if (chatObservation) {
+        const failure = failurePayload?.recoverableFailure as Record<string, unknown> | undefined;
+        const failureCode = typeof failure?.code === "string" ? failure.code : "chat_runtime_exception";
         await emitChatObservationEvent(chatObservation, {
           name: "chat.reply.failed",
           level: "ERROR",
           metadata: {
             failedMessageId: failedMessage?.id ?? null,
+            runId: activeChatRunId,
+            errorCode: failureCode,
             transcriptEntries: transcript.length,
             observedTranscriptEntries: observedTranscript.length,
             error: err instanceof Error ? err.message : String(err),
@@ -495,9 +512,14 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
 
       logger.warn({ err, conversationId: conversation.id }, "chat assistant stream failed");
       if (!clientClosed) {
+        const recoverableError = err instanceof ChatAssistantStreamError ? err : null;
         writeStreamEvent(res, {
           type: "error",
-          error: CHAT_ASSISTANT_USER_ERROR_MESSAGE,
+          error: recoverableError?.userMessage ?? (
+            recoverableError ? CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE : CHAT_ASSISTANT_USER_ERROR_MESSAGE
+          ),
+          errorCode: recoverableError?.errorCode ?? "chat_runtime_exception",
+          runId: activeChatRunId,
           messageId: failedMessage?.id ?? null,
         });
         res.end();

@@ -1752,10 +1752,23 @@ describe("chat routes", () => {
   it("does not use process transcript text as failed non-stream observation output", async () => {
     const conversation = createConversation();
     const userMessage = createMessage("message-user", "user", "message", "Need help");
+    const failedMessage = {
+      ...createMessage("message-assistant", "assistant", "message", "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready."),
+      status: "failed",
+      structuredPayload: {
+        recoverableFailure: {
+          recoverable: true,
+          code: "chat_runtime_exception",
+          message: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+          runId: null,
+        },
+      },
+    };
 
     mockChatService.getById.mockResolvedValue(conversation);
     mockChatService.listMessages.mockResolvedValue([userMessage]);
     mockChatService.addUserChatMessage.mockResolvedValueOnce(userMessage);
+    mockChatService.addMessage.mockResolvedValueOnce(failedMessage);
     mockChatAssistantService.streamChatAssistantReply.mockImplementation(async (input) => {
       await input.onTranscriptEntry?.({
         kind: "assistant",
@@ -1777,13 +1790,37 @@ describe("chat routes", () => {
       .post("/api/chats/chat-1/messages")
       .send({ body: "Need help" });
 
-    expect(res.status).toBe(502);
-    expect(res.body).toEqual({
-      error: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
-    });
+    expect(res.status).toBe(201);
+    expect(res.body.messages).toEqual([
+      expect.objectContaining({ id: userMessage.id, role: "user", body: "Need help" }),
+      expect.objectContaining({
+        id: failedMessage.id,
+        role: "assistant",
+        status: "failed",
+        body: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+        structuredPayload: failedMessage.structuredPayload,
+      }),
+    ]);
+    expect(mockChatService.addMessage).toHaveBeenCalledWith(
+      "chat-1",
+      expect.objectContaining({
+        role: "assistant",
+        status: "failed",
+        body: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+        structuredPayload: {
+          recoverableFailure: {
+            recoverable: true,
+            code: "chat_runtime_exception",
+            message: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+            runId: null,
+          },
+        },
+        transcript: [expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." })],
+      }),
+    );
     expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
       fallbackResult: {
-        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        output: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
         subtype: "failed",
         isError: true,
       },
@@ -1793,7 +1830,7 @@ describe("chat routes", () => {
       null,
       expect.objectContaining({ status: "failed" }),
       expect.objectContaining({
-        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        output: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
         level: "ERROR",
         statusMessage: "failed",
       }),
@@ -2251,7 +2288,8 @@ describe("chat routes", () => {
       .map((line) => JSON.parse(line));
     expect(events.at(-1)).toEqual(expect.objectContaining({
       type: "error",
-      error: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+      error: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+      errorCode: "chat_runtime_exception",
       messageId: "message-assistant",
     }));
     expect(mockChatService.updateMessage).toHaveBeenLastCalledWith(
@@ -2259,13 +2297,21 @@ describe("chat routes", () => {
       "message-assistant",
       expect.objectContaining({
         status: "failed",
-        body: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        body: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+        structuredPayload: {
+          recoverableFailure: {
+            recoverable: true,
+            code: "chat_runtime_exception",
+            message: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+            runId: null,
+          },
+        },
         transcript: [expect.objectContaining({ kind: "assistant", text: "I will inspect the issue first." })],
       }),
     );
     expect(mockEmitExecutionTranscriptTree).toHaveBeenCalledWith(expect.objectContaining({
       fallbackResult: {
-        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        output: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
         subtype: "failed",
         isError: true,
       },
@@ -2274,7 +2320,7 @@ describe("chat routes", () => {
       null,
       expect.objectContaining({ status: "failed" }),
       expect.objectContaining({
-        output: "The assistant hit a system-level issue. Rudder saved the details for diagnostics; retry when ready.",
+        output: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
         level: "ERROR",
         statusMessage: "failed",
       }),

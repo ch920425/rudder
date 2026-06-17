@@ -356,6 +356,30 @@ describe("ChatMessageItem", () => {
     expect(html).toContain(">Failed</span>");
     expect(html).toContain("Retry");
   });
+
+  it("renders recoverable chat failure diagnostics on failed assistant messages", () => {
+    const html = renderChatMessageItem(message({
+      role: "assistant",
+      kind: "message",
+      status: "failed",
+      body: "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.",
+      chatTurnId: "turn-1",
+      runId: "12345678-1234-1234-1234-123456789abc",
+      structuredPayload: {
+        recoverableFailure: {
+          recoverable: true,
+          code: "chat_result_missing_sentinel",
+          message: "The assistant finished without a final Rudder reply. Rudder saved the attempt and transcript; retry when ready.",
+          runId: "12345678-1234-1234-1234-123456789abc",
+        },
+      },
+    }));
+
+    expect(html).toContain("The assistant finished without a final Rudder reply.");
+    expect(html).toContain("Code chat_result_missing_sentinel");
+    expect(html).toContain("Run 12345678");
+    expect(html).toContain("Retry");
+  });
 });
 
 describe("draft issue chat context", () => {

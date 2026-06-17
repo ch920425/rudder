@@ -12,7 +12,7 @@ import type { StorageService } from "../storage/types.js";
 import { agentRunContextService } from "./agent-run-context.js";
 import { agentService } from "./agents.js";
 import { chatAgentRunService } from "./chat-agent-runs.js";
-import { asString, buildConversationPrompt, CHAT_RESULT_SENTINEL_PREFIX, CHAT_UNSUPPORTED_ADAPTER_TYPES, ChatAssistantResult, ChatAssistantStreamError, ChatAttachmentPromptReference, chatExecutionConfig, createAssistantTextAccumulator, createSentinelStream, extractGeneratedAttachments, finalBodyFromRawAssistantText, GenerateChatAssistantReplyInput, linkedIssueIdsForChat, linkedProjectIdForChat, maybeEmitAssistantDelta, maybeEmitAssistantState, maybeEmitObservedTranscriptEntry, maybeEmitTranscriptEntry, modelLabel, parseCompletedAssistantReply, partialBodyFromRawAssistantText, prepareChatAttachmentReferences, ResolvedChatRuntimeSource, resultText, safeTrim, shouldSuppressChatTranscriptEntry, StreamChatAssistantReplyInput, StreamChatAssistantReplyResult, stubAgent, summarizeRuntimeSkills, unavailableAgentDescriptor, unconfiguredDescriptor } from "./chat-assistant.helpers.js";
+import { asString, buildConversationPrompt, CHAT_RESULT_SENTINEL_PREFIX, CHAT_UNSUPPORTED_ADAPTER_TYPES, ChatAssistantResult, ChatAssistantStreamError, ChatAttachmentPromptReference, chatExecutionConfig, createAssistantTextAccumulator, createSentinelStream, extractGeneratedAttachments, finalBodyFromRawAssistantText, GenerateChatAssistantReplyInput, linkedIssueIdsForChat, linkedProjectIdForChat, maybeEmitAssistantDelta, maybeEmitAssistantState, maybeEmitObservedTranscriptEntry, maybeEmitTranscriptEntry, modelLabel, parseCompletedAssistantReply, partialBodyFromRawAssistantText, prepareChatAttachmentReferences, recoverableFailureMessage, ResolvedChatRuntimeSource, resultText, safeTrim, shouldSuppressChatTranscriptEntry, StreamChatAssistantReplyInput, StreamChatAssistantReplyResult, stubAgent, summarizeRuntimeSkills, unavailableAgentDescriptor, unconfiguredDescriptor, type ChatRecoverableFailureCode } from "./chat-assistant.helpers.js";
 import { preflightManagedAgentWorkspace } from "./managed-workspace-preflight.js";
 import { executeAdapterWithModelFallbacks } from "./runtime-kernel/model-fallback.js";
 export * from "./chat-assistant.helpers.js";
@@ -267,9 +267,11 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
       await finalizeChatRun({
         status: "failed",
         error: error instanceof Error ? error.message : String(error),
-        errorCode: typeof errorCode === "string" ? errorCode : "chat_run_failed",
+        errorCode: typeof errorCode === "string" ? errorCode : "chat_runtime_exception",
         resultJson: {
           outcome: "failed",
+          recoverable: true,
+          fallbackEnvelope: true,
         },
       });
     };
@@ -281,9 +283,9 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
         throw error;
       }
     };
+    const assistantTextAccumulator = createAssistantTextAccumulator();
+    const sentinelStream = createSentinelStream(resultSentinel);
     try {
-      const assistantTextAccumulator = createAssistantTextAccumulator();
-      const sentinelStream = createSentinelStream(resultSentinel);
       let parser = adapter.parseStdoutLine;
       let stdoutLineBuffer = "";
       const { rudderWorkspace, rudderWorkspaces, rudderRuntimeServiceIntents, rudderScene } = sceneContext;
@@ -497,11 +499,15 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
       }
 
       if (result.timedOut) {
+        const errorCode = "chat_timed_out";
         await finalizeChatRun({
           status: "timed_out",
           error: "Chat request timed out",
-          errorCode: "chat_timed_out",
+          errorCode,
           resultJson: {
+            outcome: "failed",
+            recoverable: true,
+            fallbackEnvelope: true,
             partialBody: finalPartialBody,
           },
         });
@@ -509,15 +515,22 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
           "Chat request timed out",
           finalPartialBody,
           [],
-          { partialBodyUserVisible: Boolean(finalPartialBody) },
+          {
+            errorCode,
+            partialBodyUserVisible: Boolean(finalPartialBody),
+          },
         );
       }
       if ((result.exitCode ?? 0) !== 0 || result.errorMessage) {
+        const errorCode = "chat_adapter_failed";
         await finalizeChatRun({
           status: "failed",
           error: result.errorMessage ?? "Chat adapter execution failed",
-          errorCode: "chat_adapter_failed",
+          errorCode,
           resultJson: {
+            outcome: "failed",
+            recoverable: true,
+            fallbackEnvelope: true,
             exitCode: result.exitCode ?? null,
             partialBody: finalPartialBody,
           },
@@ -526,7 +539,10 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
           result.errorMessage ?? "Chat adapter execution failed",
           finalPartialBody,
           [],
-          { partialBodyUserVisible: Boolean(finalPartialBody) },
+          {
+            errorCode,
+            partialBodyUserVisible: Boolean(finalPartialBody),
+          },
         );
       }
 
@@ -538,19 +554,31 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
       try {
         reply = parseCompletedAssistantReply(raw, resultSentinel, { requireSentinel: true });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Chat adapter returned an invalid final reply";
+        const errorCode: ChatRecoverableFailureCode = errorMessage.includes("without the required Rudder result sentinel")
+          ? "chat_result_missing_sentinel"
+          : "chat_result_malformed_json";
         await finalizeChatRun({
           status: "failed",
-          error: error instanceof Error ? error.message : "Chat adapter returned an invalid final reply",
-          errorCode: "chat_invalid_reply",
+          error: errorMessage,
+          errorCode,
           resultJson: {
+            outcome: "failed",
+            recoverable: true,
+            fallbackEnvelope: true,
+            errorCode,
+            userMessage: recoverableFailureMessage(errorCode),
             partialBody: finalPartialBody,
           },
         });
         throw new ChatAssistantStreamError(
-          error instanceof Error ? error.message : "Chat adapter returned an invalid final reply",
+          errorMessage,
           finalPartialBody,
           generatedAttachments,
-          { partialBodyUserVisible: Boolean(finalPartialBody) },
+          {
+            errorCode,
+            partialBodyUserVisible: Boolean(finalPartialBody),
+          },
         );
       }
       const finalBody = reply.body;
@@ -583,7 +611,19 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
       };
     } catch (error) {
       await finalizeUnhandledRunFailure(error);
-      throw error;
+      if (error instanceof ChatAssistantStreamError) {
+        throw error;
+      }
+      const partialBody = safeTrim(sentinelStream.visibleText) ?? "";
+      throw new ChatAssistantStreamError(
+        error instanceof Error ? error.message : "Chat runtime failed before producing a final reply",
+        partialBody,
+        [],
+        {
+          errorCode: "chat_runtime_exception",
+          partialBodyUserVisible: false,
+        },
+      );
     }
   }
 

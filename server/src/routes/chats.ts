@@ -82,6 +82,8 @@ export function chatRoutes(db: Db, storage: StorageService) {
 
   const CHAT_TITLE_SOURCE_LIMIT = 1600;
   const CHAT_TITLE_MAX_LENGTH = 80;
+  const CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE =
+    "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
 
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -1116,6 +1118,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     replyingAgentId = chatReplyingAgentId(conversation),
     existingMessageId?: string | null,
     runId?: string | null,
+    structuredPayload?: Record<string, unknown> | null,
   ) {
     const trimmed = body.trim();
     const fallbackBody = status === "stopped"
@@ -1130,6 +1133,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         kind: "message",
         status,
         body: durableBody,
+        structuredPayload: structuredPayload ?? null,
         transcript,
         runId: runId ?? undefined,
         replyingAgentId,
@@ -1142,6 +1146,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       kind: "message",
       status,
       body: durableBody,
+      structuredPayload: structuredPayload ?? null,
       transcript,
       runId: runId ?? null,
       replyingAgentId,
@@ -1149,6 +1154,27 @@ export function chatRoutes(db: Db, storage: StorageService) {
       turnVariant,
     });
     return message as ChatMessage;
+  }
+
+  function recoverableFailurePayload(error: unknown, runId: string | null | undefined) {
+    if (!(error instanceof ChatAssistantStreamError)) return null;
+    const code = error.errorCode ?? "chat_runtime_exception";
+    const message = error.userMessage ?? CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE;
+    return {
+      recoverableFailure: {
+        recoverable: true,
+        code,
+        message,
+        runId: runId ?? null,
+      },
+    };
+  }
+
+  function recoverableFailureBody(payload: Record<string, unknown> | null | undefined) {
+    const failure = payload?.recoverableFailure;
+    if (!failure || typeof failure !== "object" || Array.isArray(failure)) return null;
+    const message = (failure as Record<string, unknown>).message;
+    return typeof message === "string" && message.trim().length > 0 ? message.trim() : null;
   }
 
   function writeStreamEvent(
@@ -1513,6 +1539,46 @@ export function chatRoutes(db: Db, storage: StorageService) {
           } catch (error) {
             if (error instanceof ChatAssistantStreamError) {
               fallbackOutput = userVisiblePartialBodyFromError(error);
+              const failurePayload = recoverableFailurePayload(error, activeChatRunId);
+              const failureBody = fallbackOutput || recoverableFailureBody(failurePayload) || CHAT_ASSISTANT_USER_ERROR_MESSAGE;
+              const failure = failurePayload?.recoverableFailure as Record<string, unknown> | undefined;
+              const failureCode = typeof failure?.code === "string" ? failure.code : "chat_runtime_exception";
+              const failedMessage = await persistPartialAssistantMessage(
+                assistantInput.conversation,
+                failureBody,
+                "failed",
+                turnContext,
+                transcript,
+                chatReplyingAgentId(assistantInput.conversation),
+                null,
+                activeChatRunId,
+                failurePayload,
+              );
+              const failedMessages = failedMessage ? [failedMessage as ChatMessage] : [];
+              await linkChatRunMessages(assistantInput.conversation, activeChatRunId, failedMessages);
+              if (failedMessages.length > 0) {
+                await logChatMessagesAdded(assistantInput.conversation, failedMessages, {
+                  actorType: "system",
+                  actorId: "chat-assistant",
+                  agentId: chatReplyingAgentId(assistantInput.conversation),
+                });
+              }
+              await emitChatObservationEvent(chatObservation!, {
+                name: "chat.reply.failed",
+                level: "ERROR",
+                metadata: {
+                  failedMessageId: failedMessage?.id ?? null,
+                  runId: activeChatRunId,
+                  errorCode: failureCode,
+                  transcriptEntries: transcript.length,
+                  observedTranscriptEntries: observedTranscript.length,
+                  error: error.message,
+                },
+                statusMessage: failureCode,
+              });
+              fallbackOutput = failureBody;
+              finalChatStatus = "failed";
+              return failedMessages;
             }
             finalChatStatus = "failed";
             throw error;
@@ -1629,6 +1695,8 @@ export function chatRoutes(db: Db, storage: StorageService) {
     linkChatRunMessages,
     attachGeneratedFilesToPartialMessage,
     persistPartialAssistantMessage,
+    recoverableFailurePayload,
+    recoverableFailureBody,
     writeStreamEvent,
   });
   return router;
