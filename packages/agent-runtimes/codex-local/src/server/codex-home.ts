@@ -125,11 +125,19 @@ function isManagedCodexConfigTableToStrip(trimmedLine: string): boolean {
   return false;
 }
 
+function unsupportedCodexServiceTierLine(trimmedLine: string): boolean {
+  const match = trimmedLine.match(/^service_tier\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s#]+))/i);
+  if (!match) return false;
+  const value = (match[1] ?? match[2] ?? match[3] ?? "").trim().toLowerCase();
+  return value !== "fast" && value !== "flex";
+}
+
 function sanitizeCodexConfigToml(content: string): {
   content: string;
   removedSkillEntries: number;
   removedManagedTables: number;
   removedNotifyHooks: number;
+  removedUnsupportedServiceTiers: number;
 } {
   const newline = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
@@ -140,6 +148,7 @@ function sanitizeCodexConfigToml(content: string): {
   let removedSkillEntries = 0;
   let removedManagedTables = 0;
   let removedNotifyHooks = 0;
+  let removedUnsupportedServiceTiers = 0;
 
   const flushBlock = () => {
     if (!blockLines) return;
@@ -170,6 +179,10 @@ function sanitizeCodexConfigToml(content: string): {
         removedNotifyHooks += 1;
         continue;
       }
+      if (unsupportedCodexServiceTierLine(trimmedLine)) {
+        removedUnsupportedServiceTiers += 1;
+        continue;
+      }
       output.push(line);
       continue;
     }
@@ -183,6 +196,7 @@ function sanitizeCodexConfigToml(content: string): {
     removedSkillEntries,
     removedManagedTables,
     removedNotifyHooks,
+    removedUnsupportedServiceTiers,
   };
 }
 
@@ -436,6 +450,13 @@ async function syncManagedCodexConfigToml(
     await onLog(
       "stdout",
       `[rudder] Removed ${sanitized.removedNotifyHooks} inherited Codex notify hook${sanitized.removedNotifyHooks === 1 ? "" : "s"} from ${target}\n`,
+    );
+  }
+
+  if (sanitized.removedUnsupportedServiceTiers > 0) {
+    await onLog(
+      "stdout",
+      `[rudder] Removed ${sanitized.removedUnsupportedServiceTiers} unsupported inherited Codex service_tier entr${sanitized.removedUnsupportedServiceTiers === 1 ? "y" : "ies"} from ${target}\n`,
     );
   }
 
