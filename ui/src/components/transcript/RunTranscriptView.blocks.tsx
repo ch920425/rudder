@@ -76,6 +76,18 @@ export function ExpandableTranscriptResponsePre({
     scrollbarActivityRef(element);
   }, [scrollbarActivityRef]);
 
+  const measureCanExpand = useCallback(() => {
+    const element = preRef.current;
+    if (!element || expanded) return;
+
+    const hasLayoutMeasurement = element.scrollHeight > 0 || element.clientHeight > 0;
+    setCanExpand(
+      hasLayoutMeasurement
+        ? element.scrollHeight > element.clientHeight + 1
+        : isLikelyLongTranscriptResponse(text),
+    );
+  }, [expanded, text]);
+
   useEffect(() => {
     setExpanded(false);
     setCanExpand(isLikelyLongTranscriptResponse(text));
@@ -84,10 +96,21 @@ export function ExpandableTranscriptResponsePre({
   useEffect(() => {
     const element = preRef.current;
     if (!element || expanded) return;
-    if (element.scrollHeight > element.clientHeight + 1) {
-      setCanExpand(true);
-    }
-  }, [expanded, text]);
+
+    measureCanExpand();
+    const scheduleFrame = window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 0));
+    const cancelFrame = window.cancelAnimationFrame ?? window.clearTimeout;
+    const frameId = scheduleFrame(measureCanExpand);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureCanExpand);
+    resizeObserver?.observe(element);
+    window.addEventListener("resize", measureCanExpand);
+
+    return () => {
+      cancelFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureCanExpand);
+    };
+  }, [expanded, measureCanExpand]);
 
   return (
     <div className="space-y-1.5">
@@ -95,7 +118,7 @@ export function ExpandableTranscriptResponsePre({
         ref={setPreRef}
         className={cn(
           "scrollbar-auto-hide overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px]",
-          canExpand && !expanded && "max-h-72 overflow-y-auto overscroll-contain pr-1",
+          !expanded && "max-h-72 overflow-y-auto overscroll-contain pr-1",
           className,
         )}
         data-transcript-response-collapsed={canExpand && !expanded ? "true" : undefined}
