@@ -622,6 +622,49 @@ describe("CommentThread", () => {
     });
   });
 
+  it("collapses and expands comment bodies from the actions menu", async () => {
+    const container = renderInteractive(
+      <MemoryRouter>
+        <CommentThread
+          comments={[
+            {
+              id: "comment-1",
+              issueId: "issue-1",
+              orgId: "org-1",
+              authorUserId: "user-1",
+              authorAgentId: null,
+              body: "Long comment body that should fold away.",
+              runId: "run-1",
+              runAgentId: "agent-1",
+              createdAt: new Date("2026-05-07T00:00:00.000Z"),
+              updatedAt: new Date("2026-05-07T00:00:00.000Z"),
+            },
+          ]}
+          onAdd={async () => undefined}
+          currentUserId="user-1"
+          onUpdate={async () => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    const commentBlock = container.querySelector("#comment-comment-1");
+    expect(commentBlock?.textContent).toContain("Long comment body that should fold away.");
+    expect(commentBlock?.textContent).toContain("run run-1");
+
+    await click([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Collapse comment")) ?? null);
+
+    expect(commentBlock?.getAttribute("aria-label")).toBe("Collapsed comment");
+    expect(commentBlock?.textContent).not.toContain("Long comment body that should fold away.");
+    expect(commentBlock?.textContent).not.toContain("run run-1");
+    expect(commentBlock?.textContent).toContain("Expand comment");
+
+    await click([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Expand comment")) ?? null);
+
+    expect(commentBlock?.getAttribute("aria-label")).toBeNull();
+    expect(commentBlock?.textContent).toContain("Long comment body that should fold away.");
+    expect(commentBlock?.textContent).toContain("run run-1");
+  });
+
   it("renders comment editing as a full composer surface with attachment upload", async () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const upload = vi.fn().mockResolvedValue("/api/attachments/attachment-1/content");

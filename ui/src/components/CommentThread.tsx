@@ -242,8 +242,10 @@ function CommentActionsMenu({
   orgId,
   projectId,
   location,
+  collapsed,
   canEdit,
   canDelete,
+  onToggleCollapsed,
   onEdit,
   onDelete,
 }: {
@@ -251,8 +253,10 @@ function CommentActionsMenu({
   orgId?: string | null;
   projectId?: string | null;
   location: ReturnType<typeof useLocation>;
+  collapsed: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  onToggleCollapsed: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -285,6 +289,10 @@ function CommentActionsMenu({
         <DropdownMenuItem onSelect={() => copyToClipboard("link", buildCommentMarkdownLink(comment, location))}>
           {copiedAction === "link" ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
           Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onToggleCollapsed}>
+          <ChevronDown className={`h-3.5 w-3.5 ${collapsed ? "rotate-180" : ""}`} />
+          {collapsed ? "Expand comment" : "Collapse comment"}
         </DropdownMenuItem>
         {canEdit || canDelete ? (
           <>
@@ -415,6 +423,7 @@ const TimelineList = memo(function TimelineList({
   const { confirm } = useDialog();
   const organizationPrefix = extractOrganizationPrefixFromPath(location.pathname);
   const [runExpandedOverrides, setRunExpandedOverrides] = useState<Record<string, boolean>>({});
+  const [commentCollapsedOverrides, setCommentCollapsedOverrides] = useState<Record<string, boolean>>({});
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -630,7 +639,18 @@ const TimelineList = memo(function TimelineList({
         const canEdit = !!currentUserId && !comment.authorAgentId && comment.authorUserId === currentUserId;
         const canDelete = !!currentUserId && (canEdit || !!comment.authorAgentId);
         const isEditing = editingCommentId === comment.id;
+        const commentCollapsed = commentCollapsedOverrides[comment.id] === true && !isEditing;
+        const handleToggleCollapsed = () => {
+          setCommentCollapsedOverrides((current) => ({
+            ...current,
+            [comment.id]: !commentCollapsed,
+          }));
+        };
         const handleStartEdit = () => {
+          setCommentCollapsedOverrides((current) => ({
+            ...current,
+            [comment.id]: false,
+          }));
           setEditingCommentId(comment.id);
           setEditBody(comment.body);
         };
@@ -689,10 +709,11 @@ const TimelineList = memo(function TimelineList({
           <div
             key={comment.id}
             id={`comment-${comment.id}`}
+            aria-label={commentCollapsed ? "Collapsed comment" : undefined}
             className={
               isEditing
                 ? `overflow-hidden min-w-0 rounded-[var(--radius-lg)] border px-4 py-3 shadow-[var(--shadow-sm)] transition-colors duration-1000 ${isHighlighted ? "border-primary/50 bg-primary/5" : "border-border/80 bg-card/80"}`
-                : `border p-3 overflow-hidden min-w-0 rounded-sm transition-colors duration-1000 ${isHighlighted ? "border-primary/50 bg-primary/5" : "border-border"}`
+                : `border overflow-hidden min-w-0 rounded-sm transition-colors duration-1000 ${commentCollapsed ? "border-dashed bg-muted/35 px-3 py-1 hover:bg-muted/50" : "p-3"} ${isHighlighted ? "border-primary/50 bg-primary/5" : "border-border"}`
             }
           >
             {isEditing ? (
@@ -706,9 +727,9 @@ const TimelineList = memo(function TimelineList({
                 ) : null}
               </div>
             ) : (
-              <div className="mb-1 flex items-center justify-between">
+              <div className={`${commentCollapsed ? "mb-0" : "mb-1"} flex items-center justify-between gap-3`}>
                 {authorNode}
-                <span className="flex items-center gap-1.5">
+                <span className="flex shrink-0 items-center gap-1.5">
                   {timestampNode}
                   {isEdited ? (
                     <span className="text-xs text-muted-foreground" title={formatDateTime(comment.updatedAt)}>
@@ -720,8 +741,10 @@ const TimelineList = memo(function TimelineList({
                     orgId={orgId}
                     projectId={projectId}
                     location={location}
+                    collapsed={commentCollapsed}
                     canEdit={canEdit}
                     canDelete={canDelete}
+                    onToggleCollapsed={handleToggleCollapsed}
                     onEdit={handleStartEdit}
                     onDelete={handleDelete}
                   />
@@ -778,7 +801,7 @@ const TimelineList = memo(function TimelineList({
                   </div>
                 </div>
               </>
-            ) : (
+            ) : commentCollapsed ? null : (
               <MarkdownBody
                 className="text-sm"
                 agentMentions={agentMentions}
@@ -788,7 +811,7 @@ const TimelineList = memo(function TimelineList({
                 {comment.body}
               </MarkdownBody>
             )}
-            {!isEditing && orgId ? (
+            {!isEditing && !commentCollapsed && orgId ? (
               <div className="mt-2 space-y-2">
                 <PluginSlotOutlet
                   slotTypes={["commentAnnotation"]}
@@ -806,7 +829,7 @@ const TimelineList = memo(function TimelineList({
                 />
               </div>
             ) : null}
-            {!isEditing && comment.runId && (
+            {!isEditing && !commentCollapsed && comment.runId && (
               <div className="mt-2 pt-2 border-t border-border/60">
                 {comment.runAgentId ? (
                   <Link

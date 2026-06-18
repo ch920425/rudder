@@ -131,6 +131,18 @@ test("issue comment actions menu copies content and direct links", async ({ page
   expect(copiedMarkdownLink).not.toContain("http://");
   expect(copiedMarkdownLink).not.toContain("https://");
 
+  await commentBlock.getByRole("button", { name: "Comment actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Collapse comment" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Collapse comment" }).click();
+  await expect(commentBlock).toHaveAttribute("aria-label", "Collapsed comment");
+  await expect(commentBlock).not.toContainText("keep the copied markdown intact");
+
+  await commentBlock.getByRole("button", { name: "Comment actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Expand comment" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Expand comment" }).click();
+  await expect(commentBlock).not.toHaveAttribute("aria-label", "Collapsed comment");
+  await expect(commentBlock).toContainText("keep the copied markdown intact");
+
   const composer = page.locator(".chat-composer .rudder-milkdown-content [contenteditable='true']").first();
   await expect(composer).toBeVisible();
   await composer.click();
