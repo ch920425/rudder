@@ -623,6 +623,120 @@ describe("RunTranscriptView", () => {
     expect(html).not.toContain("Show full response");
   });
 
+  it("summarizes repeated network disconnect retries without exposing response URLs", () => {
+    const entries: TranscriptEntry[] = [
+      {
+        kind: "system",
+        ts: "2026-03-12T00:00:01.000Z",
+        text: "turn started",
+      },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        kind: "tool_result" as const,
+        ts: `2026-03-12T00:00:0${index + 2}.000Z`,
+        toolUseId: `disconnect-${index + 1}`,
+        content: `Reconnecting... ${index + 1}/5 (stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses))`,
+        isError: true,
+      })),
+      {
+        kind: "tool_result",
+        ts: "2026-03-12T00:00:07.000Z",
+        toolUseId: "disconnect-final",
+        content: "stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)",
+        isError: true,
+      },
+    ];
+
+    const blocks = normalizeTranscript(entries, false);
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <RunTranscriptView density="compact" presentation="chat" entries={entries} />
+      </ThemeProvider>,
+    );
+
+    expect(blocks).toMatchObject([
+      {
+        type: "event",
+        tone: "error",
+        label: "network",
+        text: "Connection dropped while Rudder was receiving the agent response. Retried 5 times.",
+        detail: expect.stringContaining("https://chatgpt.com/backend-api/codex/responses"),
+        collapseByDefault: true,
+      },
+    ]);
+    expect(html).toContain("Connection dropped while Rudder was receiving the agent response. Retried 5 times.");
+    expect(countOccurrences(html, "Connection dropped while Rudder was receiving the agent response")).toBe(1);
+    expect(html).not.toContain("Reconnecting... 1/5");
+    expect(html).not.toContain("Reconnecting... 5/5");
+    expect(html).not.toContain("chatgpt.com/backend-api/codex/responses");
+  });
+
+  it("summarizes partial network disconnect retries from observed attempts", () => {
+    const blocks = normalizeTranscript([
+      {
+        kind: "tool_result",
+        ts: "2026-03-12T00:00:02.000Z",
+        toolUseId: "disconnect-1",
+        content: "Reconnecting... 1/5 (stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses))",
+        isError: true,
+      },
+      {
+        kind: "tool_result",
+        ts: "2026-03-12T00:00:03.000Z",
+        toolUseId: "disconnect-final",
+        content: "stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)",
+        isError: true,
+      },
+    ], false);
+
+    expect(blocks).toMatchObject([
+      {
+        type: "event",
+        label: "network",
+        text: "Connection dropped while Rudder was receiving the agent response. Retried 1 time.",
+      },
+    ]);
+  });
+
+  it("summarizes network disconnect retries when the final failure is a result error", () => {
+    const blocks = normalizeTranscript([
+      {
+        kind: "tool_result",
+        ts: "2026-03-12T00:00:02.000Z",
+        toolUseId: "disconnect-1",
+        content: "Reconnecting... 1/2 (stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses))",
+        isError: true,
+      },
+      {
+        kind: "tool_result",
+        ts: "2026-03-12T00:00:03.000Z",
+        toolUseId: "disconnect-2",
+        content: "Reconnecting... 2/2 (stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses))",
+        isError: true,
+      },
+      {
+        kind: "result",
+        ts: "2026-03-12T00:00:04.000Z",
+        text: "",
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        costUsd: 0,
+        subtype: "error",
+        errors: ["stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"],
+        isError: true,
+      },
+    ], false);
+
+    expect(blocks).toMatchObject([
+      {
+        type: "event",
+        label: "network",
+        text: "Connection dropped while Rudder was receiving the agent response. Retried 2 times.",
+        detail: expect.stringContaining("stream disconnected before completion"),
+      },
+    ]);
+  });
+
   it("limits long expanded chat tool responses behind a secondary disclosure", () => {
     const longResponse = Array.from({ length: 24 }, (_, index) => `tool response line ${index + 1}`).join("\n");
     const html = renderToStaticMarkup(

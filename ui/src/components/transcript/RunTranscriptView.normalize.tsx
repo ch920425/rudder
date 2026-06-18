@@ -191,6 +191,83 @@ export function shouldHideNiceModeStderr(text: string): boolean {
   return normalized.startsWith("[rudder] skipping saved session resume");
 }
 
+function parseNetworkDisconnectText(text: string): { retryAttempt: number | null; retryTotal: number | null } | null {
+  const normalized = compactWhitespace(text).toLowerCase();
+  if (!normalized.includes("stream disconnected before completion")) return null;
+  if (!normalized.includes("error sending request for url")) return null;
+
+  const retryMatch = text.match(/\breconnecting\.\.\.\s*(\d+)\s*\/\s*(\d+)/i);
+  return {
+    retryAttempt: retryMatch?.[1] ? Number.parseInt(retryMatch[1], 10) : null,
+    retryTotal: retryMatch?.[2] ? Number.parseInt(retryMatch[2], 10) : null,
+  };
+}
+
+function networkDisconnectTextForBlock(block: TranscriptBlock): string | null {
+  if (block.type === "tool") {
+    if (block.status !== "error" || typeof block.result !== "string") return null;
+    if (block.input != null && block.name.trim().toLowerCase() !== "tool") return null;
+    return parseNetworkDisconnectText(block.result) ? block.result : null;
+  }
+
+  if (block.type === "event" && block.tone === "error") {
+    return parseNetworkDisconnectText(block.text) ? block.text : null;
+  }
+
+  return null;
+}
+
+function summarizeNetworkDisconnectTexts(texts: string[]): string {
+  const observedRetryCount = texts.reduce<number | null>((current, text) => {
+    const parsed = parseNetworkDisconnectText(text);
+    const count = parsed?.retryAttempt ?? null;
+    if (count === null || Number.isNaN(count)) return current;
+    return Math.max(current ?? 0, count);
+  }, null);
+
+  return observedRetryCount && observedRetryCount > 0
+    ? `Connection dropped while Rudder was receiving the agent response. Retried ${observedRetryCount} ${pluralize("time", observedRetryCount)}.`
+    : "Connection dropped while Rudder was receiving the agent response.";
+}
+
+export function collapseNetworkDisconnectBlocks(blocks: TranscriptBlock[]): TranscriptBlock[] {
+  const collapsed: TranscriptBlock[] = [];
+  let pending: TranscriptBlock[] = [];
+  let pendingTexts: string[] = [];
+
+  const flush = () => {
+    if (pending.length === 0) return;
+    const first = pending[0];
+    const last = pending[pending.length - 1];
+    collapsed.push({
+      type: "event",
+      ts: first?.ts ?? last?.ts ?? new Date(0).toISOString(),
+      label: "network",
+      tone: "error",
+      text: summarizeNetworkDisconnectTexts(pendingTexts),
+      detail: pendingTexts.join("\n\n"),
+      collapseByDefault: true,
+    });
+    pending = [];
+    pendingTexts = [];
+  };
+
+  for (const block of blocks) {
+    const text = networkDisconnectTextForBlock(block);
+    if (text) {
+      pending.push(block);
+      pendingTexts.push(text);
+      continue;
+    }
+
+    flush();
+    collapsed.push(block);
+  }
+
+  flush();
+  return collapsed;
+}
+
 export function getSystemEventTone(text: string): Extract<TranscriptBlock, { type: "event" }>["tone"] {
   const normalized = compactWhitespace(text).toLowerCase();
   if (/^file(?: changes|_change):\s*/.test(normalized)) return "neutral";
@@ -554,7 +631,7 @@ export function normalizeTranscript(
     }
   }
 
-  return groupCommandBlocks(blocks);
+  return groupCommandBlocks(collapseNetworkDisconnectBlocks(blocks));
 }
 
 export function summarizeChatTurn(blocks: TranscriptBlock[]): string | null {
