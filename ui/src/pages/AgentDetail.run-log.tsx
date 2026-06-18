@@ -37,7 +37,7 @@ import { useLiveRunTranscripts } from "../components/transcript/useLiveRunTransc
 import { shouldPollLiveRunBackfill } from "../lib/live-run-backfill";
 import { queryKeys } from "../lib/queryKeys";
 import { getRunFailureDisplay } from "../lib/run-detail-display";
-import { heartbeatRunEventToTranscriptEntry, mergeTranscriptEntries } from "../lib/run-detail-events";
+import { heartbeatRunEventsToTranscriptEntries, mergeTranscriptEntries } from "../lib/run-detail-events";
 import { cn } from "../lib/utils";
 import { asNonEmptyString, asRecord, findScrollContainer, formatEnvForDisplay, formatInvocationValueForDisplay, InvocationSkillEvidence, LIVE_SCROLL_BOTTOM_TOLERANCE_PX, readScrollMetrics, redactPathText, redactPathValue, RunEventsList, RunLogChunk, runLogChunkDedupeKey, ScrollContainer, scrollToContainerBottom, utf8ByteLength, WorkspaceOperationsSection } from "./AgentDetail.helpers";
 
@@ -496,12 +496,10 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
     const effectiveLogTranscript = liveLogTranscript.length > logTranscript.length
       ? liveLogTranscript
       : logTranscript;
-    const eventTranscript = events.map((event) =>
-      heartbeatRunEventToTranscriptEntry(event, {
-        redactText: (value) => redactPathText(value, censorUsernameInLogs),
-        redactValue: (value) => redactPathValue(value, censorUsernameInLogs),
-      }),
-    );
+    const eventTranscript = heartbeatRunEventsToTranscriptEntries(events, {
+      redactText: (value) => redactPathText(value, censorUsernameInLogs),
+      redactValue: (value) => redactPathValue(value, censorUsernameInLogs),
+    });
     return mergeTranscriptEntries(effectiveLogTranscript, eventTranscript);
   }, [adapter, censorUsernameInLogs, events, liveTranscriptByRun, logLines, run.id]);
   const hasInvocationTab = Boolean(adapterInvokePayload);

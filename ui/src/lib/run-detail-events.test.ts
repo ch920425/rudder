@@ -2,6 +2,7 @@ import type { HeartbeatRunEvent } from "@rudderhq/shared";
 import { describe, expect, it } from "vitest";
 import type { TranscriptEntry } from "../agent-runtimes";
 import {
+  heartbeatRunEventsToTranscriptEntries,
   heartbeatRunEventText,
   heartbeatRunEventToTranscriptEntry,
   mergeTranscriptEntries,
@@ -53,6 +54,82 @@ describe("run-detail-events", () => {
 
     expect(text).toContain("Adapter Invoke:");
     expect(text).toContain("\"command\":\"/bin/codex\"");
+  });
+
+  it("hydrates transcript.entry event payloads instead of generic event labels", () => {
+    const entry = heartbeatRunEventToTranscriptEntry(
+      makeEvent({
+        eventType: "transcript.entry",
+        message: "chat transcript entry",
+        payload: {
+          kind: "assistant",
+          ts: "2026-06-17T09:00:01.000Z",
+          text: "web search completed",
+        },
+      }),
+    );
+
+    expect(entry).toEqual({
+      kind: "assistant",
+      ts: "2026-06-17T09:00:01.000Z",
+      text: "web search completed",
+    });
+  });
+
+  it("uses embedded transcript entries as the replay timeline when run events contain them", () => {
+    const entries = heartbeatRunEventsToTranscriptEntries([
+      makeEvent({
+        seq: 1,
+        eventType: "lifecycle",
+        message: "chat run started",
+      }),
+      makeEvent({
+        seq: 2,
+        eventType: "transcript.entry",
+        message: "chat transcript entry",
+        payload: {
+          kind: "assistant",
+          ts: "2026-06-17T09:00:01.000Z",
+          text: "Loaded agent instructions file",
+        },
+      }),
+      makeEvent({
+        seq: 3,
+        eventType: "transcript.entry",
+        message: "chat transcript entry",
+        payload: {
+          kind: "tool_result",
+          ts: "2026-06-17T09:00:02.000Z",
+          toolUseId: "tool-1",
+          toolName: "exec_command",
+          content: "web search completed",
+          isError: false,
+        },
+      }),
+      makeEvent({
+        seq: 4,
+        eventType: "chat.message_linked",
+        message: "chat message linked",
+      }),
+    ]);
+
+    expect(entries).toEqual([
+      {
+        kind: "assistant",
+        ts: "2026-06-17T09:00:01.000Z",
+        text: "Loaded agent instructions file",
+      },
+      {
+        kind: "tool_result",
+        ts: "2026-06-17T09:00:02.000Z",
+        toolUseId: "tool-1",
+        toolName: "exec_command",
+        content: "web search completed",
+        isError: false,
+      },
+    ]);
+    expect(entries).toHaveLength(2);
+    expect(entries).not.toContainEqual(expect.objectContaining({ text: "chat transcript entry" }));
   });
 
   it("merges log transcript entries and event entries in timestamp order", () => {

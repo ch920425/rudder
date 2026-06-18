@@ -148,7 +148,7 @@ import { shouldPollLiveRunBackfill } from "../lib/live-run-backfill";
 import { findOrganizationByPrefix } from "../lib/organization-routes";
 import { queryKeys } from "../lib/queryKeys";
 import { getRunFailureDisplay, getRunStderrExcerptDisplayText, shouldShowRunStderrExcerpt } from "../lib/run-detail-display";
-import { heartbeatRunEventText, heartbeatRunEventToTranscriptEntry, mergeTranscriptEntries } from "../lib/run-detail-events";
+import { heartbeatRunEventsToTranscriptEntries, heartbeatRunEventText, mergeTranscriptEntries } from "../lib/run-detail-events";
 import { formatRunDurationLabel, formatRunOccurrenceLabel, formatRunTimingTitle } from "../lib/run-duration-label";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
 import { agentIssuesUrl, agentRouteRef, cn, formatCents, formatDate, formatDateTime, formatTokens, relativeTime, visibleRunCostUsd } from "../lib/utils";
@@ -5282,12 +5282,10 @@ function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentRuntimeT
     const effectiveLogTranscript = liveLogTranscript.length > logTranscript.length
       ? liveLogTranscript
       : logTranscript;
-    const eventTranscript = events.map((event) =>
-      heartbeatRunEventToTranscriptEntry(event, {
-        redactText: (value) => redactPathText(value, censorUsernameInLogs),
-        redactValue: (value) => redactPathValue(value, censorUsernameInLogs),
-      }),
-    );
+    const eventTranscript = heartbeatRunEventsToTranscriptEntries(events, {
+      redactText: (value) => redactPathText(value, censorUsernameInLogs),
+      redactValue: (value) => redactPathValue(value, censorUsernameInLogs),
+    });
     return mergeTranscriptEntries(effectiveLogTranscript, eventTranscript);
   }, [adapter, censorUsernameInLogs, events, liveTranscriptByRun, logLines, run.id]);
   const hasInvocationTab = Boolean(adapterInvokePayload);

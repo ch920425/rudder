@@ -20,6 +20,123 @@ function eventTimestamp(event: HeartbeatRunEvent): string {
   return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
 
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function booleanValue(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function todoItemStatusValue(value: unknown): "pending" | "in_progress" | "completed" | null {
+  return value === "pending" || value === "in_progress" || value === "completed" ? value : null;
+}
+
+function objectValue(value: unknown) {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function transcriptEntryFromPayload(payloadValue: unknown, fallbackTs: string): TranscriptEntry | null {
+  const payload = objectValue(payloadValue);
+  if (!payload) return null;
+
+  const kind = textValue(payload.kind);
+  const ts = textValue(payload.ts) ?? fallbackTs;
+  switch (kind) {
+    case "assistant":
+    case "thinking": {
+      const text = textValue(payload.text);
+      if (text === null) return null;
+      const delta = booleanValue(payload.delta);
+      return delta === null ? { kind, ts, text } : { kind, ts, text, delta };
+    }
+    case "user":
+    case "stderr":
+    case "system":
+    case "stdout": {
+      const text = textValue(payload.text);
+      return text === null ? null : { kind, ts, text };
+    }
+    case "tool_call": {
+      const name = textValue(payload.name);
+      if (!name) return null;
+      const toolUseId = textValue(payload.toolUseId);
+      return toolUseId
+        ? { kind, ts, name, input: payload.input, toolUseId }
+        : { kind, ts, name, input: payload.input };
+    }
+    case "tool_result": {
+      const toolUseId = textValue(payload.toolUseId);
+      const content = textValue(payload.content);
+      const isError = booleanValue(payload.isError);
+      if (!toolUseId || content === null || isError === null) return null;
+      const toolName = textValue(payload.toolName);
+      return toolName
+        ? { kind, ts, toolUseId, toolName, content, isError }
+        : { kind, ts, toolUseId, content, isError };
+    }
+    case "todo_list": {
+      const items = Array.isArray(payload.items)
+        ? payload.items.flatMap((item) => {
+          const record = objectValue(item);
+          const text = textValue(record?.text);
+          const status = todoItemStatusValue(record?.status);
+          return text && status
+            ? [{ text, status }]
+            : [];
+        })
+        : null;
+      if (!items) return null;
+      const todoListId = textValue(payload.todoListId);
+      return todoListId ? { kind, ts, todoListId, items } : { kind, ts, items };
+    }
+    case "init": {
+      const model = textValue(payload.model);
+      const sessionId = textValue(payload.sessionId);
+      return model && sessionId ? { kind, ts, model, sessionId } : null;
+    }
+    case "result": {
+      const text = textValue(payload.text);
+      const inputTokens = numberValue(payload.inputTokens);
+      const outputTokens = numberValue(payload.outputTokens);
+      const cachedTokens = numberValue(payload.cachedTokens);
+      const costUsd = numberValue(payload.costUsd);
+      const subtype = textValue(payload.subtype);
+      const isError = booleanValue(payload.isError);
+      const errors = Array.isArray(payload.errors)
+        ? payload.errors.filter((error): error is string => typeof error === "string")
+        : null;
+      return text !== null
+        && inputTokens !== null
+        && outputTokens !== null
+        && cachedTokens !== null
+        && costUsd !== null
+        && subtype !== null
+        && isError !== null
+        && errors !== null
+        ? { kind, ts, text, inputTokens, outputTokens, cachedTokens, costUsd, subtype, isError, errors }
+        : null;
+    }
+    default:
+      return null;
+  }
+}
+
+export function heartbeatRunEventTranscriptEntry(
+  event: HeartbeatRunEvent,
+  options: RunDetailEventOptions = {},
+): TranscriptEntry | null {
+  if (event.eventType !== "transcript.entry") return null;
+  const redactValue = options.redactValue ?? (<T,>(value: T) => value);
+  return transcriptEntryFromPayload(redactValue(event.payload), eventTimestamp(event));
+}
+
 export function heartbeatRunEventText(
   event: HeartbeatRunEvent,
   options: RunDetailEventOptions = {},
@@ -48,6 +165,9 @@ export function heartbeatRunEventToTranscriptEntry(
   event: HeartbeatRunEvent,
   options: RunDetailEventOptions = {},
 ): TranscriptEntry {
+  const embeddedTranscriptEntry = heartbeatRunEventTranscriptEntry(event, options);
+  if (embeddedTranscriptEntry) return embeddedTranscriptEntry;
+
   const ts = eventTimestamp(event);
   const text = heartbeatRunEventText(event, options);
 
@@ -60,6 +180,18 @@ export function heartbeatRunEventToTranscriptEntry(
   }
 
   return { kind: "system", ts, text };
+}
+
+export function heartbeatRunEventsToTranscriptEntries(
+  events: HeartbeatRunEvent[],
+  options: RunDetailEventOptions = {},
+): TranscriptEntry[] {
+  const embeddedTranscriptEntries = events.flatMap((event) => {
+    const entry = heartbeatRunEventTranscriptEntry(event, options);
+    return entry ? [entry] : [];
+  });
+  if (embeddedTranscriptEntries.length > 0) return embeddedTranscriptEntries;
+  return events.map((event) => heartbeatRunEventToTranscriptEntry(event, options));
 }
 
 export function mergeTranscriptEntries(
