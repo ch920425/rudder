@@ -235,6 +235,20 @@ const adaptersByType = new Map<string, ServerAgentRuntimeModule>(
   ].map((a) => [a.type, a]),
 );
 
+function mergeRuntimeModels(
+  ...modelLists: Array<readonly { id: string; label: string }[] | null | undefined>
+): { id: string; label: string }[] {
+  const seen = new Set<string>();
+  const merged: { id: string; label: string }[] = [];
+  for (const model of modelLists.flatMap((models) => models ?? [])) {
+    const id = model.id.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push({ id, label: model.label.trim() || id });
+  }
+  return merged;
+}
+
 export function getServerAdapter(type: string): ServerAgentRuntimeModule {
   const adapter = adaptersByType.get(type);
   if (!adapter) {
@@ -249,6 +263,9 @@ export async function listAgentRuntimeModels(type: string): Promise<{ id: string
   if (!adapter) return [];
   if (adapter.listModels) {
     const discovered = await adapter.listModels();
+    if (type === "pi_local") {
+      return mergeRuntimeModels(discovered, adapter.models);
+    }
     if (discovered.length > 0) return discovered;
   }
   return adapter.models ?? [];

@@ -58,7 +58,8 @@ describe("AgentConfigForm runtime defaults", () => {
 
   it("gives Pi and OpenCode provider-specific onboarding commands", () => {
     expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
-    expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("~/.pi/agent/models.json");
+    expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).toContain("Paste");
+    expect(runtimeProviderSetupHint("pi_local", "deepseek/deepseek-chat")).not.toContain("Advanced options");
     expect(runtimeProviderCredentialEnvKey("pi_local", "deepseek/deepseek-chat")).toBe("DEEPSEEK_API_KEY");
     expect(runtimeProviderCredentialLabel("pi_local", "deepseek/deepseek-chat")).toContain("DEEPSEEK_API_KEY");
     expect(runtimeManualProbeCommand("pi_local", "pi", "deepseek/deepseek-chat"))

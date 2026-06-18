@@ -74,7 +74,7 @@ export function runtimeProviderSetupHint(agentRuntimeType: string, model: string
   const provider = providerFromModelId(model);
   if (agentRuntimeType === "pi_local") {
     if (provider === "deepseek") {
-      return "For Pi + DeepSeek, use provider/model such as deepseek/deepseek-chat. Native DeepSeek needs DEEPSEEK_API_KEY or pi /login; if Pi reports openrouter instead, set OPENROUTER_API_KEY or add a native DeepSeek provider/model in ~/.pi/agent/models.json. Use pi /login locally, or create/edit the agent in Advanced options and add provider env there. Test now is the source of truth.";
+      return "For Pi + DeepSeek, use provider/model such as deepseek/deepseek-chat. Paste DEEPSEEK_API_KEY below, or use pi /login if DeepSeek is already configured locally. If Pi routes through OpenRouter, use openrouter/deepseek/deepseek-chat and paste OPENROUTER_API_KEY. Test now is the source of truth.";
     }
     if (provider) {
       return `For Pi, authenticate provider "${provider}" with pi /login, auth.json, or provider env, then use Test now to prove the selected model can answer.`;

@@ -3,10 +3,28 @@ import { models as cursorFallbackModels } from "@rudderhq/agent-runtime-cursor-l
 import { resetOpenCodeModelsCacheForTests } from "@rudderhq/agent-runtime-opencode-local/server";
 import { models as piFallbackModels } from "@rudderhq/agent-runtime-pi-local";
 import { resetPiModelsCacheForTests } from "@rudderhq/agent-runtime-pi-local/server";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCodexModelsCacheForTests } from "../agent-runtimes/codex-models.js";
 import { resetCursorModelsCacheForTests, setCursorModelsRunnerForTests } from "../agent-runtimes/cursor-models.js";
 import { listAgentRuntimeModels } from "../agent-runtimes/index.js";
+
+async function writeFakeCommand(
+  name: string,
+  content: string,
+): Promise<{ command: string; root: string }> {
+  const root = path.join(
+    os.tmpdir(),
+    `rudder-adapter-models-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
+  const command = path.join(root, name);
+  await fs.mkdir(root, { recursive: true });
+  await fs.writeFile(command, content, "utf8");
+  await fs.chmod(command, 0o755);
+  return { command, root };
+}
 
 describe("adapter model listing", () => {
   beforeEach(() => {
@@ -118,5 +136,26 @@ describe("adapter model listing", () => {
     const models = await listAgentRuntimeModels("pi_local");
     expect(models).toEqual(piFallbackModels);
     expect(models.map((model) => model.id)).toContain("deepseek/deepseek-chat");
+  });
+
+  it("keeps Pi starter models when CLI discovery only returns local authenticated providers", async () => {
+    const { command, root } = await writeFakeCommand(
+      "pi",
+      `#!/usr/bin/env node
+console.log("provider     model             context  max-out  thinking  images");
+console.log("kimi-coding  kimi-for-coding   262.1K   32.8K    yes       yes");
+console.log("kimi-coding  kimi-k2-thinking  262.1K   32.8K    yes       no");
+`,
+    );
+    process.env.RUDDER_PI_COMMAND = command;
+
+    const models = await listAgentRuntimeModels("pi_local");
+
+    expect(models.map((model) => model.id)).toContain("kimi-coding/kimi-for-coding");
+    expect(models.map((model) => model.id)).toContain("deepseek/deepseek-chat");
+    expect(models.map((model) => model.id)).toContain("openrouter/deepseek/deepseek-chat");
+    expect(models.filter((model) => model.id === "kimi-coding/kimi-for-coding")).toHaveLength(1);
+
+    await fs.rm(root, { recursive: true, force: true });
   });
 });

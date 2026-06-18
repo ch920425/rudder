@@ -155,14 +155,15 @@ export async function testEnvironment(
   const canRunProbe =
     checks.every((check) => check.code !== "pi_cwd_invalid" && check.code !== "pi_command_unresolvable");
 
+  let discoveredModels: { id: string }[] | null = null;
   if (canRunProbe) {
     try {
-      const discovered = await discoverPiModelsCached({ command, cwd, env: runtimeEnv });
-      if (discovered.length > 0) {
+      discoveredModels = await discoverPiModelsCached({ command, cwd, env: runtimeEnv });
+      if (discoveredModels.length > 0) {
         checks.push({
           code: "pi_models_discovered",
           level: "info",
-          message: `Discovered ${discovered.length} model(s) from Pi.`,
+          message: `Discovered ${discoveredModels.length} model(s) from Pi.`,
         });
       } else {
         checks.push({
@@ -198,30 +199,24 @@ export async function testEnvironment(
       hint: "Use provider/model, for example `kimi-coding/kimi-for-coding`.",
     });
   } else if (canRunProbe) {
-    // Verify model is in the list
-    try {
-      const discovered = await discoverPiModelsCached({ command, cwd, env: runtimeEnv });
-      const modelExists = discovered.some((m: { id: string }) => m.id === configuredModel);
-      if (modelExists) {
-        checks.push({
-          code: "pi_model_configured",
-          level: "info",
-          message: `Configured model: ${configuredModel}`,
-        });
-      } else {
-        checks.push({
-          code: "pi_model_not_discovered",
-          level: "info",
-          message: `Configured model "${configuredModel}" was not found in discovered model suggestions.`,
-          hint: "Keep this custom provider/model if your local Pi provider config supports it; the hello probe below is the source of truth.",
-        });
-      }
-    } catch {
-      // If we can't verify, just note it
+    if (discoveredModels === null) {
       checks.push({
         code: "pi_model_configured",
         level: "info",
         message: `Configured model: ${configuredModel}`,
+      });
+    } else if (discoveredModels.some((m) => m.id === configuredModel)) {
+      checks.push({
+        code: "pi_model_configured",
+        level: "info",
+        message: `Configured model: ${configuredModel}`,
+      });
+    } else {
+      checks.push({
+        code: "pi_model_not_discovered",
+        level: "info",
+        message: `Configured model "${configuredModel}" was not found in discovered model suggestions.`,
+        hint: "Keep this custom provider/model if your local Pi provider config supports it; the hello probe below is the source of truth.",
       });
     }
   }
