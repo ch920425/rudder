@@ -14,6 +14,7 @@ import {
   runChildProcess,
 } from "@rudderhq/agent-runtime-utils/server-utils";
 import path from "node:path";
+import { prepareManagedCodexHome } from "./codex-home.js";
 import { parseCodexJsonl } from "./parse.js";
 
 function summarizeStatus(checks: AgentRuntimeEnvironmentCheck[]): AgentRuntimeEnvironmentTestResult["status"] {
@@ -145,6 +146,13 @@ export async function testEnvironment(
         if (fromExtraArgs.length > 0) return fromExtraArgs;
         return asStringArray(config.args);
       })();
+      const configuredCodexHome =
+        typeof env.CODEX_HOME === "string" && env.CODEX_HOME.trim().length > 0
+          ? path.resolve(env.CODEX_HOME.trim())
+          : null;
+      const effectiveCodexHome =
+        configuredCodexHome ?? await prepareManagedCodexHome({ ...process.env, ...env }, async () => {}, ctx.orgId);
+      env.CODEX_HOME = effectiveCodexHome;
 
       const args = ["exec", "--json", "--disable", "plugins"];
       if (search) args.unshift("--search");
