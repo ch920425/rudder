@@ -418,6 +418,30 @@ describe("issueService.list participantAgentId", () => {
     });
   });
 
+  it("limits searched issue rows before attaching related metadata", async () => {
+    const orgId = randomUUID();
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Issue Search Limit",
+      urlKey: deriveOrganizationUrlKey("Issue Search Limit"),
+    });
+    await db.insert(issues).values(Array.from({ length: 5 }, (_, index) => ({
+      id: randomUUID(),
+      orgId,
+      title: `Perf search result ${index + 1}`,
+      status: "todo",
+      priority: "medium",
+    })));
+
+    const result = await svc.list(orgId, {
+      q: "Perf search result",
+      searchFields: ["title"],
+      limit: 2,
+    });
+
+    expect(result).toHaveLength(2);
+  });
+
   it("allows authoring users to edit/delete their comments and board users to delete agent comments", async () => {
     const orgId = randomUUID();
     const issueId = randomUUID();

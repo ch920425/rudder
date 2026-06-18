@@ -399,12 +399,12 @@ describe("chat routes", () => {
 
     const res = await request(createApp())
       .get("/api/orgs/organization-1/chats")
-      .query({ status: "all", q: "launch notes" });
+      .query({ status: "all", q: "launch notes", limit: "20" });
 
     expect(res.status).toBe(200);
     expect(mockChatService.list).toHaveBeenCalledWith(
       "organization-1",
-      { status: "all", q: "launch notes" },
+      { status: "all", q: "launch notes", limit: 20 },
       "user-1",
     );
     expect(mockChatAssistantService.enrichConversations).toHaveBeenCalled();

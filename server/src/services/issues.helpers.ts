@@ -74,6 +74,7 @@ export interface IssueFilters {
   includeAutomationExecutions?: boolean;
   q?: string;
   searchFields?: IssueSearchField[];
+  limit?: number;
 }
 
 export type IssueRow = typeof issues.$inferSelect;

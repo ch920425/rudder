@@ -4,7 +4,7 @@ import { getKeyboardShortcutPlatform } from "@/lib/keyboard-shortcuts";
 import type { CSSProperties, KeyboardEventHandler, ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette } from "./CommandPalette";
 
 (
@@ -39,9 +39,11 @@ vi.mock("@tanstack/react-query", () => ({
     if (enabled === false) return { data: [] };
     if (
       queryKey[0] === "issues" &&
-      queryKey[2] === "search" &&
-      (queryKey[3] === "launch" || queryKey[3] === "status icon") &&
-      queryKey[5] === "title,description,comment"
+      queryKey[2] === "command-palette" &&
+      queryKey[3] === "search" &&
+      (queryKey[4] === "launch" || queryKey[4] === "status icon") &&
+      queryKey[5] === "title,description,comment" &&
+      queryKey[6] === 20
     ) {
       return {
         data: [
@@ -75,7 +77,13 @@ vi.mock("@tanstack/react-query", () => ({
     if (queryKey[0] === "organizations" && queryKey[2] === "workspace-mention-files") {
       return { data: { entries: [] } };
     }
-    if (queryKey[0] === "chats" && queryKey[3] === "search" && queryKey[4] === "launch") {
+    if (
+      queryKey[0] === "chats" &&
+      queryKey[2] === "command-palette" &&
+      queryKey[3] === "search" &&
+      queryKey[5] === "launch" &&
+      queryKey[6] === 20
+    ) {
       return {
         data: [
           {
@@ -122,6 +130,7 @@ vi.mock("@tanstack/react-query", () => ({
         ],
       };
     }
+    if (queryKey[0] === "issues" && queryKey[2] === "command-palette" && queryKey[3] === "list") return { data: [] };
     if (queryKey[0] === "issues") return { data: [] };
     if (queryKey[0] === "instance" && queryKey[1] === "shortcut-settings") {
       return { data: shortcutSettingsMock.value };
@@ -216,6 +225,10 @@ vi.mock("@/components/ui/command", () => ({
 
 let cleanupFn: (() => void) | null = null;
 
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
@@ -225,6 +238,7 @@ afterEach(() => {
   shortcutSettingsMock.value = null;
   navigateMock.mockClear();
   document.body.innerHTML = "";
+  vi.useRealTimers();
 });
 
 function renderCommandPalette() {
@@ -266,6 +280,12 @@ function changeInput(input: HTMLInputElement, value: string) {
   });
 }
 
+function flushRemoteSearchDebounce() {
+  act(() => {
+    vi.advanceTimersByTime(250);
+  });
+}
+
 describe("CommandPalette", () => {
   it("opens from the primary rail search event", () => {
     const container = document.createElement("div");
@@ -293,6 +313,15 @@ describe("CommandPalette", () => {
     expect(dialog?.style.top).toBe("50vh");
   });
 
+  it("uses a bounded preview query for initial issue results", () => {
+    const container = renderCommandPalette();
+
+    openCommandPalette(container);
+
+    expect(observedQueryKeys).toContainEqual(["issues", "org-1", "command-palette", "list", 20]);
+    expect(observedQueryKeys).not.toContainEqual(["issues", "org-1"]);
+  });
+
   it("shows chat search results and navigates to the selected conversation", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -316,6 +345,7 @@ describe("CommandPalette", () => {
     act(() => {
       searchLaunch?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
+    flushRemoteSearchDebounce();
 
     expect(container.textContent).toContain("Chats");
     expect(container.textContent).toContain("Launch planning");
@@ -350,14 +380,16 @@ describe("CommandPalette", () => {
     act(() => {
       searchLaunch?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
+    flushRemoteSearchDebounce();
 
     expect(observedQueryKeys).toContainEqual([
       "issues",
       "org-1",
+      "command-palette",
       "search",
       "launch",
-      "__all-projects__",
       "title,description,comment",
+      20,
     ]);
     expect(container.textContent).toContain("Issues");
     expect(container.textContent).toContain("RUD-498");
@@ -368,22 +400,26 @@ describe("CommandPalette", () => {
     queryStateByKey.set(JSON.stringify([
       "issues",
       "org-1",
+      "command-palette",
       "search",
       "pending",
-      "__all-projects__",
       "title,description,comment",
+      20,
     ]), { data: undefined, isFetching: true, isLoading: true });
     queryStateByKey.set(JSON.stringify([
       "chats",
       "org-1",
-      "all",
+      "command-palette",
       "search",
+      "all",
       "pending",
+      20,
     ]), { data: undefined, isFetching: true, isLoading: true });
     const container = renderCommandPalette();
     const input = openCommandPalette(container);
 
     changeInput(input, "pending");
+    flushRemoteSearchDebounce();
 
     expect(container.textContent).toContain("Searching...");
     expect(container.textContent).not.toContain("No results found.");
@@ -394,10 +430,11 @@ describe("CommandPalette", () => {
     queryStateByKey.set(JSON.stringify([
       "issues",
       "org-1",
+      "command-palette",
       "search",
       "pending",
-      "__all-projects__",
       "title,description,comment",
+      20,
     ]), {
       data: [
         {
@@ -414,6 +451,7 @@ describe("CommandPalette", () => {
     const input = openCommandPalette(container);
 
     changeInput(input, "pending");
+    flushRemoteSearchDebounce();
 
     expect(container.textContent).toContain("Cached pending issue");
     expect(container.textContent).not.toContain("Searching...");
@@ -484,16 +522,59 @@ describe("CommandPalette", () => {
     const scopedInput = container.querySelector<HTMLInputElement>("input");
     expect(scopedInput).not.toBeNull();
     changeInput(scopedInput!, "status icon");
+    flushRemoteSearchDebounce();
 
     expect(container.textContent).toContain("Global search regression");
     expect(container.textContent).not.toContain("Launch planning");
     expect(observedQueryKeys).toContainEqual([
       "issues",
       "org-1",
+      "command-palette",
       "search",
       "status icon",
-      "__all-projects__",
       "title,description,comment",
+      20,
+    ]);
+  });
+
+  it("filters the bounded issue preview locally for one-character issue searches", () => {
+    queryDataByKey.set(JSON.stringify([
+      "issues",
+      "org-1",
+      "command-palette",
+      "list",
+      20,
+    ]), [
+      {
+        id: "issue-preview",
+        identifier: "RUD-1",
+        title: "Release readiness",
+        status: "todo",
+        assigneeAgentId: null,
+      },
+      {
+        id: "issue-other",
+        identifier: "OPS-2",
+        title: "Deploy checklist",
+        status: "todo",
+        assigneeAgentId: null,
+      },
+    ]);
+    const container = renderCommandPalette();
+    const input = openCommandPalette(container);
+
+    changeInput(input, "r");
+
+    expect(container.textContent).toContain("Release readiness");
+    expect(container.textContent).not.toContain("Deploy checklist");
+    expect(observedQueryKeys).not.toContainEqual([
+      "issues",
+      "org-1",
+      "command-palette",
+      "search",
+      "r",
+      "title,description,comment",
+      20,
     ]);
   });
 

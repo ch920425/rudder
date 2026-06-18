@@ -18,6 +18,7 @@ let chatList: any[];
 let activeGeneratingChatIds: Set<string>;
 let cleanupFn: (() => void) | null = null;
 let intersectionCallback: ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
+let intersectionObserverOptions: IntersectionObserverInit | undefined;
 let localStorageValues: Record<string, string>;
 
 vi.mock("@tanstack/react-query", () => ({
@@ -122,6 +123,7 @@ function baseConversation(overrides: Record<string, unknown> = {}) {
 describe("MessengerContextSidebar unread scroll requests", () => {
   beforeEach(() => {
     intersectionCallback = null;
+    intersectionObserverOptions = undefined;
     localStorageValues = {};
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -144,8 +146,12 @@ describe("MessengerContextSidebar unread scroll requests", () => {
     }) as typeof globalThis.requestAnimationFrame;
     globalThis.cancelAnimationFrame = vi.fn();
     class MockIntersectionObserver {
-      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+      constructor(
+        callback: (entries: Array<{ isIntersecting: boolean }>) => void,
+        options?: IntersectionObserverInit,
+      ) {
         intersectionCallback = callback;
+        intersectionObserverOptions = options;
       }
       observe = vi.fn();
       disconnect = vi.fn();
@@ -500,5 +506,28 @@ describe("MessengerContextSidebar unread scroll requests", () => {
     });
 
     expect(loadMoreThreadSummaries).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts loading the next Messenger thread page before the user reaches the sentinel", async () => {
+    messengerModel = {
+      ...messengerModel,
+      hasMoreThreadSummaries: true,
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    await act(async () => {
+      root.render(<MessengerContextSidebar />);
+      await Promise.resolve();
+    });
+
+    expect(intersectionObserverOptions?.rootMargin).toBe("720px 0px 960px 0px");
   });
 });

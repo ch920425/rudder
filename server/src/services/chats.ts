@@ -522,7 +522,7 @@ export function chatService(db: Db) {
 
   async function list(
       orgId: string,
-      options?: { status?: "active" | "resolved" | "archived" | "all"; q?: string },
+      options?: { status?: "active" | "resolved" | "archived" | "all"; q?: string; limit?: number },
       userId?: string | null,
     ) {
       const status = options?.status ?? "active";
@@ -547,11 +547,16 @@ export function chatService(db: Db) {
           )
         )`);
       }
-      const rows = await db
+      let query = db
         .select()
         .from(chatConversations)
         .where(and(...conditions))
-        .orderBy(desc(sql`coalesce(${chatConversations.lastMessageAt}, ${chatConversations.updatedAt})`));
+        .orderBy(desc(sql`coalesce(${chatConversations.lastMessageAt}, ${chatConversations.updatedAt})`))
+        .$dynamic();
+      if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
+        query = query.limit(Math.max(1, Math.min(500, Math.floor(options.limit))));
+      }
+      const rows = await query;
       const conversations = await hydrateConversations(rows, userId);
       if (!hasSearch) return conversations;
       const searchPreviews = await listSearchPreviews(orgId, rows, rawSearch, containsPattern);

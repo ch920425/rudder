@@ -35,7 +35,15 @@ import { registerIssueCommentAttachmentRoutes } from "./issues.comments-attachme
 import { registerIssueMutationRoutes } from "./issues.mutations.js";
 
 const MAX_ISSUE_COMMENT_LIMIT = 500;
+const MAX_ISSUE_LIST_LIMIT = 500;
 const ISSUE_SEARCH_FIELDS = new Set<IssueSearchField>(["title", "description", "comment"]);
+
+function positiveIntegerQuery(value: unknown, max: number): number | undefined {
+  if (typeof value !== "string" || value.trim().length === 0) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return undefined;
+  return Math.min(max, parsed);
+}
 
 export function issueRoutes(db: Db, storage: StorageService) {
   const router = Router();
@@ -424,6 +432,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
         req.query.includeAutomationExecutions === "true" || req.query.includeAutomationExecutions === "1",
       q: req.query.q as string | undefined,
       searchFields: parseIssueSearchFields(req.query.searchFields),
+      limit: positiveIntegerQuery(req.query.limit, MAX_ISSUE_LIST_LIMIT),
     });
     res.json(result);
   });

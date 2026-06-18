@@ -3087,7 +3087,7 @@ export function MessengerContextSidebar() {
       const visible = entries.some((entry) => entry.isIntersecting);
       if (!visible || !model.hasMoreThreadSummaries || model.isFetchingMoreThreadSummaries) return;
       void model.loadMoreThreadSummaries();
-    }, { root, rootMargin: "240px 0px" });
+    }, { root, rootMargin: "720px 0px 960px 0px" });
 
     observer.observe(sentinel);
     return () => observer.disconnect();

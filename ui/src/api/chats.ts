@@ -14,10 +14,13 @@ export const chatsApi = {
   list: (
     orgId: string,
     status: "active" | "resolved" | "archived" | "all" = "active",
-    filters?: { q?: string },
+    filters?: { q?: string; limit?: number },
   ) => {
     const params = new URLSearchParams({ status });
     if (filters?.q) params.set("q", filters.q);
+    if (typeof filters?.limit === "number" && Number.isFinite(filters.limit)) {
+      params.set("limit", String(Math.max(1, Math.floor(filters.limit))));
+    }
     return api.get<ChatConversation[]>(`/orgs/${orgId}/chats?${params.toString()}`);
   },
   create: (

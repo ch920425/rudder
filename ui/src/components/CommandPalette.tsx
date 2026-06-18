@@ -51,6 +51,9 @@ import { AgentIdentity } from "./AgentAvatar";
 import { ProjectIcon } from "./ProjectIdentity";
 
 const GLOBAL_ISSUE_SEARCH_FIELDS: IssueSearchField[] = ["title", "description", "comment"];
+const GLOBAL_REMOTE_SEARCH_MIN_LENGTH = 2;
+const GLOBAL_REMOTE_SEARCH_LIMIT = 20;
+const GLOBAL_REMOTE_SEARCH_DEBOUNCE_MS = 250;
 const LIBRARY_SEARCH_LIMIT = 20;
 
 function searchTokensMatch(query: string, tokens: Array<string | null | undefined>) {
@@ -73,6 +76,7 @@ export function CommandPalette() {
   const { selectedOrganizationId } = useOrganization();
   const { isMobile, setSidebarOpen } = useSidebar();
   const searchQuery = query.trim();
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const shortcutSettingsQuery = useQuery({
     queryKey: queryKeys.instance.shortcutSettings,
     queryFn: () => instanceSettingsApi.getShortcuts(),
@@ -114,9 +118,22 @@ export function CommandPalette() {
     if (!open) {
       setScope(null);
       setQuery("");
+      setDebouncedSearchQuery("");
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open || searchQuery.length < GLOBAL_REMOTE_SEARCH_MIN_LENGTH) {
+      setDebouncedSearchQuery("");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, GLOBAL_REMOTE_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, searchQuery]);
+
+  const remoteSearchQuery = debouncedSearchQuery.length >= GLOBAL_REMOTE_SEARCH_MIN_LENGTH ? debouncedSearchQuery : "";
   const scopeDefinition = scope ? getGlobalSearchScopeDefinition(scope) : null;
   const pendingScopeSuggestion = scope ? null : getPendingGlobalSearchScopeSuggestion(query);
   const pendingScopeDefinition = pendingScopeSuggestion
@@ -124,31 +141,51 @@ export function CommandPalette() {
     : null;
 
   const issuesQuery = useQuery({
-    queryKey: queryKeys.issues.list(selectedOrganizationId!),
-    queryFn: () => issuesApi.list(selectedOrganizationId!),
+    queryKey: ["issues", selectedOrganizationId!, "command-palette", "list", GLOBAL_REMOTE_SEARCH_LIMIT] as const,
+    queryFn: () => issuesApi.list(selectedOrganizationId!, { limit: GLOBAL_REMOTE_SEARCH_LIMIT }),
     enabled: !!selectedOrganizationId && open && (scope === null || scope === "issue"),
   });
   const issues = issuesQuery.data ?? [];
 
   const searchedIssuesQuery = useQuery({
-    queryKey: queryKeys.issues.search(selectedOrganizationId!, searchQuery, undefined, GLOBAL_ISSUE_SEARCH_FIELDS),
+    queryKey: [
+      "issues",
+      selectedOrganizationId!,
+      "command-palette",
+      "search",
+      remoteSearchQuery,
+      GLOBAL_ISSUE_SEARCH_FIELDS.join(","),
+      GLOBAL_REMOTE_SEARCH_LIMIT,
+    ] as const,
     queryFn: () => issuesApi.list(selectedOrganizationId!, {
-      q: searchQuery,
+      q: remoteSearchQuery,
       searchFields: GLOBAL_ISSUE_SEARCH_FIELDS,
+      limit: GLOBAL_REMOTE_SEARCH_LIMIT,
     }),
     enabled: !!selectedOrganizationId
       && open
-      && searchQuery.length > 0
+      && remoteSearchQuery.length > 0
       && (scope === null || scope === "issue"),
   });
   const searchedIssues = searchedIssuesQuery.data ?? [];
 
   const searchedChatsQuery = useQuery({
-    queryKey: queryKeys.chats.search(selectedOrganizationId!, searchQuery),
-    queryFn: () => chatsApi.list(selectedOrganizationId!, "all", { q: searchQuery }),
+    queryKey: [
+      "chats",
+      selectedOrganizationId!,
+      "command-palette",
+      "search",
+      "all",
+      remoteSearchQuery,
+      GLOBAL_REMOTE_SEARCH_LIMIT,
+    ] as const,
+    queryFn: () => chatsApi.list(selectedOrganizationId!, "all", {
+      q: remoteSearchQuery,
+      limit: GLOBAL_REMOTE_SEARCH_LIMIT,
+    }),
     enabled: !!selectedOrganizationId
       && open
-      && searchQuery.length > 0
+      && remoteSearchQuery.length > 0
       && (scope === null || scope === "chat"),
   });
   const searchedChats = searchedChatsQuery.data ?? [];
@@ -238,9 +275,13 @@ export function CommandPalette() {
   const visibleIssues = useMemo(
     () => {
       if (scope !== null && scope !== "issue") return [];
-      return searchQuery.length > 0 ? searchedIssues : issues;
+      if (remoteSearchQuery.length > 0) return searchedIssues;
+      if (searchQuery.length > 0) {
+        return issues.filter((issue) => searchTokensMatch(searchQuery, [issue.identifier, issue.title]));
+      }
+      return issues;
     },
-    [issues, searchedIssues, searchQuery, scope],
+    [issues, searchedIssues, remoteSearchQuery, searchQuery, scope],
   );
   const visibleChats = scope === null || scope === "chat" ? searchedChats : [];
   const libraryEntries = scope === "library" && searchQuery.length > 0 ? librarySearch.entries : [];

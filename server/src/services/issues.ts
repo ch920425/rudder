@@ -64,11 +64,19 @@ export { deriveIssueUserContext } from "./issues.helpers.js";
 export type { IssueFilters } from "./issues.helpers.js";
 
 const DEFAULT_ISSUE_SEARCH_FIELDS: IssueSearchField[] = ["title"];
+const MAX_ISSUE_LIST_LIMIT = 500;
 
 function normalizeIssueSearchFields(fields: IssueSearchField[] | undefined): Set<IssueSearchField> {
   const allowed = new Set<IssueSearchField>(["title", "description", "comment"]);
   const normalized = (fields ?? DEFAULT_ISSUE_SEARCH_FIELDS).filter((field): field is IssueSearchField => allowed.has(field));
   return new Set(normalized.length > 0 ? normalized : DEFAULT_ISSUE_SEARCH_FIELDS);
+}
+
+function normalizeIssueListLimit(limit: number | undefined): number | undefined {
+  if (typeof limit !== "number" || !Number.isFinite(limit)) return undefined;
+  const normalized = Math.floor(limit);
+  if (normalized < 1) return undefined;
+  return Math.min(MAX_ISSUE_LIST_LIMIT, normalized);
 }
 
 export function issueService(db: Db) {
@@ -595,11 +603,17 @@ export function issueService(db: Db) {
           ELSE 6
         END
       `;
-      const rows = await db
+      let query = db
         .select()
         .from(issues)
         .where(and(...conditions))
-        .orderBy(hasSearch ? asc(searchOrder) : asc(priorityOrder), asc(priorityOrder), desc(issues.updatedAt));
+        .orderBy(hasSearch ? asc(searchOrder) : asc(priorityOrder), asc(priorityOrder), desc(issues.updatedAt))
+        .$dynamic();
+      const limit = normalizeIssueListLimit(filters?.limit);
+      if (limit !== undefined) {
+        query = query.limit(limit);
+      }
+      const rows = await query;
       const withLabels = await withIssueLabels(db, rows);
       const runMap = await activeRunMapForIssues(db, withLabels);
       const withRuns = withActiveRuns(withLabels, runMap);

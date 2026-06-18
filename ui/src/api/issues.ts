@@ -31,6 +31,7 @@ export const issuesApi = {
       includeAutomationExecutions?: boolean;
       q?: string;
       searchFields?: IssueSearchField[];
+      limit?: number;
     },
   ) => {
     const params = new URLSearchParams();
@@ -50,6 +51,9 @@ export const issuesApi = {
     if (filters?.includeAutomationExecutions) params.set("includeAutomationExecutions", "true");
     if (filters?.q) params.set("q", filters.q);
     if (filters?.searchFields?.length) params.set("searchFields", filters.searchFields.join(","));
+    if (typeof filters?.limit === "number" && Number.isFinite(filters.limit)) {
+      params.set("limit", String(Math.max(1, Math.floor(filters.limit))));
+    }
     const qs = params.toString();
     return api.get<Issue[]>(`/orgs/${orgId}/issues${qs ? `?${qs}` : ""}`);
   },

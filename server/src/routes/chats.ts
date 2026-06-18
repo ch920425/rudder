@@ -1254,8 +1254,11 @@ export function chatRoutes(db: Db, storage: StorageService) {
         ? statusParam
         : "active";
     const q = typeof req.query.q === "string" ? req.query.q : undefined;
+    const limit = typeof req.query.limit === "string"
+      ? positiveIntegerQuery(req.query.limit, 50, 500)
+      : undefined;
     const userId = req.actor.type === "board" ? (req.actor.userId ?? "local-board") : null;
-    const conversations = await svc.list(orgId, { status, q }, userId);
+    const conversations = await svc.list(orgId, { status, q, limit }, userId);
     res.json(await assistantSvc.enrichConversations(conversations as ChatConversation[]));
   });
 
