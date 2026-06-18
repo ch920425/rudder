@@ -13,6 +13,7 @@ import {
   issues,
   operatorProfiles,
   organizations,
+  projects,
 } from "@rudderhq/db";
 import { deriveOrganizationUrlKey } from "@rudderhq/shared";
 import { sql } from "drizzle-orm";
@@ -119,6 +120,7 @@ describe("activityService.forIssue", () => {
     await db.delete(chatConversations);
     await db.delete(activityLog);
     await db.delete(issues);
+    await db.delete(projects);
     await db.delete(agents);
     await db.delete(operatorProfiles);
     await db.delete(organizations);
@@ -1025,5 +1027,139 @@ describe("activityService.forIssue", () => {
         },
       },
     });
+  });
+
+  it("filters user approval comments by project through approval payload issue links", async () => {
+    const orgId = randomUUID();
+    const userId = "user-1";
+    const targetProjectId = randomUUID();
+    const otherProjectId = randomUUID();
+    const targetIssueId = randomUUID();
+    const otherIssueId = randomUUID();
+    const targetApprovalId = randomUUID();
+    const directProjectApprovalId = randomUUID();
+    const otherProjectApprovalId = randomUUID();
+    const unscopedApprovalId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Rudder",
+      urlKey: deriveOrganizationUrlKey("Rudder"),
+      issuePrefix: "RST",
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(projects).values([
+      {
+        id: targetProjectId,
+        orgId,
+        name: "Target project",
+        status: "in_progress",
+      },
+      {
+        id: otherProjectId,
+        orgId,
+        name: "Other project",
+        status: "in_progress",
+      },
+    ]);
+
+    await db.insert(issues).values([
+      {
+        id: targetIssueId,
+        orgId,
+        projectId: targetProjectId,
+        identifier: "RST-1",
+        title: "Target project issue",
+        status: "todo",
+        priority: "high",
+      },
+      {
+        id: otherIssueId,
+        orgId,
+        projectId: otherProjectId,
+        identifier: "RST-2",
+        title: "Other project issue",
+        status: "todo",
+        priority: "high",
+      },
+    ]);
+
+    await db.insert(approvals).values([
+      {
+        id: targetApprovalId,
+        orgId,
+        type: "command",
+        status: "approved",
+        payload: { issueIds: [targetIssueId] },
+      },
+      {
+        id: directProjectApprovalId,
+        orgId,
+        type: "command",
+        status: "approved",
+        payload: { projectId: targetProjectId },
+      },
+      {
+        id: otherProjectApprovalId,
+        orgId,
+        type: "command",
+        status: "approved",
+        payload: { primaryIssueId: otherIssueId },
+      },
+      {
+        id: unscopedApprovalId,
+        orgId,
+        type: "command",
+        status: "approved",
+        payload: {},
+      },
+    ]);
+
+    await db.insert(approvalComments).values([
+      {
+        orgId,
+        approvalId: targetApprovalId,
+        authorUserId: userId,
+        body: "Target project approval via linked issue.",
+        createdAt: new Date("2026-06-18T03:00:00.000Z"),
+      },
+      {
+        orgId,
+        approvalId: directProjectApprovalId,
+        authorUserId: userId,
+        body: "Target project approval via direct project payload.",
+        createdAt: new Date("2026-06-18T03:05:00.000Z"),
+      },
+      {
+        orgId,
+        approvalId: otherProjectApprovalId,
+        authorUserId: userId,
+        body: "Other project approval should not appear.",
+        createdAt: new Date("2026-06-18T03:10:00.000Z"),
+      },
+      {
+        orgId,
+        approvalId: unscopedApprovalId,
+        authorUserId: userId,
+        body: "Unscoped approval should not appear.",
+        createdAt: new Date("2026-06-18T03:15:00.000Z"),
+      },
+    ]);
+
+    const result = await svc.listUserActivityLedger({
+      orgId,
+      userId,
+      include: ["approvals"],
+      projectId: targetProjectId,
+      limit: 10,
+    });
+
+    expect(result.items.map((item) => item.metadata?.approvalId)).toEqual([
+      directProjectApprovalId,
+      targetApprovalId,
+    ]);
+    expect(result.items.map((item) => item.excerpt).join("\n")).not.toContain("Other project");
+    expect(result.items.map((item) => item.excerpt).join("\n")).not.toContain("Unscoped approval");
   });
 });

@@ -546,6 +546,23 @@ export function activityService(db: Db) {
             sql`${approvals.payload}->'issueIds' ? ${filters.issueId}`,
           )!);
         }
+        if (filters.projectId) {
+          conditions.push(or(
+            sql`${approvals.payload}->>'projectId' = ${filters.projectId}`,
+            sql`exists (
+              select 1
+              from ${issues}
+              where ${issues.orgId} = ${approvals.orgId}
+                and ${issues.projectId} = ${filters.projectId}
+                and ${issues.hiddenAt} is null
+                and (
+                  ${issues.id}::text = ${approvals.payload}->>'issueId'
+                  or ${issues.id}::text = ${approvals.payload}->>'primaryIssueId'
+                  or ${approvals.payload}->'issueIds' ? ${issues.id}::text
+                )
+            )`,
+          )!);
+        }
 
         const rows = await db
           .select({
