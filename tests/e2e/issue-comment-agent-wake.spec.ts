@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { shortRefFor } from "@rudderhq/shared";
+
+function shortRefFor(kind: "agent" | "issue_comment", id: string) {
+  const prefix = kind === "agent" ? "agt" : "cmt";
+  return `${prefix}_${id.replace(/-/g, "").toLowerCase().slice(0, 8)}`;
+}
 
 test("agent-authored issue comments wake peers only with wake-intent agent links", async ({ page }) => {
   const orgRes = await page.request.post("/api/orgs", {

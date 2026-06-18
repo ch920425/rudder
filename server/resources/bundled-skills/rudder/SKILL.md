@@ -71,6 +71,8 @@ rudder issue context "$RUDDER_TASK_ID" --wake-comment-id "$RUDDER_WAKE_COMMENT_I
 rudder issue context "<issue-id-or-identifier>" --wake-comment-id "cmt_<uuid-prefix>" --json
 rudder issue checkout "<issue-id-or-identifier>" --json
 rudder issue comment "<issue-id-or-identifier>" --body-file "<path>" [--image "<path>"] --json
+rudder issue comments get "<issue-id-or-identifier>" "cmt_<uuid-prefix>" --json
+rudder issue comments list "<issue-id-or-identifier>" --after "cmt_<uuid-prefix>" --json
 rudder issue done "<issue-id-or-identifier>" --comment-file "<path>" [--image "<path>"] --json
 rudder issue block "<issue-id-or-identifier>" --comment-file "<path>" [--image "<path>"] --json
 rudder issue review "<issue-id-or-identifier>" --decision approve --comment-file "<path>" --json
@@ -82,7 +84,9 @@ rudder issue create --org-id "$RUDDER_ORG_ID" ... --json
 
 Agent and issue-comment responses include `shortRef` when available. You may pass
 `agt_<uuid-prefix>` to `rudder agent get` and `cmt_<uuid-prefix>` as
-`--wake-comment-id`; use the full UUID if a short ref is ambiguous.
+`--wake-comment-id`, `rudder issue comments get <issue> <comment>`, or
+`rudder issue comments list <issue> --after <comment>`; use the full UUID if a
+short ref is ambiguous within the issue.
 
 Issue comment and close-out commands accept comment bodies only from files or
 stdin. For multiline Markdown, command names, code spans, code blocks,

@@ -556,6 +556,151 @@ describe("issueService.list participantAgentId", () => {
     expect(cursor.latestCommentAt?.toISOString()).toBe("2026-05-01T00:02:00.000Z");
   });
 
+  it("resolves cmt_ issue comment refs only inside the requested issue", async () => {
+    const orgId = randomUUID();
+    const otherOrgId = randomUUID();
+    const issueId = randomUUID();
+    const otherIssueId = randomUUID();
+    const otherOrgIssueId = randomUUID();
+    const firstCommentId = "10000000-0000-4000-8000-000000000001";
+    const secondCommentId = "20000000-0000-4000-8000-000000000002";
+    const ambiguousCommentId = "aaaaaaaa-0000-4000-8000-000000000001";
+    const ambiguousPeerCommentId = "aaaaaaaa-1111-4000-8000-000000000002";
+    const otherIssueCommentId = "cccccccc-0000-4000-8000-000000000001";
+    const otherOrgCommentId = "dddddddd-0000-4000-8000-000000000001";
+
+    await db.insert(organizations).values([
+      {
+        id: orgId,
+        name: "Short Comment Ref Org",
+        urlKey: deriveOrganizationUrlKey("Short Comment Ref Org"),
+        issuePrefix: `S${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireBoardApprovalForNewAgents: false,
+      },
+      {
+        id: otherOrgId,
+        name: "Other Short Comment Ref Org",
+        urlKey: deriveOrganizationUrlKey("Other Short Comment Ref Org"),
+        issuePrefix: `O${otherOrgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireBoardApprovalForNewAgents: false,
+      },
+    ]);
+    await db.insert(issues).values([
+      {
+        id: issueId,
+        orgId,
+        title: "Short comment refs",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: "author-user",
+      },
+      {
+        id: otherIssueId,
+        orgId,
+        title: "Other issue",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: "author-user",
+      },
+      {
+        id: otherOrgIssueId,
+        orgId: otherOrgId,
+        title: "Other org issue",
+        status: "todo",
+        priority: "medium",
+        createdByUserId: "author-user",
+      },
+    ]);
+    await db.insert(issueComments).values([
+      {
+        id: ambiguousCommentId,
+        orgId,
+        issueId,
+        authorUserId: "author-user",
+        body: "Ambiguous A",
+        createdAt: new Date("2026-05-01T00:01:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:01:00.000Z"),
+      },
+      {
+        id: ambiguousPeerCommentId,
+        orgId,
+        issueId,
+        authorUserId: "author-user",
+        body: "Ambiguous B",
+        createdAt: new Date("2026-05-01T00:02:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:02:00.000Z"),
+      },
+      {
+        id: firstCommentId,
+        orgId,
+        issueId,
+        authorUserId: "author-user",
+        body: "First unique",
+        createdAt: new Date("2026-05-01T00:10:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:10:00.000Z"),
+      },
+      {
+        id: secondCommentId,
+        orgId,
+        issueId,
+        authorUserId: "author-user",
+        body: "Second unique",
+        createdAt: new Date("2026-05-01T00:11:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:11:00.000Z"),
+      },
+      {
+        id: otherIssueCommentId,
+        orgId,
+        issueId: otherIssueId,
+        authorUserId: "author-user",
+        body: "Other issue only",
+        createdAt: new Date("2026-05-01T00:12:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:12:00.000Z"),
+      },
+      {
+        id: otherOrgCommentId,
+        orgId: otherOrgId,
+        issueId: otherOrgIssueId,
+        authorUserId: "author-user",
+        body: "Other org only",
+        createdAt: new Date("2026-05-01T00:13:00.000Z"),
+        updatedAt: new Date("2026-05-01T00:13:00.000Z"),
+      },
+    ]);
+
+    const firstRef = shortRefFor("issue_comment", firstCommentId);
+    await expect(svc.resolveCommentReference(issueId, firstRef)).resolves.toBe(firstCommentId);
+
+    const afterFirst = await svc.listComments(issueId, { order: "asc", afterCommentId: firstRef });
+    expect(afterFirst.map((comment) => comment.id)).toEqual([secondCommentId]);
+
+    const resolvedFirstCommentId = await svc.resolveCommentReference(issueId, firstRef);
+    const updated = await svc.updateComment(issueId, resolvedFirstCommentId, "Updated via short ref", {
+      userId: "author-user",
+    });
+    expect(updated.id).toBe(firstCommentId);
+    expect(updated.body).toBe("Updated via short ref");
+
+    const deleted = await svc.deleteComment(issueId, resolvedFirstCommentId, { userId: "author-user" });
+    expect(deleted.id).toBe(firstCommentId);
+    expect(deleted.body).toBe("");
+    expect(deleted.deletedAt).toBeTruthy();
+
+    await expect(svc.resolveCommentReference(issueId, "cmt_ffffffff")).rejects.toMatchObject({ status: 404 });
+    await expect(
+      svc.listComments(issueId, { order: "asc", afterCommentId: "cmt_ffffffff" }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      svc.resolveCommentReference(issueId, shortRefFor("issue_comment", ambiguousCommentId)),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      svc.resolveCommentReference(issueId, shortRefFor("issue_comment", otherIssueCommentId)),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      svc.resolveCommentReference(issueId, shortRefFor("issue_comment", otherOrgCommentId)),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   it("ignores invalid project mention ids when resolving mentioned projects", async () => {
     const orgId = randomUUID();
     const projectId = randomUUID();

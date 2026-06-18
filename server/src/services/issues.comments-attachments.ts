@@ -267,7 +267,9 @@ export function createIssueCommentAttachmentMethods(ctx: IssueCommentAttachmentM
 
       const conditions = [eq(issueComments.issueId, issueId), isNull(issueComments.deletedAt)];
       if (afterCommentId) {
-        const resolvedAfterCommentId = await resolveCommentReference(issueId, afterCommentId);
+        const resolvedAfterCommentId = isUuidLike(afterCommentId)
+          ? afterCommentId
+          : await resolveCommentReference(issueId, afterCommentId);
         const anchor = await db
           .select({
             id: issueComments.id,

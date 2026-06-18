@@ -312,8 +312,10 @@ pnpm rudder agent local-cli <agent-id-or-shortname> --org-id <org-id>
 
 Agent responses include `shortRef` when available. `rudder agent get` accepts
 `agt_<uuid-prefix>`, and `rudder issue context <issue> --wake-comment-id`
-accepts `cmt_<uuid-prefix>` for wake-comment lookup. Use the full UUID when a
-short ref is ambiguous.
+accepts `cmt_<uuid-prefix>` for wake-comment lookup. `rudder issue comments get
+<issue> <comment-id-or-cmt-ref>` and `rudder issue comments list <issue>
+--after <comment-id-or-cmt-ref>` also accept `cmt_<uuid-prefix>` scoped to the
+issue. Use the full UUID when a short ref is ambiguous.
 
 `agent config index`, `agent config doc`, and `agent icons` print plain-text reference docs by default.
 Pass `--json` if you want the raw text wrapped as a JSON string.

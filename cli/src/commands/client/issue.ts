@@ -510,7 +510,7 @@ export function registerIssueCommands(program: Command): void {
       .command("list")
       .description(getAgentCliCapabilityById("issue.comments.list").description)
       .argument("<issueId>", "Issue ID")
-      .option("--after <commentId>", "Only return comments after this comment ID")
+      .option("--after <commentId>", "Only return comments after this full comment ID or cmt_<uuid-prefix>")
       .option("--order <order>", "Comment ordering (asc or desc)", "desc")
       .action(async (issueId: string, opts: IssueCommentsListOptions) => {
         try {
@@ -534,7 +534,7 @@ export function registerIssueCommands(program: Command): void {
       .command("get")
       .description(getAgentCliCapabilityById("issue.comments.get").description)
       .argument("<issueId>", "Issue ID")
-      .argument("<commentId>", "Comment ID")
+      .argument("<commentId>", "Full comment ID or cmt_<uuid-prefix>")
       .action(async (issueId: string, commentId: string, opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
