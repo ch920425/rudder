@@ -188,8 +188,12 @@ test.describe("Chat streaming", () => {
     await expect(page.getByText("Streaming reply", { exact: false })).toBeVisible({ timeout: 15_000 });
     await expect(assistantReply).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: "Send" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("button", { name: /Worked for/ })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("chat-transcript-item").last().getByText("Inspecting current chat state", { exact: false })).toBeVisible({ timeout: 15_000 });
+    const completedTranscriptToggle = page.getByRole("button", { name: /Worked for/ }).last();
+    await expect(completedTranscriptToggle).toBeVisible({ timeout: 15_000 });
+    const completedTranscriptItem = page.getByTestId("chat-transcript-item").last();
+    await expect(completedTranscriptItem).not.toContainText(/Run [0-9a-f]{8}/i);
+    await completedTranscriptToggle.click();
+    await expect(completedTranscriptItem.getByText("Inspecting current chat state", { exact: false })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("chat-assistant-message").filter({ hasText: "Streaming reply for chat." })).toHaveCount(1);
     await expect(page.getByTestId("chat-transcript-item")).toHaveCount(1);
 

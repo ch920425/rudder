@@ -2023,20 +2023,14 @@ export function LazyStreamTranscriptItem({
   summary,
   state,
   loading,
-  runId,
-  replyingAgentId,
   onLoad,
 }: {
   summary: NonNullable<ChatMessage["transcriptSummary"]>;
   state: ChatStreamDraftState | ChatMessage["status"];
   loading?: boolean;
-  runId?: string | null;
-  replyingAgentId?: string | null;
   onLoad: () => void;
 }) {
   const durationMs = transcriptSummaryDurationMs(summary);
-  const runHref = runId && replyingAgentId ? `/agents/${replyingAgentId}/runs/${runId}` : null;
-  const runLabel = runId ? runId.slice(0, 8) : null;
   const statusHint =
     state === "failed"
       ? "Stopped with errors"
@@ -2065,14 +2059,6 @@ export function LazyStreamTranscriptItem({
             ) : null}
             <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
           </button>
-          {runHref && runLabel ? (
-            <Link
-              to={runHref}
-              className="shrink-0 rounded-[calc(var(--radius-sm)-2px)] px-1 text-[12px] font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-            >
-              Run {runLabel}
-            </Link>
-          ) : null}
           <div className="h-px min-w-[1rem] flex-1 bg-border/45" aria-hidden />
         </div>
       </div>
@@ -2086,8 +2072,6 @@ export function StreamTranscriptItem({
   streamStartedAt,
   streamEndedAt,
   assistantMessageBody,
-  runId,
-  replyingAgentId,
   showDeveloperDiagnostics,
   defaultOpen = false,
   onOpenChange,
@@ -2097,8 +2081,6 @@ export function StreamTranscriptItem({
   streamStartedAt: Date;
   streamEndedAt?: Date | null;
   assistantMessageBody?: string | null;
-  runId?: string | null;
-  replyingAgentId?: string | null;
   showDeveloperDiagnostics?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -2134,8 +2116,6 @@ export function StreamTranscriptItem({
         : "";
 
   const showBody = processOpen || streamingActive;
-  const runHref = runId && replyingAgentId ? `/agents/${replyingAgentId}/runs/${runId}` : null;
-  const runLabel = runId ? runId.slice(0, 8) : null;
 
   return (
     <div data-testid="chat-transcript-item" className="flex justify-start transition-all duration-200">
@@ -2177,14 +2157,6 @@ export function StreamTranscriptItem({
               <ChevronRight className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
             )}
           </button>
-          {runHref && runLabel ? (
-            <Link
-              to={runHref}
-              className="shrink-0 rounded-[calc(var(--radius-sm)-2px)] px-1 text-[12px] font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-            >
-              Run {runLabel}
-            </Link>
-          ) : null}
           <div className="h-px min-w-[1rem] flex-1 bg-border/45" aria-hidden />
         </div>
         {showBody ? (

@@ -103,15 +103,13 @@ describe("LazyStreamTranscriptItem", () => {
       <LazyStreamTranscriptItem
         summary={summary}
         state="completed"
-        runId="609695f1-f90a-4b17-be61-4f0c6fe37c42"
-        replyingAgentId="agent-1"
         onLoad={vi.fn()}
       />,
     );
 
     expect(container.textContent).toContain("Worked for 8s");
-    expect(container.textContent).toContain("Run 609695f1");
-    expect(container.querySelector("a")?.getAttribute("href")).toBe("/agents/agent-1/runs/609695f1-f90a-4b17-be61-4f0c6fe37c42");
+    expect(container.textContent).not.toContain("Run 609695f1");
+    expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).not.toContain("19 events");
     expect(container.querySelector("button")?.getAttribute("aria-expanded")).toBe("false");
   });
@@ -148,8 +146,6 @@ describe("failed chat transcript rendering", () => {
           streamStartedAt={new Date("2026-06-15T10:00:00.000Z")}
           streamEndedAt={new Date("2026-06-15T10:00:04.000Z")}
           assistantMessageBody={failedMessage.body}
-          runId="609695f1-f90a-4b17-be61-4f0c6fe37c42"
-          replyingAgentId="agent-1"
           defaultOpen
         />
         <ChatMessageItem
@@ -212,8 +208,8 @@ describe("failed chat transcript rendering", () => {
     );
 
     expect(container.textContent).toContain("Worked for 4s");
-    expect(container.textContent).toContain("Run 609695f1");
-    expect(container.querySelector("a")?.getAttribute("href")).toBe("/agents/agent-1/runs/609695f1-f90a-4b17-be61-4f0c6fe37c42");
+    expect(container.textContent).not.toContain("Run 609695f1");
+    expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).toContain("Stopped with errors");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Response failed");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("This assistant response failed before it completed.");

@@ -1261,15 +1261,11 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                                     streamStartedAt={persistedProcessStartedAt!}
                                     streamEndedAt={persistedProcessEndedAt}
                                     assistantMessageBody={message.body}
-                                    runId={message.runId}
-                                    replyingAgentId={message.replyingAgentId}
                                     showDeveloperDiagnostics={showDeveloperDiagnostics}
                                     defaultOpen={Boolean(openProcessMessageIds[message.id])} onOpenChange={(open) => setProcessOpenForMessage(message.id, open)} /> ) : shouldRenderLazyTranscript && message.transcriptSummary ? (
                                   <LazyStreamTranscriptItem
                                     summary={message.transcriptSummary}
                                     state={message.status}
-                                    runId={message.runId}
-                                    replyingAgentId={message.replyingAgentId}
                                     loading={Boolean(loadingTranscriptMessageIds[message.id])}
                                     onLoad={() => void loadMessageTranscript(message.conversationId, message.id)}
                                   /> ) : null}
