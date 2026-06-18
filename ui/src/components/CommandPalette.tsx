@@ -12,6 +12,7 @@ import type { Agent, IssueSearchField, OrganizationSkillListItem, OrganizationWo
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  Boxes,
   CircleDot,
   Clock3,
   DollarSign,
@@ -23,7 +24,6 @@ import {
   Loader2,
   MessageSquare,
   MessagesSquare,
-  Sparkles,
   Target,
   X,
 } from "lucide-react";
@@ -382,7 +382,7 @@ export function CommandPalette() {
               Agents
             </CommandItem>
             <CommandItem value="skills" onSelect={() => go("/skills")}>
-              <Sparkles className="mr-2 h-4 w-4" />
+              <Boxes className="mr-2 h-4 w-4 text-[#2f80ed]" />
               Skills
             </CommandItem>
             <CommandItem value="costs billing spend" onSelect={() => go("/costs")}>
@@ -536,7 +536,7 @@ export function CommandPalette() {
                   value={`${skill.name} ${skill.description ?? ""} ${skill.key} ${skill.slug} ${skill.sourceLabel ?? ""}`}
                   onSelect={() => go(`/skills/${encodeURIComponent(skill.id)}`)}
                 >
-                  <Sparkles className="mr-2 h-4 w-4" />
+                  <Boxes className="mr-2 h-4 w-4 text-[#2f80ed]" />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate">{skill.name}</span>
                     {skill.description ? (

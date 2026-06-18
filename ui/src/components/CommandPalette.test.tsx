@@ -521,11 +521,23 @@ describe("CommandPalette", () => {
 
     const skillButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("development-lifecycle-router-maintainer"));
+    expect(skillButton?.querySelector(".lucide-boxes")).not.toBeNull();
+    expect(skillButton?.querySelector(".lucide-sparkles")).toBeNull();
     act(() => {
       skillButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(navigateMock).toHaveBeenCalledWith("/skills/skill-router");
+  });
+
+  it("uses the skill blocks icon for the Skills page entry", () => {
+    const container = renderCommandPalette();
+    openCommandPalette(container);
+
+    const skillsPageButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Skills");
+    expect(skillsPageButton?.querySelector(".lucide-boxes")).not.toBeNull();
+    expect(skillsPageButton?.querySelector(".lucide-sparkles")).toBeNull();
   });
 
   it("confirms a skill scope and only renders skill search results", () => {
