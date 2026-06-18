@@ -36,7 +36,6 @@ import {
 } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Bot,
   Boxes,
   ChevronDown,
   ChevronRight,
@@ -60,6 +59,7 @@ import {
   Terminal,
   Trash2,
   Unlink,
+  UserRound,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
@@ -1139,6 +1139,7 @@ function WorkspaceTreeNode({
   const primaryLabel = displayWorkspaceEntryLabel(entry);
   const isAgentWorkspace = entry.entityType === "agent_workspace";
   const isAgentsRoot = entry.path === "agents";
+  const isSkillsRoot = entry.path === "skills";
   const isProjectLibraryFolder = isProjectLibraryFolderPath(entry.path);
   const isProtectedContainer = isProtectedAgentWorkspaceContainerPath(entry.path);
   const projectResourceGroup = projectResourceGroupsByLibraryPath.get(entry.path) ?? null;
@@ -1397,7 +1398,15 @@ function WorkspaceTreeNode({
                 <AgentIcon icon={entry.agentIcon} role={entry.agentRole} className="h-3.5 w-3.5 text-[12px]" />
               </span>
             ) : isAgentsRoot ? (
-              <Bot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <UserRound
+                data-testid="org-workspaces-agents-root-icon"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+            ) : isSkillsRoot ? (
+              <Boxes
+                data-testid="org-workspaces-skills-root-icon"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
             ) : isProjectLibraryFolder ? (
               projectResourceGroup ? (
                 <ProjectIcon

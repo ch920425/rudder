@@ -40,9 +40,23 @@ vi.mock("@tanstack/react-query", () => ({
             entityType: "organization_workspace",
           },
           {
+            name: "agents",
+            displayLabel: "agents",
+            path: "agents",
+            isDirectory: true,
+            entityType: "organization_workspace",
+          },
+          {
             name: "projects",
             displayLabel: "projects",
             path: "projects",
+            isDirectory: true,
+            entityType: "organization_workspace",
+          },
+          {
+            name: "skills",
+            displayLabel: "skills",
+            path: "skills",
             isDirectory: true,
             entityType: "organization_workspace",
           },
@@ -731,6 +745,18 @@ describe("OrganizationWorkspaces scroll regions", () => {
     expect(projectRow).not.toBeNull();
     expect(projectRow?.textContent).toContain("Rudder dev");
     expect(projectRow?.querySelector('[data-testid="org-workspaces-project-icon"]')).not.toBeNull();
+  });
+
+  it("uses product-specific icons for agents and skills roots in the Library tree", () => {
+    renderWorkspacesPage();
+
+    const agentsRow = document.querySelector('[data-workspace-entry-path="agents"]') as HTMLElement | null;
+    const skillsRow = document.querySelector('[data-workspace-entry-path="skills"]') as HTMLElement | null;
+
+    expect(agentsRow).not.toBeNull();
+    expect(skillsRow).not.toBeNull();
+    expect(agentsRow?.querySelector('[data-testid="org-workspaces-agents-root-icon"]')).not.toBeNull();
+    expect(skillsRow?.querySelector('[data-testid="org-workspaces-skills-root-icon"]')).not.toBeNull();
   });
 
   it("opens Library file tokens inside the current editor tab set", async () => {
