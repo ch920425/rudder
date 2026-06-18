@@ -77,4 +77,56 @@ describe("organization intelligence profiles", () => {
       env: { OPENAI_API_KEY: { type: "secret_ref", secretId: "secret-1" } },
     });
   });
+
+  it("creates derived profile defaults as disabled until the chain is explicitly enabled", async () => {
+    const insertedValues: any[] = [];
+    const conflictSets: any[] = [];
+    const createdAt = new Date("2026-06-18T00:00:00.000Z");
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: async () => [],
+        }),
+      }),
+      insert: () => ({
+        values: (values: any) => {
+          insertedValues.push(values);
+          return {
+            onConflictDoUpdate: (config: any) => {
+              conflictSets.push(config.set);
+              return {
+                returning: async () => [{
+                  id: `profile-${values.purpose}`,
+                  orgId: values.orgId,
+                  purpose: values.purpose,
+                  agentRuntimeType: values.agentRuntimeType,
+                  agentRuntimeConfig: values.agentRuntimeConfig,
+                  status: values.status,
+                  lastError: null,
+                  lastVerifiedAt: null,
+                  createdAt,
+                  updatedAt: createdAt,
+                }],
+              };
+            },
+          };
+        },
+      }),
+    };
+    const svc = organizationIntelligenceProfileService(db as any);
+
+    const created = await svc.ensureDefaultsFromRuntime({
+      orgId: "org-1",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {
+        command: "codex",
+        model: "gpt-5.3-codex",
+      },
+    });
+
+    expect(created).toHaveLength(2);
+    expect(created.every((profile) => profile.status === "disabled")).toBe(true);
+    expect(insertedValues.every((values) => values.status === "disabled")).toBe(true);
+    expect(conflictSets.every((set) => set.status === "disabled")).toBe(true);
+  });
 });

@@ -20,7 +20,7 @@ describe("organization intelligence profile validators", () => {
       },
     });
 
-    expect(parsed.status).toBe("configured");
+    expect(parsed.status).toBe("disabled");
     expect(parsed.agentRuntimeConfig.modelFallbacks).toHaveLength(1);
   });
 

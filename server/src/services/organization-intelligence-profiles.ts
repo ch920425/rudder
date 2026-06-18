@@ -130,7 +130,7 @@ export function organizationIntelligenceProfileService(db: Db) {
         purpose,
         agentRuntimeType: data.agentRuntimeType,
         agentRuntimeConfig: sanitizedConfig,
-        status: data.status ?? "configured",
+        status: data.status ?? "disabled",
         lastError: data.lastError ?? null,
         lastVerifiedAt: data.lastVerifiedAt ?? null,
       })
@@ -139,7 +139,7 @@ export function organizationIntelligenceProfileService(db: Db) {
         set: {
           agentRuntimeType: data.agentRuntimeType,
           agentRuntimeConfig: sanitizedConfig,
-          status: data.status ?? "configured",
+          status: data.status ?? "disabled",
           lastError: data.lastError ?? null,
           lastVerifiedAt: data.lastVerifiedAt ?? null,
           updatedAt: new Date(),
@@ -166,7 +166,7 @@ export function organizationIntelligenceProfileService(db: Db) {
           input.agentRuntimeType,
           input.agentRuntimeConfig,
         ),
-        status: "configured",
+        status: "disabled",
       }));
     }
     return created;

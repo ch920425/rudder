@@ -9,7 +9,7 @@ export const organizationIntelligenceProfiles = pgTable(
     purpose: text("purpose").notNull(),
     agentRuntimeType: text("agent_runtime_type").notNull(),
     agentRuntimeConfig: jsonb("agent_runtime_config").$type<Record<string, unknown>>().notNull().default({}),
-    status: text("status").notNull().default("configured"),
+    status: text("status").notNull().default("disabled"),
     lastError: text("last_error"),
     lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -17,6 +17,7 @@ import {
 } from "@/components/AgentConfigForm.helpers";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queryKeys";
+import { blockingRuntimeEnvironmentMessage } from "@/lib/runtime-models";
 import { cn } from "@/lib/utils";
 import type { ModelFallbackConfig } from "@rudderhq/agent-runtime-utils";
 import type {
@@ -34,6 +35,11 @@ type ProfileDraft = {
   agentRuntimeType: string;
   agentRuntimeConfig: Record<string, unknown>;
   status: "configured" | "disabled" | "invalid";
+};
+
+type ActivationState = {
+  purpose: OrganizationIntelligenceProfilePurpose;
+  phase: "testing" | "enabling";
 };
 
 const profileCopy: Record<OrganizationIntelligenceProfilePurpose, {
@@ -70,7 +76,7 @@ function defaultDraft(purpose: OrganizationIntelligenceProfilePurpose): ProfileD
     exists: false,
     agentRuntimeType: "codex_local",
     agentRuntimeConfig: config,
-    status: "configured",
+    status: "disabled",
   };
 }
 
@@ -140,6 +146,33 @@ function buildRuntimeEnvironmentTestTargets(
   ];
 }
 
+function sameRuntimeTarget(left: RuntimeEnvironmentTestTarget, right: RuntimeEnvironmentTestTarget) {
+  return left.key === right.key
+    && left.runtimeType === right.runtimeType
+    && left.model === right.model
+    && JSON.stringify(left.config) === JSON.stringify(right.config);
+}
+
+function runtimeChainPassed(
+  targets: RuntimeEnvironmentTestTarget[],
+  results: RuntimeEnvironmentTestItemResult[],
+) {
+  if (targets.length === 0 || targets.length !== results.length) return false;
+  return targets.every((target, index) => {
+    const item = results[index];
+    if (!item || !sameRuntimeTarget(target, item)) return false;
+    if (item.error || !item.result) return false;
+    return blockingRuntimeEnvironmentMessage(item.result) === null;
+  });
+}
+
+function profileStatusLabel(draft: ProfileDraft) {
+  if (!draft.exists) return "Not configured";
+  if (draft.status === "configured") return "Enabled";
+  if (draft.status === "disabled") return "Disabled";
+  return "Invalid";
+}
+
 function sameDraft(left: ProfileDraft | null | undefined, right: ProfileDraft | null | undefined) {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
@@ -158,6 +191,26 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
     mutationFn: (input: { name: string; value: string }) => secretsApi.create(orgId, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(orgId) }),
   });
+  async function runRuntimeChainTest(
+    purpose: OrganizationIntelligenceProfilePurpose,
+    targets: RuntimeEnvironmentTestTarget[],
+  ) {
+    const results: RuntimeEnvironmentTestItemResult[] = [];
+    for (const target of targets) {
+      try {
+        const result = await agentsApi.testEnvironment(orgId, target.runtimeType, {
+          agentRuntimeConfig: target.config,
+        });
+        results.push({ ...target, result });
+      } catch (error) {
+        results.push({
+          ...target,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    }
+    return { purpose, results };
+  }
   const saveProfile = useMutation({
     mutationFn: (draft: ProfileDraft) =>
       organizationsApi.updateIntelligenceProfile(orgId, draft.purpose, {
@@ -179,23 +232,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
     }: {
       purpose: OrganizationIntelligenceProfilePurpose;
       targets: RuntimeEnvironmentTestTarget[];
-    }) => {
-      const results: RuntimeEnvironmentTestItemResult[] = [];
-      for (const target of targets) {
-        try {
-          const result = await agentsApi.testEnvironment(orgId, target.runtimeType, {
-            agentRuntimeConfig: target.config,
-          });
-          results.push({ ...target, result });
-        } catch (error) {
-          results.push({
-            ...target,
-            error: error instanceof Error ? error : new Error(String(error)),
-          });
-        }
-      }
-      return { purpose, results };
-    },
+    }) => runRuntimeChainTest(purpose, targets),
     onSuccess: ({ purpose, results }) => {
       setRuntimeEnvironmentResults((current) => ({
         ...current,
@@ -214,6 +251,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
   }, [profilesQuery.data]);
 
   const [drafts, setDrafts] = useState<Record<OrganizationIntelligenceProfilePurpose, ProfileDraft> | null>(null);
+  const [activationState, setActivationState] = useState<ActivationState | null>(null);
   useEffect(() => {
     if (!profilesQuery.data) return;
     setDrafts(serverDrafts);
@@ -222,6 +260,12 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
   const currentDrafts = drafts ?? serverDrafts;
 
   function setDraft(purpose: OrganizationIntelligenceProfilePurpose, updater: (draft: ProfileDraft) => ProfileDraft) {
+    setRuntimeEnvironmentResults((current) => {
+      if (!(purpose in current)) return current;
+      const next = { ...current };
+      delete next[purpose];
+      return next;
+    });
     setDrafts((current) => {
       const base = current ?? serverDrafts;
       return {
@@ -229,6 +273,39 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
         [purpose]: updater(base[purpose]),
       };
     });
+  }
+
+  async function enableProfile(
+    draft: ProfileDraft,
+    targets: RuntimeEnvironmentTestTarget[],
+    existingResults: RuntimeEnvironmentTestItemResult[],
+  ) {
+    setActivationState({
+      purpose: draft.purpose,
+      phase: runtimeChainPassed(targets, existingResults) ? "enabling" : "testing",
+    });
+    try {
+      let results = existingResults;
+      if (!runtimeChainPassed(targets, results)) {
+        const tested = await runRuntimeChainTest(draft.purpose, targets);
+        results = tested.results;
+        setRuntimeEnvironmentResults((current) => ({
+          ...current,
+          [draft.purpose]: tested.results,
+        }));
+      }
+
+      setActivationState({
+        purpose: draft.purpose,
+        phase: "enabling",
+      });
+      await saveProfile.mutateAsync({
+        ...draft,
+        status: runtimeChainPassed(targets, results) ? "configured" : "invalid",
+      });
+    } finally {
+      setActivationState(null);
+    }
   }
 
   if (profilesQuery.isLoading) {
@@ -253,8 +330,12 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
           const testResults = runtimeEnvironmentResults[purpose] ?? [];
           const testResultsByKey = new Map(testResults.map((item) => [item.key, item]));
           const isTestingRuntimeChain = testRuntimeChain.isPending && testRuntimeChain.variables?.purpose === purpose;
+          const isActivatingAnyProfile = activationState !== null;
+          const isActivatingProfile = activationState?.purpose === purpose;
+          const isActivationTesting = isActivatingProfile && activationState.phase === "testing";
+          const isEnabled = draft.exists && draft.status === "configured";
           const runtimeEnvironmentStatusFor = (key: string): RuntimeEnvironmentStatus | undefined => {
-            if (isTestingRuntimeChain) return "testing";
+            if (isTestingRuntimeChain || isActivationTesting) return "testing";
             const item = testResultsByKey.get(key);
             if (!item) return undefined;
             if (item.error) return "error";
@@ -277,7 +358,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                     variant="outline"
                     size="sm"
                     className="h-7 px-2.5 text-xs"
-                    disabled={testRuntimeChain.isPending}
+                    disabled={testRuntimeChain.isPending || isActivatingAnyProfile}
                     onClick={() => testRuntimeChain.mutate({ purpose, targets: testTargets })}
                   >
                     {isTestingRuntimeChain ? "Testing runtime chain..." : "Test runtime chain"}
@@ -288,16 +369,32 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       : "border-muted-foreground/30 bg-muted text-muted-foreground",
                   )}>
-                    {!draft.exists ? "Not configured" : draft.status === "configured" ? "Ready" : draft.status}
+                    {profileStatusLabel(draft)}
                   </span>
                   <Button
                     type="button"
                     size="sm"
                     className="h-7 px-2.5 text-xs"
-                    disabled={!dirty || saveProfile.isPending}
+                    disabled={!dirty || saveProfile.isPending || isActivatingAnyProfile}
                     onClick={() => saveProfile.mutate(draft)}
                   >
                     {saveProfile.isPending ? "Saving..." : !draft.exists ? "Create" : dirty ? "Save" : "Saved"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={isEnabled ? "outline" : "default"}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    disabled={saveProfile.isPending || testRuntimeChain.isPending || isActivatingAnyProfile}
+                    onClick={() => {
+                      if (isEnabled) {
+                        saveProfile.mutate({ ...draft, status: "disabled" });
+                        return;
+                      }
+                      void enableProfile(draft, testTargets, testResults);
+                    }}
+                  >
+                    {isActivationTesting ? "Testing..." : isActivatingProfile ? "Enabling..." : isEnabled ? "Disable" : "Enable"}
                   </Button>
                 </div>
               </div>
@@ -344,6 +441,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                         ...defaultConfigForRuntime(nextRuntimeType),
                         modelFallbacks: [],
                       },
+                      status: "disabled",
                     }));
                   }}
                   onModelChange={(nextModel) => {
@@ -358,6 +456,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                         model: nextModel,
                         modelFallbacks: nextFallbacks,
                       },
+                      status: "disabled",
                     }));
                   }}
                   onConfigFieldChange={(field, value) => {
@@ -367,6 +466,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                         ...current.agentRuntimeConfig,
                         [field]: value,
                       },
+                      status: "disabled",
                     }));
                   }}
                   onConfigPatchChange={(patch) => {
@@ -376,6 +476,7 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                         ...current.agentRuntimeConfig,
                         ...patch,
                       },
+                      status: "disabled",
                     }));
                   }}
                   environmentStatus={runtimeEnvironmentStatusFor("primary")}
@@ -395,9 +496,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                     hideInstructionsFile
                     runtimeTypeLabel="Provider"
                     runtimeTypeHint={providerHint}
-                    onRemove={() => setDraft(purpose, (current) =>
-                      updateFallbackModels(current, fallbacks.filter((_, itemIndex) => itemIndex !== index)),
-                    )}
+                    onRemove={() => setDraft(purpose, (current) => ({
+                      ...updateFallbackModels(current, fallbacks.filter((_, itemIndex) => itemIndex !== index)),
+                      status: "disabled",
+                    }))}
                     onRuntimeTypeChange={(nextRuntimeType) => {
                       const nextConfig = defaultConfigForRuntime(nextRuntimeType);
                       const next = [...fallbacks];
@@ -406,7 +508,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                         model: typeof nextConfig.model === "string" ? nextConfig.model : defaultModelForRuntime(nextRuntimeType),
                         config: nextConfig,
                       };
-                      setDraft(purpose, (current) => updateFallbackModels(current, next));
+                      setDraft(purpose, (current) => ({
+                        ...updateFallbackModels(current, next),
+                        status: "disabled",
+                      }));
                     }}
                     onModelChange={(nextModel) => {
                       const next = [...fallbacks];
@@ -418,7 +523,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                           model: nextModel,
                         },
                       };
-                      setDraft(purpose, (current) => updateFallbackModels(current, next));
+                      setDraft(purpose, (current) => ({
+                        ...updateFallbackModels(current, next),
+                        status: "disabled",
+                      }));
                     }}
                     onConfigFieldChange={(field, value) => {
                       const next = [...fallbacks];
@@ -429,7 +537,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                           [field]: value,
                         },
                       };
-                      setDraft(purpose, (current) => updateFallbackModels(current, next));
+                      setDraft(purpose, (current) => ({
+                        ...updateFallbackModels(current, next),
+                        status: "disabled",
+                      }));
                     }}
                     onConfigPatchChange={(patch) => {
                       const next = [...fallbacks];
@@ -440,7 +551,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                           ...patch,
                         },
                       };
-                      setDraft(purpose, (current) => updateFallbackModels(current, next));
+                      setDraft(purpose, (current) => ({
+                        ...updateFallbackModels(current, next),
+                        status: "disabled",
+                      }));
                     }}
                     environmentStatus={runtimeEnvironmentStatusFor(`fallback-${index}`)}
                   />
@@ -452,9 +566,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                     runtimeProviderItemClassName,
                     "min-h-[180px] rounded-lg border border-dashed border-border/80 px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30",
                   )}
-                  onClick={() => setDraft(purpose, (current) =>
-                    updateFallbackModels(current, [...fallbackModels(current), defaultFallbackItem(current.agentRuntimeType)]),
-                  )}
+                  onClick={() => setDraft(purpose, (current) => ({
+                    ...updateFallbackModels(current, [...fallbackModels(current), defaultFallbackItem(current.agentRuntimeType)]),
+                    status: "disabled",
+                  }))}
                 >
                   <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
                     <span className="rounded-full border border-border p-2">

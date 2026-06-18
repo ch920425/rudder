@@ -34,7 +34,7 @@ export const organizationIntelligenceProfileConfigSchema = z.record(z.unknown())
 export const upsertOrganizationIntelligenceProfileSchema = z.object({
   agentRuntimeType: z.enum(AGENT_RUNTIME_TYPES),
   agentRuntimeConfig: organizationIntelligenceProfileConfigSchema.default({}),
-  status: organizationIntelligenceProfileStatusSchema.optional().default("configured"),
+  status: organizationIntelligenceProfileStatusSchema.optional().default("disabled"),
 });
 
 export type OrganizationIntelligenceProfilePurposeInput = z.infer<typeof organizationIntelligenceProfilePurposeSchema>;
