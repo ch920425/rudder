@@ -1,4 +1,4 @@
-export type GlobalSearchScope = "issue" | "library" | "chat" | "agent" | "project";
+export type GlobalSearchScope = "issue" | "library" | "chat" | "agent" | "project" | "skill";
 
 export interface GlobalSearchScopeDefinition {
   scope: GlobalSearchScope;
@@ -12,6 +12,7 @@ export const GLOBAL_SEARCH_SCOPE_DEFINITIONS: readonly GlobalSearchScopeDefiniti
   { scope: "chat", label: "Chats", aliases: ["chat", "chats"] },
   { scope: "agent", label: "Agents", aliases: ["agent", "agents"] },
   { scope: "project", label: "Projects", aliases: ["project", "projects"] },
+  { scope: "skill", label: "Skills", aliases: ["skill", "skills"] },
 ];
 
 export interface ParsedGlobalSearchQuery {

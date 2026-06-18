@@ -17,11 +17,14 @@ describe("global search scope parsing", () => {
     expect(getGlobalSearchScopeForAlias("chat")).toBe("chat");
     expect(getGlobalSearchScopeForAlias("agents")).toBe("agent");
     expect(getGlobalSearchScopeForAlias("projects")).toBe("project");
+    expect(getGlobalSearchScopeForAlias("skill")).toBe("skill");
+    expect(getGlobalSearchScopeForAlias("skills")).toBe("skill");
   });
 
   it("suggests a scope only for an unconfirmed alias prefix", () => {
     expect(getPendingGlobalSearchScopeSuggestion("iss")).toBe("issue");
     expect(getPendingGlobalSearchScopeSuggestion("lib")).toBe("library");
+    expect(getPendingGlobalSearchScopeSuggestion("ski")).toBe("skill");
     expect(getPendingGlobalSearchScopeSuggestion("issue")).toBeNull();
     expect(getPendingGlobalSearchScopeSuggestion("library notes")).toBeNull();
     expect(getPendingGlobalSearchScopeSuggestion("rare token")).toBeNull();
@@ -31,6 +34,7 @@ describe("global search scope parsing", () => {
     expect(shouldConfirmGlobalSearchScopeFromKey(" ", "issue")).toBe("issue");
     expect(shouldConfirmGlobalSearchScopeFromKey("Tab", "library")).toBe("library");
     expect(shouldConfirmGlobalSearchScopeFromKey("Enter", "docs")).toBe("library");
+    expect(shouldConfirmGlobalSearchScopeFromKey(" ", "skill")).toBe("skill");
     expect(shouldConfirmGlobalSearchScopeFromKey(" ", "iss")).toBeNull();
     expect(shouldConfirmGlobalSearchScopeFromKey(" ", "library notes")).toBeNull();
   });
@@ -38,6 +42,7 @@ describe("global search scope parsing", () => {
   it("confirms a pasted or filled alias with trailing whitespace", () => {
     expect(shouldConfirmGlobalSearchScopeFromValue("issue ")).toBe("issue");
     expect(shouldConfirmGlobalSearchScopeFromValue("library ")).toBe("library");
+    expect(shouldConfirmGlobalSearchScopeFromValue("skills ")).toBe("skill");
     expect(shouldConfirmGlobalSearchScopeFromValue("library notes ")).toBeNull();
   });
 

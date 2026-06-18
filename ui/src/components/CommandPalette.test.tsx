@@ -93,6 +93,35 @@ vi.mock("@tanstack/react-query", () => ({
     }
     if (queryKey[0] === "agents") return { data: [] };
     if (queryKey[0] === "projects") return { data: [] };
+    if (queryKey[0] === "organization-skills") {
+      return {
+        data: [
+          {
+            id: "skill-router",
+            orgId: "org-1",
+            key: "agent:development-lifecycle-router-maintainer",
+            slug: "development-lifecycle-router-maintainer",
+            name: "development-lifecycle-router-maintainer",
+            description: "Route Rudder development work through lifecycle stages.",
+            sourceType: "local_path",
+            sourceLocator: "/workspace/.agents/skills/maintainer/development-lifecycle-router-maintainer",
+            sourceRef: null,
+            trustLevel: "markdown_only",
+            compatibility: "compatible",
+            fileInventory: [{ path: "SKILL.md", kind: "skill" }],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            attachedAgentCount: 0,
+            editable: true,
+            editableReason: null,
+            sourceLabel: "Maintainer",
+            sourceBadge: "local",
+            sourcePath: "/workspace/.agents/skills/maintainer/development-lifecycle-router-maintainer/SKILL.md",
+            workspaceEditPath: null,
+          },
+        ],
+      };
+    }
     if (queryKey[0] === "issues") return { data: [] };
     if (queryKey[0] === "instance" && queryKey[1] === "shortcut-settings") {
       return { data: shortcutSettingsMock.value };
@@ -257,7 +286,7 @@ describe("CommandPalette", () => {
     });
 
     const input = container.querySelector("input");
-    expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
 
     const dialog = container.querySelector<HTMLElement>('[role="dialog"]');
     expect(dialog?.style.left).toBe("50vw");
@@ -281,7 +310,7 @@ describe("CommandPalette", () => {
     });
 
     const input = container.querySelector("input");
-    expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(input?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
 
     const searchLaunch = container.querySelector('button[aria-label="Search launch"]');
     act(() => {
@@ -419,7 +448,7 @@ describe("CommandPalette", () => {
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "p", metaKey: true, bubbles: true }));
     });
-    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
   });
 
   it("does not open from editable targets", () => {
@@ -474,9 +503,46 @@ describe("CommandPalette", () => {
 
     changeInput(input, "iss");
 
-    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
     expect(container.textContent).toContain("Search in Issues");
     expect(container.querySelector('[aria-label="Clear Issues search scope"]')).toBeNull();
+  });
+
+  it("searches organization skills and navigates to the selected skill", () => {
+    const container = renderCommandPalette();
+    const input = openCommandPalette(container);
+
+    changeInput(input, "router");
+
+    expect(observedQueryKeys).toContainEqual(["organization-skills", "org-1"]);
+    expect(container.textContent).toContain("Skills");
+    expect(container.textContent).toContain("development-lifecycle-router-maintainer");
+    expect(container.textContent).toContain("Route Rudder development work through lifecycle stages.");
+
+    const skillButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("development-lifecycle-router-maintainer"));
+    act(() => {
+      skillButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith("/skills/skill-router");
+  });
+
+  it("confirms a skill scope and only renders skill search results", () => {
+    const container = renderCommandPalette();
+    const input = openCommandPalette(container);
+
+    changeInput(input, "skills ");
+    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search Skills...");
+    expect(container.textContent).toContain("Skills");
+
+    const scopedInput = container.querySelector<HTMLInputElement>("input");
+    expect(scopedInput).not.toBeNull();
+    changeInput(scopedInput!, "router");
+
+    expect(container.textContent).toContain("development-lifecycle-router-maintainer");
+    expect(container.textContent).not.toContain("Global search regression");
+    expect(container.textContent).not.toContain("Launch planning");
   });
 
   it("searches Library only after a library scope has query text", () => {
@@ -555,7 +621,7 @@ describe("CommandPalette", () => {
     act(() => {
       scopedInput!.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
     });
-    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
 
     changeInput(container.querySelector<HTMLInputElement>("input")!, "library ");
     const clearButton = container.querySelector<HTMLButtonElement>('[aria-label="Clear Library search scope"]');
@@ -563,6 +629,6 @@ describe("CommandPalette", () => {
     act(() => {
       clearButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, library...");
+    expect(container.querySelector("input")?.getAttribute("placeholder")).toBe("Search issues, chats, agents, projects, skills, library...");
   });
 });

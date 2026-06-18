@@ -41,7 +41,7 @@ test.describe("Global search results", () => {
     await page.goto(`/${organization.issuePrefix}/messenger`);
 
     await page.getByRole("button", { name: "Search" }).click();
-    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("rare-loading-ring-token");
     await issueSearchStarted;
@@ -100,7 +100,7 @@ test.describe("Global search results", () => {
     await page.goto(`/${organization.issuePrefix}/messenger`);
 
     await page.getByRole("button", { name: "Search" }).click();
-    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("rare-chat-search-token");
 
@@ -137,7 +137,7 @@ test.describe("Global search results", () => {
     await page.goto(`/${organization.issuePrefix}/messenger`);
 
     await page.getByRole("button", { name: "Search" }).click();
-    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("rare-issue-description-token");
 
@@ -146,6 +146,51 @@ test.describe("Global search results", () => {
     await issueResult.click();
 
     await expect(page).toHaveURL(new RegExp(`/issues/${issue.identifier ?? issue.id}$`));
+  });
+
+  test("finds an organization skill and opens the skill detail", async ({ page }) => {
+    const orgRes = await page.request.post("/api/orgs", {
+      data: { name: `Search Skills ${Date.now()}` },
+    });
+    expect(orgRes.ok()).toBe(true);
+    const organization = await orgRes.json();
+
+    const skillRes = await page.request.post(`/api/orgs/${organization.id}/skills`, {
+      data: {
+        name: "development-lifecycle-router-maintainer",
+        slug: "development-lifecycle-router-maintainer",
+        description: "Route Rudder development work through lifecycle stages.",
+        markdown: [
+          "---",
+          "name: development-lifecycle-router-maintainer",
+          "description: Route Rudder development work through lifecycle stages.",
+          "---",
+          "",
+          "# Development Lifecycle Router Maintainer",
+        ].join("\n"),
+      },
+    });
+    expect(skillRes.ok()).toBe(true);
+    const skill = await skillRes.json();
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+    }, organization.id);
+    await page.goto(`/${organization.issuePrefix}/messenger`);
+
+    await page.getByRole("button", { name: "Search" }).click();
+    const searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill("lifecycle-router");
+
+    const skillResult = page.getByRole("option", { name: /development-lifecycle-router-maintainer/i });
+    await expect(skillResult).toBeVisible({ timeout: 15_000 });
+    await expect(skillResult).toContainText("Route Rudder development work through lifecycle stages.");
+    await skillResult.click();
+
+    await expect(page).toHaveURL(new RegExp(`/skills/${skill.id}$`));
+    await expect(page.getByRole("heading", { name: "development-lifecycle-router-maintainer" })).toBeVisible();
   });
 
   test("scopes search to issues and opens the selected issue", async ({ page }) => {
@@ -195,11 +240,11 @@ test.describe("Global search results", () => {
     await page.goto(`/${organization.issuePrefix}/messenger`);
 
     await page.getByRole("button", { name: "Search" }).click();
-    let searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    let searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("iss");
     await expect(page.getByRole("option", { name: /Search in Issues/i })).toBeVisible();
-    await expect(page.getByPlaceholder("Search issues, chats, agents, projects, library...")).toBeVisible();
+    await expect(page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...")).toBeVisible();
 
     await searchInput.fill("issue ");
     searchInput = page.getByPlaceholder("Search Issues...");
@@ -237,7 +282,7 @@ test.describe("Global search results", () => {
     await page.goto(`/${organization.issuePrefix}/messenger`);
 
     await page.getByRole("button", { name: "Search" }).click();
-    let searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    let searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("library ");
 
@@ -246,7 +291,7 @@ test.describe("Global search results", () => {
     await expect(page.getByText("Type to search Library")).toBeVisible();
 
     await searchInput.press("Backspace");
-    searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, library...");
+    searchInput = page.getByPlaceholder("Search issues, chats, agents, projects, skills, library...");
     await expect(searchInput).toBeVisible();
 
     await searchInput.fill("library ");

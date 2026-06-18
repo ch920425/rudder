@@ -8,7 +8,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useNavigate } from "@/lib/router";
-import type { Agent, IssueSearchField, OrganizationWorkspaceFileEntry, Project } from "@rudderhq/shared";
+import type { Agent, IssueSearchField, OrganizationSkillListItem, OrganizationWorkspaceFileEntry, Project } from "@rudderhq/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
@@ -23,6 +23,7 @@ import {
   Loader2,
   MessageSquare,
   MessagesSquare,
+  Sparkles,
   Target,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ import { agentsApi } from "../api/agents";
 import { chatsApi } from "../api/chats";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { issuesApi } from "../api/issues";
+import { organizationSkillsApi } from "../api/organizationSkills";
 import { organizationsApi } from "../api/orgs";
 import { projectsApi } from "../api/projects";
 import { useOrganization } from "../context/OrganizationContext";
@@ -180,6 +182,13 @@ export function CommandPalette() {
     [allProjects],
   );
 
+  const skillsQuery = useQuery({
+    queryKey: queryKeys.organizationSkills.list(selectedOrganizationId!),
+    queryFn: () => organizationSkillsApi.list(selectedOrganizationId!),
+    enabled: !!selectedOrganizationId && open && (scope === null || scope === "skill"),
+  });
+  const skills = skillsQuery.data ?? [];
+
   function go(path: string) {
     setOpen(false);
     navigate(path);
@@ -255,9 +264,22 @@ export function CommandPalette() {
     [projects, searchQuery],
   );
   const visibleProjects = scope === null || scope === "project" ? filteredProjects : [];
+  const filteredSkills = useMemo(
+    () => skills.filter((skill: OrganizationSkillListItem) => searchTokensMatch(searchQuery, [
+      skill.name,
+      skill.description,
+      skill.key,
+      skill.slug,
+      skill.sourceLabel,
+      skill.sourcePath,
+      skill.sourceLocator,
+    ])),
+    [searchQuery, skills],
+  );
+  const visibleSkills = scope === null || scope === "skill" ? filteredSkills : [];
   const placeholder = scopeDefinition
     ? `Search ${scopeDefinition.label}...`
-    : "Search issues, chats, agents, projects, library...";
+    : "Search issues, chats, agents, projects, skills, library...";
   const scopedEmptyLabel = scopeDefinition
     ? `No ${scopeDefinition.label.toLowerCase()} results found.`
     : "No results found.";
@@ -268,6 +290,7 @@ export function CommandPalette() {
     || (scope === "library" && searchQuery.length > 0 && librarySearchQuery.isFetching && librarySearchQuery.data === undefined)
     || ((scope === null || scope === "agent") && agentsQuery.isFetching && agentsQuery.data === undefined)
     || ((scope === null || scope === "project") && projectsQuery.isFetching && projectsQuery.data === undefined)
+    || ((scope === null || scope === "skill") && skillsQuery.isFetching && skillsQuery.data === undefined)
   );
 
   return (
@@ -357,6 +380,10 @@ export function CommandPalette() {
             <CommandItem value="agents" onSelect={() => go("/agents")}>
               <Bot className="mr-2 h-4 w-4" />
               Agents
+            </CommandItem>
+            <CommandItem value="skills" onSelect={() => go("/skills")}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Skills
             </CommandItem>
             <CommandItem value="costs billing spend" onSelect={() => go("/costs")}>
               <DollarSign className="mr-2 h-4 w-4" />
@@ -493,6 +520,32 @@ export function CommandPalette() {
                 >
                   <ProjectIcon color={project.color} icon={project.icon} size="sm" className="mr-2" />
                   {project.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
+        {visibleSkills.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Skills">
+              {visibleSkills.slice(0, 10).map((skill) => (
+                <CommandItem
+                  key={skill.id}
+                  value={`${skill.name} ${skill.description ?? ""} ${skill.key} ${skill.slug} ${skill.sourceLabel ?? ""}`}
+                  onSelect={() => go(`/skills/${encodeURIComponent(skill.id)}`)}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">{skill.name}</span>
+                    {skill.description ? (
+                      <span className="truncate text-xs text-muted-foreground">{skill.description}</span>
+                    ) : null}
+                  </span>
+                  <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
+                    {skill.sourceLabel ?? skill.sourceBadge}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
