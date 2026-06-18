@@ -361,6 +361,18 @@ pnpm rudder approval comment <approval-id> --body-file ./comment.md
 pnpm rudder activity list --org-id <org-id> [--agent-id <agent-id>] [--entity-type issue] [--entity-id <id>]
 ```
 
+## User Activity Commands
+
+```sh
+pnpm rudder user activity --user me --since today --json
+pnpm rudder user activity --user <user-id> --since 7d [--include chat,comments,approvals,activity] [--agent-id <agent-id>] [--project-id <project-id>] [--issue-id <issue-id>] [--limit 50] [--cursor <cursor>]
+```
+
+`user activity` returns a user-centered ledger with safe excerpts and source
+provenance across chat messages, issue comments, approval comments, and user
+actor activity events. It does not replace the organization event feed exposed
+by `activity list`.
+
 ## Dashboard Commands
 
 ```sh

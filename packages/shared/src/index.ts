@@ -99,10 +99,14 @@ export type {
   ProjectCodebaseScope, ProjectExecutionWorkspaceDefaultMode, ProjectExecutionWorkspacePolicy, ProjectGoalRef, ProjectResourceAttachment,
   ProjectResourceAttachmentInput, ProjectRunWorkspaceDefaultMode, ProjectRunWorkspacePolicy, ProjectWorkspace,
   ProjectWorkspaceSourceType,
-  ProjectWorkspaceVisibility, ProviderQuotaResult, QuotaWindow, RunWorkspace, RunWorkspaceMode, RunWorkspaceProviderType, RunWorkspaceStatus, RunWorkspaceStrategy, RunWorkspaceStrategyType, SecretProviderDescriptor, SidebarBadges, UpdateOrganizationResourceRequest, UpdateProjectResourceAttachmentRequest, UpsertOrganizationIntelligenceProfile, WorkspaceBackupCreateRequest, WorkspaceBackupFileDetail, WorkspaceBackupFileList, WorkspaceBackupList, WorkspaceBackupRestoreRequest,
+  ProjectWorkspaceVisibility, ProviderQuotaResult, QuotaWindow, RunWorkspace, RunWorkspaceMode, RunWorkspaceProviderType, RunWorkspaceStatus, RunWorkspaceStrategy, RunWorkspaceStrategyType, SecretProviderDescriptor, SidebarBadges, UpdateOrganizationResourceRequest, UpdateProjectResourceAttachmentRequest, UpsertOrganizationIntelligenceProfile, UserActivityLedgerInclude,
+  UserActivityLedgerItem,
+  UserActivityLedgerKind,
+  UserActivityLedgerRelatedEntity,
+  UserActivityLedgerResponse,
+  UserActivityLedgerSource, WorkspaceBackupCreateRequest, WorkspaceBackupFileDetail, WorkspaceBackupFileList, WorkspaceBackupList, WorkspaceBackupRestoreRequest,
   WorkspaceBackupRestoreResult, WorkspaceBackupStatus, WorkspaceBackupSummary, WorkspaceBackupTriggerSource, WorkspaceOperation,
-  WorkspaceOperationPhase,
-  WorkspaceOperationStatus, WorkspaceRuntimeService
+  WorkspaceOperationPhase, WorkspaceOperationStatus, WorkspaceRuntimeService
 } from "./types/index.js";
 
 export {

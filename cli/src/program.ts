@@ -16,6 +16,7 @@ import { registerPluginCommands } from "./commands/client/plugin.js";
 import { registerProjectCommands } from "./commands/client/project.js";
 import { registerRunsCommands } from "./commands/client/runs.js";
 import { registerSkillCommands } from "./commands/client/skill.js";
+import { registerUserCommands } from "./commands/client/user.js";
 import { configure } from "./commands/configure.js";
 import { doctor } from "./commands/doctor.js";
 import { envCommand } from "./commands/env.js";
@@ -198,6 +199,7 @@ export function createProgram(): Command {
   registerAgentCommands(program);
   registerApprovalCommands(program);
   registerActivityCommands(program);
+  registerUserCommands(program);
   registerDashboardCommands(program);
   registerSkillCommands(program);
   registerLibraryCommands(program);

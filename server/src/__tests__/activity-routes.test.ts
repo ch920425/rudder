@@ -7,6 +7,7 @@ import { activityRoutes } from "../routes/activity.js";
 const mockActivityService = vi.hoisted(() => ({
   list: vi.fn(),
   listPage: vi.fn(),
+  listUserActivityLedger: vi.fn(),
   forIssue: vi.fn(),
   runsForIssue: vi.fn(),
   issuesForRun: vi.fn(),
@@ -110,6 +111,41 @@ describe("activity routes", () => {
       items: [{ id: "activity-1" }],
       nextCursor: "next-page",
     });
+  });
+
+  it("passes user activity ledger filters to the service", async () => {
+    mockActivityService.listUserActivityLedger.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+
+    const res = await request(createApp())
+      .get("/api/orgs/organization-1/users/me/activity-ledger")
+      .query({
+        since: "2026-06-18T00:00:00.000Z",
+        until: "2026-06-19T00:00:00.000Z",
+        include: "chat,comments,approvals",
+        agentId: "agent-1",
+        projectId: "project-1",
+        issueId: "issue-1",
+        limit: "10",
+        cursor: "cursor-1",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockActivityService.listUserActivityLedger).toHaveBeenCalledWith({
+      orgId: "organization-1",
+      userId: "user-1",
+      since: new Date("2026-06-18T00:00:00.000Z"),
+      until: new Date("2026-06-19T00:00:00.000Z"),
+      include: ["chat", "comments", "approvals"],
+      agentId: "agent-1",
+      projectId: "project-1",
+      issueId: "issue-1",
+      limit: 10,
+      cursor: "cursor-1",
+    });
+    expect(res.body).toEqual({ items: [], nextCursor: null });
   });
 
   it("resolves issue identifiers before loading runs", async () => {

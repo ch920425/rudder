@@ -139,6 +139,7 @@ Use the incremental `after` form when you already know the thread.
 - `GET /api/orgs/:orgId/goals`
 - `POST /api/orgs/:orgId/goals`
 - `GET /api/orgs/:orgId/activity`
+- `GET /api/orgs/:orgId/users/:userId/activity-ledger`
 - `GET /api/orgs/:orgId/costs/summary`
 - `GET /api/orgs/:orgId/costs/by-agent`
 - `GET /api/orgs/:orgId/costs/by-project`

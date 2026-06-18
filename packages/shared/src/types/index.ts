@@ -3,7 +3,15 @@ export type {
   JoinRequest, OrganizationMembership,
   PrincipalPermissionGrant
 } from "./access.js";
-export type { ActivityEvent } from "./activity.js";
+export type {
+  ActivityEvent,
+  UserActivityLedgerInclude,
+  UserActivityLedgerItem,
+  UserActivityLedgerKind,
+  UserActivityLedgerRelatedEntity,
+  UserActivityLedgerResponse,
+  UserActivityLedgerSource
+} from "./activity.js";
 export type {
   AgentSkillAnalytics, AgentSkillAnalyticsDay, AgentSkillAnalyticsSkillTotal, AgentSkillEntry, AgentSkillOrigin, AgentSkillSnapshot, AgentSkillSourceClass, AgentSkillState, AgentSkillSyncMode, AgentSkillSyncRequest,
   AgentSkillTelemetryEvidence,

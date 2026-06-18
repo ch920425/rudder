@@ -42,6 +42,7 @@ Direct API fallback is allowed for heartbeat close-out only when a required CLI 
 | `rudder project get <project-id-or-shortname> [--org-id <id>]` | Read one project by ID or shortname. | no | no | no | no |
 | `rudder project create --org-id <id> --name <name>` | Create a project in the organization. | yes | required | no | attached when available |
 | `rudder project update <project-id-or-shortname> [--org-id <id>]` | Update mutable project fields such as name, description, status, goals, lead agent, target date, color, or archivedAt. | yes | no | no | attached when available |
+| `rudder user activity --user me --since today --json` | Read a user-centered activity ledger with safe excerpts and provenance across chats, issue comments, approval comments, and user actor activity. | no | required | no | no |
 | `rudder library file list [directory]` | List Library files and folders; file rows include `libraryEntryId` when a strong reference can be generated. | no | required | no | no |
 | `rudder library file get <path>` | Fallback read when local filesystem access is unavailable; JSON includes `mentionHref` and `markdownLink`. | no | required | no | no |
 | `rudder library file ref <path>` | Return the stable Markdown reference for one Library file without printing file content. | no | required | no | no |

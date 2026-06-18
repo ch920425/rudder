@@ -77,6 +77,7 @@ rudder issue review "<issue-id-or-identifier>" --decision request_changes --comm
 rudder issue review "<issue-id-or-identifier>" --decision needs_followup --comment-file "<path>" --json
 rudder issue review "<issue-id-or-identifier>" --decision blocked --comment-file "<path>" --json
 rudder issue create --org-id "$RUDDER_ORG_ID" ... --json
+rudder user activity --user me --since today --json
 ```
 
 Issue comment and close-out commands accept comment bodies only from files or
@@ -89,6 +90,23 @@ Add `--image "<path>"` one or more times when the close-out/progress comment
 should include local screenshots or images. Do not leave only a local `/tmp/...`
 or workspace image path in the comment, because board users may not be able to
 inspect it from Rudder.
+
+## User Activity Context
+
+Use `rudder user activity --user me --since today --json` when you need a
+user-centered view of recent Rudder behavior before claiming context is missing,
+before answering questions like "what did I do today?", "which agents did I
+talk to?", or "what feedback did I give?", and before turning broad recent
+activity into daily notes, handoff context, or preference candidates.
+
+The ledger returns safe excerpts plus source/provenance pointers across
+user-authored chat messages, issue comments, approval comments, and user actor
+activity events. Treat summaries and excerpts as pointers, not ground truth
+when exact wording matters. Inspect the cited source before writing durable
+memory, taste/profile updates, or conclusions about stable user preference. Do
+not use the ledger to bypass organization or project permissions, and do not
+store private content in long-term memory unless it is an explicit durable
+preference or operating lesson.
 
 ## Authentication
 

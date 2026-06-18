@@ -1,5 +1,5 @@
 import type { Db } from "@rudderhq/db";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import { badRequest } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -7,6 +7,8 @@ import { sanitizeRecord } from "../redaction.js";
 import { activityService } from "../services/activity.js";
 import { issueService } from "../services/index.js";
 import { assertBoard, assertCompanyAccess } from "./authz.js";
+
+const USER_ACTIVITY_INCLUDES = new Set(["chat", "comments", "issues", "approvals", "activity"]);
 
 const createActivitySchema = z.object({
   actorType: z.enum(["agent", "user", "system"]).optional().default("system"),
@@ -37,6 +39,47 @@ export function activityRoutes(db: Db) {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 1) throw badRequest("invalid 'limit' value");
     return parsed;
+  }
+
+  function dateQueryParam(value: unknown, name: string): Date | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !value.trim()) throw badRequest(`invalid '${name}' value`);
+    const raw = value.trim().toLowerCase();
+    const now = new Date();
+    if (raw === "today") {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+    const relative = raw.match(/^(\d+)([hdw])$/);
+    if (relative) {
+      const amount = Number(relative[1]);
+      const unit = relative[2];
+      const hours = unit === "h" ? amount : unit === "d" ? amount * 24 : amount * 24 * 7;
+      return new Date(now.getTime() - hours * 60 * 60 * 1000);
+    }
+    const parsed = new Date(value.trim());
+    if (Number.isNaN(parsed.getTime())) throw badRequest(`invalid '${name}' value`);
+    return parsed;
+  }
+
+  function includeQueryParam(value: unknown) {
+    if (value === undefined) return undefined;
+    if (typeof value !== "string") throw badRequest("invalid 'include' value");
+    const includes = value
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    for (const include of includes) {
+      if (!USER_ACTIVITY_INCLUDES.has(include)) {
+        throw badRequest(`invalid 'include' value: ${include}`);
+      }
+    }
+    return includes as Array<"chat" | "comments" | "issues" | "approvals" | "activity">;
+  }
+
+  function resolveUserActivityUserId(req: Request, rawUserId: string) {
+    if (rawUserId !== "me") return rawUserId;
+    if (req.actor.type === "board") return req.actor.userId ?? "local-board";
+    return "local-board";
   }
 
   async function resolveIssueByRef(rawId: string) {
@@ -71,6 +114,25 @@ export function activityRoutes(db: Db) {
       return;
     }
     const result = await svc.list(filters);
+    res.json(result);
+  });
+
+  router.get("/orgs/:orgId/users/:userId/activity-ledger", async (req, res) => {
+    const orgId = req.params.orgId as string;
+    assertCompanyAccess(req, orgId);
+    const userId = resolveUserActivityUserId(req, req.params.userId as string);
+    const result = await svc.listUserActivityLedger({
+      orgId,
+      userId,
+      since: dateQueryParam(req.query.since, "since"),
+      until: dateQueryParam(req.query.until, "until"),
+      include: includeQueryParam(req.query.include),
+      agentId: stringQueryParam(req.query.agentId),
+      projectId: stringQueryParam(req.query.projectId),
+      issueId: stringQueryParam(req.query.issueId),
+      limit: positiveIntegerQueryParam(req.query.limit),
+      cursor: stringQueryParam(req.query.cursor),
+    });
     res.json(result);
   });
 

@@ -2,11 +2,16 @@ import {
   activityLog,
   agents,
   applyPendingMigrations,
+  approvalComments,
+  approvals,
   chatContextLinks,
   chatConversations,
+  chatMessages,
   createDb,
   ensurePostgresDatabase,
+  issueComments,
   issues,
+  operatorProfiles,
   organizations,
 } from "@rudderhq/db";
 import { deriveOrganizationUrlKey } from "@rudderhq/shared";
@@ -106,11 +111,16 @@ describe("activityService.forIssue", () => {
   }, 20_000);
 
   afterEach(async () => {
+    await db.delete(approvalComments);
+    await db.delete(approvals);
+    await db.delete(issueComments);
+    await db.delete(chatMessages);
     await db.delete(chatContextLinks);
     await db.delete(chatConversations);
     await db.delete(activityLog);
-    await db.delete(agents);
     await db.delete(issues);
+    await db.delete(agents);
+    await db.delete(operatorProfiles);
     await db.delete(organizations);
   });
 
@@ -780,6 +790,240 @@ describe("activityService.forIssue", () => {
       title: "Original activity detail title",
       issueIdentifier: "RST-371",
       issueTitle: "Canonical issue title",
+    });
+  });
+
+  it("builds a user activity ledger with merged ordering, filters, pagination, and privacy exclusions", async () => {
+    const orgId = randomUUID();
+    const otherOrgId = randomUUID();
+    const userId = "user-1";
+    const issueId = randomUUID();
+    const otherOrgIssueId = randomUUID();
+    const conversationId = randomUUID();
+    const approvalId = randomUUID();
+    const agentId = randomUUID();
+
+    await db.insert(organizations).values([
+      {
+        id: orgId,
+        name: "Rudder",
+        urlKey: deriveOrganizationUrlKey("Rudder"),
+        issuePrefix: "RST",
+        requireBoardApprovalForNewAgents: false,
+      },
+      {
+        id: otherOrgId,
+        name: "Other",
+        urlKey: deriveOrganizationUrlKey("Other"),
+        issuePrefix: "OTH",
+        requireBoardApprovalForNewAgents: false,
+      },
+    ]);
+
+    await db.insert(operatorProfiles).values({
+      userId,
+      nickname: "Zeeland",
+      preferences: {},
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Wesley",
+      role: "engineer",
+      status: "running",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(issues).values([
+      {
+        id: issueId,
+        orgId,
+        identifier: "RST-693",
+        title: "Implement user activity ledger",
+        status: "todo",
+        priority: "high",
+        assigneeAgentId: agentId,
+      },
+      {
+        id: otherOrgIssueId,
+        orgId: otherOrgId,
+        identifier: "OTH-1",
+        title: "Other org issue",
+        status: "todo",
+        priority: "medium",
+      },
+    ]);
+
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Ledger planning",
+      createdByUserId: userId,
+      preferredAgentId: agentId,
+      primaryIssueId: issueId,
+      issueCreationMode: "manual_approval",
+      planMode: false,
+    });
+
+    await db.insert(chatMessages).values([
+      {
+        orgId,
+        conversationId,
+        role: "user",
+        body: "Please implement the user activity ledger with source evidence.",
+        replyingAgentId: agentId,
+        createdAt: new Date("2026-06-18T01:00:00.000Z"),
+      },
+      {
+        orgId,
+        conversationId,
+        role: "user",
+        body: "Superseded message should not be exposed.",
+        replyingAgentId: agentId,
+        supersededAt: new Date("2026-06-18T01:05:00.000Z"),
+        createdAt: new Date("2026-06-18T01:04:00.000Z"),
+      },
+    ]);
+
+    await db.insert(issueComments).values([
+      {
+        orgId,
+        issueId,
+        authorUserId: userId,
+        body: "Please include provenance and safe excerpts.",
+        createdAt: new Date("2026-06-18T02:00:00.000Z"),
+      },
+      {
+        orgId,
+        issueId,
+        authorUserId: userId,
+        body: "Deleted comment should not be exposed.",
+        deletedAt: new Date("2026-06-18T02:30:00.000Z"),
+        createdAt: new Date("2026-06-18T02:20:00.000Z"),
+      },
+      {
+        orgId: otherOrgId,
+        issueId: otherOrgIssueId,
+        authorUserId: userId,
+        body: "Other org comment should not leak.",
+        createdAt: new Date("2026-06-18T02:10:00.000Z"),
+      },
+    ]);
+
+    await db.insert(approvals).values({
+      id: approvalId,
+      orgId,
+      type: "command",
+      requestedByAgentId: agentId,
+      status: "approved",
+      payload: {},
+    });
+
+    await db.insert(approvalComments).values({
+      orgId,
+      approvalId,
+      authorUserId: userId,
+      body: "Approved with the narrower Phase 1 scope.",
+      createdAt: new Date("2026-06-18T03:00:00.000Z"),
+    });
+
+    await db.insert(activityLog).values([
+      {
+        orgId,
+        actorType: "user",
+        actorId: userId,
+        action: "issue.created",
+        entityType: "issue",
+        entityId: issueId,
+        agentId,
+        details: { title: "Implement user activity ledger" },
+        createdAt: new Date("2026-06-18T04:00:00.000Z"),
+      },
+      {
+        orgId,
+        actorType: "user",
+        actorId: userId,
+        action: "issue.comment_added",
+        entityType: "issue",
+        entityId: issueId,
+        details: { commentId: "duplicate-comment-activity" },
+        createdAt: new Date("2026-06-18T02:00:01.000Z"),
+      },
+      {
+        orgId: otherOrgId,
+        actorType: "user",
+        actorId: userId,
+        action: "issue.created",
+        entityType: "issue",
+        entityId: otherOrgIssueId,
+        details: { title: "Other org issue" },
+        createdAt: new Date("2026-06-18T04:30:00.000Z"),
+      },
+    ]);
+
+    const firstPage = await svc.listUserActivityLedger({
+      orgId,
+      userId,
+      since: new Date("2026-06-18T00:00:00.000Z"),
+      until: new Date("2026-06-19T00:00:00.000Z"),
+      limit: 3,
+    });
+
+    expect(firstPage.items.map((item) => item.kind)).toEqual([
+      "activity_event",
+      "approval_comment",
+      "issue_comment",
+    ]);
+    expect(firstPage.items[0]).toMatchObject({
+      userId,
+      actor: { type: "user", id: userId, displayName: "Zeeland" },
+      source: {
+        provenance: {
+          table: "activity_log",
+          orgId,
+        },
+      },
+    });
+    expect(firstPage.items.map((item) => item.excerpt).join("\n")).not.toContain("Deleted comment");
+    expect(firstPage.items.map((item) => item.excerpt).join("\n")).not.toContain("Other org");
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await svc.listUserActivityLedger({
+      orgId,
+      userId,
+      since: new Date("2026-06-18T00:00:00.000Z"),
+      until: new Date("2026-06-19T00:00:00.000Z"),
+      limit: 3,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(secondPage.items.map((item) => item.kind)).toEqual(["chat_message"]);
+    expect(secondPage.nextCursor).toBeNull();
+
+    const chatOnly = await svc.listUserActivityLedger({
+      orgId,
+      userId,
+      include: ["chat"],
+      agentId,
+      issueId,
+      limit: 10,
+    });
+
+    expect(chatOnly.items).toHaveLength(1);
+    expect(chatOnly.items[0]).toMatchObject({
+      kind: "chat_message",
+      excerpt: "Please implement the user activity ledger with source evidence.",
+      source: {
+        type: "chat",
+        provenance: {
+          table: "chat_messages",
+          orgId,
+        },
+      },
     });
   });
 });
