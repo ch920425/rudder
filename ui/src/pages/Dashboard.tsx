@@ -166,7 +166,7 @@ export function Dashboard() {
     enabled: !!selectedOrganizationId,
   });
 
-  const { data: issues } = useQuery({
+  const { data: issues, isLoading: issuesLoading } = useQuery({
     queryKey: queryKeys.issues.list(selectedOrganizationId!),
     queryFn: () => issuesApi.list(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
@@ -247,18 +247,18 @@ export function Dashboard() {
 
   const showFilteredSections = preset !== "custom" || customReady;
 
-  const { data: runs } = useQuery({
+  const { data: runs, isLoading: runsLoading } = useQuery({
     queryKey: ["heartbeats", selectedOrganizationId ?? "__none__", "dashboard-range", from, to],
     queryFn: () => heartbeatsApi.list(selectedOrganizationId!, undefined, null, { startDate: from, endDate: to }),
     enabled: Boolean(selectedOrganizationId) && showFilteredSections,
   });
 
-  const { data: rangeCostSummary } = useQuery({
+  const { data: rangeCostSummary, isLoading: rangeCostSummaryLoading } = useQuery({
     queryKey: queryKeys.costs(selectedOrganizationId ?? "__none__", from, to),
     queryFn: () => costsApi.summary(selectedOrganizationId!, from, to),
     enabled: Boolean(selectedOrganizationId) && showFilteredSections,
   });
-  const { data: rangeCostTrend } = useQuery({
+  const { data: rangeCostTrend, isLoading: rangeCostTrendLoading } = useQuery({
     queryKey: queryKeys.costTrend(selectedOrganizationId ?? "__none__", from, to),
     queryFn: () => costsApi.trend(selectedOrganizationId!, from, to),
     enabled: Boolean(selectedOrganizationId) && showFilteredSections,
@@ -554,6 +554,7 @@ export function Dashboard() {
               value={tokenMetricValue}
               label="Tokens Used"
               to="/costs"
+              isLoading={rangeCostSummaryLoading}
               description={
                 <span>
                   {tokenMetricDescription}
@@ -565,28 +566,28 @@ export function Dashboard() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <ChartCard title="Run Activity" subtitle={`${rangeLabel} · relative daily run volume · hover for details`}>
               {showFilteredSections ? (
-                <RunActivityChart key={`runs:${dashboardMotionKey}`} runs={filteredRuns} days={chartDays} />
+                <RunActivityChart key={`runs:${dashboardMotionKey}`} runs={filteredRuns} days={chartDays} isLoading={runsLoading} />
               ) : (
                 <p className="text-xs text-muted-foreground">Select a start and end date to filter dashboard activity.</p>
               )}
             </ChartCard>
             <ChartCard title="Issues by Priority" subtitle={`${rangeLabel} · relative daily issue volume · hover for details`}>
               {showFilteredSections ? (
-                <PriorityChart key={`priority:${dashboardMotionKey}`} issues={filteredIssuesForCharts} days={chartDays} />
+                <PriorityChart key={`priority:${dashboardMotionKey}`} issues={filteredIssuesForCharts} days={chartDays} isLoading={issuesLoading} />
               ) : (
                 <p className="text-xs text-muted-foreground">Select a start and end date to filter dashboard activity.</p>
               )}
             </ChartCard>
             <ChartCard title="Issues by Status" subtitle={`${rangeLabel} · relative daily issue volume · hover for details`}>
               {showFilteredSections ? (
-                <IssueStatusChart key={`status:${dashboardMotionKey}`} issues={filteredIssuesForCharts} days={chartDays} />
+                <IssueStatusChart key={`status:${dashboardMotionKey}`} issues={filteredIssuesForCharts} days={chartDays} isLoading={issuesLoading} />
               ) : (
                 <p className="text-xs text-muted-foreground">Select a start and end date to filter dashboard activity.</p>
               )}
             </ChartCard>
             <ChartCard title="Token Usage" subtitle={`${rangeLabel} · daily token volume · hover for details`}>
               {showFilteredSections ? (
-                <TokenUsageChart key={`tokens:${dashboardMotionKey}`} rows={rangeCostTrend ?? []} days={chartDays} />
+                <TokenUsageChart key={`tokens:${dashboardMotionKey}`} rows={rangeCostTrend ?? []} days={chartDays} isLoading={rangeCostTrendLoading} />
               ) : (
                 <p className="text-xs text-muted-foreground">Select a start and end date to filter dashboard activity.</p>
               )}

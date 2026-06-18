@@ -14,6 +14,7 @@ import { Identity } from "./Identity";
 import { RunTranscriptView } from "./transcript/RunTranscriptView";
 import { filterRoutineStdout } from "./transcript/RunTranscriptView.common";
 import { useLiveRunTranscripts } from "./transcript/useLiveRunTranscripts";
+import { Skeleton } from "./ui/skeleton";
 
 const MIN_DASHBOARD_RUNS = 4;
 const DASHBOARD_RUN_PREVIEW_TEXT_MAX = 260;
@@ -91,7 +92,7 @@ export function filterDashboardRunPreviewTranscript(entries: TranscriptEntry[]):
 }
 
 export function ActiveAgentsPanel({ orgId }: ActiveAgentsPanelProps) {
-  const { data: liveRuns } = useQuery({
+  const { data: liveRuns, isLoading: liveRunsLoading } = useQuery({
     queryKey: [...queryKeys.liveRuns(orgId), "dashboard"],
     queryFn: () => heartbeatsApi.liveRunsForCompany(orgId, MIN_DASHBOARD_RUNS),
   });
@@ -134,7 +135,21 @@ export function ActiveAgentsPanel({ orgId }: ActiveAgentsPanelProps) {
       <h3 className="mb-3 text-sm font-semibold tracking-[0.04em] text-muted-foreground">
         Agents
       </h3>
-      {runs.length === 0 ? (
+      {liveRunsLoading ? (
+        <div
+          aria-label="Loading recent agent runs"
+          className="surface-panel rounded-[var(--radius-lg)] p-4"
+          data-testid="active-agents-panel-skeleton"
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-3 w-40 max-w-full" />
+              <Skeleton className="h-3 w-64 max-w-full" />
+            </div>
+          </div>
+        </div>
+      ) : runs.length === 0 ? (
         <div className="surface-panel rounded-[var(--radius-lg)] p-4">
           <p className="text-sm text-muted-foreground">No recent agent runs.</p>
         </div>

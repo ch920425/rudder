@@ -3,12 +3,14 @@ import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Skeleton } from "./ui/skeleton";
 
 interface MetricCardProps {
   icon: LucideIcon;
   value: string | number;
   label: string;
   description?: ReactNode;
+  isLoading?: boolean;
   to?: string;
   onClick?: () => void;
 }
@@ -102,7 +104,7 @@ function AnimatedMetricValue({ value }: { value: string | number }) {
   );
 }
 
-export function MetricCard({ icon: Icon, value, label, description, to, onClick }: MetricCardProps) {
+export function MetricCard({ icon: Icon, value, label, description, isLoading = false, to, onClick }: MetricCardProps) {
   const isClickable = !!(to || onClick);
 
   const inner = (
@@ -114,13 +116,23 @@ export function MetricCard({ icon: Icon, value, label, description, to, onClick 
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums text-foreground">
-            <AnimatedMetricValue value={value} />
-          </p>
+          <div className="text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums text-foreground">
+            {isLoading ? (
+              <div aria-label={`Loading ${label}`} data-testid="metric-card-value-skeleton">
+                <Skeleton className="h-8 w-20" />
+              </div>
+            ) : (
+              <AnimatedMetricValue value={value} />
+            )}
+          </div>
           <p className="mt-1 text-xs font-medium tracking-[0.06em] text-muted-foreground sm:text-sm">
             {label}
           </p>
-          {description && (
+          {isLoading ? (
+            <div className="mt-3 hidden sm:block" data-testid="metric-card-description-skeleton">
+              <Skeleton className="h-3 w-40 max-w-full" />
+            </div>
+          ) : description && (
             <div className="mt-2 hidden text-xs leading-5 text-muted-foreground/85 sm:block">{description}</div>
           )}
         </div>

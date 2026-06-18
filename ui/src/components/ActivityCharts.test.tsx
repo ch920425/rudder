@@ -163,6 +163,13 @@ describe("SkillsUsageChart", () => {
 });
 
 describe("RunActivityChart", () => {
+  it("shows a skeleton instead of an empty state while runs are loading", () => {
+    const container = render(<RunActivityChart runs={[]} days={["2026-05-12"]} isLoading />);
+
+    expect(container.querySelector('[data-testid="dashboard-chart-skeleton"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("No runs yet");
+  });
+
   it("marks chart columns with dashboard update motion classes", () => {
     const run = {
       id: "run-1",
@@ -261,6 +268,13 @@ describe("SuccessRateChart", () => {
 });
 
 describe("TokenUsageChart", () => {
+  it("shows a skeleton instead of an empty state while token usage is loading", () => {
+    const container = render(<TokenUsageChart rows={[]} days={["2026-05-12"]} isLoading />);
+
+    expect(container.querySelector('[data-testid="dashboard-chart-skeleton"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("No token usage yet");
+  });
+
   it("renders daily token volume with token-specific scale and legend", () => {
     const rows = [
       {

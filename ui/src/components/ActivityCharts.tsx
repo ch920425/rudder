@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { formatPriorityLabel } from "../lib/priorities";
 import { describeRunReason } from "../lib/run-reason";
 import { formatTokens } from "../lib/utils";
+import { Skeleton } from "./ui/skeleton";
 
 /* ---- Utilities ---- */
 
@@ -195,6 +196,46 @@ function ChartLegend({ items }: { items: { color: string; label: string }[] }) {
           {item.label}
         </span>
       ))}
+    </div>
+  );
+}
+
+function ChartLoadingSkeleton() {
+  return (
+    <div
+      aria-label="Loading chart data"
+      className="space-y-2"
+      data-testid="dashboard-chart-skeleton"
+    >
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-1.5">
+        <div className="h-20 space-y-5 py-0.5" aria-hidden="true">
+          <Skeleton className="ml-auto h-2 w-4" />
+          <Skeleton className="ml-auto h-2 w-4" />
+          <Skeleton className="ml-auto h-2 w-4" />
+        </div>
+        <div className="flex h-20 items-end gap-[3px]">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="flex-1 rounded-sm"
+              style={{ height: `${24 + ((index * 19) % 56)}%` }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)] gap-1.5">
+        <div aria-hidden="true" />
+        <div className="flex justify-between">
+          <Skeleton className="h-2 w-6" />
+          <Skeleton className="h-2 w-6" />
+          <Skeleton className="h-2 w-6" />
+        </div>
+      </div>
+      <div className="flex gap-2.5">
+        <Skeleton className="h-2.5 w-14" />
+        <Skeleton className="h-2.5 w-12" />
+        <Skeleton className="h-2.5 w-16" />
+      </div>
     </div>
   );
 }
@@ -432,10 +473,13 @@ function buildSkillLinePath(points: Array<{ x: number; y: number }>): string {
 export function RunActivityChart({
   runs,
   days = getLast14Days(),
+  isLoading = false,
 }: {
   runs: HeartbeatRun[];
   days?: string[];
+  isLoading?: boolean;
 }) {
+  if (isLoading) return <ChartLoadingSkeleton />;
 
   const grouped = new Map<string, { succeeded: number; failed: number; other: number }>();
   for (const day of days) grouped.set(day, { succeeded: 0, failed: 0, other: 0 });
@@ -515,10 +559,14 @@ const priorityOrder = ["critical", "high", "medium", "low"] as const;
 export function PriorityChart({
   issues,
   days = getLast14Days(),
+  isLoading = false,
 }: {
   issues: { priority: string; createdAt: Date }[];
   days?: string[];
+  isLoading?: boolean;
 }) {
+  if (isLoading) return <ChartLoadingSkeleton />;
+
   const grouped = new Map<string, Record<string, number>>();
   for (const day of days) grouped.set(day, { critical: 0, high: 0, medium: 0, low: 0 });
   for (const issue of issues) {
@@ -611,10 +659,14 @@ const statusLabels: Record<string, string> = {
 export function IssueStatusChart({
   issues,
   days = getLast14Days(),
+  isLoading = false,
 }: {
   issues: { status: string; createdAt: Date }[];
   days?: string[];
+  isLoading?: boolean;
 }) {
+  if (isLoading) return <ChartLoadingSkeleton />;
+
   const allStatuses = new Set<string>();
   const grouped = new Map<string, Record<string, number>>();
   for (const day of days) grouped.set(day, {});
@@ -770,10 +822,14 @@ function emptyCostTrendPoint(date: string): CostTrendPoint {
 export function TokenUsageChart({
   rows,
   days = getLast14Days(),
+  isLoading = false,
 }: {
   rows: CostTrendPoint[];
   days?: string[];
+  isLoading?: boolean;
 }) {
+  if (isLoading) return <ChartLoadingSkeleton />;
+
   const rowsByDate = new Map(rows.map((row) => [row.date, row]));
   const series = days.map((day) => rowsByDate.get(day) ?? emptyCostTrendPoint(day));
   const maxValue = Math.max(...series.map((row) => summarizeTokenUsage(row).totalTokens), 1);

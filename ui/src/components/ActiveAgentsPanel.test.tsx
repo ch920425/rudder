@@ -2,45 +2,55 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveAgentsPanel, filterDashboardRunPreviewTranscript } from "./ActiveAgentsPanel";
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+const liveRunFixture = {
+  id: "run-1",
+  status: "running",
+  invocationSource: "manual",
+  triggerDetail: null,
+  startedAt: "2026-04-25T08:00:00.000Z",
+  finishedAt: null,
+  createdAt: "2026-04-25T08:00:00.000Z",
+  agentId: "agent-1",
+  agentName: "Ada",
+  agentRuntimeType: "process",
+  issueId: "issue-1",
+};
+
+const issueFixture = {
+  id: "issue-1",
+  identifier: "RUD-1",
+  title: "Ship motion feedback",
+};
+
+const queryMocks = vi.hoisted((): {
+  liveRuns: { data?: unknown; isLoading?: boolean };
+  issues: { data?: unknown; isLoading?: boolean };
+  agents: { data?: unknown; isLoading?: boolean };
+} => ({
+  liveRuns: { data: [], isLoading: false },
+  issues: { data: [], isLoading: false },
+  agents: { data: [], isLoading: false },
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "live-runs") {
-      return {
-        data: [
-          {
-            id: "run-1",
-            status: "running",
-            invocationSource: "manual",
-            triggerDetail: null,
-            startedAt: "2026-04-25T08:00:00.000Z",
-            finishedAt: null,
-            createdAt: "2026-04-25T08:00:00.000Z",
-            agentId: "agent-1",
-            agentName: "Ada",
-            agentRuntimeType: "process",
-            issueId: "issue-1",
-          },
-        ],
-      };
+      return queryMocks.liveRuns;
     }
 
     if (queryKey[0] === "issues") {
-      return {
-        data: [
-          {
-            id: "issue-1",
-            identifier: "RUD-1",
-            title: "Ship motion feedback",
-          },
-        ],
-      };
+      return queryMocks.issues;
+    }
+
+    if (queryKey[0] === "agents") {
+      return queryMocks.agents;
     }
 
     return { data: [] };
@@ -71,6 +81,12 @@ vi.mock("./transcript/RunTranscriptView", () => ({
 }));
 
 let cleanupFn: (() => void) | null = null;
+
+beforeEach(() => {
+  queryMocks.liveRuns = { data: [liveRunFixture], isLoading: false };
+  queryMocks.issues = { data: [issueFixture], isLoading: false };
+  queryMocks.agents = { data: [], isLoading: false };
+});
 
 afterEach(() => {
   cleanupFn?.();
@@ -171,5 +187,25 @@ describe("ActiveAgentsPanel", () => {
     const transcript = container.querySelector('[data-testid="run-transcript-view"]');
     expect(transcript?.getAttribute("data-streaming")).toBe("true");
     expect(transcript?.classList.contains("dashboard-run-preview")).toBe(true);
+  });
+
+  it("shows a skeleton instead of an empty state while recent runs are loading", () => {
+    queryMocks.liveRuns = { data: undefined, isLoading: true };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => root.unmount());
+      container.remove();
+    };
+
+    act(() => {
+      root.render(<ActiveAgentsPanel orgId="org-1" />);
+    });
+
+    expect(container.querySelector('[data-testid="active-agents-panel-skeleton"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("No recent agent runs.");
   });
 });

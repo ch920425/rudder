@@ -48,4 +48,34 @@ describe("MetricCard", () => {
     expect(metricValue?.getAttribute("data-animated")).toBe("true");
     expect(container.querySelectorAll(".metric-digit-window").length).toBe(4);
   });
+
+  it("uses skeletons instead of placeholder values while loading", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MetricCard
+          icon={Bot}
+          value="—"
+          label="Tokens Used"
+          description="Not available for this time window"
+          isLoading
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="metric-card-value-skeleton"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="metric-card-description-skeleton"]')).toBeTruthy();
+    expect(container.textContent).toContain("Tokens Used");
+    expect(container.textContent).not.toContain("Not available for this time window");
+  });
 });
