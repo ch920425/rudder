@@ -4,18 +4,19 @@ type IssueScope = string;
 
 type IssueScopeFilters = {
   assigneeUserId?: string;
+  includeAutomationExecutions?: boolean;
   reviewerUserId?: string;
 };
 
 export function getIssueScopeFilters(issueScope: IssueScope, currentUserId: string | null): IssueScopeFilters {
   if (issueScope === "assigned" && currentUserId) {
-    return { assigneeUserId: "me" };
+    return { assigneeUserId: "me", includeAutomationExecutions: true };
   }
   if (issueScope === "reviewing" && currentUserId) {
-    return { reviewerUserId: "me" };
+    return { reviewerUserId: "me", includeAutomationExecutions: true };
   }
 
-  return {};
+  return { includeAutomationExecutions: true };
 }
 
 export function isFollowingIssue(issue: Pick<Issue, "createdByUserId" | "assigneeUserId" | "reviewerUserId">, currentUserId: string | null): boolean {

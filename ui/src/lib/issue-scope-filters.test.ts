@@ -5,22 +5,30 @@ describe("getIssueScopeFilters", () => {
   it("maps assigned scope to the current user's assignee filter", () => {
     expect(getIssueScopeFilters("assigned", "user-123")).toEqual({
       assigneeUserId: "me",
+      includeAutomationExecutions: true,
     });
   });
 
   it("does not apply assigned filtering without a current user", () => {
-    expect(getIssueScopeFilters("assigned", null)).toEqual({});
+    expect(getIssueScopeFilters("assigned", null)).toEqual({
+      includeAutomationExecutions: true,
+    });
   });
 
   it("maps reviewing scope to the current user's reviewer filter", () => {
     expect(getIssueScopeFilters("reviewing", "user-123")).toEqual({
+      includeAutomationExecutions: true,
       reviewerUserId: "me",
     });
   });
 
-  it("leaves other scopes unchanged", () => {
-    expect(getIssueScopeFilters("recent", "user-123")).toEqual({});
-    expect(getIssueScopeFilters("", "user-123")).toEqual({});
+  it("includes automation execution issues for ordinary board scopes", () => {
+    expect(getIssueScopeFilters("recent", "user-123")).toEqual({
+      includeAutomationExecutions: true,
+    });
+    expect(getIssueScopeFilters("", "user-123")).toEqual({
+      includeAutomationExecutions: true,
+    });
   });
 });
 

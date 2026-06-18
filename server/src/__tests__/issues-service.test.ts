@@ -301,6 +301,47 @@ describe("issueService.list participantAgentId", () => {
     expect(result.map((issue) => issue.id)).toEqual([matchedIssueId]);
   });
 
+  it("keeps automation execution issues out of generic lists unless explicitly requested", async () => {
+    const orgId = randomUUID();
+    const manualIssueId = randomUUID();
+    const automationIssueId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Automation Board Org",
+      urlKey: deriveOrganizationUrlKey("Automation Board Org"),
+      issuePrefix: `A${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(issues).values([
+      {
+        id: manualIssueId,
+        orgId,
+        title: "Manual issue",
+        status: "todo",
+        priority: "medium",
+        originKind: "manual",
+      },
+      {
+        id: automationIssueId,
+        orgId,
+        title: "Automation execution",
+        status: "todo",
+        priority: "medium",
+        originKind: "automation_execution",
+        originId: randomUUID(),
+        originRunId: randomUUID(),
+      },
+    ]);
+
+    const defaultResult = await svc.list(orgId);
+    expect(defaultResult.map((issue) => issue.id)).toEqual([manualIssueId]);
+
+    const boardResult = await svc.list(orgId, { includeAutomationExecutions: true });
+    expect(new Set(boardResult.map((issue) => issue.id))).toEqual(new Set([manualIssueId, automationIssueId]));
+  });
+
   it("defaults issue search to title and only finds comments when comment search is enabled", async () => {
     const orgId = randomUUID();
     const matchedIssueId = randomUUID();
