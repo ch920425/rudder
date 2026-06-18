@@ -1,16 +1,30 @@
 import type { LibraryEntry } from "@rudderhq/shared";
 import { organizationsApi } from "../api/orgs";
 
-interface CachedLibraryEntryMetadata {
-  currentPath: string | null;
-}
+type CachedLibraryEntryMetadata = Pick<LibraryEntry, "currentPath"> & Partial<Pick<LibraryEntry, "status">>;
 
 const LIBRARY_ENTRY_CACHE_STORAGE_PREFIX = "rudder.libraryEntryCache";
-const cache = new Map<string, LibraryEntry>();
-const inFlight = new Map<string, Promise<LibraryEntry>>();
+const LIBRARY_ENTRY_CACHE_TTL_MS = 5 * 60 * 1000;
+const SELECTED_ORG_STORAGE_KEY = "rudder.selectedOrganizationId";
 
-function key(orgId: string | null | undefined, entryId: string | null | undefined) {
-  return orgId && entryId ? `${orgId}:${entryId}` : null;
+type LibraryEntryCacheRecord = {
+  expiresAt: number;
+  entry?: LibraryEntry;
+  promise?: Promise<LibraryEntry>;
+};
+
+const libraryEntryCache = new Map<string, LibraryEntryCacheRecord>();
+
+function cacheKey(orgId: string, entryId: string) {
+  return `${orgId}:library-entry:${entryId}`;
+}
+
+function currentTimeMs() {
+  return Date.now();
+}
+
+function isFresh(record: LibraryEntryCacheRecord | undefined) {
+  return Boolean(record && record.expiresAt > currentTimeMs());
 }
 
 function libraryEntryCacheStorageKey(orgId: string, entryId: string) {
@@ -35,55 +49,60 @@ function getCachedLibraryEntryPathFromStorage(orgId: string, entryId: string): C
   }
 }
 
-export function getCachedLibraryEntryMetadata(orgId: string | null | undefined, entryId: string | null | undefined) {
-  const cacheKey = key(orgId, entryId);
-  if (!cacheKey || !orgId || !entryId) return null;
-  return cache.get(cacheKey) ?? getCachedLibraryEntryPathFromStorage(orgId, entryId);
-}
-
 export function readSelectedOrganizationIdFromStorage() {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("rudder.selectedOrganizationId");
+  if (typeof window.localStorage?.getItem !== "function") return null;
+  return window.localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
 }
 
-export function cacheLibraryEntryMetadata(entry: LibraryEntry) {
-  cache.set(`${entry.orgId}:${entry.id}`, entry);
+export function getCachedLibraryEntryMetadata(orgId: string | null | undefined, entryId: string | null | undefined) {
+  if (!orgId || !entryId) return null;
+  const record = libraryEntryCache.get(cacheKey(orgId, entryId));
+  if (isFresh(record) && record?.entry) return record.entry;
+  return getCachedLibraryEntryPathFromStorage(orgId, entryId);
 }
 
-export async function loadLibraryEntryMetadata(orgId: string, entryId: string) {
-  const cacheKey = key(orgId, entryId)!;
-  const cached = cache.get(cacheKey);
-  if (cached) return cached;
-  const pending = inFlight.get(cacheKey);
-  if (pending) return pending;
+export function loadLibraryEntryMetadata(orgId: string, entryId: string) {
+  const key = cacheKey(orgId, entryId);
+  const existing = libraryEntryCache.get(key);
+  if (isFresh(existing)) {
+    if (existing?.entry) return Promise.resolve(existing.entry);
+    if (existing?.promise) return existing.promise;
+  }
 
   const promise = organizationsApi.getLibraryEntry(orgId, entryId)
     .then((entry) => {
-      cacheLibraryEntryMetadata(entry);
-      inFlight.delete(cacheKey);
+      libraryEntryCache.set(key, {
+        entry,
+        expiresAt: currentTimeMs() + LIBRARY_ENTRY_CACHE_TTL_MS,
+      });
       return entry;
     })
     .catch((error) => {
-      inFlight.delete(cacheKey);
+      libraryEntryCache.delete(key);
       throw error;
     });
-  inFlight.set(cacheKey, promise);
+  libraryEntryCache.set(key, {
+    promise,
+    expiresAt: currentTimeMs() + LIBRARY_ENTRY_CACHE_TTL_MS,
+  });
   return promise;
 }
 
-export function prefetchLibraryEntryMetadata(
-  orgId: string | null | undefined,
-  entryId: string | null | undefined,
-) {
+export function prefetchLibraryEntryMetadata(orgId: string | null | undefined, entryId: string | null | undefined) {
   if (!orgId || !entryId) return;
-  void loadLibraryEntryMetadata(orgId, entryId);
-}
-
-export function __setLibraryEntryMetadataCacheForTests(orgId: string, entry: LibraryEntry) {
-  cache.set(`${orgId}:${entry.id}`, entry);
+  void loadLibraryEntryMetadata(orgId, entryId).catch(() => {
+    // Link prefetch is opportunistic; the destination page still owns errors.
+  });
 }
 
 export function __clearLibraryEntryMetadataCacheForTests() {
-  cache.clear();
-  inFlight.clear();
+  libraryEntryCache.clear();
+}
+
+export function __setLibraryEntryMetadataCacheForTests(orgId: string, entry: LibraryEntry) {
+  libraryEntryCache.set(cacheKey(orgId, entry.id), {
+    entry,
+    expiresAt: currentTimeMs() + LIBRARY_ENTRY_CACHE_TTL_MS,
+  });
 }
