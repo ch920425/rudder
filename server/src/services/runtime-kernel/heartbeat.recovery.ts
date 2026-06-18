@@ -323,6 +323,7 @@ export function createHeartbeatRecoveryHandlers(context: any) {
 
     const assigneeIssues = await issuesSvc.list(agent.orgId, {
       assigneeAgentId: agent.id,
+      includeAutomationExecutions: true,
       status: "todo,in_progress,blocked",
     });
     if (assigneeIssues.length > 0) {
@@ -334,6 +335,7 @@ export function createHeartbeatRecoveryHandlers(context: any) {
     // Traceability: doc/plans/2026-05-30-heartbeat-inbox-admission.md
     const reviewerIssues = await issuesSvc.list(agent.orgId, {
       reviewerAgentId: agent.id,
+      includeAutomationExecutions: true,
       status: "in_review,blocked",
       excludeReviewerConfirmedBlockedHandoff: true,
     });

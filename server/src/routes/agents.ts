@@ -1220,9 +1220,11 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     const issuesSvc = issueService(db);
     const assigneeRows = await issuesSvc.list(req.actor.orgId, {
       assigneeAgentId: req.actor.agentId,
+      includeAutomationExecutions: true,
       status: "todo,in_progress,blocked",
     });
     const reviewerRows = await issuesSvc.list(req.actor.orgId, {
+      includeAutomationExecutions: true,
       reviewerAgentId: req.actor.agentId,
       status: "in_review,blocked",
       excludeReviewerConfirmedBlockedHandoff: true,

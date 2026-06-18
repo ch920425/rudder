@@ -134,9 +134,11 @@ describe("agent inbox reviewer rows", () => {
     expect(res.status).toBe(200);
     expect(mockIssueService.list).toHaveBeenNthCalledWith(1, "org-1", {
       assigneeAgentId: "agent-1",
+      includeAutomationExecutions: true,
       status: "todo,in_progress,blocked",
     });
     expect(mockIssueService.list).toHaveBeenNthCalledWith(2, "org-1", {
+      includeAutomationExecutions: true,
       reviewerAgentId: "agent-1",
       status: "in_review,blocked",
       excludeReviewerConfirmedBlockedHandoff: true,

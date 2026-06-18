@@ -871,7 +871,7 @@ describe("heartbeat run concurrency", () => {
     expect(await listRunStatuses(agentId)).toHaveLength(1);
   });
 
-  it("skips timer heartbeats when only inbox-hidden automation execution work exists", async () => {
+  it("runs timer heartbeats when only automation execution assignee work exists", async () => {
     await disableExistingTimerAgents();
     const createdAt = new Date("2026-04-27T07:00:00.000Z");
     const tickAt = new Date("2026-04-27T07:05:00.000Z");
@@ -884,20 +884,19 @@ describe("heartbeat run concurrency", () => {
     const heartbeat = heartbeatService(db);
     const result = await heartbeat.tickTimers(tickAt);
 
-    expect(result).toEqual({ checked: 1, enqueued: 0, skipped: 1 });
-    expect(mockRuntimeAdapter.calls).toHaveLength(0);
-    expect(await listRunStatuses(agentId)).toHaveLength(0);
+    expect(result).toEqual({ checked: 1, enqueued: 1, skipped: 0 });
+    await waitForCondition(async () => mockRuntimeAdapter.calls.length === 1);
+    expect(await listRunStatuses(agentId)).toHaveLength(1);
 
     const wakeups = await listWakeupRequestsForAgent(agentId);
     expect(wakeups).toHaveLength(1);
     expect(wakeups[0]).toMatchObject({
-      status: "skipped",
-      reason: "heartbeat.preflight.no_actionable_work",
-      runId: null,
+      status: "claimed",
+      reason: "heartbeat_timer",
     });
   });
 
-  it("skips timer heartbeats when only reviewer inbox-hidden automation execution work exists", async () => {
+  it("runs timer heartbeats when only automation execution reviewer work exists", async () => {
     await disableExistingTimerAgents();
     const createdAt = new Date("2026-04-27T08:00:00.000Z");
     const tickAt = new Date("2026-04-27T08:05:00.000Z");
@@ -915,16 +914,15 @@ describe("heartbeat run concurrency", () => {
     const heartbeat = heartbeatService(db);
     const result = await heartbeat.tickTimers(tickAt);
 
-    expect(result).toEqual({ checked: 1, enqueued: 0, skipped: 1 });
-    expect(mockRuntimeAdapter.calls).toHaveLength(0);
-    expect(await listRunStatuses(agentId)).toHaveLength(0);
+    expect(result).toEqual({ checked: 1, enqueued: 1, skipped: 0 });
+    await waitForCondition(async () => mockRuntimeAdapter.calls.length === 1);
+    expect(await listRunStatuses(agentId)).toHaveLength(1);
 
     const wakeups = await listWakeupRequestsForAgent(agentId);
     expect(wakeups).toHaveLength(1);
     expect(wakeups[0]).toMatchObject({
-      status: "skipped",
-      reason: "heartbeat.preflight.no_actionable_work",
-      runId: null,
+      status: "claimed",
+      reason: "heartbeat_timer",
     });
   });
 
