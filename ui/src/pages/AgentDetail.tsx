@@ -152,6 +152,7 @@ import { heartbeatRunEventsToTranscriptEntries, heartbeatRunEventText, mergeTran
 import { formatRunDurationLabel, formatRunOccurrenceLabel, formatRunTimingTitle } from "../lib/run-duration-label";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
 import { agentIssuesUrl, agentRouteRef, cn, formatCents, formatDate, formatDateTime, formatTokens, relativeTime, visibleRunCostUsd } from "../lib/utils";
+import { RunChatContextCard } from "./AgentDetail.chat-context";
 import {
   appendRunSearchParams,
   applyRunFilters,
@@ -4777,6 +4778,8 @@ function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: { run: H
           </div>
         )}
       </div>
+
+      <RunChatContextCard run={run} agentRouteId={agentRouteId} />
 
       {/* Issues touched by this run */}
       {touchedIssues && touchedIssues.length > 0 && (

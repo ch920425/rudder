@@ -40,6 +40,7 @@ import {
 import { formatRunDurationLabel, formatRunOccurrenceLabel, formatRunTimingTitle } from "../lib/run-duration-label";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
 import { cn, formatTokens, relativeTime } from "../lib/utils";
+import { RunChatContextCard } from "./AgentDetail.chat-context";
 import { asNonEmptyString, asRecord, formatCompactTokenLabel, runMetrics, runStatusIcons, useRunDurationNow } from "./AgentDetail.helpers";
 import {
   appendRunSearchParams,
@@ -755,6 +756,8 @@ export function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: {
           </div>
         )}
       </div>
+
+      <RunChatContextCard run={run} agentRouteId={agentRouteId} />
 
       {/* Issues touched by this run */}
       {touchedIssues && touchedIssues.length > 0 && (
