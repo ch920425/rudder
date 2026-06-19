@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChatMessageItem, LazyStreamTranscriptItem, StreamTranscriptItem } from "./Chat.messages";
+import { ChatMessageItem, ChatMessagesLoadingState, LazyStreamTranscriptItem, StreamTranscriptItem } from "./Chat.messages";
 
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
@@ -175,6 +175,19 @@ describe("LazyStreamTranscriptItem", () => {
     expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).not.toContain("19 events");
     expect(container.querySelector("button")?.getAttribute("aria-expanded")).toBe("false");
+  });
+});
+
+describe("ChatMessagesLoadingState", () => {
+  it("uses the wandering eyes loading animation instead of message skeletons", () => {
+    const container = render(<ChatMessagesLoadingState />);
+
+    expect(container.querySelector("[data-testid='chat-messages-loading-eyes']")).not.toBeNull();
+    expect(container.querySelector(".wandering-eyes")).not.toBeNull();
+    expect(container.querySelectorAll(".wandering-eyes__eye")).toHaveLength(2);
+    expect(container.querySelector("[role='status']")?.textContent).toContain("Loading");
+    expect(container.querySelector(".chat-message-user")).toBeNull();
+    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
   });
 });
 

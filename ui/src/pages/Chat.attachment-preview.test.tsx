@@ -718,6 +718,9 @@ describe("Chat route loading", () => {
     const { container } = renderChat();
 
     expect(container.querySelector("[data-testid='chat-conversation-loading-state']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='chat-messages-loading-eyes']")).not.toBeNull();
+    expect(container.querySelectorAll(".wandering-eyes__eye")).toHaveLength(2);
+    expect(container.querySelector("[role='status']")?.textContent).toContain("Loading messages");
     expect(container.querySelector("[data-testid='chat-composer-toolbar']")).toBeNull();
     expect(container.querySelector("[data-testid='chat-empty-state-tabs']")).toBeNull();
     expect(container.textContent).not.toContain("Scope a new feature");

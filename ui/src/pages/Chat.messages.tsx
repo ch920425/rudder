@@ -19,9 +19,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { WanderingEyes } from "@/components/WanderingEyes";
 import { type ChatStreamDraftState } from "@/context/ChatGenerationContext";
 import { useMarkdownMentions } from "@/context/MarkdownMentionsContext";
 import { agentTitleBadgeLabel } from "@/lib/agent-labels";
@@ -2365,24 +2365,8 @@ export function OptimisticUserDraftItem({
 
 export function ChatMessagesLoadingState() {
   return (
-    <div className="flex flex-col gap-5 pb-2">
-      <div className="flex justify-end">
-        <div className="chat-message-user w-fit max-w-[min(100%,72ch)] rounded-[var(--radius-xl)] px-4 py-3 shadow-[var(--shadow-sm)]">
-          <div className="space-y-2">
-            <Skeleton className="ml-auto h-4 w-[18rem]" />
-            <Skeleton className="ml-auto h-4 w-[13rem]" />
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-start">
-        <div className="w-full max-w-3xl rounded-[var(--radius-xl)] px-1 py-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-[92%]" />
-            <Skeleton className="h-4 w-[84%]" />
-            <Skeleton className="h-4 w-[76%]" />
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-[clamp(16rem,42vh,30rem)] items-center justify-center pb-2" data-testid="chat-messages-loading-eyes">
+      <WanderingEyes label="Loading messages" className="h-24 w-44 text-foreground/95" />
     </div>
   );
 }
