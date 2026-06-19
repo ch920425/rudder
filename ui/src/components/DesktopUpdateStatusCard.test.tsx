@@ -163,7 +163,34 @@ describe("DesktopUpdateStatusCard", () => {
       action?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(harness.applyUpdate).toHaveBeenCalledWith("update-3");
+    expect(harness.applyUpdate).toHaveBeenCalledWith("update-3", undefined);
+  });
+
+  it("shows an explicit stop-runs update action when a ready update still has active runs", async () => {
+    const harness = renderHarness({
+      updateId: "update-force-ready",
+      version: "0.2.3",
+      phase: "ready_to_install",
+      message: "Desktop update is downloaded and verified.",
+      percent: 100,
+      totalRuns: 2,
+      at: new Date().toISOString(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("Update when idle");
+    const forceAction = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "Stop runs and update now");
+    expect(forceAction).toBeTruthy();
+
+    await act(async () => {
+      forceAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(harness.applyUpdate).toHaveBeenCalledWith("update-force-ready", { force: true });
   });
 
   it("shows an apply error when the update session is no longer available", async () => {

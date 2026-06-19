@@ -3,7 +3,7 @@ import { app, dialog, type BrowserWindow } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { buildDesktopApiRequestUrl } from "./api-url.js";
-import { DESKTOP_UPDATE_QUIT_ARG } from "./desktop-update-flow.js";
+import { DESKTOP_UPDATE_FORCE_ARG, DESKTOP_UPDATE_QUIT_ARG } from "./desktop-update-flow.js";
 
 type DesktopOrganization = { id: string; name: string };
 type DesktopLiveRun = { id: string; status: string; agentName: string; issueId?: string | null };
@@ -166,6 +166,7 @@ export function createDesktopQuitFlow(context: {
         `[rudder-desktop] failed to cancel ${failed.length}/${runIds.length} active runs before quit`,
         failed.map((result) => result.status === "rejected" ? result.reason : null),
       );
+      throw new Error(`Could not cancel ${failed.length}/${runIds.length} active run${runIds.length === 1 ? "" : "s"} before quitting.`);
     }
   }
 
@@ -260,6 +261,10 @@ export function createDesktopQuitFlow(context: {
     return argv[flagIndex + 1]?.trim() || null;
   }
 
+  function resolveUpdateQuitForce(argv: string[] = process.argv): boolean {
+    return argv.includes(DESKTOP_UPDATE_FORCE_ARG);
+  }
+
   function writeUpdateQuitResponse(responsePath: string, payload: unknown): void {
     fs.mkdirSync(path.dirname(responsePath), { recursive: true });
     fs.writeFileSync(responsePath, `${JSON.stringify(payload)}\n`, "utf8");
@@ -272,13 +277,24 @@ export function createDesktopQuitFlow(context: {
     }
   }
 
-  async function handleUpdateQuitRequest(responsePath: string): Promise<void> {
+  async function handleUpdateQuitRequest(responsePath: string, options: { force?: boolean } = {}): Promise<void> {
     try {
       let activeRuns: ActiveRunSummary = { totalRuns: 0, organizations: [] };
       try {
         activeRuns = await listActiveRunsForQuit();
       } catch (error) {
-        console.warn("[rudder-desktop] failed to inspect active runs for update quit; continuing with quit", error);
+        console.warn("[rudder-desktop] failed to inspect active runs for update quit", error);
+        writeUpdateQuitResponse(responsePath, {
+          ok: false,
+          status: "failed",
+          message: `Could not inspect active runs before update quit: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        return;
+      }
+
+      if (activeRuns.totalRuns > 0 && options.force) {
+        await cancelActiveRunsBeforeQuit(activeRuns);
+        activeRuns = await listActiveRunsForQuit();
       }
 
       if (activeRuns.totalRuns > 0) {
@@ -308,6 +324,7 @@ export function createDesktopQuitFlow(context: {
     formatQuitRunDetail,
     beginQuitFlow,
     resolveUpdateQuitResponsePath,
+    resolveUpdateQuitForce,
     writeUpdateQuitResponse,
     handleUpdateQuitRequest,
     isQuitting: () => quitting,

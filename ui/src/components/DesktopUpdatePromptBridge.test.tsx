@@ -18,10 +18,12 @@ const prompt: DesktopDeferredUpdatePrompt = {
   message: "There is 1 active agent run.",
   detail:
     "Rudder can download the installer now, keep active work running, then apply the update after the runs finish. "
-    + "The desktop app may close and reopen automatically when it is safe to replace.\n\n"
+    + "The desktop app may close and reopen automatically when it is safe to replace. "
+    + "Choose Stop Runs and Update Now to cancel active runs, quit Rudder, and apply the update immediately.\n\n"
     + "Z Studio: 1 running",
   totalRuns: 1,
   confirmLabel: "Download and Update When Idle",
+  forceLabel: "Stop Runs and Update Now",
   cancelLabel: "Cancel",
 };
 
@@ -76,6 +78,7 @@ describe("DesktopUpdatePromptBridge", () => {
 
     expect(document.body.textContent).toContain("There is 1 active agent run.");
     expect(document.body.textContent).toContain("Rudder can download the installer now");
+    expect(document.body.textContent).toContain("cancel active runs");
     expect(document.body.textContent).toContain("Z Studio: 1 running");
     expect(document.body.querySelector('[role="dialog"]')).toBeTruthy();
   });
@@ -109,5 +112,20 @@ describe("DesktopUpdatePromptBridge", () => {
     });
 
     expect(harness.respondDeferredUpdatePrompt).toHaveBeenCalledWith("prompt-1", "cancel");
+  });
+
+  it("returns force when the operator chooses to stop runs and update immediately", async () => {
+    const harness = renderHarness();
+    harness.emit(prompt);
+
+    const action = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "Stop Runs and Update Now");
+
+    await act(async () => {
+      action?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(harness.respondDeferredUpdatePrompt).toHaveBeenCalledWith("prompt-1", "force");
   });
 });

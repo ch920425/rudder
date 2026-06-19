@@ -71,7 +71,7 @@ export function DesktopUpdateStatusCard() {
     await desktopShell.installUpdate(currentProgress.version);
   }
 
-  async function applyUpdate() {
+  async function applyUpdate(options: { force?: boolean } = {}) {
     const desktopShell = readDesktopShell();
     setActionError(null);
     if (!desktopShell?.applyUpdate) {
@@ -81,7 +81,7 @@ export function DesktopUpdateStatusCard() {
 
     setApplyPending(true);
     try {
-      const result = await desktopShell.applyUpdate(currentProgress.updateId);
+      const result = await desktopShell.applyUpdate(currentProgress.updateId, options.force ? { force: true } : undefined);
       if (result.status !== "started") {
         setActionError(result.message || t("about.updates.installFailed"));
       }
@@ -169,10 +169,19 @@ export function DesktopUpdateStatusCard() {
               </div>
             ) : null}
             {currentProgress.phase === "ready_to_install" ? (
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <Button type="button" size="sm" className="h-8 px-3 text-xs" disabled={applyPending} onClick={() => void applyUpdate()}>
-                  {applyPending ? t("about.updates.installing") : t("about.updates.progress.restartToUpdate")}
+                  {applyPending
+                    ? t("about.updates.installing")
+                    : currentProgress.totalRuns
+                      ? t("about.updates.progress.updateWhenIdle")
+                      : t("about.updates.progress.restartToUpdate")}
                 </Button>
+                {currentProgress.totalRuns ? (
+                  <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" disabled={applyPending} onClick={() => void applyUpdate({ force: true })}>
+                    {t("about.updates.progress.forceRestartToUpdate")}
+                  </Button>
+                ) : null}
               </div>
             ) : null}
             {tone === "failed" ? (

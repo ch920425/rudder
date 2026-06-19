@@ -450,6 +450,8 @@ export const zhCN: Messages = {
   "about.updates.progress.failedTitle": "更新失败",
   "about.updates.progress.retry": "重试",
   "about.updates.progress.restartToUpdate": "退出并更新",
+  "about.updates.progress.updateWhenIdle": "空闲时更新",
+  "about.updates.progress.forceRestartToUpdate": "停止运行并立即更新",
   "about.updates.progress.openReleases": "打开发布页",
   "about.updates.progress.dismiss": "关闭更新状态",
   "about.updates.progress.phase.starting": "正在开始更新...",

@@ -85,6 +85,10 @@ export type DesktopUpdateApplyResult =
   | { status: "unavailable"; message: string }
   | { status: "failed"; message: string };
 
+export type DesktopUpdateApplyOptions = {
+  force?: boolean;
+};
+
 export type DesktopDeferredUpdatePrompt = {
   promptId: string;
   title: string;
@@ -92,10 +96,11 @@ export type DesktopDeferredUpdatePrompt = {
   detail: string;
   totalRuns: number;
   confirmLabel: string;
+  forceLabel: string;
   cancelLabel: string;
 };
 
-export type DesktopDeferredUpdatePromptDecision = "wait" | "cancel";
+export type DesktopDeferredUpdatePromptDecision = "wait" | "force" | "cancel";
 
 export type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -156,7 +161,7 @@ export type DesktopShellApi = {
   getAppVersion(): Promise<string>;
   checkForUpdates(): Promise<DesktopUpdateCheckResult>;
   installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
-  applyUpdate?(updateId: string): Promise<DesktopUpdateApplyResult>;
+  applyUpdate?(updateId: string, options?: DesktopUpdateApplyOptions): Promise<DesktopUpdateApplyResult>;
   getUpdateProgress?(): Promise<DesktopUpdateProgressEvent | null>;
   onUpdateProgress?(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
   setDeferredUpdatePromptReady?(ready: boolean): Promise<void>;

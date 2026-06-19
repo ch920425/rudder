@@ -149,7 +149,7 @@ type DesktopPathPickResult = {
   path: string | null;
 };
 
-type DeferredUpdatePromptDecision = "wait" | "cancel";
+type DeferredUpdatePromptDecision = "wait" | "force" | "cancel";
 
 type DesktopDeferredUpdatePrompt = {
   promptId: string;
@@ -158,6 +158,7 @@ type DesktopDeferredUpdatePrompt = {
   detail: string;
   totalRuns: number;
   confirmLabel: string;
+  forceLabel: string;
   cancelLabel: string;
 };
 
@@ -406,6 +407,7 @@ const {
   formatQuitRunDetail,
   beginQuitFlow,
   resolveUpdateQuitResponsePath,
+  resolveUpdateQuitForce,
   writeUpdateQuitResponse,
   handleUpdateQuitRequest,
   isQuitting,
@@ -1298,7 +1300,8 @@ function registerIpc(): void {
   });
   ipcMain.handle("desktop:check-for-updates", async () => checkForUpdates());
   ipcMain.handle("desktop:install-update", async (_event, version: string) => installUpdate(version));
-  ipcMain.handle("desktop:apply-update", async (_event, updateId: string) => applyUpdate(updateId));
+  ipcMain.handle("desktop:apply-update", async (_event, updateId: string, options?: { force?: boolean }) =>
+    applyUpdate(updateId, { force: options?.force === true }));
   ipcMain.handle("desktop:get-update-progress", async () => getDesktopUpdateProgress());
   ipcMain.handle("desktop:set-deferred-update-prompt-ready", async (event, ready: boolean) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return;
@@ -1315,7 +1318,7 @@ function registerIpc(): void {
     if (!pending) return;
     pendingDeferredUpdatePrompts.delete(promptId);
     clearTimeout(pending.timeout);
-    pending.resolve(payload.decision === "wait" ? "wait" : "cancel");
+    pending.resolve(payload.decision === "wait" || payload.decision === "force" ? payload.decision : "cancel");
   });
   ipcMain.handle("desktop:send-feedback", async () => {
     await shell.openExternal(createFeedbackMailtoUrl());
@@ -1529,7 +1532,7 @@ if (desktopCliArgv) {
     app.on("second-instance", (_event, argv) => {
       const responsePath = resolveUpdateQuitResponsePath(argv);
       if (responsePath) {
-        void handleUpdateQuitRequest(responsePath);
+        void handleUpdateQuitRequest(responsePath, { force: resolveUpdateQuitForce(argv) });
         return;
       }
       showMainWindow();

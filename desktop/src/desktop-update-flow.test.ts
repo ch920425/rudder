@@ -40,7 +40,7 @@ function createMockUpdateChild() {
   child.stderr = new MockReadableStream();
   child.stdin = {
     destroyed: false,
-    write: (_chunk, callback) => callback?.(null),
+    write: vi.fn((_chunk, callback) => callback?.(null)),
   };
   child.unref = vi.fn();
   return child;
@@ -169,6 +169,45 @@ describe("desktop update flow", () => {
       version: "0.3.5-canary.9",
     });
     expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the operator force apply a deferred update despite active runs", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow({
+      listActiveRunsForQuit: vi.fn(async () => ({ totalRuns: 2 })),
+      promptForDeferredUpdate: vi.fn(async () => "wait"),
+    });
+
+    const installResult = await flow.installUpdate("0.3.5-canary.8");
+    expect(installResult).toMatchObject({
+      status: "waiting",
+      totalRuns: 2,
+    });
+
+    await expect(flow.applyUpdate(installResult.updateId, { force: true })).resolves.toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.8",
+    });
+
+    expect(child.stdin.write).toHaveBeenCalledWith("force-apply\n", expect.any(Function));
+  });
+
+  it("force-applies immediately when the deferred update prompt chooses quit and update now", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow({
+      listActiveRunsForQuit: vi.fn(async () => ({ totalRuns: 2 })),
+      promptForDeferredUpdate: vi.fn(async () => "force"),
+    });
+
+    await expect(flow.installUpdate("0.3.5-canary.8")).resolves.toMatchObject({
+      status: "started",
+      version: "0.3.5-canary.8",
+    });
+
+    expect(child.stdin.write).toHaveBeenCalledWith("force-apply\n", expect.any(Function));
+    expect(spawnMock.mock.calls[0]?.[1]).not.toContain("--wait-for-active-runs");
   });
 
   it("reuses the waiting result when an update is deferred for active runs", async () => {

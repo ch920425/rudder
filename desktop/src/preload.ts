@@ -81,6 +81,10 @@ type DesktopUpdateApplyResult =
   | { status: "unavailable"; message: string }
   | { status: "failed"; message: string };
 
+type DesktopUpdateApplyOptions = {
+  force?: boolean;
+};
+
 type DesktopDeferredUpdatePrompt = {
   promptId: string;
   title: string;
@@ -88,10 +92,11 @@ type DesktopDeferredUpdatePrompt = {
   detail: string;
   totalRuns: number;
   confirmLabel: string;
+  forceLabel: string;
   cancelLabel: string;
 };
 
-type DesktopDeferredUpdatePromptDecision = "wait" | "cancel";
+type DesktopDeferredUpdatePromptDecision = "wait" | "force" | "cancel";
 
 type OpenNotificationSettingsResult = {
   opened: boolean;
@@ -189,8 +194,8 @@ contextBridge.exposeInMainWorld("desktopShell", {
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates") as Promise<DesktopUpdateCheckResult>,
   installUpdate: (version: string) =>
     ipcRenderer.invoke("desktop:install-update", version) as Promise<DesktopUpdateInstallResult>,
-  applyUpdate: (updateId: string) =>
-    ipcRenderer.invoke("desktop:apply-update", updateId) as Promise<DesktopUpdateApplyResult>,
+  applyUpdate: (updateId: string, options?: DesktopUpdateApplyOptions) =>
+    ipcRenderer.invoke("desktop:apply-update", updateId, options) as Promise<DesktopUpdateApplyResult>,
   getUpdateProgress: () =>
     ipcRenderer.invoke("desktop:get-update-progress") as Promise<DesktopUpdateProgressEvent | null>,
   onUpdateProgress: (listener: (event: DesktopUpdateProgressEvent) => void) => {
@@ -249,7 +254,7 @@ declare global {
       getAppVersion(): Promise<string>;
       checkForUpdates(): Promise<DesktopUpdateCheckResult>;
       installUpdate(version: string): Promise<DesktopUpdateInstallResult>;
-      applyUpdate(updateId: string): Promise<DesktopUpdateApplyResult>;
+      applyUpdate(updateId: string, options?: DesktopUpdateApplyOptions): Promise<DesktopUpdateApplyResult>;
       getUpdateProgress(): Promise<DesktopUpdateProgressEvent | null>;
       onUpdateProgress(listener: (event: DesktopUpdateProgressEvent) => void): () => void;
       setDeferredUpdatePromptReady(ready: boolean): Promise<void>;

@@ -100,6 +100,14 @@ export function DesktopUpdatePromptBridge() {
           </Button>
           <Button
             type="button"
+            variant="outline"
+            disabled={responding}
+            onClick={() => void settle("force")}
+          >
+            {prompt?.forceLabel ?? "Stop Runs and Update Now"}
+          </Button>
+          <Button
+            type="button"
             disabled={responding}
             onClick={() => void settle("wait")}
           >

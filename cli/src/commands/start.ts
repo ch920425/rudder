@@ -23,6 +23,7 @@ import { resolveCliVersion } from "../version.js";
 
 export const DEFAULT_DESKTOP_RELEASE_REPO = "Undertone0809/rudder";
 export const DESKTOP_UPDATE_QUIT_ARG = "--rudder-update-quit";
+export const DESKTOP_UPDATE_FORCE_ARG = "--rudder-update-force";
 
 type SupportedPlatform = "macos" | "windows" | "linux";
 
@@ -236,11 +237,11 @@ function createDesktopProgressFactory(): ProgressReporterFactory {
   };
 }
 
-async function waitForDesktopApplySignal(): Promise<void> {
+async function waitForDesktopApplySignal(): Promise<{ force: boolean }> {
   process.stdin.setEncoding("utf8");
   process.stdin.resume();
 
-  await new Promise<void>((resolve, reject) => {
+  return await new Promise<{ force: boolean }>((resolve, reject) => {
     let buffer = "";
     const cleanup = () => {
       process.stdin.off("data", onData);
@@ -251,9 +252,15 @@ async function waitForDesktopApplySignal(): Promise<void> {
       buffer += chunk;
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() ?? "";
-      if (lines.some((line) => line.trim() === "apply")) {
+      const commands = lines.map((line) => line.trim());
+      if (commands.includes("force-apply")) {
         cleanup();
-        resolve();
+        resolve({ force: true });
+        return;
+      }
+      if (commands.includes("apply")) {
+        cleanup();
+        resolve({ force: false });
       }
     };
     const onEnd = () => {
@@ -1231,16 +1238,6 @@ export function isInstalledDesktopCurrent(
   );
 }
 
-export function buildForceQuitCommand(target: DesktopAssetTarget): { command: string; args: string[] } {
-  if (target.platform === "windows") return { command: "taskkill.exe", args: ["/IM", `${DESKTOP_APP_NAME}.exe`, "/T", "/F"] };
-  return { command: "pkill", args: ["-x", DESKTOP_APP_NAME] };
-}
-
-function forceQuitDesktopProcesses(target: DesktopAssetTarget): void {
-  const command = buildForceQuitCommand(target);
-  spawnSync(command.command, command.args, { stdio: "ignore" });
-}
-
 function forceQuitDesktopProcess(pid: number, target: DesktopAssetTarget): void {
   if (target.platform === "windows") {
     spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
@@ -1252,6 +1249,45 @@ function forceQuitDesktopProcess(pid: number, target: DesktopAssetTarget): void 
   } catch {
     // The process may already have exited between the wait timeout and kill.
   }
+}
+
+function quotePowerShellString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function findDesktopExecutablePids(executablePath: string, target: DesktopAssetTarget): number[] {
+  if (target.platform === "windows") {
+    const result = spawnSync("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq ${quotePowerShellString(executablePath)} } | Select-Object -ExpandProperty ProcessId`,
+    ], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    if (result.status !== 0) return [];
+    return result.stdout
+      .split(/\r?\n/)
+      .map((line) => Number.parseInt(line.trim(), 10))
+      .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid);
+  }
+
+  const result = spawnSync("ps", ["-eo", "pid=,args="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) return [];
+
+  return result.stdout
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      const match = line.match(/^\s*(\d+)\s+(.+)$/);
+      if (!match) return [];
+      const pid = Number.parseInt(match[1], 10);
+      const commandLine = match[2];
+      const matchesExecutable = commandLine === executablePath || commandLine.startsWith(`${executablePath} `);
+      return matchesExecutable && pid !== process.pid ? [pid] : [];
+    });
 }
 
 function isRunningInsideDesktopExecutable(): boolean {
@@ -1269,10 +1305,17 @@ async function waitForUpdateQuitResponse(responsePath: string, timeoutMs = 8_000
   return null;
 }
 
-async function requestDesktopQuit(executablePath: string, target: DesktopAssetTarget): Promise<UpdateQuitResponse | null> {
+async function requestDesktopQuit(
+  executablePath: string,
+  target: DesktopAssetTarget,
+  options: { forceUpdate?: boolean; responseTimeoutMs?: number } = {},
+): Promise<UpdateQuitResponse | null> {
   if (!(await pathExists(executablePath))) return { ok: true, status: "not_running" };
   const responsePath = path.join(tmpdir(), `rudder-update-quit-${process.pid}-${Date.now()}.json`);
-  const result = spawnSync(executablePath, [`${DESKTOP_UPDATE_QUIT_ARG}=${responsePath}`], {
+  const result = spawnSync(executablePath, [
+    `${DESKTOP_UPDATE_QUIT_ARG}=${responsePath}`,
+    ...(options.forceUpdate ? [DESKTOP_UPDATE_FORCE_ARG] : []),
+  ], {
     stdio: "ignore",
     timeout: 5_000,
   });
@@ -1281,7 +1324,7 @@ async function requestDesktopQuit(executablePath: string, target: DesktopAssetTa
   }
 
   try {
-    return await waitForUpdateQuitResponse(responsePath);
+    return await waitForUpdateQuitResponse(responsePath, options.responseTimeoutMs);
   } finally {
     await rm(responsePath, { force: true });
   }
@@ -1319,6 +1362,16 @@ export async function waitForProcessExit(pid: number, timeoutMs = 20_000, interv
   return !processExists(pid);
 }
 
+async function waitForProcessesExit(
+  pids: number[],
+  waitForExit: (pid: number) => Promise<boolean>,
+): Promise<boolean> {
+  const uniquePids = [...new Set(pids)];
+  if (uniquePids.length === 0) return true;
+  const results = await Promise.all(uniquePids.map((pid) => waitForExit(pid)));
+  return results.every(Boolean);
+}
+
 async function removePathWithRetry(targetPath: string, attempts = 5): Promise<boolean> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -1338,59 +1391,111 @@ export async function prepareForDesktopReplace(
   options: {
     waitForActiveRuns?: boolean;
     activeRunPollIntervalMs?: number;
+    forceUpdate?: boolean;
     legacyUpdateQuitGraceMs?: number;
+    updateQuitResponseTimeoutMs?: number;
     updateQuitForceDelayMs?: number;
     forceQuitDesktopProcess?: (pid: number, target: DesktopAssetTarget) => void;
-    forceQuitDesktopProcesses?: (target: DesktopAssetTarget) => void;
     waitForDesktopProcessExit?: (pid: number) => Promise<boolean>;
+    findDesktopExecutablePids?: (executablePath: string, target: DesktopAssetTarget) => number[];
   } = {},
 ): Promise<void> {
-  const forceQuit = options.forceQuitDesktopProcesses ?? forceQuitDesktopProcesses;
   const forceQuitPid = options.forceQuitDesktopProcess ?? forceQuitDesktopProcess;
   const waitForExit = options.waitForDesktopProcessExit ?? waitForProcessExit;
+  const findPids = options.findDesktopExecutablePids ?? findDesktopExecutablePids;
+  async function forceQuitPidAndConfirm(pid: number): Promise<void> {
+    forceQuitPid(pid, target);
+    await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
+    if (!(await waitForExit(pid))) {
+      throw new Error(`Rudder Desktop process ${pid} did not exit after force-quit fallback. Close Rudder and rerun start.`);
+    }
+  }
+  async function forceQuitPidsAndConfirm(pids: number[]): Promise<void> {
+    const uniquePids = [...new Set(pids)];
+    for (const pid of uniquePids) {
+      forceQuitPid(pid, target);
+    }
+    await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
+    if (!(await waitForProcessesExit(uniquePids, waitForExit))) {
+      throw new Error(`Rudder Desktop process${uniquePids.length === 1 ? "" : "es"} ${uniquePids.join(", ")} did not exit after force-quit fallback. Close Rudder and rerun start.`);
+    }
+  }
+  let quitPid: number | null = null;
+  let managedExecutablePids: number[] = [];
   const hasManagedExecutable = await pathExists(paths.executablePath);
   if (hasManagedExecutable) {
-    let quitResponse = await requestDesktopQuit(paths.executablePath, target);
-    while (quitResponse && !quitResponse.ok && quitResponse.status === "active_runs" && options.waitForActiveRuns) {
+    managedExecutablePids = findPids(paths.executablePath, target);
+    const requestQuit = () => requestDesktopQuit(paths.executablePath, target, {
+      forceUpdate: options.forceUpdate,
+      responseTimeoutMs: options.updateQuitResponseTimeoutMs,
+    });
+    let quitResponse = await requestQuit();
+    while (quitResponse && !quitResponse.ok && quitResponse.status === "active_runs" && options.waitForActiveRuns && !options.forceUpdate) {
       p.log.warn(
         `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}; waiting before replacing Desktop.`,
       );
       await delay(options.activeRunPollIntervalMs ?? 15_000);
-      quitResponse = await requestDesktopQuit(paths.executablePath, target);
+      quitResponse = await requestQuit();
     }
     if (quitResponse && !quitResponse.ok && quitResponse.status === "active_runs") {
+      if (!options.forceUpdate) {
+        throw new Error(
+          `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}. Stop active work, then rerun start.`,
+        );
+      }
       throw new Error(
-        `Rudder Desktop has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"}. Stop active work, then rerun start.`,
+        `Rudder Desktop still has ${quitResponse.totalRuns} active run${quitResponse.totalRuns === 1 ? "" : "s"} after the force-update request. Stop active work, then rerun start.`,
       );
     }
-    const quitPid = readUpdateQuitPid(quitResponse);
+    if (quitResponse && !quitResponse.ok && quitResponse.status === "failed") {
+      throw new Error(quitResponse.message);
+    }
+    quitPid = readUpdateQuitPid(quitResponse);
     if (quitPid) {
       p.log.info(`Waiting for existing Rudder Desktop process ${quitPid} to exit before replacing it.`);
       if (!(await waitForExit(quitPid))) {
         p.log.warn(`Rudder Desktop process ${quitPid} did not exit in time; attempting force-quit fallback.`);
-        forceQuitPid(quitPid, target);
-        await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
+        await forceQuitPidAndConfirm(quitPid);
       }
     } else if (isLegacyUnconfirmedUpdateQuit(quitResponse)) {
       const graceMs = options.legacyUpdateQuitGraceMs ?? LEGACY_UPDATE_QUIT_GRACE_MS;
       p.log.warn(
-        `Existing Rudder Desktop acknowledged update quit without a process id; waiting ${Math.ceil(graceMs / 1_000)}s before force-quit fallback.`,
+        `Existing Rudder Desktop acknowledged update quit without a process id; waiting ${Math.ceil(graceMs / 1_000)}s before replacement.`,
       );
       await delay(graceMs);
-      forceQuit(target);
-      await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
+      if (managedExecutablePids.length > 0 && !(await waitForProcessesExit(managedExecutablePids, waitForExit))) {
+        p.log.warn(
+          `Existing Rudder Desktop did not exit after acknowledging update quit; attempting path-scoped force-quit for process${managedExecutablePids.length === 1 ? "" : "es"} ${managedExecutablePids.join(", ")}.`,
+        );
+        await forceQuitPidsAndConfirm(managedExecutablePids);
+      }
+    } else if (!quitResponse) {
+      if (options.forceUpdate && managedExecutablePids.length > 0) {
+        p.log.warn(
+          `Existing Rudder Desktop did not respond to the update quit request; attempting path-scoped force-quit for process${managedExecutablePids.length === 1 ? "" : "es"} ${managedExecutablePids.join(", ")}.`,
+        );
+        await forceQuitPidsAndConfirm(managedExecutablePids);
+      } else {
+        throw new Error("Existing Rudder Desktop did not respond to the update quit request. Close Rudder and rerun start.");
+      }
     } else {
       await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
     }
   } else if (!isRunningInsideDesktopExecutable()) {
-    forceQuit(target);
+    throw new Error("Cannot find the managed Rudder Desktop executable to request a safe update quit. Close Rudder and rerun start.");
   }
 
   const replacePath = target.platform === "windows" ? paths.installRoot : paths.appPath;
   if (await removePathWithRetry(replacePath)) return;
 
-  forceQuit(target);
-  await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
+  if (!quitPid) {
+    if (managedExecutablePids.length > 0) {
+      await forceQuitPidsAndConfirm(managedExecutablePids);
+      if (await removePathWithRetry(replacePath, 6)) return;
+    }
+    throw new Error(`Failed to replace existing Rudder Desktop at ${replacePath}. Close Rudder and rerun start.`);
+  }
+  await forceQuitPidAndConfirm(quitPid);
   if (await removePathWithRetry(replacePath, 6)) return;
 
   throw new Error(`Failed to replace existing Rudder Desktop at ${replacePath}. Close Rudder and rerun start.`);
@@ -1784,23 +1889,29 @@ export async function startCommand(opts: StartCommandOptions): Promise<void> {
           desktopProgressJson ? "verifying_checksum" : null,
         );
 
+        let applySignal: { force: boolean } | null = null;
         if (desktopProgressJson && opts.desktopWaitForApply === true) {
           writeDesktopProgress({
             phase: "ready_to_install",
             message: "Desktop update is downloaded and verified.",
             percent: 100,
           });
-          await waitForDesktopApplySignal();
+          applySignal = await waitForDesktopApplySignal();
           writeDesktopProgress({
             phase: "preparing_restart",
-            message: "Applying Desktop update...",
+            message: applySignal.force
+              ? "Applying Desktop update and quitting active runs..."
+              : "Applying Desktop update...",
           });
         }
 
         await runStartPhase(
           "Replacing existing Rudder Desktop if needed...",
           "Existing Desktop install is ready for replacement.",
-          () => prepareForDesktopReplace(installPaths, target, { waitForActiveRuns: opts.waitForActiveRuns === true }),
+          () => prepareForDesktopReplace(installPaths, target, {
+            waitForActiveRuns: opts.waitForActiveRuns === true,
+            forceUpdate: applySignal?.force === true,
+          }),
           desktopProgressJson ? (opts.waitForActiveRuns === true ? "waiting_for_active_runs" : "preparing_restart") : null,
         );
         await runStartPhase(

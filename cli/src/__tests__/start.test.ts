@@ -9,7 +9,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
   assertChecksumMatch,
-  buildForceQuitCommand,
   buildGithubReleaseAssetDownloadUrl,
   buildLinuxDesktopEntry,
   buildWindowsRobocopyMirrorCommand,
@@ -1194,13 +1193,6 @@ describe("desktop start command helpers", () => {
     }
   });
 
-  it("builds Windows force-quit fallback commands", () => {
-    expect(buildForceQuitCommand({ platform: "windows", arch: "x64", extension: ".zip" })).toEqual({
-      command: "taskkill.exe",
-      args: ["/IM", "Rudder.exe", "/T", "/F"],
-    });
-  });
-
   it("waits for an existing Desktop process to exit before replacement", async () => {
     const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 25)"], { stdio: "ignore" });
     try {
@@ -1240,7 +1232,10 @@ describe("desktop start command helpers", () => {
     await chmod(executablePath, 0o755);
 
     try {
-      const forceQuitDesktopProcesses = vi.fn();
+      const forceQuitDesktopProcess = vi.fn();
+      const waitForDesktopProcessExit = vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
       const replace = prepareForDesktopReplace(
         {
           installRoot,
@@ -1252,17 +1247,208 @@ describe("desktop start command helpers", () => {
         {
           legacyUpdateQuitGraceMs: 100,
           updateQuitForceDelayMs: 0,
-          forceQuitDesktopProcesses,
+          findDesktopExecutablePids: vi.fn(() => [4242]),
+          forceQuitDesktopProcess,
+          waitForDesktopProcessExit,
         },
       );
 
       await new Promise((resolve) => setTimeout(resolve, 25));
       await expect(access(installRoot)).resolves.toBeUndefined();
-      expect(forceQuitDesktopProcesses).not.toHaveBeenCalled();
 
       await replace;
-      expect(forceQuitDesktopProcesses).toHaveBeenCalledTimes(1);
+      expect(forceQuitDesktopProcess).toHaveBeenCalledWith(4242, { platform: "windows", arch: "x64", extension: ".zip" });
       await expect(access(installRoot)).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("does not replace when Desktop reports a failed update quit", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-failed-quit-test."));
+    const installRoot = path.join(dir, "Applications");
+    const appPath = path.join(installRoot, "Rudder.app");
+    const executablePath = path.join(dir, "rudder-update-failed-quit-shim");
+    await mkdir(appPath, { recursive: true });
+    await writeFile(
+      executablePath,
+      [
+        "#!/usr/bin/env node",
+        'const fs = require("node:fs");',
+        `const prefix = ${JSON.stringify("--rudder-update-quit=")};`,
+        "const arg = process.argv.find((value) => value.startsWith(prefix));",
+        [
+          "if (arg) fs.writeFileSync(",
+          "arg.slice(prefix.length),",
+          "JSON.stringify({ ok: false, status: 'failed', message: 'Could not cancel active runs.' }) + '\\n',",
+          "'utf8'",
+          ");",
+        ].join(" "),
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(executablePath, 0o755);
+
+    try {
+      await expect(prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath,
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        {
+          updateQuitForceDelayMs: 0,
+          findDesktopExecutablePids: vi.fn(() => [4242]),
+          forceQuitDesktopProcess: vi.fn(),
+          waitForDesktopProcessExit: vi.fn(async () => false),
+        },
+      )).rejects.toThrow("Could not cancel active runs.");
+
+      await expect(access(appPath)).resolves.toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("does not replace when a forced update leaves active runs", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-force-active-quit-test."));
+    const installRoot = path.join(dir, "Applications");
+    const appPath = path.join(installRoot, "Rudder.app");
+    const executablePath = path.join(dir, "rudder-update-force-active-quit-shim");
+    await mkdir(appPath, { recursive: true });
+    await writeFile(
+      executablePath,
+      [
+        "#!/usr/bin/env node",
+        'const fs = require("node:fs");',
+        `const prefix = ${JSON.stringify("--rudder-update-quit=")};`,
+        "const arg = process.argv.find((value) => value.startsWith(prefix));",
+        [
+          "if (arg) fs.writeFileSync(",
+          "arg.slice(prefix.length),",
+          "JSON.stringify({ ok: false, status: 'active_runs', totalRuns: 2 }) + '\\n',",
+          "'utf8'",
+          ");",
+        ].join(" "),
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(executablePath, 0o755);
+
+    try {
+      await expect(prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath,
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        {
+          forceUpdate: true,
+          updateQuitForceDelayMs: 0,
+          findDesktopExecutablePids: vi.fn(() => [4242]),
+          forceQuitDesktopProcess: vi.fn(),
+          waitForDesktopProcessExit: vi.fn(async () => false),
+        },
+      )).rejects.toThrow("still has 2 active runs after the force-update request");
+
+      await expect(access(appPath)).resolves.toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("does not replace when update quit receives no response", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-no-quit-response-test."));
+    const installRoot = path.join(dir, "Applications");
+    const appPath = path.join(installRoot, "Rudder.app");
+    const executablePath = path.join(dir, "rudder-update-no-response-shim");
+    await mkdir(appPath, { recursive: true });
+    await writeFile(
+      executablePath,
+      [
+        "#!/usr/bin/env node",
+        "setTimeout(() => {}, 25);",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(executablePath, 0o755);
+
+    try {
+      const replace = prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath,
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        {
+          legacyUpdateQuitGraceMs: 50,
+          updateQuitForceDelayMs: 0,
+          updateQuitResponseTimeoutMs: 50,
+        },
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await expect(access(appPath)).resolves.toBeUndefined();
+
+      await expect(replace).rejects.toThrow("Existing Rudder Desktop did not respond to the update quit request");
+      await expect(access(appPath)).resolves.toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("passes the force update flag to the Desktop quit request", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-force-quit-flag-test."));
+    const installRoot = path.join(dir, "Applications");
+    const appPath = path.join(installRoot, "Rudder.app");
+    const executablePath = path.join(dir, "rudder-update-force-flag-shim");
+    const argvPath = path.join(dir, "argv.json");
+    await mkdir(appPath, { recursive: true });
+    await writeFile(
+      executablePath,
+      [
+        "#!/usr/bin/env node",
+        'const fs = require("node:fs");',
+        `fs.writeFileSync(${JSON.stringify(argvPath)}, JSON.stringify(process.argv));`,
+        `const prefix = ${JSON.stringify("--rudder-update-quit=")};`,
+        "const arg = process.argv.find((value) => value.startsWith(prefix));",
+        [
+          "if (arg) fs.writeFileSync(",
+          "arg.slice(prefix.length),",
+          "JSON.stringify({ ok: true, status: 'quitting', pid: 4242 }) + '\\n',",
+          "'utf8'",
+          ");",
+        ].join(" "),
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(executablePath, 0o755);
+
+    try {
+      await prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath,
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        {
+          forceUpdate: true,
+          updateQuitForceDelayMs: 0,
+          forceQuitDesktopProcess: vi.fn(),
+          waitForDesktopProcessExit: vi.fn(async () => true),
+        },
+      );
+
+      const argv = JSON.parse(await readFile(argvPath, "utf8")) as string[];
+      expect(argv).toContain("--rudder-update-force");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -1295,8 +1481,7 @@ describe("desktop start command helpers", () => {
 
     try {
       const forceQuitDesktopProcess = vi.fn();
-      const forceQuitDesktopProcesses = vi.fn();
-      await prepareForDesktopReplace(
+      await expect(prepareForDesktopReplace(
         {
           installRoot,
           appPath,
@@ -1307,14 +1492,12 @@ describe("desktop start command helpers", () => {
         {
           updateQuitForceDelayMs: 0,
           forceQuitDesktopProcess,
-          forceQuitDesktopProcesses,
           waitForDesktopProcessExit: vi.fn(async () => false),
         },
-      );
+      )).rejects.toThrow("did not exit after force-quit fallback");
 
       expect(forceQuitDesktopProcess).toHaveBeenCalledWith(4242, { platform: "macos", arch: "arm64", extension: ".zip" });
-      expect(forceQuitDesktopProcesses).not.toHaveBeenCalled();
-      await expect(access(appPath)).rejects.toThrow();
+      await expect(access(appPath)).resolves.toBeUndefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

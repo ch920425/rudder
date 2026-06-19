@@ -26,6 +26,7 @@ export const DESKTOP_GITHUB_REPO = "Undertone0809/rudder";
 const DESKTOP_RELEASES_URL = `https://github.com/${DESKTOP_GITHUB_REPO}/releases`;
 export const DESKTOP_FEEDBACK_EMAIL = "zeeland4work@gmail.com";
 export const DESKTOP_UPDATE_QUIT_ARG = "--rudder-update-quit";
+export const DESKTOP_UPDATE_FORCE_ARG = "--rudder-update-force";
 export const INSTANCE_SETTINGS_GENERAL_PATH = "/instance/settings/general";
 
 type ActiveRunSummary = any;
@@ -43,8 +44,9 @@ export function createDesktopUpdateFlow(context: {
     detail: string;
     totalRuns: number;
     confirmLabel: string;
+    forceLabel: string;
     cancelLabel: string;
-  }) => Promise<"wait" | "cancel" | null | undefined>;
+  }) => Promise<"wait" | "force" | "cancel" | null | undefined>;
   showMainWindow: () => void;
 }) {
   let latestDesktopUpdateProgress: DesktopUpdateProgressEvent | null = null;
@@ -88,6 +90,10 @@ export function createDesktopUpdateFlow(context: {
     at: string;
   };
 
+  type DesktopUpdateApplyOptions = {
+    force?: boolean;
+  };
+
   type DesktopUpdateApplyResult =
     | { status: "started"; updateId: string; version: string }
     | { status: "unavailable"; message: string }
@@ -124,10 +130,19 @@ export function createDesktopUpdateFlow(context: {
   }
 
   function publishDesktopUpdateProgress(event: DesktopUpdateProgressEvent): void {
-    latestDesktopUpdateProgress = event;
+    const nextEvent: DesktopUpdateProgressEvent = {
+      ...event,
+      ...(event.totalRuns === undefined
+        && latestDesktopUpdateProgress?.updateId === event.updateId
+        && latestDesktopUpdateProgress.totalRuns !== undefined
+        && (event.phase === "ready_to_install" || event.phase === "preparing_restart")
+        ? { totalRuns: latestDesktopUpdateProgress.totalRuns }
+        : {}),
+    };
+    latestDesktopUpdateProgress = nextEvent;
     const mainWindow = context.getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("desktop:update-progress", event);
+      mainWindow.webContents.send("desktop:update-progress", nextEvent);
     }
   }
 
@@ -264,7 +279,7 @@ export function createDesktopUpdateFlow(context: {
     });
   }
 
-  async function promptForDeferredUpdate(summary: ActiveRunSummary): Promise<"wait" | "cancel"> {
+  async function promptForDeferredUpdate(summary: ActiveRunSummary): Promise<"wait" | "force" | "cancel"> {
     const detail = context.formatQuitRunDetail(summary);
     const message = summary.totalRuns === 1
       ? "There is 1 active agent run."
@@ -274,32 +289,36 @@ export function createDesktopUpdateFlow(context: {
       message,
       detail:
         "Rudder can download the installer now, keep active work running, then apply the update after the runs finish. "
-        + "The desktop app may close and reopen automatically when it is safe to replace.\n\n"
+        + "The desktop app may close and reopen automatically when it is safe to replace. "
+        + "Choose Stop Runs and Update Now to cancel active runs, quit Rudder, and apply the update immediately.\n\n"
         + detail,
       totalRuns: summary.totalRuns,
       confirmLabel: "Download and Update When Idle",
+      forceLabel: "Stop Runs and Update Now",
       cancelLabel: "Cancel",
     };
     const rendererDecision = await context.promptForDeferredUpdate?.(prompt).catch((error) => {
       console.warn("[rudder-desktop] renderer deferred update prompt failed", error);
       return null;
     });
-    if (rendererDecision === "wait" || rendererDecision === "cancel") {
+    if (rendererDecision === "wait" || rendererDecision === "force" || rendererDecision === "cancel") {
       return rendererDecision;
     }
 
     const response = await showMessageBox({
       type: "warning",
       title: context.appName,
-      buttons: ["Download and Update When Idle", "Cancel"],
+      buttons: ["Download and Update When Idle", "Stop Runs and Update Now", "Cancel"],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 2,
       noLink: true,
       message,
       detail: prompt.detail,
     });
 
-    return response.response === 0 ? "wait" : "cancel";
+    if (response.response === 0) return "wait";
+    if (response.response === 1) return "force";
+    return "cancel";
   }
 
   async function promptToInstallAvailableUpdate(result: DesktopUpdateCheckResult): Promise<void> {
@@ -412,9 +431,10 @@ export function createDesktopUpdateFlow(context: {
       });
       const activeRuns = await context.listActiveRunsForQuit();
       let waitForActiveRuns = false;
+      let forceWhenApplying = false;
       if (activeRuns.totalRuns > 0) {
         const decision = await promptForDeferredUpdate(activeRuns);
-        if (decision !== "wait") {
+        if (decision === "cancel") {
           updateDesktopUpdateProgress(updateId, normalizedVersion, {
             phase: "failed",
             message: "Update paused because active runs are still running.",
@@ -430,10 +450,12 @@ export function createDesktopUpdateFlow(context: {
           };
         }
         waitForActiveRuns = true;
+        forceWhenApplying = decision === "force";
         updateDesktopUpdateProgress(updateId, normalizedVersion, {
           phase: "waiting_for_active_runs",
-          message:
-            `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will update after active runs finish.`,
+          message: forceWhenApplying
+            ? `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will quit active runs when the update is ready.`
+            : `Rudder is downloading ${formatVersionForDisplay(normalizedVersion)} and will update after active runs finish.`,
           totalRuns: activeRuns.totalRuns,
         });
       }
@@ -451,7 +473,7 @@ export function createDesktopUpdateFlow(context: {
         "--no-version-check",
         "--desktop-progress-json",
         "--desktop-wait-for-apply",
-        ...(waitForActiveRuns ? ["--wait-for-active-runs"] : []),
+        ...(waitForActiveRuns && !forceWhenApplying ? ["--wait-for-active-runs"] : []),
       ];
       const child = spawn(process.execPath, args, {
         detached: true,
@@ -517,6 +539,16 @@ export function createDesktopUpdateFlow(context: {
         }
       });
       child.unref();
+      if (forceWhenApplying) {
+        const applyResult = await applyUpdate(updateId, { force: true });
+        if (applyResult.status === "failed") {
+          return {
+            status: "failed",
+            message: applyResult.message,
+          };
+        }
+        return { status: "started", version: normalizedVersion, updateId };
+      }
       if (waitForActiveRuns) {
         return {
           status: "waiting",
@@ -543,7 +575,10 @@ export function createDesktopUpdateFlow(context: {
     }
   }
 
-  async function applyUpdate(updateId: string | null | undefined): Promise<DesktopUpdateApplyResult> {
+  async function applyUpdate(
+    updateId: string | null | undefined,
+    options: DesktopUpdateApplyOptions = {},
+  ): Promise<DesktopUpdateApplyResult> {
     const normalizedUpdateId = updateId?.trim();
     if (!normalizedUpdateId) {
       return { status: "unavailable", message: "No update session was provided." };
@@ -565,7 +600,7 @@ export function createDesktopUpdateFlow(context: {
     try {
       writePendingPostUpdateReloadMarker(normalizedUpdateId, session.version);
       await new Promise<void>((resolve, reject) => {
-        session.stdin.write("apply\n", (error?: Error | null) => {
+        session.stdin.write(options.force ? "force-apply\n" : "apply\n", (error?: Error | null) => {
           if (error) {
             reject(error);
             return;
