@@ -1058,9 +1058,19 @@ describe("CommentThread", () => {
 
     const commentBlock = container.querySelector("#comment-comment-1");
     const collapsedHeader = commentBlock?.querySelector("[data-comment-collapsed-header]");
+    const collapsedSummary = collapsedHeader?.firstElementChild;
+    const collapsedIdentity = collapsedSummary?.querySelector(".inline-flex");
+    const collapsedPreview = collapsedSummary?.querySelector(".line-clamp-2");
     const expandButton = commentBlock?.querySelector('button[aria-label="Expand comment"]');
 
     expect(collapsedHeader?.className).toContain("grid-cols-[minmax(0,1fr)_auto_auto]");
+    expect(collapsedSummary?.className).toContain("py-1");
+    expect(collapsedSummary?.className).not.toContain("h-7");
+    expect(collapsedSummary?.className).not.toContain("flex");
+    expect(collapsedIdentity?.className).toContain("max-w-full");
+    expect(collapsedIdentity?.className).toContain("overflow-hidden");
+    expect(collapsedPreview?.className).toContain("mt-1");
+    expect(collapsedPreview?.className).toContain("block");
     expect(commentBlock?.textContent).toContain("A long folded comment.");
     expect(expandButton?.className).toContain("rounded-full");
     expect(expandButton?.innerHTML).toContain("lucide-chevron-down");

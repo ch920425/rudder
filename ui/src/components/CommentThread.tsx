@@ -792,16 +792,24 @@ const TimelineList = memo(function TimelineList({
           await onDelete(comment.id);
         };
         const authorNode = comment.authorAgentId ? (
-          <Link to={`/agents/${comment.authorAgentId}`} className="min-w-0 hover:underline">
+          <Link
+            to={`/agents/${comment.authorAgentId}`}
+            className={commentCollapsed ? "block min-w-0 max-w-full overflow-hidden hover:underline" : "min-w-0 hover:underline"}
+          >
             <AgentIdentity
               name={agentMap?.get(comment.authorAgentId)?.name ?? comment.authorAgentId.slice(0, 8)}
               icon={agentMap?.get(comment.authorAgentId)?.icon}
               role={agentMap?.get(comment.authorAgentId)?.role}
               size="sm"
+              className={commentCollapsed ? "max-w-full min-w-0 overflow-hidden" : undefined}
             />
           </Link>
         ) : (
-          <Identity name={resolveOperatorDisplayName(operatorDisplayName)} size="sm" />
+          <Identity
+            name={resolveOperatorDisplayName(operatorDisplayName)}
+            size="sm"
+            className={commentCollapsed ? "max-w-full min-w-0 overflow-hidden" : undefined}
+          />
         );
         const timestampNode = (
           <a
@@ -840,14 +848,14 @@ const TimelineList = memo(function TimelineList({
               <div
                 data-comment-collapsed-header={commentCollapsed ? "true" : undefined}
                 className={commentCollapsed
-                  ? "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-xs"
+                  ? "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 text-xs"
                   : "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3"}
               >
-                <div className={commentCollapsed ? "flex h-7 min-w-0 items-center gap-2" : "min-w-0"}>
-                  <span className={commentCollapsed ? "min-w-0 max-w-[12rem] shrink-0" : "min-w-0"}>{authorNode}</span>
+                <div className={commentCollapsed ? "min-w-0 py-1" : "min-w-0"}>
+                  <span className={commentCollapsed ? "block min-w-0 max-w-[min(24rem,55vw)]" : "min-w-0"}>{authorNode}</span>
                   {commentCollapsed && commentPreview ? (
                     <span
-                      className="line-clamp-2 min-w-0 text-sm leading-5 text-foreground"
+                      className="mt-1 block min-w-0 break-words line-clamp-2 text-sm leading-5 text-foreground"
                       title={commentPreview}
                     >
                       {commentPreview}
