@@ -1,17 +1,19 @@
 import { agentsApi } from "@/api/agents";
 import { organizationsApi } from "@/api/orgs";
 import { secretsApi } from "@/api/secrets";
-import { AdapterEnvironmentError, AdapterEnvironmentResult, RuntimeProviderCard } from "@/components/AgentConfigForm.environment";
+import { AdapterEnvironmentError, AdapterEnvironmentResult, SortableRuntimeProviderCard } from "@/components/AgentConfigForm.environment";
 import {
   type RuntimeEnvironmentStatus,
   type RuntimeEnvironmentTestItemResult,
   type RuntimeEnvironmentTestTarget,
+  applyRuntimeChainOrder,
   defaultConfigForRuntime,
-  defaultFallbackItem,
+  defaultFallbackItemForChain,
   defaultModelForRuntime,
   formatRuntimeEnvironmentLabel,
   normalizeModelFallbacksForEditor,
   primaryModelFallbackKey,
+  runtimeChainItemsFromConfig,
   runtimeProviderItemClassName,
   runtimeProviderRailClassName,
 } from "@/components/AgentConfigForm.helpers";
@@ -19,6 +21,20 @@ import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queryKeys";
 import { blockingRuntimeEnvironmentMessage } from "@/lib/runtime-models";
 import { cn } from "@/lib/utils";
+import {
+  type DragEndEvent,
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import type { ModelFallbackConfig } from "@rudderhq/agent-runtime-utils";
 import type {
   OrganizationIntelligenceProfile,
@@ -248,6 +264,10 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
   }, [profilesQuery.data, serverDrafts]);
 
   const currentDrafts = drafts ?? serverDrafts;
+  const runtimeChainSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   function setDraft(purpose: OrganizationIntelligenceProfilePurpose, updater: (draft: ProfileDraft) => ProfileDraft) {
     setRuntimeEnvironmentResults((current) => {
@@ -379,6 +399,11 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
           const fallbacks = fallbackModels(draft);
           const dirty = !draft.exists || !sameDraft(draft, serverDrafts[purpose]);
           const primaryConfig = { ...draft.agentRuntimeConfig, model };
+          const runtimeChainItems = runtimeChainItemsFromConfig({
+            primaryRuntimeType: draft.agentRuntimeType,
+            primaryModel: model,
+            primaryConfig,
+          });
           const testTargets = buildRuntimeEnvironmentTestTargets(draft, model, fallbacks);
           const testResults = runtimeEnvironmentResults[purpose] ?? [];
           const testResultsByKey = new Map(testResults.map((item) => [item.key, item]));
@@ -402,6 +427,25 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
             if (!item) return undefined;
             if (item.error) return "error";
             return item.result?.status;
+          };
+          const handleRuntimeChainDragEnd = (event: DragEndEvent) => {
+            const overId = event.over?.id;
+            if (!overId || event.active.id === overId) return;
+            const nextRuntimeChain = applyRuntimeChainOrder(
+              runtimeChainItems,
+              String(event.active.id),
+              String(overId),
+            );
+            setDraft(purpose, (current) => ({
+              ...current,
+              agentRuntimeType: nextRuntimeChain.primary.agentRuntimeType,
+              agentRuntimeConfig: {
+                ...nextRuntimeChain.primary.config,
+                model: nextRuntimeChain.primary.model,
+                modelFallbacks: nextRuntimeChain.fallbacks,
+              },
+              status: "disabled",
+            }));
           };
           return (
             <div
@@ -497,169 +541,196 @@ export function OrganizationIntelligenceProfilesSettings({ orgId }: { orgId: str
                 )}
               </div>
 
-              <div className={runtimeProviderRailClassName}>
-                <RuntimeProviderCard
-                  title="Primary"
-                  className={runtimeProviderItemClassName}
-                  runtimeType={draft.agentRuntimeType}
-                  model={model}
-                  config={primaryConfig}
-                  selectedOrganizationId={orgId}
-                  availableSecrets={availableSecrets as OrganizationSecret[]}
-                  onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
-                  hideInstructionsFile
-                  runtimeTypeLabel="Provider"
-                  runtimeTypeHint={providerHint}
-                  onRuntimeTypeChange={(nextRuntimeType) => {
-                    setDraft(purpose, () => ({
-                      ...draft,
-                      agentRuntimeType: nextRuntimeType,
-                      agentRuntimeConfig: {
-                        ...defaultConfigForProfileRuntime(purpose, nextRuntimeType),
-                        modelFallbacks: [],
-                      },
-                      status: "disabled",
-                    }));
-                  }}
-                  onModelChange={(nextModel) => {
-                    const nextFallbacks = normalizeModelFallbacksForEditor(
-                      fallbacks,
-                      primaryModelFallbackKey(draft.agentRuntimeType, nextModel),
-                    );
-                    setDraft(purpose, (current) => ({
-                      ...current,
-                      agentRuntimeConfig: {
-                        ...current.agentRuntimeConfig,
-                        model: nextModel,
-                        modelFallbacks: nextFallbacks,
-                      },
-                      status: "disabled",
-                    }));
-                  }}
-                  onConfigFieldChange={(field, value) => {
-                    setDraft(purpose, (current) => ({
-                      ...current,
-                      agentRuntimeConfig: {
-                        ...current.agentRuntimeConfig,
-                        [field]: value,
-                      },
-                      status: "disabled",
-                    }));
-                  }}
-                  onConfigPatchChange={(patch) => {
-                    setDraft(purpose, (current) => ({
-                      ...current,
-                      agentRuntimeConfig: {
-                        ...current.agentRuntimeConfig,
-                        ...patch,
-                      },
-                      status: "disabled",
-                    }));
-                  }}
-                  environmentStatus={runtimeEnvironmentStatusFor("primary")}
-                  disabled={isProfileBusy}
-                />
-
-                {fallbacks.map((fallback, index) => (
-                  <RuntimeProviderCard
-                    key={`${fallback.agentRuntimeType}-${index}`}
-                    title={`Fallback ${index + 1}`}
-                    className={runtimeProviderItemClassName}
-                    runtimeType={fallback.agentRuntimeType}
-                    model={fallback.model}
-                    config={{ ...(fallback.config ?? {}), model: fallback.model }}
-                    selectedOrganizationId={orgId}
-                    availableSecrets={availableSecrets as OrganizationSecret[]}
-                    onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
-                    hideInstructionsFile
-                    runtimeTypeLabel="Provider"
-                    runtimeTypeHint={providerHint}
-                    onRemove={() => setDraft(purpose, (current) => ({
-                      ...updateFallbackModels(current, fallbacks.filter((_, itemIndex) => itemIndex !== index)),
-                      status: "disabled",
-                    }))}
-                    onRuntimeTypeChange={(nextRuntimeType) => {
-                      const nextConfig = defaultConfigForRuntime(nextRuntimeType);
-                      const next = [...fallbacks];
-                      next[index] = {
-                        agentRuntimeType: nextRuntimeType,
-                        model: typeof nextConfig.model === "string" ? nextConfig.model : defaultModelForRuntime(nextRuntimeType),
-                        config: nextConfig,
-                      };
-                      setDraft(purpose, (current) => ({
-                        ...updateFallbackModels(current, next),
-                        status: "disabled",
-                      }));
-                    }}
-                    onModelChange={(nextModel) => {
-                      const next = [...fallbacks];
-                      next[index] = {
-                        ...fallback,
-                        model: nextModel,
-                        config: {
-                          ...(fallback.config ?? {}),
-                          model: nextModel,
-                        },
-                      };
-                      setDraft(purpose, (current) => ({
-                        ...updateFallbackModels(current, next),
-                        status: "disabled",
-                      }));
-                    }}
-                    onConfigFieldChange={(field, value) => {
-                      const next = [...fallbacks];
-                      next[index] = {
-                        ...fallback,
-                        config: {
-                          ...(fallback.config ?? {}),
-                          [field]: value,
-                        },
-                      };
-                      setDraft(purpose, (current) => ({
-                        ...updateFallbackModels(current, next),
-                        status: "disabled",
-                      }));
-                    }}
-                    onConfigPatchChange={(patch) => {
-                      const next = [...fallbacks];
-                      next[index] = {
-                        ...fallback,
-                        config: {
-                          ...(fallback.config ?? {}),
-                          ...patch,
-                        },
-                      };
-                      setDraft(purpose, (current) => ({
-                        ...updateFallbackModels(current, next),
-                        status: "disabled",
-                      }));
-                    }}
-                    environmentStatus={runtimeEnvironmentStatusFor(`fallback-${index}`)}
-                    disabled={isProfileBusy}
-                  />
-                ))}
-
-                <button
-                  type="button"
-                  className={cn(
-                    runtimeProviderItemClassName,
-                    "min-h-[180px] rounded-lg border border-dashed border-border/80 px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30",
-                    isProfileBusy && "cursor-not-allowed opacity-50 hover:border-border/80 hover:bg-transparent",
-                  )}
-                  disabled={isProfileBusy}
-                  onClick={() => setDraft(purpose, (current) => ({
-                    ...updateFallbackModels(current, [...fallbackModels(current), defaultFallbackItem(current.agentRuntimeType)]),
-                    status: "disabled",
-                  }))}
+              <DndContext
+                sensors={runtimeChainSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleRuntimeChainDragEnd}
+              >
+                <SortableContext
+                  items={runtimeChainItems.map((item) => item.id)}
+                  strategy={horizontalListSortingStrategy}
                 >
-                  <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span className="rounded-full border border-border p-2">
-                      <Plus className="h-4 w-4" />
-                    </span>
-                    <span>Add fallback model</span>
+                  <div className={runtimeProviderRailClassName}>
+                    {runtimeChainItems.map((item, chainIndex) => {
+                      if (chainIndex === 0) {
+                        return (
+                          <SortableRuntimeProviderCard
+                            key={item.id}
+                            sortableId={item.id}
+                            canDrag={runtimeChainItems.length > 1}
+                            title="Primary"
+                            className={runtimeProviderItemClassName}
+                            runtimeType={draft.agentRuntimeType}
+                            model={model}
+                            config={primaryConfig}
+                            selectedOrganizationId={orgId}
+                            availableSecrets={availableSecrets as OrganizationSecret[]}
+                            onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
+                            hideInstructionsFile
+                            runtimeTypeLabel="Provider"
+                            runtimeTypeHint={providerHint}
+                            onRuntimeTypeChange={(nextRuntimeType) => {
+                              setDraft(purpose, () => ({
+                                ...draft,
+                                agentRuntimeType: nextRuntimeType,
+                                agentRuntimeConfig: {
+                                  ...defaultConfigForProfileRuntime(purpose, nextRuntimeType),
+                                  modelFallbacks: [],
+                                },
+                                status: "disabled",
+                              }));
+                            }}
+                            onModelChange={(nextModel) => {
+                              const nextFallbacks = normalizeModelFallbacksForEditor(
+                                fallbacks,
+                                primaryModelFallbackKey(draft.agentRuntimeType, nextModel),
+                              );
+                              setDraft(purpose, (current) => ({
+                                ...current,
+                                agentRuntimeConfig: {
+                                  ...current.agentRuntimeConfig,
+                                  model: nextModel,
+                                  modelFallbacks: nextFallbacks,
+                                },
+                                status: "disabled",
+                              }));
+                            }}
+                            onConfigFieldChange={(field, value) => {
+                              setDraft(purpose, (current) => ({
+                                ...current,
+                                agentRuntimeConfig: {
+                                  ...current.agentRuntimeConfig,
+                                  [field]: value,
+                                },
+                                status: "disabled",
+                              }));
+                            }}
+                            onConfigPatchChange={(patch) => {
+                              setDraft(purpose, (current) => ({
+                                ...current,
+                                agentRuntimeConfig: {
+                                  ...current.agentRuntimeConfig,
+                                  ...patch,
+                                },
+                                status: "disabled",
+                              }));
+                            }}
+                            environmentStatus={runtimeEnvironmentStatusFor("primary")}
+                            disabled={isProfileBusy}
+                          />
+                        );
+                      }
+                      const fallbackIndex = chainIndex - 1;
+                      const fallback = fallbacks[fallbackIndex];
+                      if (!fallback) return null;
+                      return (
+                        <SortableRuntimeProviderCard
+                          key={item.id}
+                          sortableId={item.id}
+                          canDrag={runtimeChainItems.length > 1}
+                          title={`Fallback ${fallbackIndex + 1}`}
+                          className={runtimeProviderItemClassName}
+                          runtimeType={fallback.agentRuntimeType}
+                          model={fallback.model}
+                          config={{ ...(fallback.config ?? {}), model: fallback.model }}
+                          selectedOrganizationId={orgId}
+                          availableSecrets={availableSecrets as OrganizationSecret[]}
+                          onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
+                          hideInstructionsFile
+                          runtimeTypeLabel="Provider"
+                          runtimeTypeHint={providerHint}
+                          onRemove={() => setDraft(purpose, (current) => ({
+                            ...updateFallbackModels(current, fallbacks.filter((_, itemIndex) => itemIndex !== fallbackIndex)),
+                            status: "disabled",
+                          }))}
+                          onRuntimeTypeChange={(nextRuntimeType) => {
+                            const nextConfig = defaultConfigForRuntime(nextRuntimeType);
+                            const next = [...fallbacks];
+                            next[fallbackIndex] = {
+                              agentRuntimeType: nextRuntimeType,
+                              model: typeof nextConfig.model === "string" ? nextConfig.model : defaultModelForRuntime(nextRuntimeType),
+                              config: nextConfig,
+                            };
+                            setDraft(purpose, (current) => ({
+                              ...updateFallbackModels(current, next),
+                              status: "disabled",
+                            }));
+                          }}
+                          onModelChange={(nextModel) => {
+                            const next = [...fallbacks];
+                            next[fallbackIndex] = {
+                              ...fallback,
+                              model: nextModel,
+                              config: {
+                                ...(fallback.config ?? {}),
+                                model: nextModel,
+                              },
+                            };
+                            setDraft(purpose, (current) => ({
+                              ...updateFallbackModels(current, next),
+                              status: "disabled",
+                            }));
+                          }}
+                          onConfigFieldChange={(field, value) => {
+                            const next = [...fallbacks];
+                            next[fallbackIndex] = {
+                              ...fallback,
+                              config: {
+                                ...(fallback.config ?? {}),
+                                [field]: value,
+                              },
+                            };
+                            setDraft(purpose, (current) => ({
+                              ...updateFallbackModels(current, next),
+                              status: "disabled",
+                            }));
+                          }}
+                          onConfigPatchChange={(patch) => {
+                            const next = [...fallbacks];
+                            next[fallbackIndex] = {
+                              ...fallback,
+                              config: {
+                                ...(fallback.config ?? {}),
+                                ...patch,
+                              },
+                            };
+                            setDraft(purpose, (current) => ({
+                              ...updateFallbackModels(current, next),
+                              status: "disabled",
+                            }));
+                          }}
+                          environmentStatus={runtimeEnvironmentStatusFor(`fallback-${fallbackIndex}`)}
+                          disabled={isProfileBusy}
+                        />
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      className={cn(
+                        runtimeProviderItemClassName,
+                        "min-h-[180px] rounded-lg border border-dashed border-border/80 px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30",
+                        isProfileBusy && "cursor-not-allowed opacity-50 hover:border-border/80 hover:bg-transparent",
+                      )}
+                      disabled={isProfileBusy}
+                      onClick={() => setDraft(purpose, (current) => ({
+                        ...updateFallbackModels(current, [
+                          ...fallbackModels(current),
+                          defaultFallbackItemForChain(current.agentRuntimeType, fallbackModels(current)),
+                        ]),
+                        status: "disabled",
+                      }))}
+                    >
+                      <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                        <span className="rounded-full border border-border p-2">
+                          <Plus className="h-4 w-4" />
+                        </span>
+                        <span>Add fallback model</span>
+                      </div>
+                    </button>
                   </div>
-                </button>
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           );
         })}

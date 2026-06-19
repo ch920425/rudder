@@ -1,4 +1,18 @@
 import { Button } from "@/components/ui/button";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import type { CreateConfigValues, ModelFallbackConfig } from "@rudderhq/agent-runtime-utils";
 import type {
   Agent
@@ -24,12 +38,12 @@ import {
   DraftInput,
   DraftNumberInput,
   Field,
+  help,
   ToggleField,
-  ToggleWithNumber,
-  help
+  ToggleWithNumber
 } from "./agent-config-primitives";
-import { AdapterEnvironmentError, AdapterEnvironmentResult, RuntimeProviderCard } from "./AgentConfigForm.environment";
-import { AgentConfigFormProps, LOCAL_MODEL_RUNTIME_TYPES, Overlay, RuntimeEnvironmentStatus, RuntimeEnvironmentTestItemResult, RuntimeEnvironmentTestTarget, createValuesForRuntime, defaultConfigForRuntime, defaultFallbackItem, defaultModelForRuntime, emptyOverlay, formatRuntimeEnvironmentLabel, hasClearedConfigValue, inputClass, isOverlayDirty, normalizeModelFallbacksForEditor, omitClearedConfigValues, primaryModelFallbackKey, runtimeProviderItemClassName, runtimeProviderRailClassName } from "./AgentConfigForm.helpers";
+import { AdapterEnvironmentError, AdapterEnvironmentResult, SortableRuntimeProviderCard } from "./AgentConfigForm.environment";
+import { AgentConfigFormProps, applyRuntimeChainOrder, createValuesForRuntime, defaultConfigForRuntime, defaultFallbackItemForChain, defaultModelForRuntime, emptyOverlay, formatRuntimeEnvironmentLabel, hasClearedConfigValue, inputClass, isOverlayDirty, LOCAL_MODEL_RUNTIME_TYPES, normalizeModelFallbacksForEditor, omitClearedConfigValues, Overlay, primaryModelFallbackKey, runtimeChainItemsFromConfig, RuntimeEnvironmentStatus, RuntimeEnvironmentTestItemResult, RuntimeEnvironmentTestTarget, runtimeProviderItemClassName, runtimeProviderRailClassName } from "./AgentConfigForm.helpers";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ReportsToPicker } from "./ReportsToPicker";
 
@@ -251,6 +265,51 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       : eff("agentRuntimeConfig", "modelFallbacks", config.modelFallbacks ?? []),
     primaryModelFallbackKey(agentRuntimeType, currentModelId),
   );
+  const currentPrimaryRuntimeConfig = isCreate
+    ? { ...uiAdapter.buildAdapterConfig(val!), modelFallbacks: val!.modelFallbacks }
+    : { ...config, ...overlay.agentRuntimeConfig };
+  const runtimeChainItems = useMemo(() => runtimeChainItemsFromConfig({
+    primaryRuntimeType: agentRuntimeType,
+    primaryModel: currentModelId,
+    primaryConfig: currentPrimaryRuntimeConfig,
+  }), [agentRuntimeType, currentModelId, currentPrimaryRuntimeConfig]);
+  const runtimeChainSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function applyRuntimeChainReorder(activeId: string, overId: string) {
+    const nextRuntimeChain = applyRuntimeChainOrder(runtimeChainItems, activeId, overId);
+    const primaryPatch = {
+      ...nextRuntimeChain.primary.config,
+      model: nextRuntimeChain.primary.model,
+      modelFallbacks: nextRuntimeChain.fallbacks,
+    };
+    if (isCreate) {
+      set!({
+        ...(primaryPatch as Partial<CreateConfigValues>),
+        agentRuntimeType: nextRuntimeChain.primary.agentRuntimeType,
+        model: nextRuntimeChain.primary.model,
+        modelFallbacks: nextRuntimeChain.fallbacks,
+      });
+      return;
+    }
+    setOverlay((prev) => ({
+      ...prev,
+      agentRuntimeType: nextRuntimeChain.primary.agentRuntimeType === props.agent.agentRuntimeType
+        ? undefined
+        : nextRuntimeChain.primary.agentRuntimeType,
+      agentRuntimeConfig: {
+        ...primaryPatch,
+      },
+    }));
+  }
+
+  function handleRuntimeChainDragEnd(event: DragEndEvent) {
+    const overId = event.over?.id;
+    if (!overId || event.active.id === overId) return;
+    applyRuntimeChainReorder(String(event.active.id), String(overId));
+  }
 
   function buildRuntimeEnvironmentTestTargets(): RuntimeEnvironmentTestTarget[] {
     const primaryConfig = { ...buildAdapterConfigForTest() };
@@ -500,144 +559,171 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
             </div>
           )}
 
-          <div className={runtimeProviderRailClassName}>
-            <RuntimeProviderCard
-              title="Primary"
-              className={runtimeProviderItemClassName}
-              runtimeType={agentRuntimeType}
-              model={currentModelId}
-              config={isCreate ? uiAdapter.buildAdapterConfig(val!) : { ...config, ...overlay.agentRuntimeConfig }}
-              selectedOrganizationId={selectedOrganizationId}
-              externalModels={externalModels}
-              availableSecrets={availableSecrets}
-              onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
-              hideRuntimeType={!showAdapterTypeField}
-              hideInstructionsFile={hideInstructionsFile}
-              createValues={isCreate ? val! : null}
-              createSet={isCreate ? set : null}
-              onRuntimeTypeChange={(nextRuntimeType) => {
-                if (isCreate) {
-                  set!(createValuesForRuntime(nextRuntimeType));
-                  return;
-                }
-                setOverlay((prev) => ({
-                  ...prev,
-                  agentRuntimeType: nextRuntimeType,
-                  agentRuntimeConfig: {
-                    ...defaultConfigForRuntime(nextRuntimeType),
-                    modelFallbacks: [],
-                  },
-                }));
-              }}
-              onModelChange={(model) => {
-                const normalizedFallbacks = normalizeModelFallbacksForEditor(
-                  currentFallbackModels,
-                  primaryModelFallbackKey(agentRuntimeType, model),
-                );
-                if (isCreate) {
-                  set!({ model, modelFallbacks: normalizedFallbacks });
-                } else {
-                  mark("agentRuntimeConfig", "model", model || undefined);
-                  mark("agentRuntimeConfig", "modelFallbacks", normalizedFallbacks);
-                }
-              }}
-              onConfigFieldChange={(field, value) =>
-                isCreate
-                  ? set!({ [field]: value } as Partial<CreateConfigValues>)
-                  : mark("agentRuntimeConfig", field, value)
-              }
-              onConfigPatchChange={(patch) => {
-                if (isCreate) {
-                  set!(patch as Partial<CreateConfigValues>);
-                } else {
-                  markAgentRuntimeConfigPatch(patch);
-                }
-              }}
-              environmentStatus={runtimeEnvironmentStatusFor("primary")}
-              triggerTestId="agent-primary-model"
-            />
-
-            {currentFallbackModels.map((fallback, index) => (
-              <RuntimeProviderCard
-                key={`${fallback.agentRuntimeType}-${index}`}
-                title={`Fallback ${index + 1}`}
-                className={runtimeProviderItemClassName}
-                runtimeType={fallback.agentRuntimeType}
-                model={fallback.model}
-                config={{ ...(fallback.config ?? {}), model: fallback.model }}
-                selectedOrganizationId={selectedOrganizationId}
-                externalModels={undefined}
-                availableSecrets={availableSecrets}
-                onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
-                hideInstructionsFile={hideInstructionsFile}
-                onRemove={() =>
-                  updateFallbackModels(currentFallbackModels.filter((_, itemIndex) => itemIndex !== index))
-                }
-                onRuntimeTypeChange={(nextRuntimeType) => {
-                  const nextConfig = defaultConfigForRuntime(nextRuntimeType);
-                  const next = [...currentFallbackModels];
-                  next[index] = {
-                    agentRuntimeType: nextRuntimeType,
-                    model: typeof nextConfig.model === "string" ? nextConfig.model : defaultModelForRuntime(nextRuntimeType),
-                    config: nextConfig,
-                  };
-                  updateFallbackModels(next);
-                }}
-                onModelChange={(model) => {
-                  const next = [...currentFallbackModels];
-                  next[index] = {
-                    ...fallback,
-                    model,
-                    config: {
-                      ...(fallback.config ?? {}),
-                      model,
-                    },
-                  };
-                  updateFallbackModels(next);
-                }}
-                onConfigFieldChange={(field, value) => {
-                  const next = [...currentFallbackModels];
-                  next[index] = {
-                    ...fallback,
-                    config: {
-                      ...(fallback.config ?? {}),
-                      [field]: value,
-                    },
-                  };
-                  updateFallbackModels(next);
-                }}
-                onConfigPatchChange={(configPatch) => {
-                  const next = [...currentFallbackModels];
-                  next[index] = {
-                    ...fallback,
-                    config: {
-                      ...(fallback.config ?? {}),
-                      ...configPatch,
-                    },
-                  };
-                  updateFallbackModels(next);
-                }}
-                environmentStatus={runtimeEnvironmentStatusFor(`fallback-${index}`)}
-                triggerTestId={`agent-fallback-model-${index + 1}`}
-              />
-            ))}
-
-            <button
-              type="button"
-              className={cn(
-                runtimeProviderItemClassName,
-                "min-h-[180px] rounded-lg border border-dashed border-border/80 px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30",
-              )}
-              onClick={() => updateFallbackModels([...currentFallbackModels, defaultFallbackItem(agentRuntimeType)])}
+          <DndContext
+            sensors={runtimeChainSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleRuntimeChainDragEnd}
+          >
+            <SortableContext
+              items={runtimeChainItems.map((item) => item.id)}
+              strategy={horizontalListSortingStrategy}
             >
-              <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                <span className="rounded-full border border-border p-2">
-                  <Plus className="h-4 w-4" />
-                </span>
-                <span>Add fallback model</span>
+              <div className={runtimeProviderRailClassName}>
+                {runtimeChainItems.map((item, chainIndex) => {
+                  if (chainIndex === 0) {
+                    return (
+                      <SortableRuntimeProviderCard
+                        key={item.id}
+                        sortableId={item.id}
+                        canDrag={runtimeChainItems.length > 1}
+                        title="Primary"
+                        className={runtimeProviderItemClassName}
+                        runtimeType={agentRuntimeType}
+                        model={currentModelId}
+                        config={currentPrimaryRuntimeConfig}
+                        selectedOrganizationId={selectedOrganizationId}
+                        externalModels={externalModels}
+                        availableSecrets={availableSecrets}
+                        onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
+                        hideRuntimeType={!showAdapterTypeField}
+                        hideInstructionsFile={hideInstructionsFile}
+                        createValues={isCreate ? val! : null}
+                        createSet={isCreate ? set : null}
+                        onRuntimeTypeChange={(nextRuntimeType) => {
+                          if (isCreate) {
+                            set!(createValuesForRuntime(nextRuntimeType));
+                            return;
+                          }
+                          setOverlay((prev) => ({
+                            ...prev,
+                            agentRuntimeType: nextRuntimeType,
+                            agentRuntimeConfig: {
+                              ...defaultConfigForRuntime(nextRuntimeType),
+                              modelFallbacks: [],
+                            },
+                          }));
+                        }}
+                        onModelChange={(model) => {
+                          const normalizedFallbacks = normalizeModelFallbacksForEditor(
+                            currentFallbackModels,
+                            primaryModelFallbackKey(agentRuntimeType, model),
+                          );
+                          if (isCreate) {
+                            set!({ model, modelFallbacks: normalizedFallbacks });
+                          } else {
+                            mark("agentRuntimeConfig", "model", model || undefined);
+                            mark("agentRuntimeConfig", "modelFallbacks", normalizedFallbacks);
+                          }
+                        }}
+                        onConfigFieldChange={(field, value) =>
+                          isCreate
+                            ? set!({ [field]: value } as Partial<CreateConfigValues>)
+                            : mark("agentRuntimeConfig", field, value)
+                        }
+                        onConfigPatchChange={(patch) => {
+                          if (isCreate) {
+                            set!(patch as Partial<CreateConfigValues>);
+                          } else {
+                            markAgentRuntimeConfigPatch(patch);
+                          }
+                        }}
+                        environmentStatus={runtimeEnvironmentStatusFor("primary")}
+                        triggerTestId="agent-primary-model"
+                      />
+                    );
+                  }
+                  const fallbackIndex = chainIndex - 1;
+                  const fallback = currentFallbackModels[fallbackIndex];
+                  if (!fallback) return null;
+                  return (
+                    <SortableRuntimeProviderCard
+                      key={item.id}
+                      sortableId={item.id}
+                      canDrag={runtimeChainItems.length > 1}
+                      title={`Fallback ${fallbackIndex + 1}`}
+                      className={runtimeProviderItemClassName}
+                      runtimeType={fallback.agentRuntimeType}
+                      model={fallback.model}
+                      config={{ ...(fallback.config ?? {}), model: fallback.model }}
+                      selectedOrganizationId={selectedOrganizationId}
+                      externalModels={undefined}
+                      availableSecrets={availableSecrets}
+                      onCreateSecret={(name, value) => createSecret.mutateAsync({ name, value })}
+                      hideInstructionsFile={hideInstructionsFile}
+                      onRemove={() =>
+                        updateFallbackModels(currentFallbackModels.filter((_, itemIndex) => itemIndex !== fallbackIndex))
+                      }
+                      onRuntimeTypeChange={(nextRuntimeType) => {
+                        const nextConfig = defaultConfigForRuntime(nextRuntimeType);
+                        const next = [...currentFallbackModels];
+                        next[fallbackIndex] = {
+                          agentRuntimeType: nextRuntimeType,
+                          model: typeof nextConfig.model === "string" ? nextConfig.model : defaultModelForRuntime(nextRuntimeType),
+                          config: nextConfig,
+                        };
+                        updateFallbackModels(next);
+                      }}
+                      onModelChange={(model) => {
+                        const next = [...currentFallbackModels];
+                        next[fallbackIndex] = {
+                          ...fallback,
+                          model,
+                          config: {
+                            ...(fallback.config ?? {}),
+                            model,
+                          },
+                        };
+                        updateFallbackModels(next);
+                      }}
+                      onConfigFieldChange={(field, value) => {
+                        const next = [...currentFallbackModels];
+                        next[fallbackIndex] = {
+                          ...fallback,
+                          config: {
+                            ...(fallback.config ?? {}),
+                            [field]: value,
+                          },
+                        };
+                        updateFallbackModels(next);
+                      }}
+                      onConfigPatchChange={(configPatch) => {
+                        const next = [...currentFallbackModels];
+                        next[fallbackIndex] = {
+                          ...fallback,
+                          config: {
+                            ...(fallback.config ?? {}),
+                            ...configPatch,
+                          },
+                        };
+                        updateFallbackModels(next);
+                      }}
+                      environmentStatus={runtimeEnvironmentStatusFor(`fallback-${fallbackIndex}`)}
+                      triggerTestId={`agent-fallback-model-${fallbackIndex + 1}`}
+                    />
+                  );
+                })}
+
+                <button
+                  type="button"
+                  className={cn(
+                    runtimeProviderItemClassName,
+                    "min-h-[180px] rounded-lg border border-dashed border-border/80 px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30",
+                  )}
+                  onClick={() => updateFallbackModels([
+                    ...currentFallbackModels,
+                    defaultFallbackItemForChain(agentRuntimeType, currentFallbackModels),
+                  ])}
+                >
+                  <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <span className="rounded-full border border-border p-2">
+                      <Plus className="h-4 w-4" />
+                    </span>
+                    <span>Add fallback model</span>
+                  </div>
+                </button>
               </div>
-            </button>
-          </div>
+            </SortableContext>
+          </DndContext>
 
           {fetchedModelsError && (
             <p className="text-xs text-destructive">

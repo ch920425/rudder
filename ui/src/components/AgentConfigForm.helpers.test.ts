@@ -13,7 +13,15 @@ import {
   runtimeProviderCredentialLabel,
   runtimeProviderSetupHint,
 } from "../lib/runtime-models";
-import { createValuesForRuntime, defaultCommandForRuntime, defaultConfigForRuntime, defaultModelForRuntime } from "./AgentConfigForm.helpers";
+import {
+  applyRuntimeChainOrder,
+  createValuesForRuntime,
+  defaultCommandForRuntime,
+  defaultConfigForRuntime,
+  defaultFallbackItemForChain,
+  defaultModelForRuntime,
+  runtimeChainItemsFromConfig,
+} from "./AgentConfigForm.helpers";
 
 describe("AgentConfigForm runtime defaults", () => {
   it("uses cursor-agent for new Cursor agents", () => {
@@ -141,5 +149,78 @@ describe("AgentConfigForm runtime defaults", () => {
         },
       ],
     })).toBeNull();
+  });
+});
+
+describe("AgentConfigForm runtime chain ordering", () => {
+  it("chooses a distinct default runtime when adding another fallback", () => {
+    const firstFallback = defaultFallbackItemForChain("codex_local", []);
+    const secondFallback = defaultFallbackItemForChain("codex_local", [firstFallback]);
+
+    expect(firstFallback).toMatchObject({
+      agentRuntimeType: "claude_local",
+    });
+    expect(`${secondFallback.agentRuntimeType}\u0000${secondFallback.model}`)
+      .not.toBe(`${firstFallback.agentRuntimeType}\u0000${firstFallback.model}`);
+  });
+
+  it("promotes a fallback to primary when it is moved to the start of the runtime chain", () => {
+    const chain = runtimeChainItemsFromConfig({
+      primaryRuntimeType: "codex_local",
+      primaryModel: "gpt-primary",
+      primaryConfig: {
+        model: "gpt-primary",
+        modelReasoningEffort: "high",
+        modelFallbacks: [
+          {
+            agentRuntimeType: "claude_local",
+            model: "claude-fallback",
+            config: {
+              model: "claude-fallback",
+              effort: "medium",
+            },
+          },
+          {
+            agentRuntimeType: "gemini_local",
+            model: "gemini-fallback",
+            config: {
+              model: "gemini-fallback",
+              approvalMode: "yolo",
+            },
+          },
+        ],
+      },
+    });
+
+    const reordered = applyRuntimeChainOrder(
+      chain,
+      "fallback-1",
+      "primary",
+    );
+
+    expect(reordered.primary.agentRuntimeType).toBe("gemini_local");
+    expect(reordered.primary.model).toBe("gemini-fallback");
+    expect(reordered.primary.config).toMatchObject({
+      model: "gemini-fallback",
+      approvalMode: "yolo",
+    });
+    expect(reordered.fallbacks).toEqual([
+      {
+        agentRuntimeType: "codex_local",
+        model: "gpt-primary",
+        config: {
+          model: "gpt-primary",
+          modelReasoningEffort: "high",
+        },
+      },
+      {
+        agentRuntimeType: "claude_local",
+        model: "claude-fallback",
+        config: {
+          model: "claude-fallback",
+          effort: "medium",
+        },
+      },
+    ]);
   });
 });

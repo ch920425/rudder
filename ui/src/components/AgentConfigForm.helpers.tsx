@@ -1,3 +1,4 @@
+import { arrayMove } from "@dnd-kit/sortable";
 import { models as CLAUDE_LOCAL_MODELS } from "@rudderhq/agent-runtime-claude-local";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
@@ -205,6 +206,36 @@ export function defaultFallbackItem(primaryRuntimeType: string): ModelFallbackCo
   };
 }
 
+export function defaultFallbackItemForChain(
+  primaryRuntimeType: string,
+  existingFallbacks: ModelFallbackConfig[],
+): ModelFallbackConfig {
+  const existingKeys = new Set(
+    existingFallbacks.map((fallback) => `${fallback.agentRuntimeType}\u0000${fallback.model}`),
+  );
+  const preferredRuntimeTypes = [
+    defaultFallbackRuntime(primaryRuntimeType),
+    "gemini_local",
+    "opencode_local",
+    "pi_local",
+    "cursor",
+    "codex_local",
+    "claude_local",
+  ];
+  for (const agentRuntimeType of preferredRuntimeTypes) {
+    const config = defaultConfigForRuntime(agentRuntimeType);
+    const model = typeof config.model === "string" ? config.model : defaultModelForRuntime(agentRuntimeType);
+    if (!existingKeys.has(`${agentRuntimeType}\u0000${model}`)) {
+      return {
+        agentRuntimeType,
+        model,
+        config,
+      };
+    }
+  }
+  return defaultFallbackItem(primaryRuntimeType);
+}
+
 export function thinkingEffortKeyForRuntime(agentRuntimeType: string) {
   if (agentRuntimeType === "codex_local") return "modelReasoningEffort";
   if (agentRuntimeType === "cursor") return "mode";
@@ -246,6 +277,86 @@ export function normalizeModelFallbacksForEditor(
     agentRuntimeType: primary.agentRuntimeType,
     model: "",
   });
+}
+
+export type RuntimeChainItem = {
+  id: string;
+  agentRuntimeType: string;
+  model: string;
+  config: Record<string, unknown>;
+};
+
+export function runtimeChainItemsFromConfig({
+  primaryRuntimeType,
+  primaryModel,
+  primaryConfig,
+}: {
+  primaryRuntimeType: string;
+  primaryModel: string;
+  primaryConfig: Record<string, unknown>;
+}): RuntimeChainItem[] {
+  const primaryConfigWithoutFallbacks = { ...primaryConfig };
+  delete primaryConfigWithoutFallbacks.modelFallbacks;
+  const fallbacks = normalizeModelFallbacksForEditor(
+    primaryConfig.modelFallbacks ?? [],
+    primaryModelFallbackKey(primaryRuntimeType, primaryModel),
+  );
+  return [
+    {
+      id: "primary",
+      agentRuntimeType: primaryRuntimeType,
+      model: primaryModel,
+      config: {
+        ...primaryConfigWithoutFallbacks,
+        ...(primaryModel ? { model: primaryModel } : {}),
+      },
+    },
+    ...fallbacks.map((fallback, index) => ({
+      id: `fallback-${index}`,
+      agentRuntimeType: fallback.agentRuntimeType,
+      model: fallback.model,
+      config: {
+        ...(fallback.config ?? {}),
+        ...(fallback.model ? { model: fallback.model } : {}),
+      },
+    })),
+  ];
+}
+
+export function applyRuntimeChainOrder(
+  chain: RuntimeChainItem[],
+  activeId: string,
+  overId: string,
+): {
+  primary: RuntimeChainItem;
+  fallbacks: ModelFallbackConfig[];
+} {
+  const activeIndex = chain.findIndex((item) => item.id === activeId);
+  const overIndex = chain.findIndex((item) => item.id === overId);
+  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
+    return runtimeChainItemsToConfig(chain);
+  }
+  return runtimeChainItemsToConfig(arrayMove(chain, activeIndex, overIndex));
+}
+
+function runtimeChainItemsToConfig(chain: RuntimeChainItem[]) {
+  const primary = chain[0] ?? {
+    id: "primary",
+    agentRuntimeType: "codex_local",
+    model: "",
+    config: {},
+  };
+  return {
+    primary,
+    fallbacks: chain.slice(1).map((item) => ({
+      agentRuntimeType: item.agentRuntimeType,
+      model: item.model,
+      config: {
+        ...item.config,
+        ...(item.model ? { model: item.model } : {}),
+      },
+    })),
+  };
 }
 
 export const runtimeProviderRailClassName =

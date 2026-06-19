@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { CreateConfigValues } from "@rudderhq/agent-runtime-utils";
 import type {
   AgentRuntimeEnvironmentTestResult,
   OrganizationSecret
 } from "@rudderhq/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { GripVertical, Trash2 } from "lucide-react";
+import { type HTMLAttributes, useMemo, useState } from "react";
 import { getUIAdapter } from "../agent-runtimes";
 import type { AgentRuntimeConfigFieldsProps } from "../agent-runtimes/types";
 import type { AgentRuntimeModel } from "../api/agents";
@@ -125,6 +127,34 @@ export function RuntimeEnvironmentStatusBadge({
   );
 }
 
+export type RuntimeProviderCardProps = {
+  title: string;
+  className?: string;
+  runtimeType: string;
+  model: string;
+  config: Record<string, unknown>;
+  selectedOrganizationId: string | null | undefined;
+  externalModels?: AgentRuntimeModel[];
+  availableSecrets: OrganizationSecret[];
+  onCreateSecret: (name: string, value: string) => Promise<OrganizationSecret>;
+  onRuntimeTypeChange: (runtimeType: string) => void;
+  onModelChange: (model: string) => void;
+  onConfigFieldChange: (field: string, value: unknown) => void;
+  onConfigPatchChange?: (patch: Record<string, unknown>) => void;
+  onRemove?: () => void;
+  hideRuntimeType?: boolean;
+  hideInstructionsFile?: boolean;
+  runtimeTypeLabel?: string;
+  runtimeTypeHint?: string;
+  createValues?: CreateConfigValues | null;
+  createSet?: ((patch: Partial<CreateConfigValues>) => void) | null;
+  environmentStatus?: RuntimeEnvironmentStatus;
+  triggerTestId?: string;
+  disabled?: boolean;
+  dragHandleProps?: HTMLAttributes<HTMLButtonElement> | null;
+  isDragging?: boolean;
+};
+
 export function RuntimeProviderCard({
   title,
   className,
@@ -149,31 +179,9 @@ export function RuntimeProviderCard({
   environmentStatus,
   triggerTestId,
   disabled = false,
-}: {
-  title: string;
-  className?: string;
-  runtimeType: string;
-  model: string;
-  config: Record<string, unknown>;
-  selectedOrganizationId: string | null | undefined;
-  externalModels?: AgentRuntimeModel[];
-  availableSecrets: OrganizationSecret[];
-  onCreateSecret: (name: string, value: string) => Promise<OrganizationSecret>;
-  onRuntimeTypeChange: (runtimeType: string) => void;
-  onModelChange: (model: string) => void;
-  onConfigFieldChange: (field: string, value: unknown) => void;
-  onConfigPatchChange?: (patch: Record<string, unknown>) => void;
-  onRemove?: () => void;
-  hideRuntimeType?: boolean;
-  hideInstructionsFile?: boolean;
-  runtimeTypeLabel?: string;
-  runtimeTypeHint?: string;
-  createValues?: CreateConfigValues | null;
-  createSet?: ((patch: Partial<CreateConfigValues>) => void) | null;
-  environmentStatus?: RuntimeEnvironmentStatus;
-  triggerTestId?: string;
-  disabled?: boolean;
-}) {
+  dragHandleProps,
+  isDragging = false,
+}: RuntimeProviderCardProps) {
   const [modelOpen, setModelOpen] = useState(false);
   const [thinkingEffortOpen, setThinkingEffortOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -212,9 +220,27 @@ export function RuntimeProviderCard({
   };
 
   return (
-    <div className={cn("rounded-lg border border-border/80 bg-background/30 p-3", className)}>
+    <div
+      className={cn(
+        "rounded-lg border border-border/80 bg-background/30 p-3 transition-shadow",
+        isDragging && "relative z-10 opacity-90 shadow-md ring-1 ring-primary/30",
+        className,
+      )}
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
+          {dragHandleProps ? (
+            <button
+              type="button"
+              className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={disabled}
+              aria-label={`Reorder ${title}`}
+              title="Drag to reorder runtime priority"
+              {...dragHandleProps}
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
           <div className="truncate text-sm font-medium">{title}</div>
           <RuntimeEnvironmentStatusBadge status={environmentStatus} />
         </div>
@@ -292,6 +318,46 @@ export function RuntimeProviderCard({
           />
         </CollapsibleSection>
       </div>
+    </div>
+  );
+}
+
+export function SortableRuntimeProviderCard({
+  sortableId,
+  canDrag = true,
+  disabled = false,
+  className,
+  ...props
+}: RuntimeProviderCardProps & {
+  sortableId: string;
+  canDrag?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortableId, disabled: disabled || !canDrag });
+  return (
+    <div
+      ref={setNodeRef}
+      className={className}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      data-runtime-chain-item={sortableId}
+    >
+      <RuntimeProviderCard
+        {...props}
+        disabled={disabled}
+        className="h-full"
+        isDragging={isDragging}
+        dragHandleProps={canDrag ? { ...attributes, ...listeners } : null}
+      />
     </div>
   );
 }

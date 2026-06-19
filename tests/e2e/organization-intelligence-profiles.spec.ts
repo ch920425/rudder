@@ -17,7 +17,10 @@ test.describe("Organization intelligence profiles", () => {
     let delayedFirstCodexProbe = false;
     await page.route(`**/api/orgs/${organization.id}/adapters/*/test-environment`, async (route) => {
       const runtimeType = route.request().url().match(/\/adapters\/([^/]+)\/test-environment/)?.[1] ?? "unknown";
-      if (runtimeType === "codex_local" && !delayedFirstCodexProbe) {
+      const body = route.request().postDataJSON() as {
+        agentRuntimeConfig?: { model?: string };
+      };
+      if (runtimeType === "codex_local" && body.agentRuntimeConfig?.model === "gpt-5.4-mini" && !delayedFirstCodexProbe) {
         delayedFirstCodexProbe = true;
         await firstCodexProbeStarted;
       }
@@ -89,6 +92,24 @@ test.describe("Organization intelligence profiles", () => {
 
     await fast.getByRole("button", { name: "Add fallback model" }).click();
     await expect(fast.getByText("Fallback 1", { exact: true })).toBeVisible();
+    await fast.getByRole("button", { name: "Add fallback model" }).click();
+    await expect(fast.getByText("Fallback 2", { exact: true })).toBeVisible();
+
+    const fallback2Card = fast.locator('[data-runtime-chain-item="fallback-1"]');
+    const primaryCard = fast.locator('[data-runtime-chain-item="primary"]');
+    const fallback2Handle = fast.getByRole("button", { name: "Reorder Fallback 2", exact: true });
+    const fallback2Box = await fallback2Card.boundingBox();
+    const primaryBox = await primaryCard.boundingBox();
+    const handleBox = await fallback2Handle.boundingBox();
+    expect(fallback2Box).not.toBeNull();
+    expect(primaryBox).not.toBeNull();
+    expect(handleBox).not.toBeNull();
+    await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(primaryBox!.x + primaryBox!.width / 2, primaryBox!.y + primaryBox!.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await expect(primaryCard.getByText("Primary", { exact: true })).toBeVisible();
+    await expect(primaryCard.getByRole("button", { name: "Gemini CLI (local)", exact: true })).toBeVisible();
 
     const saveResponse = page.waitForResponse((response) =>
       response.request().method() === "PUT"
@@ -99,12 +120,18 @@ test.describe("Organization intelligence profiles", () => {
     const response = await saveResponse;
     const profile = await response.json() as {
       status: string;
+      agentRuntimeType: string;
       agentRuntimeConfig: Record<string, unknown>;
     };
 
     expect(profile.status).toBe("disabled");
-    expect(profile.agentRuntimeConfig.model).toBe("gpt-5.4-mini");
+    expect(profile.agentRuntimeType).toBe("gemini_local");
+    expect(profile.agentRuntimeConfig.model).toBe("auto");
     expect(profile.agentRuntimeConfig.modelFallbacks).toEqual([
+      expect.objectContaining({
+        agentRuntimeType: "codex_local",
+        model: "gpt-5.4-mini",
+      }),
       expect.objectContaining({
         agentRuntimeType: "claude_local",
       }),
@@ -124,6 +151,11 @@ test.describe("Organization intelligence profiles", () => {
       && nextResponse.ok(),
     );
     const testResponses = [
+      page.waitForResponse((nextResponse) =>
+        nextResponse.request().method() === "POST"
+        && nextResponse.url().includes(`/api/orgs/${organization.id}/adapters/gemini_local/test-environment`)
+        && nextResponse.ok(),
+      ),
       page.waitForResponse((nextResponse) =>
         nextResponse.request().method() === "POST"
         && nextResponse.url().includes(`/api/orgs/${organization.id}/adapters/codex_local/test-environment`)
@@ -152,11 +184,11 @@ test.describe("Organization intelligence profiles", () => {
       const body = nextResponse.request().postDataJSON() as {
         agentRuntimeConfig?: { model?: string };
       };
-      return body.agentRuntimeConfig?.model === "gpt-5.4";
+      return body.agentRuntimeConfig?.model === "gpt-5.4-mini";
     });
     await smart.getByRole("button", { name: "Test runtime chain", exact: true }).click();
     await smartTestResponse;
-    await expect(smart.getByText("Primary · Codex (local) · gpt-5.4: Passed")).toBeVisible();
+    await expect(smart.getByText("Primary · Codex (local) · gpt-5.4-mini: Passed")).toBeVisible();
     releaseFirstCodexProbe?.();
 
     await Promise.all(testResponses);

@@ -13,6 +13,10 @@ import { OrganizationIntelligenceProfilesSettings } from "./OrganizationIntellig
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+const dndMockState = vi.hoisted(() => ({
+  onDragEndHandlers: [] as Array<((event: { active: { id: string }; over: { id: string } | null }) => void)>,
+}));
+
 vi.mock("@/api/agents", () => ({
   agentsApi: {
     adapterModels: vi.fn(),
@@ -41,6 +45,36 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipContent: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("@dnd-kit/core", () => ({
+  DndContext: ({
+    children,
+    onDragEnd,
+  }: {
+    children: ReactNode;
+    onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
+  }) => {
+    if (onDragEnd) dndMockState.onDragEndHandlers.push(onDragEnd);
+    return <>{children}</>;
+  },
+  closestCenter: vi.fn(),
+  KeyboardSensor: vi.fn(),
+  PointerSensor: vi.fn(),
+  useSensor: vi.fn(() => ({})),
+  useSensors: vi.fn((...sensors: unknown[]) => sensors),
+}));
+
+vi.mock("@dnd-kit/sortable", () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  horizontalListSortingStrategy: {},
+  sortableKeyboardCoordinates: vi.fn(),
+  arrayMove: <T,>(items: T[], from: number, to: number) => {
+    const next = [...items];
+    const [item] = next.splice(from, 1);
+    if (item !== undefined) next.splice(to, 0, item);
+    return next;
+  },
+}));
+
 vi.mock("@/components/AgentConfigForm.environment", () => ({
   AdapterEnvironmentResult: ({ label }: { label?: string }) => (
     <div>{label ? `${label}: Passed` : "Passed"}</div>
@@ -49,6 +83,22 @@ vi.mock("@/components/AgentConfigForm.environment", () => ({
     <div>{label}: Failed {message}</div>
   ),
   RuntimeProviderCard: ({
+    title,
+    model,
+    environmentStatus,
+    disabled,
+  }: {
+    title: string;
+    model: string;
+    environmentStatus?: string;
+    disabled?: boolean;
+  }) => (
+    <div>
+      {title} {model} {environmentStatus ? `Env ${environmentStatus}` : ""}
+      <button disabled={disabled}>{title} model control</button>
+    </div>
+  ),
+  SortableRuntimeProviderCard: ({
     title,
     model,
     environmentStatus,
@@ -210,6 +260,7 @@ function deferred<T>() {
 
 describe("OrganizationIntelligenceProfilesSettings", () => {
   beforeEach(() => {
+    dndMockState.onDragEndHandlers = [];
     profiles = structuredClone(baseProfiles);
     vi.mocked(organizationsApi.listIntelligenceProfiles).mockResolvedValue(profiles);
     vi.mocked(secretsApi.list).mockResolvedValue([]);
@@ -267,6 +318,89 @@ describe("OrganizationIntelligenceProfilesSettings", () => {
     expect(fastProfile?.textContent).toContain("Runtime chain environment");
     expect(fastProfile?.textContent).toContain("Primary · Codex (local) · gpt-5.4-mini: Passed");
     expect(fastProfile?.textContent).toContain("Fallback 1 · Claude (local) · claude-sonnet-4-5: Passed");
+
+    rendered.cleanup();
+  });
+
+  it("saves a fallback as primary after the runtime chain is reordered", async () => {
+    profiles[0] = {
+      ...profiles[0]!,
+      agentRuntimeConfig: {
+        model: "gpt-5.4-mini",
+        modelFallbacks: [
+          {
+            agentRuntimeType: "claude_local",
+            model: "claude-sonnet-4-5",
+            config: {
+              model: "claude-sonnet-4-5",
+              effort: "medium",
+            },
+          },
+          {
+            agentRuntimeType: "gemini_local",
+            model: "gemini-3-flash",
+            config: {
+              model: "gemini-3-flash",
+              approvalMode: "yolo",
+            },
+          },
+        ],
+      },
+    };
+    const rendered = await renderComponent();
+    await vi.waitFor(() => {
+      expect(rendered.host.querySelector('[data-testid="intelligence-profile-lightweight"]')).not.toBeNull();
+    });
+
+    await act(async () => {
+      dndMockState.onDragEndHandlers[0]?.({
+        active: { id: "fallback-1" },
+        over: { id: "primary" },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const fastProfile = rendered.host.querySelector('[data-testid="intelligence-profile-lightweight"]')!;
+    expect(fastProfile.textContent).toContain("Primary gemini-3-flash");
+    expect(fastProfile.textContent).toContain("Fallback 1 gpt-5.4-mini");
+    expect(fastProfile.textContent).toContain("Fallback 2 claude-sonnet-4-5");
+
+    const saveButton = Array.from(fastProfile.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Save"));
+    await act(async () => {
+      saveButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(organizationsApi.updateIntelligenceProfile).toHaveBeenCalledWith("org-1", "lightweight", {
+      agentRuntimeType: "gemini_local",
+      agentRuntimeConfig: {
+        model: "gemini-3-flash",
+        approvalMode: "yolo",
+        modelFallbacks: [
+          {
+            agentRuntimeType: "codex_local",
+            model: "gpt-5.4-mini",
+            config: {
+              model: "gpt-5.4-mini",
+            },
+          },
+          {
+            agentRuntimeType: "claude_local",
+            model: "claude-sonnet-4-5",
+            config: {
+              model: "claude-sonnet-4-5",
+              effort: "medium",
+            },
+          },
+        ],
+      },
+      status: "disabled",
+    });
 
     rendered.cleanup();
   });
