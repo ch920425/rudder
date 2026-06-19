@@ -14,7 +14,7 @@ import type {
   HeartbeatRecoveryTrigger,
   HeartbeatRunRecoveryContext
 } from "@rudderhq/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import path from "node:path";
 import type {
   AgentRuntimeExecutionResult,
@@ -366,6 +366,22 @@ export function issueCommentAuthorLabel(comment: {
   return "System";
 }
 
+function formatIssuePromptDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+}
+
+function issuePrincipalLabel(input: {
+  kind: "agent" | "user";
+  id: string | null | undefined;
+  name: string | null | undefined;
+}) {
+  if (!input.id) return null;
+  const fallback = input.kind === "agent" ? `Agent ${input.id.slice(0, 8)}` : `User ${input.id.slice(0, 8)}`;
+  return `${input.name?.trim() || fallback} (${input.kind})`;
+}
+
 export function buildDeferredWakePayload(
   payload: Record<string, unknown> | null,
   contextSnapshot: Record<string, unknown>,
@@ -405,15 +421,7 @@ export async function hydrateWakeContextSnapshot(
   const commentId = deriveCommentId(contextSnapshot, null);
   const issueContext = parseObject(contextSnapshot.issue);
   const commentContext = parseObject(contextSnapshot.comment);
-  const needsIssueContext =
-    !!issueId &&
-    (
-      !readNonEmptyString(issueContext.id) ||
-      !readNonEmptyString(issueContext.title) ||
-      !readNonEmptyString(issueContext.status) ||
-      !("priority" in issueContext) ||
-      !("description" in issueContext)
-    );
+  const needsIssueContext = !!issueId;
   const needsProjectId = !!issueId && !readNonEmptyString(contextSnapshot.projectId);
   const needsCommentContext =
     !!commentId &&
@@ -436,19 +444,81 @@ export async function hydrateWakeContextSnapshot(
         status: issues.status,
         priority: issues.priority,
         projectId: issues.projectId,
+        assigneeAgentId: issues.assigneeAgentId,
+        assigneeUserId: issues.assigneeUserId,
+        reviewerAgentId: issues.reviewerAgentId,
+        reviewerUserId: issues.reviewerUserId,
+        createdAt: issues.createdAt,
+        updatedAt: issues.updatedAt,
       })
       .from(issues)
       .where(and(eq(issues.id, issueId), eq(issues.orgId, orgId)))
       .then((rows) => rows[0] ?? null);
 
     if (issueRow) {
+      const agentIds = [
+        issueRow.assigneeAgentId,
+        issueRow.reviewerAgentId,
+      ].filter((value): value is string => Boolean(value));
+      const userIds = [
+        issueRow.assigneeUserId,
+        issueRow.reviewerUserId,
+      ].filter((value): value is string => Boolean(value));
+      const agentNames = new Map<string, string | null>();
+      const userNames = new Map<string, string | null>();
+      if (agentIds.length > 0) {
+        const agentRows = await db
+          .select({ id: agents.id, name: agents.name })
+          .from(agents)
+          .where(and(eq(agents.orgId, orgId), inArray(agents.id, agentIds)));
+        for (const agentRow of agentRows) agentNames.set(agentRow.id, agentRow.name);
+      }
+      if (userIds.length > 0) {
+        const userRows = await db
+          .select({ id: authUsers.id, name: authUsers.name })
+          .from(authUsers)
+          .where(inArray(authUsers.id, userIds));
+        for (const userRow of userRows) userNames.set(userRow.id, userRow.name);
+      }
+      const assigneeLabel =
+        issuePrincipalLabel({
+          kind: "agent",
+          id: issueRow.assigneeAgentId,
+          name: issueRow.assigneeAgentId ? agentNames.get(issueRow.assigneeAgentId) : null,
+        }) ??
+        issuePrincipalLabel({
+          kind: "user",
+          id: issueRow.assigneeUserId,
+          name: issueRow.assigneeUserId ? userNames.get(issueRow.assigneeUserId) : null,
+        }) ??
+        "none";
+      const reviewerLabel =
+        issuePrincipalLabel({
+          kind: "agent",
+          id: issueRow.reviewerAgentId,
+          name: issueRow.reviewerAgentId ? agentNames.get(issueRow.reviewerAgentId) : null,
+        }) ??
+        issuePrincipalLabel({
+          kind: "user",
+          id: issueRow.reviewerUserId,
+          name: issueRow.reviewerUserId ? userNames.get(issueRow.reviewerUserId) : null,
+        }) ??
+        "none";
       contextSnapshot.issue = {
         ...issueContext,
-        id: readNonEmptyString(issueContext.id) ?? issueRow.id,
-        title: readNonEmptyString(issueContext.title) ?? issueRow.title,
-        description: "description" in issueContext ? issueContext.description : issueRow.description,
-        status: readNonEmptyString(issueContext.status) ?? issueRow.status,
-        priority: "priority" in issueContext ? issueContext.priority : issueRow.priority,
+        id: issueRow.id,
+        title: issueRow.title,
+        description: issueRow.description,
+        status: issueRow.status,
+        priority: issueRow.priority,
+        assigneeAgentId: issueRow.assigneeAgentId,
+        assigneeUserId: issueRow.assigneeUserId,
+        assigneeLabel,
+        reviewerAgentId: issueRow.reviewerAgentId,
+        reviewerUserId: issueRow.reviewerUserId,
+        reviewerLabel,
+        createdAt: formatIssuePromptDate(issueRow.createdAt),
+        updatedAt: formatIssuePromptDate(issueRow.updatedAt),
       };
       if (!readNonEmptyString(contextSnapshot.projectId) && issueRow.projectId) {
         contextSnapshot.projectId = issueRow.projectId;

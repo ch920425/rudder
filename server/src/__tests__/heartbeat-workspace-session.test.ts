@@ -1,6 +1,6 @@
 import { sessionCodec as codexSessionCodec } from "@rudderhq/agent-runtime-codex-local/server";
 import type { agents } from "@rudderhq/db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildAgentWorkspaceKey } from "../agent-workspace-key.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import {
@@ -12,6 +12,7 @@ import {
   shouldResetTaskSessionForWake,
   type ResolvedWorkspaceForRun,
 } from "../services/heartbeat.ts";
+import { hydrateWakeContextSnapshot } from "../services/runtime-kernel/heartbeat.sessions.ts";
 
 function buildResolvedWorkspace(overrides: Partial<ResolvedWorkspaceForRun> = {}): ResolvedWorkspaceForRun {
   return {
@@ -257,6 +258,123 @@ describe("shouldResetTaskSessionForWake", () => {
         wakeTriggerDetail: "callback",
       }),
     ).toBe(false);
+  });
+});
+
+describe("hydrateWakeContextSnapshot", () => {
+  it("hydrates explicit issue owner, reviewer, status, and timestamps for agent prompts", async () => {
+    const issueRows = [
+      {
+        id: "issue-1",
+        title: "Clarify prompt metadata",
+        description: "Show all routing metadata in the agent prompt.",
+        status: "blocked",
+        priority: "high",
+        projectId: "project-1",
+        assigneeAgentId: "agent-assignee",
+        assigneeAgentName: "Wesley",
+        assigneeUserId: null,
+        assigneeUserName: null,
+        reviewerAgentId: null,
+        reviewerAgentName: null,
+        reviewerUserId: "user-reviewer",
+        reviewerUserName: "Holden",
+        createdAt: new Date("2026-06-19T08:15:00.000Z"),
+        updatedAt: new Date("2026-06-19T10:30:00.000Z"),
+      },
+    ];
+    const agentRows = [{ id: "agent-assignee", name: "Wesley" }];
+    const userRows = [{ id: "user-reviewer", name: "Holden" }];
+    const issueWhere = vi.fn(async () => issueRows);
+    const agentWhere = vi.fn(async () => agentRows);
+    const userWhere = vi.fn(async () => userRows);
+    const db = {
+      select: vi.fn()
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: issueWhere })) })
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: agentWhere })) })
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: userWhere })) }),
+    } as any;
+    const contextSnapshot: Record<string, unknown> = { issueId: "issue-1" };
+
+    await hydrateWakeContextSnapshot(db, "org-1", contextSnapshot);
+
+    expect(contextSnapshot.projectId).toBe("project-1");
+    expect(contextSnapshot.issue).toMatchObject({
+      id: "issue-1",
+      title: "Clarify prompt metadata",
+      description: "Show all routing metadata in the agent prompt.",
+      status: "blocked",
+      priority: "high",
+      assigneeAgentId: "agent-assignee",
+      assigneeUserId: null,
+      assigneeLabel: "Wesley (agent)",
+      reviewerAgentId: null,
+      reviewerUserId: "user-reviewer",
+      reviewerLabel: "Holden (user)",
+      createdAt: "2026-06-19T08:15:00.000Z",
+      updatedAt: "2026-06-19T10:30:00.000Z",
+    });
+  });
+
+  it("refreshes stale issue metadata and marks empty assignee and reviewer as none", async () => {
+    const issueRows = [
+      {
+        id: "issue-2",
+        title: "Current prompt metadata",
+        description: "Use current DB state.",
+        status: "in_review",
+        priority: "medium",
+        projectId: null,
+        assigneeAgentId: null,
+        assigneeUserId: null,
+        reviewerAgentId: null,
+        reviewerUserId: null,
+        createdAt: new Date("2026-06-19T09:00:00.000Z"),
+        updatedAt: new Date("2026-06-19T11:00:00.000Z"),
+      },
+    ];
+    const issueWhere = vi.fn(async () => issueRows);
+    const db = {
+      select: vi.fn()
+        .mockReturnValueOnce({ from: vi.fn(() => ({ where: issueWhere })) }),
+    } as any;
+    const contextSnapshot: Record<string, unknown> = {
+      issueId: "issue-2",
+      issue: {
+        id: "issue-2",
+        title: "Stale prompt metadata",
+        description: "Old description.",
+        status: "todo",
+        priority: "low",
+        assigneeAgentId: "old-agent",
+        assigneeUserId: null,
+        assigneeLabel: "Old Agent (agent)",
+        reviewerAgentId: "old-reviewer",
+        reviewerUserId: null,
+        reviewerLabel: "Old Reviewer (agent)",
+        createdAt: "2026-06-18T09:00:00.000Z",
+        updatedAt: "2026-06-18T11:00:00.000Z",
+      },
+    };
+
+    await hydrateWakeContextSnapshot(db, "org-1", contextSnapshot);
+
+    expect(db.select).toHaveBeenCalledTimes(1);
+    expect(contextSnapshot.issue).toMatchObject({
+      id: "issue-2",
+      title: "Current prompt metadata",
+      description: "Use current DB state.",
+      status: "in_review",
+      priority: "medium",
+      assigneeAgentId: null,
+      assigneeUserId: null,
+      assigneeLabel: "none",
+      reviewerAgentId: null,
+      reviewerUserId: null,
+      reviewerLabel: "none",
+      createdAt: "2026-06-19T09:00:00.000Z",
+      updatedAt: "2026-06-19T11:00:00.000Z",
+    });
   });
 });
 

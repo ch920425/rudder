@@ -276,8 +276,18 @@ export function resolvePathValue(obj: Record<string, unknown>, dottedPath: strin
     cursor = (cursor as Record<string, unknown>)[part];
   }
 
-  if (cursor === null || cursor === undefined) return "";
-  if (typeof cursor === "string") return cursor;
+  if (cursor === null || cursor === undefined) {
+    if (dottedPath === "issue.assigneeLabel" || dottedPath === "issue.reviewerLabel") return "none";
+    if (dottedPath === "issue.createdAt" || dottedPath === "issue.updatedAt") return "unknown";
+    return "";
+  }
+  if (typeof cursor === "string") {
+    if (cursor.trim().length === 0) {
+      if (dottedPath === "issue.assigneeLabel" || dottedPath === "issue.reviewerLabel") return "none";
+      if (dottedPath === "issue.createdAt" || dottedPath === "issue.updatedAt") return "unknown";
+    }
+    return cursor;
+  }
   if (typeof cursor === "number" || typeof cursor === "boolean") return String(cursor);
 
   try {

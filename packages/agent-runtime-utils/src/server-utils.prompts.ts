@@ -25,6 +25,10 @@ export const ISSUE_ASSIGN_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent
 **ID:** {{issue.id}}
 **Status:** {{issue.status}}
 **Priority:** {{issue.priority}}
+**Assignee:** {{issue.assigneeLabel}}
+**Reviewer:** {{issue.reviewerLabel}}
+**Created At:** {{issue.createdAt}}
+**Updated At:** {{issue.updatedAt}}
 
 **Description:**
 {{issue.description}}
@@ -42,6 +46,11 @@ export const COMMENT_MENTION_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 
 **Issue:** {{issue.title}}
 **ID:** {{issue.id}}
+**Status:** {{issue.status}}
+**Assignee:** {{issue.assigneeLabel}}
+**Reviewer:** {{issue.reviewerLabel}}
+**Created At:** {{issue.createdAt}}
+**Updated At:** {{issue.updatedAt}}
 
 **Issue Description:**
 {{issue.description}}
@@ -66,6 +75,10 @@ export const ISSUE_COMMENTED_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{ag
 **Issue:** {{issue.title}}
 **ID:** {{issue.id}}
 **Status:** {{issue.status}}
+**Assignee:** {{issue.assigneeLabel}}
+**Reviewer:** {{issue.reviewerLabel}}
+**Created At:** {{issue.createdAt}}
+**Updated At:** {{issue.updatedAt}}
 
 **Issue Description:**
 {{issue.description}}
@@ -87,6 +100,10 @@ export const ISSUE_CHANGES_REQUESTED_PROMPT_TEMPLATE = `You are agent {{agent.id
 **Issue:** {{issue.title}}
 **ID:** {{issue.id}}
 **Status:** {{issue.status}}
+**Assignee:** {{issue.assigneeLabel}}
+**Reviewer:** {{issue.reviewerLabel}}
+**Created At:** {{issue.createdAt}}
+**Updated At:** {{issue.updatedAt}}
 
 **Issue Description:**
 {{issue.description}}
@@ -98,6 +115,30 @@ From: {{comment.authorLabel}} ({{comment.authorKind}})
 {{comment.body}}
 
 Review the requested changes and continue the issue from the current state. Address the reviewer feedback before handing it back for review.`;
+
+export const ISSUE_REVIEW_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). You have been asked to review an issue.
+
+{{context.rudderWorkspace.orgResourcesPrompt}}
+
+## Review Context
+
+**Issue:** {{issue.title}}
+**ID:** {{issue.id}}
+**Status:** {{issue.status}}
+**Priority:** {{issue.priority}}
+**Assignee:** {{issue.assigneeLabel}}
+**Reviewer:** {{issue.reviewerLabel}}
+**Created At:** {{issue.createdAt}}
+**Updated At:** {{issue.updatedAt}}
+
+**Issue Description:**
+{{issue.description}}
+
+
+**Review Instructions:**
+{{context.reviewInstructions}}
+
+Inspect the issue state, evidence, comments, and outputs before deciding. Record the requested review outcome instead of treating this as a fresh implementation assignment.`;
 
 export const ISSUE_RECOVERY_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{agent.name}}). This is a recovery run, not a fresh task.
 
@@ -117,6 +158,10 @@ export const ISSUE_RECOVERY_PROMPT_TEMPLATE = `You are agent {{agent.id}} ({{age
 - ID: {{issue.id}}
 - Status: {{issue.status}}
 - Priority: {{issue.priority}}
+- Assignee: {{issue.assigneeLabel}}
+- Reviewer: {{issue.reviewerLabel}}
+- Created At: {{issue.createdAt}}
+- Updated At: {{issue.updatedAt}}
 
 - Description:
 {{issue.description}}
@@ -157,6 +202,10 @@ Reason: {{context.passiveFollowup.reason}}
 - ID: {{issue.id}}
 - Status: {{issue.status}}
 - Priority: {{issue.priority}}
+- Assignee: {{issue.assigneeLabel}}
+- Reviewer: {{issue.reviewerLabel}}
+- Created At: {{issue.createdAt}}
+- Updated At: {{issue.updatedAt}}
 
 - Description:
 {{issue.description}}
@@ -233,6 +282,9 @@ export function selectPromptTemplate(
   }
   if (wakeReason === "issue_changes_requested") {
     return ISSUE_CHANGES_REQUESTED_PROMPT_TEMPLATE;
+  }
+  if (wakeSource === "review") {
+    return ISSUE_REVIEW_PROMPT_TEMPLATE;
   }
   if (wakeSource === "assignment" || wakeReason === "issue_assigned") {
     return ISSUE_ASSIGN_PROMPT_TEMPLATE;
