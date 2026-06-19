@@ -33,10 +33,12 @@ const queryMocks = vi.hoisted((): {
   liveRuns: { data?: unknown; isLoading?: boolean };
   issues: { data?: unknown; isLoading?: boolean };
   agents: { data?: unknown; isLoading?: boolean };
+  transcriptByRun: Map<string, unknown[]>;
 } => ({
   liveRuns: { data: [], isLoading: false },
   issues: { data: [], isLoading: false },
   agents: { data: [], isLoading: false },
+  transcriptByRun: new Map([["run-1", []]]),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -65,15 +67,19 @@ vi.mock("@/lib/router", () => ({
 
 vi.mock("./transcript/useLiveRunTranscripts", () => ({
   useLiveRunTranscripts: () => ({
-    transcriptByRun: new Map([["run-1", []]]),
+    transcriptByRun: queryMocks.transcriptByRun,
     hasOutputForRun: () => false,
   }),
 }));
 
 vi.mock("./transcript/RunTranscriptView", () => ({
-  RunTranscriptView: ({ className, streaming }: { className?: string; streaming?: boolean }) => (
+  RunTranscriptView: ({ className, entries, streaming }: { className?: string; entries?: unknown[]; streaming?: boolean }) => (
     <div
       className={className}
+      data-entry-texts={JSON.stringify((entries ?? []).map((entry) => {
+        if (entry && typeof entry === "object" && "text" in entry && typeof entry.text === "string") return entry.text;
+        return "";
+      }))}
       data-testid="run-transcript-view"
       data-streaming={streaming ? "true" : "false"}
     />
@@ -86,6 +92,7 @@ beforeEach(() => {
   queryMocks.liveRuns = { data: [liveRunFixture], isLoading: false };
   queryMocks.issues = { data: [issueFixture], isLoading: false };
   queryMocks.agents = { data: [], isLoading: false };
+  queryMocks.transcriptByRun = new Map([["run-1", []]]);
 });
 
 afterEach(() => {
@@ -187,6 +194,36 @@ describe("ActiveAgentsPanel", () => {
     const transcript = container.querySelector('[data-testid="run-transcript-view"]');
     expect(transcript?.getAttribute("data-streaming")).toBe("true");
     expect(transcript?.classList.contains("dashboard-run-preview")).toBe(true);
+  });
+
+  it("passes hydrated live transcript text into dashboard run previews", () => {
+    queryMocks.transcriptByRun = new Map([[
+      "run-1",
+      [
+        {
+          kind: "assistant",
+          ts: "2026-06-19T11:06:22.580Z",
+          text: "我先看一下附件里的错误和 paperclip 仓库本地约束。",
+        },
+      ],
+    ]]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => root.unmount());
+      container.remove();
+    };
+
+    act(() => {
+      root.render(<ActiveAgentsPanel orgId="org-1" />);
+    });
+
+    const transcript = container.querySelector('[data-testid="run-transcript-view"]');
+    expect(transcript?.getAttribute("data-entry-texts")).toContain("我先看一下附件里的错误和 paperclip 仓库本地约束。");
+    expect(transcript?.getAttribute("data-entry-texts")).not.toContain("chat transcript entry");
   });
 
   it("shows a skeleton instead of an empty state while recent runs are loading", () => {

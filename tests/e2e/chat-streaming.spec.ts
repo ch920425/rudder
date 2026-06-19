@@ -260,7 +260,11 @@ test.describe("Chat streaming", () => {
     const chatId = currentChatId(page.url());
 
     await page.goto(`/${organization.issuePrefix}/dashboard`);
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible({ timeout: 15_000 });
+    const dashboardRunPreview = page.locator(".dashboard-run-preview").first();
+    await expect(dashboardRunPreview).toBeVisible({ timeout: 15_000 });
+    await expect(dashboardRunPreview).toContainText("for chat.", { timeout: 15_000 });
+    await expect(dashboardRunPreview).not.toContainText("chat transcript entry");
 
     await expect.poll(async () => {
       const messagesRes = await page.request.get(`/api/chats/${chatId}/messages`);
