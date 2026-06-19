@@ -1018,18 +1018,19 @@ describe("CommentThread", () => {
     await click([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Collapse comment")) ?? null);
 
     expect(commentBlock?.getAttribute("aria-label")).toBe("Collapsed comment");
-    expect(commentBlock?.textContent).not.toContain("Long comment body that should fold away.");
-    expect(commentBlock?.textContent).not.toContain("run run-1");
-    expect(commentBlock?.textContent).toContain("Expand comment");
+    expect(commentBlock?.textContent).toContain("Long comment body that should fold away.");
+    expect(commentBlock?.querySelector("[data-comment-body-collapsed]")?.className).toContain("grid-rows-[0fr]");
+    expect(commentBlock?.querySelector('button[aria-label="Expand comment"]')).toBeTruthy();
 
-    await click([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Expand comment")) ?? null);
+    await click(commentBlock?.querySelector('button[aria-label="Expand comment"]') ?? null);
 
     expect(commentBlock?.getAttribute("aria-label")).toBeNull();
+    expect(commentBlock?.querySelector("[data-comment-body-collapsed]")).toBeNull();
     expect(commentBlock?.textContent).toContain("Long comment body that should fold away.");
     expect(commentBlock?.textContent).toContain("run run-1");
   });
 
-  it("keeps collapsed comment headers compact and uses the run icon for actions", async () => {
+  it("keeps collapsed comment headers compact and uses a chevron expander", async () => {
     const container = renderInteractive(
       <MemoryRouter>
         <CommentThread
@@ -1057,12 +1058,13 @@ describe("CommentThread", () => {
 
     const commentBlock = container.querySelector("#comment-comment-1");
     const collapsedHeader = commentBlock?.querySelector("[data-comment-collapsed-header]");
-    const actionsButton = commentBlock?.querySelector('button[aria-label="Collapsed comment actions"]');
+    const expandButton = commentBlock?.querySelector('button[aria-label="Expand comment"]');
 
     expect(collapsedHeader?.className).toContain("grid-cols-[minmax(0,1fr)_auto_auto]");
-    expect(actionsButton?.className).toContain("rounded-full");
-    expect(actionsButton?.innerHTML).toContain("lucide-square-terminal");
-    expect(actionsButton?.innerHTML).not.toContain("lucide-ellipsis");
+    expect(commentBlock?.textContent).toContain("A long folded comment.");
+    expect(expandButton?.className).toContain("rounded-full");
+    expect(expandButton?.innerHTML).toContain("lucide-chevron-down");
+    expect(expandButton?.innerHTML).not.toContain("lucide-square-terminal");
   });
 
   it("renders comment editing as a full composer surface with attachment upload", async () => {

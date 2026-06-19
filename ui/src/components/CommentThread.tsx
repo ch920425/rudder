@@ -290,6 +290,18 @@ function buildCommentMarkdownLink(comment: CommentWithRunMeta, location: ReturnT
   return `[Issue comment ${comment.id.slice(0, 8)}](${href})`;
 }
 
+function buildCommentPreview(body: string) {
+  return body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[\s>*+-]+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function timelineDateTime(date: Date | string) {
   const timestamp = new Date(date);
   return Number.isNaN(timestamp.getTime()) ? undefined : timestamp.toISOString();
@@ -338,10 +350,10 @@ function CommentActionsMenu({
           aria-label={collapsed ? "Collapsed comment actions" : "Comment actions"}
           title={collapsed ? "Collapsed comment actions" : "Comment actions"}
         >
-          {collapsed ? <TerminalSquare className="h-3.5 w-3.5" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+          <MoreHorizontal className="h-3.5 w-3.5" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40 whitespace-nowrap">
+      <DropdownMenuContent align="end" className="w-48 whitespace-nowrap">
         <DropdownMenuItem onSelect={() => copyToClipboard("content", comment.body)}>
           {copiedAction === "content" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           Copy content
@@ -395,6 +407,41 @@ function CommentActionsMenu({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function AnimatedCommentBody({
+  collapsed,
+  children,
+}: {
+  collapsed: boolean;
+  children: ReactNode;
+}) {
+  const [rendered, setRendered] = useState(!collapsed);
+  const showContent = !collapsed || rendered;
+
+  useEffect(() => {
+    if (!collapsed) {
+      setRendered(true);
+    }
+  }, [collapsed]);
+
+  return (
+    <div
+      data-comment-body-collapsed={collapsed ? "true" : undefined}
+      aria-hidden={collapsed}
+      className={`grid motion-safe:transition-[grid-template-rows,opacity,margin-top] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none ${collapsed ? "mt-0 grid-rows-[0fr] opacity-0" : "mt-2 grid-rows-[1fr] opacity-100"}`}
+      onTransitionEnd={(event) => {
+        if (event.currentTarget !== event.target) return;
+        if (collapsed) {
+          setRendered(false);
+        }
+      }}
+    >
+      <div className="min-h-0 overflow-hidden">
+        {showContent ? children : null}
+      </div>
+    </div>
   );
 }
 
@@ -702,6 +749,7 @@ const TimelineList = memo(function TimelineList({
         const canDelete = !!currentUserId && (canEdit || !!comment.authorAgentId);
         const isEditing = editingCommentId === comment.id;
         const commentCollapsed = commentCollapsedOverrides[comment.id] === true && !isEditing;
+        const commentPreview = buildCommentPreview(comment.body);
         const handleToggleCollapsed = () => {
           setCommentCollapsedOverrides((current) => ({
             ...current,
@@ -793,12 +841,20 @@ const TimelineList = memo(function TimelineList({
                 data-comment-collapsed-header={commentCollapsed ? "true" : undefined}
                 className={commentCollapsed
                   ? "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-xs"
-                  : "mb-1 flex min-w-0 items-center justify-between gap-3"}
+                  : "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3"}
               >
-                <div className={commentCollapsed ? "flex h-7 min-w-0 items-center" : "min-w-0"}>
-                  {authorNode}
+                <div className={commentCollapsed ? "flex h-7 min-w-0 items-center gap-2" : "min-w-0"}>
+                  <span className={commentCollapsed ? "min-w-0 max-w-[12rem] shrink-0" : "min-w-0"}>{authorNode}</span>
+                  {commentCollapsed && commentPreview ? (
+                    <span
+                      className="line-clamp-2 min-w-0 text-sm leading-5 text-foreground"
+                      title={commentPreview}
+                    >
+                      {commentPreview}
+                    </span>
+                  ) : null}
                 </div>
-                <span className={commentCollapsed ? "hidden h-7 shrink-0 items-center sm:inline-flex" : "flex shrink-0 items-center gap-1.5"}>
+                <span className={commentCollapsed ? "hidden h-7 shrink-0 items-center sm:inline-flex" : "flex h-7 shrink-0 items-center gap-1.5"}>
                   {timestampNode}
                   {isEdited ? (
                     <span className="text-xs text-muted-foreground" title={formatDateTime(comment.updatedAt)}>
@@ -806,19 +862,33 @@ const TimelineList = memo(function TimelineList({
                     </span>
                   ) : null}
                 </span>
-                <span className={commentCollapsed ? "flex h-7 shrink-0 items-center" : "flex shrink-0 items-center"}>
-                  <CommentActionsMenu
-                    comment={comment}
-                    orgId={orgId}
-                    projectId={projectId}
-                    location={location}
-                    collapsed={commentCollapsed}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    onToggleCollapsed={handleToggleCollapsed}
-                    onEdit={handleStartEdit}
-                    onDelete={handleDelete}
-                  />
+                <span className={commentCollapsed ? "flex h-7 shrink-0 items-center gap-1" : "flex h-7 shrink-0 items-center gap-1"}>
+                  {commentCollapsed ? (
+                    <button
+                      type="button"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background/70 text-muted-foreground motion-safe:transition-[background-color,color,transform] hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none"
+                      aria-label="Expand comment"
+                      aria-expanded="false"
+                      title="Expand comment"
+                      onClick={handleToggleCollapsed}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                  {!commentCollapsed ? (
+                    <CommentActionsMenu
+                      comment={comment}
+                      orgId={orgId}
+                      projectId={projectId}
+                      location={location}
+                      collapsed={commentCollapsed}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onToggleCollapsed={handleToggleCollapsed}
+                      onEdit={handleStartEdit}
+                      onDelete={handleDelete}
+                    />
+                  ) : null}
                 </span>
               </div>
             )}
@@ -872,49 +942,51 @@ const TimelineList = memo(function TimelineList({
                   </div>
                 </div>
               </>
-            ) : commentCollapsed ? null : (
-              <MarkdownBody
-                className="text-sm"
-                agentMentions={agentMentions}
-                skillReferences={skillReferences}
-                onLinkClick={onMarkdownLinkClick}
-              >
-                {comment.body}
-              </MarkdownBody>
-            )}
-            {!isEditing && !commentCollapsed && orgId ? (
-              <div className="mt-2 space-y-2">
-                <PluginSlotOutlet
-                  slotTypes={["commentAnnotation"]}
-                  entityType="comment"
-                  context={{
-                    orgId,
-                    projectId: projectId ?? null,
-                    entityId: comment.id,
-                    entityType: "comment",
-                    parentEntityId: comment.issueId,
-                  }}
-                  className="space-y-2"
-                  itemClassName="rounded-md"
-                  missingBehavior="placeholder"
-                />
-              </div>
-            ) : null}
-            {!isEditing && !commentCollapsed && comment.runId && (
-              <div className="mt-2 pt-2 border-t border-border/60">
-                {comment.runAgentId ? (
-                  <Link
-                    to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
-                    className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                  >
-                    run {comment.runId.slice(0, 8)}
-                  </Link>
-                ) : (
-                  <span className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground">
-                    run {comment.runId.slice(0, 8)}
-                  </span>
-                )}
-              </div>
+            ) : (
+              <AnimatedCommentBody collapsed={commentCollapsed}>
+                <MarkdownBody
+                  className="text-sm"
+                  agentMentions={agentMentions}
+                  skillReferences={skillReferences}
+                  onLinkClick={onMarkdownLinkClick}
+                >
+                  {comment.body}
+                </MarkdownBody>
+                {orgId ? (
+                  <div className="mt-2 space-y-2">
+                    <PluginSlotOutlet
+                      slotTypes={["commentAnnotation"]}
+                      entityType="comment"
+                      context={{
+                        orgId,
+                        projectId: projectId ?? null,
+                        entityId: comment.id,
+                        entityType: "comment",
+                        parentEntityId: comment.issueId,
+                      }}
+                      className="space-y-2"
+                      itemClassName="rounded-md"
+                      missingBehavior="placeholder"
+                    />
+                  </div>
+                ) : null}
+                {comment.runId ? (
+                  <div className="mt-2 pt-2 border-t border-border/60">
+                    {comment.runAgentId ? (
+                      <Link
+                        to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
+                        className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                      >
+                        run {comment.runId.slice(0, 8)}
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground">
+                        run {comment.runId.slice(0, 8)}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+              </AnimatedCommentBody>
             )}
           </div>
         );
