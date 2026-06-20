@@ -1593,6 +1593,9 @@ describe("MessengerContextSidebar chat actions", () => {
   });
 
   it("does not expose thread pin actions on the aggregate Issues row", () => {
+    installLocalStorage({
+      "rudder.messengerSplitIssueNotificationsByOrg": JSON.stringify({ "org-1": false }),
+    });
     chatList = [];
     messengerModel = {
       ...baseModel(),
