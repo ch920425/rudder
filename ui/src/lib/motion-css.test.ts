@@ -24,6 +24,24 @@ describe("Motion V1 CSS", () => {
     expect(motionCss).toContain("transition: none !important");
   });
 
+  it("keeps live surface motion on the border instead of the card center", () => {
+    const liveSurfaceRing =
+      motionCss.match(/\.motion-live-surface::before \{[\s\S]*?\n\}/)?.[0] ?? "";
+
+    expect(liveSurfaceRing).toContain("inset: -1px");
+    expect(liveSurfaceRing).toContain("padding: 2px");
+    expect(liveSurfaceRing).toContain("conic-gradient");
+    expect(liveSurfaceRing).toContain("from var(--motion-live-surface-angle)");
+    expect(liveSurfaceRing).toContain("-webkit-mask-composite: xor");
+    expect(liveSurfaceRing).toContain("mask-composite: exclude");
+    expect(liveSurfaceRing).not.toContain("radial-gradient");
+    expect(liveSurfaceRing).not.toContain("background: color-mix");
+
+    const liveSurfaceKeyframes = motionCss.match(/@keyframes rudder-live-surface \{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(liveSurfaceKeyframes).toContain("--motion-live-surface-angle: 360deg");
+    expect(liveSurfaceKeyframes).not.toContain("transform:");
+  });
+
   it("defines a visible pop animation for chat option disclosure", () => {
     expect(motionCss).toContain("@keyframes rudder-chat-options-pop");
     expect(motionCss).toContain("var(--chat-options-origin-x");

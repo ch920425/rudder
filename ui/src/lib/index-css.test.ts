@@ -113,6 +113,8 @@ describe("index.css motion rules", () => {
     const sharedHalo = cssBlock(".active-surface-ring::after");
     const softHalo =
       indexCss.match(/\n\s*\.active-surface-ring::after \{\s*\n\s*box-shadow:[\s\S]*?\n\s*\}/)?.[0] ?? "";
+    const liveRunHalo =
+      indexCss.match(/\n\s*\.active-surface-ring\[data-active-surface="live-run"\]::after \{[\s\S]*?\n\s*\}/)?.[0] ?? "";
     const reducedMotion =
       indexCss.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.active-surface-ring::before[\s\S]*?\n\s*\}/)?.[0] ?? "";
 
@@ -124,6 +126,9 @@ describe("index.css motion rules", () => {
     expect(softRing).toContain("conic-gradient");
     expect(softRing).toContain("from var(--command-palette-search-angle)");
     expect(softRing).toContain("inset: -2px");
+    expect(softRing).toContain("padding: var(--active-surface-ring-mask-width)");
+    expect(softRing).toContain("-webkit-mask-composite: xor");
+    expect(softRing).toContain("mask-composite: exclude");
     expect(softRing).toContain("opacity: 0.84");
     expect(softRing).toContain("var(--ring) 78%");
     expect(softRing).toContain("filter: drop-shadow");
@@ -135,9 +140,12 @@ describe("index.css motion rules", () => {
     expect(indexCss).toContain('.active-surface-ring[data-active-surface="live-run"]');
     expect(indexCss).toContain('.active-surface-ring[data-active-surface^="workspace"]');
     expect(sharedHalo).not.toContain("background: inherit");
+    expect(sharedHalo).toContain("background: var(--active-surface-ring-cover)");
     expect(softHalo).toContain("opacity: 0.96");
     expect(softHalo).toContain("var(--active-surface-accent) 12%");
     expect(softHalo).toContain("var(--active-surface-accent) 48%");
+    expect(liveRunHalo).toContain("background: transparent");
+    expect(liveRunHalo).not.toContain("background: var(--active-surface-ring-cover)");
     expect(reducedMotion).toContain("animation: none");
   });
 

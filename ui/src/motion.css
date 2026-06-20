@@ -8,6 +8,12 @@
   --motion-ease-exit: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@property --motion-live-surface-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 .motion-new-issue-dialog {
   view-transition-name: new-issue-dialog;
   transition:
@@ -81,11 +87,29 @@
 .motion-live-surface::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -1px;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-base) 32%, transparent);
+  padding: 2px;
+  background:
+    conic-gradient(
+      from var(--motion-live-surface-angle),
+      transparent 0deg 52deg,
+      color-mix(in oklab, var(--accent-base) 22%, transparent) 86deg,
+      color-mix(in oklab, var(--accent-base) 68%, white) 118deg,
+      color-mix(in oklab, var(--accent-base) 24%, transparent) 156deg,
+      transparent 212deg 360deg
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
   opacity: 0.72;
+  --motion-live-surface-angle: 0deg;
   animation: rudder-live-surface 2200ms var(--motion-ease-standard) infinite;
 }
 
@@ -502,12 +526,16 @@
 }
 
 @keyframes rudder-live-surface {
-  0%,
-  100% {
+  0% {
     opacity: 0.38;
+    --motion-live-surface-angle: 0deg;
   }
   50% {
     opacity: 0.84;
+  }
+  100% {
+    opacity: 0.38;
+    --motion-live-surface-angle: 360deg;
   }
 }
 

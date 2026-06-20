@@ -739,6 +739,7 @@
     isolation: isolate;
     --active-surface-accent: var(--accent-base);
     --active-surface-ring-width: 1px;
+    --active-surface-ring-mask-width: 3px;
     --active-surface-ring-inner-radius: calc(var(--radius-md) - var(--active-surface-ring-width));
     --active-surface-ring-cover:
       linear-gradient(
@@ -825,6 +826,7 @@
   .active-surface-ring::before {
     inset: -2px;
     border-radius: inherit;
+    padding: var(--active-surface-ring-mask-width);
     background:
       conic-gradient(
           from var(--command-palette-search-angle),
@@ -835,6 +837,14 @@
           transparent 218deg 360deg
         )
         border-box;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
     opacity: 0.84;
     filter: drop-shadow(0 0 4px color-mix(in oklab, var(--active-surface-accent) 24%, transparent));
   }
@@ -882,6 +892,10 @@
       0 0 0 1px color-mix(in oklab, var(--active-surface-accent) 12%, transparent),
       0 0 24px -16px color-mix(in oklab, var(--active-surface-accent) 48%, transparent);
     opacity: 0.96;
+  }
+
+  .active-surface-ring[data-active-surface="live-run"]::after {
+    background: transparent;
   }
 
   .active-surface-ring:is([data-active-surface="import-preview"], [data-active-surface="import-apply"])::after {
