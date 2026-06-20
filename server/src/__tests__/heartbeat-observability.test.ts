@@ -120,7 +120,7 @@ describe("heartbeat observability surface", () => {
           description: null,
         },
       ],
-    })).toEqual({
+    })).toMatchObject({
       agentRuntimeType: "claude_local",
       command: "claude",
       cwd: "/tmp/run-workspace",
@@ -131,6 +131,7 @@ describe("heartbeat observability surface", () => {
       },
       loadedSkillCount: 2,
       loadedSkillKeys: ["rudder/build-advisor", "rudder/screenshot"],
+      loadedSkillEvidenceType: "legacy_availability",
       loadedSkills: [
         {
           key: "rudder/build-advisor",
@@ -145,6 +146,14 @@ describe("heartbeat observability surface", () => {
           description: null,
         },
       ],
+      desiredSkillCount: 2,
+      desiredSkillKeys: ["rudder/build-advisor", "rudder/screenshot"],
+      realizedSkillCount: 0,
+      realizedSkillKeys: [],
+      nativeDiscoverableSkillCount: 0,
+      nativeDiscoverableSkillKeys: [],
+      promptInjectedSkillCount: 0,
+      promptInjectedSkillKeys: [],
       usedSkillCount: 0,
       usedSkillKeys: [],
       usedSkills: [],
@@ -184,8 +193,65 @@ describe("heartbeat observability surface", () => {
           description: "Diagnose build quality",
         },
       ],
+      realizedSkillCount: 0,
+      realizedSkillKeys: [],
+      loadedSkillEvidenceType: "legacy_availability",
       skillEvidenceType: "loaded",
       skillEvidenceKeys: [],
+    });
+  });
+
+  it("separates desired, realized, native, prompt-injected, and used skill evidence", () => {
+    expect(buildHeartbeatAdapterInvokePayload({
+      meta: {
+        agentRuntimeType: "cursor",
+        command: "cursor-agent",
+        realizedSkills: [
+          {
+            key: "rudder/build-advisor",
+            runtimeName: "build-advisor",
+            name: "Build Advisor",
+          },
+        ],
+        promptInjectedSkills: [
+          {
+            key: "rudder/build-advisor",
+            runtimeName: "build-advisor",
+            name: "Build Advisor",
+          },
+        ],
+        nativeDiscoverableSkills: [],
+        usedSkills: [
+          {
+            key: "rudder/build-advisor",
+            runtimeName: "build-advisor",
+            name: "Build Advisor",
+          },
+        ],
+        forbiddenMarkerObserved: false,
+      },
+      runtimeSkills: [
+        {
+          key: "rudder/build-advisor",
+          runtimeName: "build-advisor",
+          name: "Build Advisor",
+          description: "Diagnose build quality",
+        },
+      ],
+    })).toMatchObject({
+      desiredSkillCount: 1,
+      desiredSkillKeys: ["rudder/build-advisor"],
+      realizedSkillCount: 1,
+      realizedSkillKeys: ["rudder/build-advisor"],
+      nativeDiscoverableSkillCount: 0,
+      nativeDiscoverableSkillKeys: [],
+      promptInjectedSkillCount: 1,
+      promptInjectedSkillKeys: ["rudder/build-advisor"],
+      usedSkillCount: 1,
+      usedSkillKeys: ["rudder/build-advisor"],
+      forbiddenMarkerObserved: false,
+      skillEvidenceType: "used",
+      skillEvidenceKeys: ["rudder/build-advisor"],
     });
   });
 

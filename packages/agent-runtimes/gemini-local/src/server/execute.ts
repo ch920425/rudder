@@ -282,6 +282,14 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   });
   const geminiSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredGeminiSkillNames = resolveRudderDesiredSkillNames(config, geminiSkillEntries);
+  const loadedSkills = geminiSkillEntries
+    .filter((entry) => desiredGeminiSkillNames.includes(entry.key))
+    .map((entry) => ({
+      key: entry.key,
+      runtimeName: entry.runtimeName,
+      name: entry.name ?? null,
+      description: entry.description ?? null,
+    }));
   await ensureGeminiSkillsInjected(
     onLog,
     geminiSkillEntries,
@@ -521,6 +529,8 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt,
         promptMetrics,
+        loadedSkills,
+        realizedSkills: loadedSkills,
         context,
       });
     }

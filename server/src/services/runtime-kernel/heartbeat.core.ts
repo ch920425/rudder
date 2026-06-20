@@ -288,17 +288,35 @@ export function buildHeartbeatAdapterInvokePayload(input: {
       .filter((entry): entry is { key: string; label: string } => Boolean(entry))
     : [];
   const promptRequestedSkills = inferUsedSkillsFromPrompt(input.meta.prompt, input.runtimeSkills);
+  const desiredSkills = input.runtimeSkills
+    .map((entry) => ({
+      key: entry.key,
+      runtimeName: entry.runtimeName ?? null,
+      name: entry.name ?? null,
+      description: entry.description ?? null,
+    }));
+  const realizedSkills = Array.isArray(input.meta.realizedSkills)
+    ? input.meta.realizedSkills
+      .map((entry) => normalizeLoadedSkillForPayload(entry))
+      .filter((entry): entry is { key: string; runtimeName: string | null; name: string | null; description: string | null } => Boolean(entry))
+    : [];
+  const nativeDiscoverableSkills = Array.isArray(input.meta.nativeDiscoverableSkills)
+    ? input.meta.nativeDiscoverableSkills
+      .map((entry) => normalizeLoadedSkillForPayload(entry))
+      .filter((entry): entry is { key: string; runtimeName: string | null; name: string | null; description: string | null } => Boolean(entry))
+    : [];
+  const promptInjectedSkills = Array.isArray(input.meta.promptInjectedSkills)
+    ? input.meta.promptInjectedSkills
+      .map((entry) => normalizeLoadedSkillForPayload(entry))
+      .filter((entry): entry is { key: string; runtimeName: string | null; name: string | null; description: string | null } => Boolean(entry))
+    : [];
   const loadedSkills = Array.isArray(input.meta.loadedSkills) && input.meta.loadedSkills.length > 0
     ? input.meta.loadedSkills
       .map((entry) => normalizeLoadedSkillForPayload(entry))
       .filter((entry): entry is { key: string; runtimeName: string | null; name: string | null; description: string | null } => Boolean(entry))
-    : input.runtimeSkills
-      .map((entry) => ({
-        key: entry.key,
-        runtimeName: entry.runtimeName ?? null,
-        name: entry.name ?? null,
-        description: entry.description ?? null,
-      }));
+    : realizedSkills.length > 0
+      ? realizedSkills
+      : desiredSkills;
   const loadedSkillEvidence = loadedSkills
     .map((entry) => normalizeLoadedSkill(entry))
     .filter((entry): entry is { key: string; label: string } => Boolean(entry));
@@ -320,9 +338,22 @@ export function buildHeartbeatAdapterInvokePayload(input: {
   return {
     ...persistentMeta,
     ...summarizeRuntimeSkillsForTrace(input.runtimeSkills),
+    desiredSkillCount: desiredSkills.length,
+    desiredSkillKeys: desiredSkills.map((entry) => entry.key),
+    desiredSkills,
+    realizedSkillCount: realizedSkills.length,
+    realizedSkillKeys: realizedSkills.map((entry) => entry.key),
+    realizedSkills,
+    nativeDiscoverableSkillCount: nativeDiscoverableSkills.length,
+    nativeDiscoverableSkillKeys: nativeDiscoverableSkills.map((entry) => entry.key),
+    nativeDiscoverableSkills,
+    promptInjectedSkillCount: promptInjectedSkills.length,
+    promptInjectedSkillKeys: promptInjectedSkills.map((entry) => entry.key),
+    promptInjectedSkills,
     loadedSkillCount: loadedSkills.length,
     loadedSkillKeys: loadedSkills.map((entry) => entry.key),
     loadedSkills,
+    loadedSkillEvidenceType: "legacy_availability",
     usedSkillCount: explicitUsedSkills.length,
     usedSkillKeys: explicitUsedSkills.map((entry) => entry.key),
     usedSkills: explicitUsedSkills,

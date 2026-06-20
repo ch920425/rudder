@@ -432,6 +432,13 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   // Inject skills
   const piSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredPiSkillNames = resolveRudderDesiredSkillNames(config, piSkillEntries);
+  const selectedPiSkillEntries = piSkillEntries.filter((entry) => desiredPiSkillNames.includes(entry.key));
+  const loadedSkills = selectedPiSkillEntries.map((entry) => ({
+    key: entry.key,
+    runtimeName: entry.runtimeName,
+    name: entry.name ?? null,
+    description: entry.description ?? null,
+  }));
   await ensurePiSkillsInjected(onLog, piSkillEntries, skillsDir, desiredPiSkillNames);
 
   // Build environment
@@ -695,6 +702,8 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt: userPrompt,
         promptMetrics,
+        loadedSkills,
+        realizedSkills: loadedSkills,
         context,
       });
     }

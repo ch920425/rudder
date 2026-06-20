@@ -329,6 +329,12 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const cursorSkillEntries = await readRudderRuntimeSkillEntries(config, __moduleDir);
   const desiredCursorSkillNames = resolveRudderDesiredSkillNames(config, cursorSkillEntries);
   const selectedCursorSkillEntries = cursorSkillEntries.filter((entry) => desiredCursorSkillNames.includes(entry.key));
+  const loadedSkills = selectedCursorSkillEntries.map((entry) => ({
+    key: entry.key,
+    runtimeName: entry.runtimeName,
+    name: entry.name ?? null,
+    description: entry.description ?? null,
+  }));
   const managedCursorSkillsDir = resolveManagedCursorSkillsDir(managedHome);
   await ensureCursorSkillsInjected(onLog, {
     skillsEntries: selectedCursorSkillEntries,
@@ -590,6 +596,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         env: redactEnvForLogs(env),
         prompt,
         promptMetrics,
+        loadedSkills,
+        realizedSkills: loadedSkills,
+        promptInjectedSkills: loadedSkills,
         context,
       });
     }

@@ -344,6 +344,10 @@ describe("cursor execute", { timeout: 20_000 }, () => {
     const rudderDir = await createSkillDir(runtimeSkillsRoot, "rudder");
     const asciiHeartDir = await createSkillDir(runtimeSkillsRoot, "ascii-heart");
 
+    let loadedSkills: unknown[] = [];
+    let realizedSkills: unknown[] = [];
+    let promptInjectedSkills: unknown[] = [];
+    let nativeDiscoverableSkills: unknown[] | undefined;
     const restoreEnv = setManagedCursorEnv(root);
 
     try {
@@ -388,7 +392,12 @@ describe("cursor execute", { timeout: 20_000 }, () => {
         context: {},
         authToken: "run-jwt-token",
         onLog: async () => {},
-        onMeta: async () => {},
+        onMeta: async (meta) => {
+          loadedSkills = meta.loadedSkills ?? [];
+          realizedSkills = meta.realizedSkills ?? [];
+          promptInjectedSkills = meta.promptInjectedSkills ?? [];
+          nativeDiscoverableSkills = meta.nativeDiscoverableSkills;
+        },
       });
 
       expect(result.exitCode).toBe(0);
@@ -404,6 +413,15 @@ describe("cursor execute", { timeout: 20_000 }, () => {
       expect(capture.prompt ?? "").toContain("# Enabled Rudder Skills");
       expect(capture.prompt ?? "").toContain("## Skill: ascii-heart");
       expect(capture.prompt ?? "").not.toContain("operator-skill");
+      expect(loadedSkills).toEqual([
+        expect.objectContaining({
+          key: "ascii-heart",
+          runtimeName: "ascii-heart",
+        }),
+      ]);
+      expect(realizedSkills).toEqual(loadedSkills);
+      expect(promptInjectedSkills).toEqual(loadedSkills);
+      expect(nativeDiscoverableSkills).toBeUndefined();
     } finally {
       restoreEnv();
       await fs.rm(root, { recursive: true, force: true });

@@ -607,6 +607,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         prompt,
         promptMetrics,
         loadedSkills,
+        realizedSkills: loadedSkills,
         context,
       });
     }

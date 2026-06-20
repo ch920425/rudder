@@ -106,6 +106,13 @@ console.log(JSON.stringify({
   await fs.chmod(commandPath, 0o755);
 }
 
+async function createSkillDir(root: string, name: string) {
+  const skillDir = path.join(root, name);
+  await fs.mkdir(skillDir, { recursive: true });
+  await fs.writeFile(path.join(skillDir, "SKILL.md"), `---\nname: ${name}\n---\n`, "utf8");
+  return skillDir;
+}
+
 type CapturePayload = {
   argv: string[];
   stdin: string;
@@ -144,6 +151,12 @@ describe("pi execute", { timeout: 20_000 }, () => {
 
     let commandNotes: string[] = [];
     let promptMetrics: Record<string, number> = {};
+    let loadedSkills: unknown[] = [];
+    let realizedSkills: unknown[] = [];
+    let nativeDiscoverableSkills: unknown[] | undefined;
+    const runtimeSkillsRoot = path.join(root, "runtime-skills");
+    const rudderDir = await createSkillDir(runtimeSkillsRoot, "rudder");
+    const asciiHeartDir = await createSkillDir(runtimeSkillsRoot, "ascii-heart");
     const previousHome = process.env.HOME;
     const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
     process.env.HOME = root;
@@ -174,6 +187,19 @@ describe("pi execute", { timeout: 20_000 }, () => {
           },
           instructionsFilePath: instructionsPath,
           promptTemplate: "Follow the rudder heartbeat.",
+          rudderRuntimeSkills: [
+            {
+              name: "rudder",
+              source: rudderDir,
+            },
+            {
+              name: "ascii-heart",
+              source: asciiHeartDir,
+            },
+          ],
+          rudderSkillSync: {
+            desiredSkills: ["ascii-heart"],
+          },
         },
         context: {
           rudderScene: "heartbeat",
@@ -192,6 +218,9 @@ describe("pi execute", { timeout: 20_000 }, () => {
         onMeta: async (meta) => {
           commandNotes = Array.isArray(meta.commandNotes) ? meta.commandNotes : [];
           promptMetrics = meta.promptMetrics ?? {};
+          loadedSkills = meta.loadedSkills ?? [];
+          realizedSkills = meta.realizedSkills ?? [];
+          nativeDiscoverableSkills = meta.nativeDiscoverableSkills;
         },
       });
 
@@ -241,6 +270,18 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(promptMetrics.memoryChars).toBeGreaterThan(0);
       expect(promptMetrics.instructionEntryChars).toBeGreaterThan(0);
+      expect(loadedSkills).toEqual([
+        expect.objectContaining({
+          key: "ascii-heart",
+          runtimeName: "ascii-heart",
+        }),
+      ]);
+      expect(realizedSkills).toEqual(loadedSkills);
+      expect(nativeDiscoverableSkills).toBeUndefined();
+      expect((await fs.lstat(path.join(managedPiAgentDir, "skills", "ascii-heart"))).isSymbolicLink()).toBe(true);
+      expect(await fs.realpath(path.join(managedPiAgentDir, "skills", "ascii-heart"))).toBe(
+        await fs.realpath(asciiHeartDir),
+      );
       await expect(fs.lstat(path.join(root, ".pi", "agent", "skills", "rudder"))).rejects.toMatchObject({
         code: "ENOENT",
       });

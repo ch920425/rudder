@@ -119,13 +119,43 @@ export interface AgentRuntimeInvocationMeta {
   /**
    * Skills made available to the runtime for this invocation.
    * This is availability evidence, not proof the model used the skill.
+   *
+   * @deprecated Prefer the proof-specific fields below. This field remains for
+   * legacy runtime analytics that read a single availability surface.
    */
   loadedSkills?: AgentRuntimeLoadedSkillMeta[];
+  /**
+   * Rudder desired-state skills for this invocation. Usually supplied by the
+   * control plane from the agent's enabled skill set.
+   *
+   * Persisted heartbeat payloads derive this from control-plane runtime skills,
+   * not from adapter-authored realization or discovery claims.
+   */
+  desiredSkills?: AgentRuntimeLoadedSkillMeta[];
+  /**
+   * Skills materialized into runtime files, symlinks, config, or sidecars.
+   * This proves filesystem/config realization, not provider-native discovery.
+   */
+  realizedSkills?: AgentRuntimeLoadedSkillMeta[];
+  /**
+   * Skills the provider/runtime can prove are natively discoverable.
+   * Omit or leave empty when the provider has no native proof surface.
+   */
+  nativeDiscoverableSkills?: AgentRuntimeLoadedSkillMeta[];
+  /**
+   * Skills injected into the model prompt. Prompt injection is compatibility
+   * evidence and must not be treated as provider-native skill discovery.
+   */
+  promptInjectedSkills?: AgentRuntimeLoadedSkillMeta[];
   /**
    * Skills the runtime can explicitly confirm were used.
    * Prompt mentions should be reported separately by the control plane.
    */
   usedSkills?: AgentRuntimeLoadedSkillMeta[];
+  /**
+   * Optional marker scan result for global/repo decoy skill controls.
+   */
+  forbiddenMarkerObserved?: boolean;
   context?: Record<string, unknown>;
 }
 
