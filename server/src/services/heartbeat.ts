@@ -7,7 +7,9 @@ export {
   buildHeartbeatAdapterInvokePayload,
   buildHeartbeatRuntimeTraceMetadata,
   buildIssueRunTraceName,
+  detectForbiddenRuntimeSkillMarker,
   inferUsedSkillsFromTranscript,
+  resolveForbiddenRuntimeSkillMarkers,
   resolveHeartbeatObservabilitySurface
 } from "./runtime-kernel/heartbeat.core.js";
 

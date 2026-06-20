@@ -3,7 +3,9 @@ import {
   buildHeartbeatAdapterInvokePayload,
   buildHeartbeatRuntimeTraceMetadata,
   buildIssueRunTraceName,
+  detectForbiddenRuntimeSkillMarker,
   inferUsedSkillsFromTranscript,
+  resolveForbiddenRuntimeSkillMarkers,
   resolveHeartbeatObservabilitySurface,
 } from "../services/heartbeat.js";
 
@@ -382,6 +384,78 @@ describe("heartbeat observability surface", () => {
       promptRequestedSkillKeys: ["rudder/build-advisor"],
       skillEvidenceType: "used",
       skillEvidenceKeys: ["rudder/screenshot"],
+    });
+  });
+
+  it("resolves forbidden runtime skill markers from runtime isolation config", () => {
+    expect(resolveForbiddenRuntimeSkillMarkers({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [
+          "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED",
+          "  ",
+          "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED",
+        ],
+      },
+    })).toEqual(["ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED"]);
+
+    expect(resolveForbiddenRuntimeSkillMarkers({
+      rudderSkillIsolation: {
+        forbiddenMarker: "RUDDER_FORBIDDEN_GLOBAL_SKILL",
+      },
+    })).toEqual(["RUDDER_FORBIDDEN_GLOBAL_SKILL"]);
+  });
+
+  it("detects forbidden runtime skill markers across meta, logs, result, and transcript", () => {
+    expect(detectForbiddenRuntimeSkillMarker({
+      markers: ["ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED"],
+      meta: {
+        agentRuntimeType: "codex_local",
+        command: "codex",
+        forbiddenMarkerObserved: false,
+      },
+      stdoutExcerpt: "positive probe ok",
+      stderrExcerpt: "",
+      resultJson: {
+        summary: "A disabled skill said ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED",
+      },
+      transcript: [
+        {
+          kind: "stdout",
+          ts: "2026-06-20T00:00:00.000Z",
+          text: "no marker here",
+        },
+      ],
+    })).toEqual({
+      observed: true,
+      evidence: [
+        {
+          marker: "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED",
+          source: "resultJson",
+        },
+      ],
+    });
+  });
+
+  it("keeps adapter-reported forbidden marker observations even without configured marker strings", () => {
+    expect(detectForbiddenRuntimeSkillMarker({
+      markers: [],
+      meta: {
+        agentRuntimeType: "claude_local",
+        command: "claude",
+        forbiddenMarkerObserved: true,
+      },
+      stdoutExcerpt: "",
+      stderrExcerpt: "",
+      resultJson: null,
+      transcript: [],
+    })).toEqual({
+      observed: true,
+      evidence: [
+        {
+          marker: null,
+          source: "adapter_meta",
+        },
+      ],
     });
   });
 });

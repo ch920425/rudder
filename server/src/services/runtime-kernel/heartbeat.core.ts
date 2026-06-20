@@ -546,6 +546,84 @@ export function collectStringValues(value: unknown, depth = 0): string[] {
   return Object.values(record).flatMap((entry) => collectStringValues(entry, depth + 1));
 }
 
+function readStringArray(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+export function resolveForbiddenRuntimeSkillMarkers(runtimeConfig: Record<string, unknown> | null | undefined): string[] {
+  const markers = [
+    ...readStringArray(parseObject(runtimeConfig?.runtimeSkillIsolation).forbiddenMarkers),
+    ...readStringArray(parseObject(runtimeConfig?.rudderSkillIsolation).forbiddenMarkers),
+    ...readStringArray(parseObject(runtimeConfig?.paperclipSkillIsolation).forbiddenMarkers),
+    readNonEmptyString(parseObject(runtimeConfig?.runtimeSkillIsolation).forbiddenMarker),
+    readNonEmptyString(parseObject(runtimeConfig?.rudderSkillIsolation).forbiddenMarker),
+    readNonEmptyString(parseObject(runtimeConfig?.paperclipSkillIsolation).forbiddenMarker),
+  ];
+  const seen = new Set<string>();
+  return markers
+    .map((entry) => entry?.trim() ?? "")
+    .filter((entry) => {
+      if (!entry || seen.has(entry)) return false;
+      seen.add(entry);
+      return true;
+    });
+}
+
+export type ForbiddenRuntimeSkillMarkerEvidenceSource =
+  | "adapter_meta"
+  | "stdout_excerpt"
+  | "stderr_excerpt"
+  | "resultJson"
+  | "transcript";
+
+export interface ForbiddenRuntimeSkillMarkerEvidence {
+  marker: string | null;
+  source: ForbiddenRuntimeSkillMarkerEvidenceSource;
+}
+
+export function detectForbiddenRuntimeSkillMarker(input: {
+  markers: string[];
+  meta?: Pick<AgentRuntimeInvocationMeta, "forbiddenMarkerObserved"> | null;
+  stdoutExcerpt?: string | null;
+  stderrExcerpt?: string | null;
+  resultJson?: Record<string, unknown> | null;
+  transcript?: TranscriptEntry[] | null;
+}): {
+  observed: boolean;
+  evidence: ForbiddenRuntimeSkillMarkerEvidence[];
+} {
+  const evidence: ForbiddenRuntimeSkillMarkerEvidence[] = [];
+  if (input.meta?.forbiddenMarkerObserved === true) {
+    evidence.push({ marker: null, source: "adapter_meta" });
+  }
+
+  const sources: Array<{ source: ForbiddenRuntimeSkillMarkerEvidenceSource; text: string }> = [
+    { source: "stdout_excerpt", text: input.stdoutExcerpt ?? "" },
+    { source: "stderr_excerpt", text: input.stderrExcerpt ?? "" },
+    { source: "resultJson", text: collectStringValues(input.resultJson).join("\n") },
+    { source: "transcript", text: collectStringValues(input.transcript).join("\n") },
+  ];
+  const seen = new Set<string>();
+  for (const marker of input.markers) {
+    const trimmedMarker = marker.trim();
+    if (!trimmedMarker) continue;
+    for (const { source, text } of sources) {
+      if (!text.includes(trimmedMarker)) continue;
+      const key = `${trimmedMarker}\0${source}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      evidence.push({ marker: trimmedMarker, source });
+    }
+  }
+
+  return {
+    observed: evidence.length > 0,
+    evidence,
+  };
+}
+
 export function normalizeSkillUseFromPath(value: string): { key: string; label: string } | null {
   const slug = extractSkillSlugFromPath(value);
   if (!slug) return null;

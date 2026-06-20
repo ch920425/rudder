@@ -376,6 +376,290 @@ describe("heartbeat managed workspace preflight", () => {
     await expect(fs.stat(path.join(agentHome, "skills")).then((stat) => stat.isDirectory())).resolves.toBe(true);
   });
 
+  it("persists forbidden runtime skill marker evidence from adapter output", async () => {
+    const forbiddenMarker = "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED";
+    const { agentId } = await seedAgentFixture({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [forbiddenMarker],
+      },
+    });
+    mockRuntimeAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onMeta?.({
+        agentRuntimeType: "codex_local",
+        command: "codex",
+        cwd: "/tmp/run-workspace",
+        forbiddenMarkerObserved: false,
+      });
+      await ctx.onLog("stdout", `decoy loaded: ${forbiddenMarker}\n`);
+      return {
+        summary: "adapter completed after decoy leakage",
+        resultJson: {
+          summary: `final response repeated ${forbiddenMarker}`,
+        },
+        timedOut: false,
+        exitCode: 0,
+        errorMessage: null,
+      };
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_observability",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:forbidden-marker" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "failed",
+      errorCode: "runtime_skill_isolation_failed",
+      error: "Forbidden runtime skill marker observed",
+    });
+    const events = await getRunEvents(run!.id);
+    const markerEvent = events.find((event) => event.eventType === "adapter.forbidden_marker");
+    expect(markerEvent).toMatchObject({
+      eventType: "adapter.forbidden_marker",
+      level: "error",
+      message: "forbidden runtime skill marker observed",
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerCount: 3,
+        forbiddenMarkerEvidence: expect.arrayContaining([
+          { marker: forbiddenMarker, source: "stdout_excerpt" },
+          { marker: forbiddenMarker, source: "resultJson" },
+          { marker: forbiddenMarker, source: "transcript" },
+        ]),
+      },
+    });
+  });
+
+  it("preserves timeout status when forbidden marker evidence is also present", async () => {
+    const forbiddenMarker = "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED";
+    const { agentId } = await seedAgentFixture({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [forbiddenMarker],
+      },
+    });
+    mockRuntimeAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onLog("stderr", `timeout tail contained ${forbiddenMarker}\n`);
+      return {
+        summary: "adapter timed out after decoy leakage",
+        resultJson: null,
+        timedOut: true,
+        exitCode: null,
+        errorMessage: null,
+      };
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_timeout_priority",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:timeout-priority" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "timed_out") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "timed_out",
+      errorCode: "timeout",
+      error: "Timed out",
+    });
+    const events = await getRunEvents(run!.id);
+    expect(events.find((event) => event.eventType === "adapter.forbidden_marker")).toMatchObject({
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerEvidence: expect.arrayContaining([
+          { marker: forbiddenMarker, source: "stderr_excerpt" },
+        ]),
+      },
+    });
+  });
+
+  it("preserves adapter failure codes when forbidden marker evidence is also present", async () => {
+    const forbiddenMarker = "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED";
+    const { agentId } = await seedAgentFixture({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [forbiddenMarker],
+      },
+    });
+    mockRuntimeAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onLog("stderr", `provider failed after ${forbiddenMarker}\n`);
+      return {
+        summary: "adapter failed after decoy leakage",
+        resultJson: null,
+        timedOut: false,
+        exitCode: 1,
+        errorCode: "provider_auth_failed",
+        errorMessage: "Provider auth failed",
+      };
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_adapter_failure_priority",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:adapter-failure-priority" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "failed",
+      errorCode: "provider_auth_failed",
+      error: "Provider auth failed",
+    });
+    const events = await getRunEvents(run!.id);
+    expect(events.find((event) => event.eventType === "adapter.forbidden_marker")).toMatchObject({
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerEvidence: expect.arrayContaining([
+          { marker: forbiddenMarker, source: "stderr_excerpt" },
+        ]),
+      },
+    });
+  });
+
+  it("persists forbidden marker evidence when an adapter throws after logging", async () => {
+    const forbiddenMarker = "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED";
+    const { agentId } = await seedAgentFixture({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [forbiddenMarker],
+      },
+    });
+    mockRuntimeAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onMeta?.({
+        agentRuntimeType: "codex_local",
+        command: "codex",
+        forbiddenMarkerObserved: false,
+      });
+      await ctx.onLog("stderr", `throw path saw ${forbiddenMarker}\n`);
+      throw new Error("Adapter crashed after output");
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_throw_path",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:throw-path" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "failed",
+      errorCode: "adapter_failed",
+      error: "Adapter crashed after output",
+    });
+    const events = await getRunEvents(run!.id);
+    expect(events.find((event) => event.eventType === "adapter.forbidden_marker")).toMatchObject({
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerEvidence: expect.arrayContaining([
+          { marker: forbiddenMarker, source: "stderr_excerpt" },
+        ]),
+      },
+    });
+  });
+
+  it("preserves forbidden marker meta from an earlier fallback attempt", async () => {
+    const { agentId } = await seedAgentFixture({
+      model: "primary-model",
+      modelFallbacks: [{ agentRuntimeType: "codex_local", model: "backup-model" }],
+    });
+    const models: unknown[] = [];
+    mockRuntimeAdapter.execute.mockImplementation(async (ctx) => {
+      models.push(ctx.config.model);
+      if (ctx.config.model === "primary-model") {
+        await ctx.onMeta?.({
+          agentRuntimeType: "codex_local",
+          command: "codex",
+          forbiddenMarkerObserved: true,
+        });
+        return {
+          summary: "primary failed after forbidden marker",
+          resultJson: null,
+          timedOut: false,
+          exitCode: 1,
+          errorMessage: "primary failed",
+        };
+      }
+      await ctx.onMeta?.({
+        agentRuntimeType: "codex_local",
+        command: "codex",
+        forbiddenMarkerObserved: false,
+      });
+      return {
+        summary: "fallback would have succeeded",
+        resultJson: null,
+        timedOut: false,
+        exitCode: 0,
+        errorMessage: null,
+      };
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_fallback_meta",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:fallback-meta" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    expect(models).toEqual(["primary-model", "backup-model"]);
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "failed",
+      errorCode: "runtime_skill_isolation_failed",
+      error: "Forbidden runtime skill marker observed",
+    });
+    const events = await getRunEvents(run!.id);
+    expect(events.find((event) => event.eventType === "adapter.forbidden_marker")).toMatchObject({
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerEvidence: expect.arrayContaining([
+          { marker: null, source: "adapter_meta" },
+        ]),
+      },
+    });
+  });
+
   it("ignores legacy HEARTBEAT.md through the heartbeat service actor path", async () => {
     const agent = await seedAgentFixture();
     const agentHome = resolveDefaultAgentWorkspaceDir(agent.orgId, {

@@ -57,7 +57,7 @@ export { prioritizeProjectWorkspaceCandidatesForRun, type ResolvedWorkspaceForRu
 
 import * as heartbeatCore from "./heartbeat.core.js";
 import * as heartbeatSessions from "./heartbeat.sessions.js";
-const { MAX_LIVE_LOG_CHUNK_BYTES, HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT, HEARTBEAT_MAX_CONCURRENT_RUNS_MIN, HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, DEFERRED_WAKE_CONTEXT_KEY, DETACHED_PROCESS_ERROR_CODE, ORPHANED_PROCESS_TERMINATION_GRACE_MS, ORPHANED_PROCESS_KILL_WAIT_MS, ORPHANED_PROCESS_POLL_INTERVAL_MS, startLocksByAgent, MAX_RECOVERY_CHAIN_DEPTH, ISSUE_PASSIVE_FOLLOWUP_REASON, ISSUE_PASSIVE_FOLLOWUP_WAKE_SOURCE, ISSUE_PASSIVE_FOLLOWUP_FAILURE_REASON, ISSUE_PASSIVE_FOLLOWUP_MAX_ATTEMPTS, ISSUE_REVIEW_CLOSEOUT_REASON, ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON, ISSUE_REVIEW_CLOSEOUT_MAX_ATTEMPTS, ISSUE_PASSIVE_FOLLOWUP_COOLDOWN_MS_BY_ATTEMPT, ISSUE_PASSIVE_FOLLOWUP_TIMER_CONTINUITY_MAX_WINDOW_MS, SESSIONED_LOCAL_ADAPTERS, heartbeatRunListColumns, appendExcerpt, appendTranscriptEntriesFromChunk, normalizeMaxConcurrentRuns, withAgentStartLock, readNonEmptyString, resolveHeartbeatObservabilitySurface, buildHeartbeatObservationName, compactTraceText, buildIssueRunTraceName, buildHeartbeatRuntimeTraceMetadata, buildHeartbeatAdapterInvokePayload, sanitizeStartupContextContextForPersistence, sanitizeStartupContextPromptForPersistence, buildRecentDateKeys, buildDateKeysBetween, fallbackSkillLabel, normalizeLoadedSkill, normalizeLoadedSkillForPayload, emptySkillEvidenceCounts, incrementSkillEvidenceCount, strongestSkillEvidence, resolveSkillEvidence, readSkillEvidenceFromPayload, extractSkillSlugFromPath, collectSkillPathsFromText, collectStringValues, normalizeSkillUseFromPath, dedupeSkillUses, collectSkillUsesFromText, readToolCommandInput, isCommandTranscriptTool, isReadTranscriptTool, inferUsedSkillsFromTranscript, normalizeSkillCandidate, addSkillCandidate, readSkillReferenceSlug, collectSkillReferences, inferUsedSkillsFromPrompt, normalizeLedgerBillingType, resolveLedgerBiller, normalizeBilledCostCents, resolveLedgerScopeForRun } = heartbeatCore;
+const { MAX_LIVE_LOG_CHUNK_BYTES, HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT, HEARTBEAT_MAX_CONCURRENT_RUNS_MIN, HEARTBEAT_MAX_CONCURRENT_RUNS_MAX, DEFERRED_WAKE_CONTEXT_KEY, DETACHED_PROCESS_ERROR_CODE, ORPHANED_PROCESS_TERMINATION_GRACE_MS, ORPHANED_PROCESS_KILL_WAIT_MS, ORPHANED_PROCESS_POLL_INTERVAL_MS, startLocksByAgent, MAX_RECOVERY_CHAIN_DEPTH, ISSUE_PASSIVE_FOLLOWUP_REASON, ISSUE_PASSIVE_FOLLOWUP_WAKE_SOURCE, ISSUE_PASSIVE_FOLLOWUP_FAILURE_REASON, ISSUE_PASSIVE_FOLLOWUP_MAX_ATTEMPTS, ISSUE_REVIEW_CLOSEOUT_REASON, ISSUE_REVIEW_CLOSEOUT_FAILURE_REASON, ISSUE_REVIEW_CLOSEOUT_MAX_ATTEMPTS, ISSUE_PASSIVE_FOLLOWUP_COOLDOWN_MS_BY_ATTEMPT, ISSUE_PASSIVE_FOLLOWUP_TIMER_CONTINUITY_MAX_WINDOW_MS, SESSIONED_LOCAL_ADAPTERS, heartbeatRunListColumns, appendExcerpt, appendTranscriptEntriesFromChunk, normalizeMaxConcurrentRuns, withAgentStartLock, readNonEmptyString, resolveHeartbeatObservabilitySurface, buildHeartbeatObservationName, compactTraceText, buildIssueRunTraceName, buildHeartbeatRuntimeTraceMetadata, buildHeartbeatAdapterInvokePayload, sanitizeStartupContextContextForPersistence, sanitizeStartupContextPromptForPersistence, buildRecentDateKeys, buildDateKeysBetween, fallbackSkillLabel, normalizeLoadedSkill, normalizeLoadedSkillForPayload, emptySkillEvidenceCounts, incrementSkillEvidenceCount, strongestSkillEvidence, resolveSkillEvidence, readSkillEvidenceFromPayload, extractSkillSlugFromPath, collectSkillPathsFromText, collectStringValues, normalizeSkillUseFromPath, dedupeSkillUses, collectSkillUsesFromText, readToolCommandInput, isCommandTranscriptTool, isReadTranscriptTool, inferUsedSkillsFromTranscript, normalizeSkillCandidate, addSkillCandidate, readSkillReferenceSlug, collectSkillReferences, inferUsedSkillsFromPrompt, resolveForbiddenRuntimeSkillMarkers, detectForbiddenRuntimeSkillMarker, normalizeLedgerBillingType, resolveLedgerBiller, normalizeBilledCostCents, resolveLedgerScopeForRun } = heartbeatCore;
 const { buildExplicitResumeSessionOverride, normalizeUsageTotals, readRawUsageTotals, deriveNormalizedUsageDelta, formatCount, parseSessionCompactionPolicy, resolveRuntimeSessionParamsForWorkspace, parseIssueAssigneeAgentRuntimeOverrides, deriveTaskKey, shouldResetTaskSessionForWake, formatRuntimeWorkspaceWarningLog, describeSessionResetReason, deriveCommentId, enrichWakeContextSnapshot, mergeCoalescedContextSnapshot, issueCommentAuthorKind, issueCommentAuthorLabel, buildDeferredWakePayload, readDeferredWakeContext, readDeferredWakePayload, deriveDeferredWakeTaskKey, hydrateWakeContextSnapshot, firstNonEmptyLine, deriveRecoveryFailureKind, deriveRecoveryFailureSummary, mergeMissingRecoveryContextFields, hydrateRecoveryBaseContextSnapshot, buildRecoveryContextSnapshot, normalizePassiveFollowupContext, normalizeReviewCloseoutContext, passiveFollowupCooldownMs, issueHasReviewer, isAgentEligibleForTimerContinuation, hasCredibleTimerContinuation, buildPassiveFollowupContextSnapshot, runTaskKey, isSameTaskScope, isTrackedLocalChildProcessAdapter, isProcessAlive, waitForProcessExit, terminateOrphanedProcess, truncateDisplayId, normalizeAgentNameKey, defaultSessionCodec, getAgentRuntimeSessionCodec, normalizeSessionParams, resolveNextSessionState } = heartbeatSessions;
 
 function buildPersistableHeartbeatContext(context: Record<string, unknown>) {
@@ -138,6 +138,8 @@ export function createHeartbeatExecuteHandlers(context: any) {
       errors?: string[];
     } | null = null;
     let modelTurnInput: unknown;
+    let latestAdapterMeta: AgentRuntimeInvocationMeta | null = null;
+    let adapterForbiddenMarkerObserved = false;
     let finalObservationOutput: string | null = null;
     let finalObservationStatus: string | null = run.status;
     let finalObservationSessionId: string | null = heartbeatObservationContext.sessionKey ?? null;
@@ -541,6 +543,32 @@ export function createHeartbeatExecuteHandlers(context: any) {
     let stdoutExcerpt = "";
     let stderrExcerpt = "";
     let lastRunActivityTouchMs = 0;
+    const buildForbiddenMarkerScan = (resultJson: Record<string, unknown> | null = null) => detectForbiddenRuntimeSkillMarker({
+      markers: resolveForbiddenRuntimeSkillMarkers(runtimeConfig),
+      meta: adapterForbiddenMarkerObserved ? { forbiddenMarkerObserved: true } : latestAdapterMeta,
+      stdoutExcerpt,
+      stderrExcerpt,
+      resultJson,
+      transcript: executionTranscript,
+    });
+    const appendForbiddenMarkerEvent = async (
+      eventRun: typeof heartbeatRuns.$inferSelect,
+      scan: ReturnType<typeof detectForbiddenRuntimeSkillMarker>,
+    ) => {
+      if (!scan.observed) return;
+      await appendRunEvent(eventRun, seq++, {
+        eventType: "adapter.forbidden_marker",
+        stream: "system",
+        level: "error",
+        message: "forbidden runtime skill marker observed",
+        payload: {
+          source: "runtime_skill_isolation",
+          forbiddenMarkerObserved: true,
+          forbiddenMarkerCount: scan.evidence.length,
+          forbiddenMarkerEvidence: scan.evidence,
+        },
+      });
+    };
     try {
       await preflightManagedAgentWorkspace({
         agentHome: readNonEmptyString(runtimeSceneContext.rudderWorkspace.agentHome) ?? "",
@@ -721,6 +749,8 @@ export function createHeartbeatExecuteHandlers(context: any) {
         }
       }
       const onAdapterMeta = async (meta: AgentRuntimeInvocationMeta) => {
+        latestAdapterMeta = meta;
+        adapterForbiddenMarkerObserved ||= meta.forbiddenMarkerObserved === true;
         if (meta.env && secretKeys.size > 0) {
           for (const key of secretKeys) {
             if (key in meta.env) meta.env[key] = "***REDACTED***";
@@ -847,8 +877,10 @@ export function createHeartbeatExecuteHandlers(context: any) {
         rawUsage,
       });
       const normalizedUsage = sessionUsageResolution.normalizedUsage;
+      const forbiddenMarkerScan = buildForbiddenMarkerScan(adapterResult.resultJson ?? null);
 
       let outcome: "succeeded" | "failed" | "cancelled" | "timed_out";
+      const adapterWouldHaveSucceeded = (adapterResult.exitCode ?? 0) === 0 && !adapterResult.errorMessage;
       const latestRun = await getRun(run.id);
       if (latestRun?.status === "cancelled") {
         outcome = "cancelled";
@@ -856,11 +888,14 @@ export function createHeartbeatExecuteHandlers(context: any) {
         outcome = "timed_out";
       } else if (adapterResult.timedOut) {
         outcome = "timed_out";
-      } else if ((adapterResult.exitCode ?? 0) === 0 && !adapterResult.errorMessage) {
+      } else if (forbiddenMarkerScan.observed && adapterWouldHaveSucceeded) {
+        outcome = "failed";
+      } else if (adapterWouldHaveSucceeded) {
         outcome = "succeeded";
       } else {
         outcome = "failed";
       }
+      const failureCausedByForbiddenMarker = outcome === "failed" && forbiddenMarkerScan.observed && adapterWouldHaveSucceeded;
 
       let logSummary: { bytes: number; sha256?: string; compressed: boolean } | null = null;
       if (handle) {
@@ -928,11 +963,15 @@ export function createHeartbeatExecuteHandlers(context: any) {
           outcome === "succeeded"
             ? null
             : redactCurrentUserText(
-                adapterResult.errorMessage ?? (outcome === "timed_out" ? "Timed out" : "Adapter failed"),
+                failureCausedByForbiddenMarker
+                  ? "Forbidden runtime skill marker observed"
+                  : adapterResult.errorMessage ?? (outcome === "timed_out" ? "Timed out" : "Adapter failed"),
                 currentUserRedactionOptions,
               ),
         errorCode:
-          outcome === "timed_out"
+          failureCausedByForbiddenMarker
+            ? "runtime_skill_isolation_failed"
+            : outcome === "timed_out"
             ? "timeout"
             : outcome === "cancelled"
               ? "cancelled"
@@ -953,11 +992,14 @@ export function createHeartbeatExecuteHandlers(context: any) {
 
       await setWakeupStatus(run.wakeupRequestId, outcome === "succeeded" ? "completed" : status, {
         finishedAt: new Date(),
-        error: adapterResult.errorMessage ?? null,
+        error: failureCausedByForbiddenMarker
+          ? "Forbidden runtime skill marker observed"
+          : adapterResult.errorMessage ?? null,
       });
 
       const finalizedRun = await getRun(run.id);
       if (finalizedRun) {
+        await appendForbiddenMarkerEvent(finalizedRun, forbiddenMarkerScan);
         const transcriptUsedSkills = inferUsedSkillsFromTranscript(executionTranscript);
         if (transcriptUsedSkills.length > 0) {
           await appendRunEvent(finalizedRun, seq++, {
@@ -1077,6 +1119,7 @@ export function createHeartbeatExecuteHandlers(context: any) {
       });
 
       if (failedRun) {
+        await appendForbiddenMarkerEvent(failedRun, buildForbiddenMarkerScan(null));
         await appendRunEvent(failedRun, seq++, {
           eventType: isWorkspacePreflightFailure ? "runtime.workspace_preflight_failed" : "error",
           stream: "system",
