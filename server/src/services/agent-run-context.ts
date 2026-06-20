@@ -143,39 +143,66 @@ function labelForResourceKind(
   return kind.replace(/_/g, " ");
 }
 
+function markdownTableCell(value: string | null | undefined) {
+  const compact = formatPromptSingleLine(value ?? "");
+  if (!compact) return "empty";
+  return compact.replace(/\|/g, "\\|");
+}
+
+function markdownCodeCell(value: string | null | undefined) {
+  const compact = markdownTableCell(value);
+  return compact === "empty" ? "empty" : markdownInlineCode(compact);
+}
+
+function markdownInlineCode(value: string) {
+  return `\`${formatPromptSingleLine(value).replace(/`/g, "'")}\``;
+}
+
+function appendMarkdownTable(lines: string[], headers: string[], rows: string[][]) {
+  lines.push(`| ${headers.join(" | ")} |`);
+  lines.push(`| ${headers.map(() => "---").join(" | ")} |`);
+  rows.forEach((row) => {
+    lines.push(`| ${row.join(" | ")} |`);
+  });
+}
+
 function buildProjectResourcesPrompt(resources: ProjectResourceAttachment[]) {
   if (resources.length === 0) return "";
-  return [
+  const lines = [
     "## Project Context Resources",
     "",
-    ...resources.flatMap((attachment) => {
+  ];
+  appendMarkdownTable(lines, [
+    "Role",
+    "Name",
+    "Source",
+    "Kind",
+    "Locator",
+    "Description",
+    "Project note",
+  ], resources.map((attachment) => {
       const sourceType = attachment.resource.sourceType ?? "external";
-      const lines = [
-        `- [${attachment.role}] ${attachment.resource.name}`,
-        `  - Source type: ${sourceType}`,
-        `  - Kind: ${labelForResourceKind(attachment.resource.kind)}`,
-        `  - Locator: \`${attachment.resource.locator}\``,
+      return [
+        markdownTableCell(attachment.role),
+        markdownTableCell(attachment.resource.name),
+        markdownTableCell(sourceType),
+        markdownTableCell(labelForResourceKind(attachment.resource.kind)),
+        markdownCodeCell(attachment.resource.locator),
+        markdownTableCell(attachment.resource.description),
+        markdownTableCell(attachment.note),
       ];
-      if (sourceType === "library") {
-        lines.push(
-          `  - Library path: \`library:${attachment.resource.locator}\``,
-          `  - Local file path in local trusted runs: \`$RUDDER_ORG_WORKSPACE_ROOT/${attachment.resource.locator}\``,
-          `  - To cite this file in a comment or handoff, run \`rudder library file ref "${attachment.resource.locator}" --json\` and paste the returned \`markdownLink\`.`,
-        );
-      }
-      if (attachment.resource.description?.trim()) {
-        lines.push(
-          `  - Description: ${attachment.resource.description.trim()}`,
-        );
-      }
-      if (attachment.note?.trim()) {
-        lines.push(`  - Project note: ${attachment.note.trim()}`);
-      }
-      return [...lines, ""];
-    }),
-  ]
-    .join("\n")
-    .trim();
+    }));
+  const libraryResources = resources.filter((attachment) => (attachment.resource.sourceType ?? "external") === "library");
+  if (libraryResources.length > 0) {
+    lines.push("", "Library resource guidance:");
+    libraryResources.forEach((attachment) => {
+      const locator = attachment.resource.locator;
+      lines.push(
+        `- ${formatPromptSingleLine(attachment.resource.name)}: library path ${markdownInlineCode(`library:${locator}`)}; local file path in local trusted runs ${markdownInlineCode(`$RUDDER_ORG_WORKSPACE_ROOT/${locator}`)}; to cite this file in a comment or handoff, run ${markdownInlineCode(`rudder library file ref "${locator}" --json`)} and paste the returned ${markdownInlineCode("markdownLink")}.`,
+      );
+    });
+  }
+  return lines.join("\n").trim();
 }
 
 function buildCompiledResourcesPrompt(
@@ -199,22 +226,28 @@ function buildAgentAutomationsPrompt(
     "",
     "These are your current automations; use the ID to inspect details when needed.",
     "",
-    ...agentAutomations.flatMap((automation) => {
-      const triggerLines = automation.triggers.length > 0
-        ? [
-          "  - Triggers:",
-          ...automation.triggers.map((trigger) => `    - ${formatAutomationTriggerForPrompt(trigger)}`),
-        ]
-        : ["  - Triggers: none configured"];
-      return [
-        `- ${formatPromptSingleLine(automation.title)}`,
-        `  - ID: \`${automation.id}\``,
-        `  - Output: ${formatAutomationOutputMode(automation.outputMode)}`,
-        `  - Last run: ${formatPromptDate(automation.lastTriggeredAt) ?? "never"}`,
-        ...triggerLines,
-      ];
-    }),
+    tableForAgentAutomations(agentAutomations),
   ].join("\n");
+}
+
+function tableForAgentAutomations(agentAutomations: AgentAutomationPromptItem[]) {
+  const lines: string[] = [];
+  appendMarkdownTable(lines, [
+    "Automation",
+    "ID",
+    "Output",
+    "Last run",
+    "Triggers",
+  ], agentAutomations.map((automation) => [
+    markdownTableCell(automation.title),
+    markdownCodeCell(automation.id),
+    markdownTableCell(formatAutomationOutputMode(automation.outputMode)),
+    markdownTableCell(formatPromptDate(automation.lastTriggeredAt) ?? "never"),
+    markdownTableCell(automation.triggers.length > 0
+      ? automation.triggers.map(formatAutomationTriggerForPrompt).join(" / ")
+      : "none configured"),
+  ]));
+  return lines.join("\n");
 }
 
 function formatPromptSingleLine(value: string) {

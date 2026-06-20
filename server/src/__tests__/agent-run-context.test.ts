@@ -210,7 +210,7 @@ describe("agentRunContextService buildSceneContext", () => {
     const automationOrderBy = vi.fn(async () => [
       {
         id: "automation-1",
-        title: "Daily reviewer follow-up",
+        title: "Daily reviewer | follow-up",
         outputMode: "track_issue",
         lastTriggeredAt: new Date("2026-06-14T09:30:00.000Z"),
       },
@@ -228,7 +228,7 @@ describe("agentRunContextService buildSceneContext", () => {
         automationId: "automation-1",
         id: "trigger-1",
         kind: "schedule",
-        label: "Weekday morning",
+        label: "Weekday\nmorning",
         enabled: true,
         nextRunAt: new Date("2026-06-16T09:00:00.000Z"),
         lastFiredAt: new Date("2026-06-14T09:30:00.000Z"),
@@ -278,19 +278,13 @@ describe("agentRunContextService buildSceneContext", () => {
     expect(context.rudderWorkspace.orgResourcesPrompt).toContain(
       "These are your current automations; use the ID to inspect details when needed.",
     );
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("- Daily reviewer follow-up");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - ID: `automation-1`");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - Output: issue");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - Last run: 2026-06-14T09:30:00.000Z");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("| Automation | ID | Output | Last run | Triggers |");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("| --- | --- | --- | --- | --- |");
     expect(context.rudderWorkspace.orgResourcesPrompt).toContain(
-      "    - Weekday morning (schedule); enabled; next trigger: 2026-06-16T09:00:00.000Z; last fired: 2026-06-14T09:30:00.000Z",
+      "| Daily reviewer \\| follow-up | `automation-1` | issue | 2026-06-14T09:30:00.000Z | Weekday morning (schedule); enabled; next trigger: 2026-06-16T09:00:00.000Z; last fired: 2026-06-14T09:30:00.000Z |",
     );
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("- Release channel watch");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - ID: `automation-2`");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - Output: chat");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("  - Last run: never");
     expect(context.rudderWorkspace.orgResourcesPrompt).toContain(
-      "    - Release webhook (webhook); disabled; next trigger: event-driven; last fired: never",
+      "| Release channel watch | `automation-2` | chat | never | Release webhook (webhook); disabled; next trigger: event-driven; last fired: never |",
     );
     expect(context.rudderWorkspace.orgResourcesPrompt).not.toContain("status");
     expect(context.rudderWorkspace.orgResourcesPrompt).toBe(context.rudderWorkspace.resourcesPrompt);
@@ -336,10 +330,14 @@ describe("agentRunContextService buildSceneContext", () => {
         "- Launch context",
         "",
         "#### recent issues",
-        "1. `RD-421` |||| `in_review` |||| assignee |||| Agent startup memory context |||| Define bounded startup context.",
+        "| Issue | Status | Role | Assignee | Reviewer | Created | Updated | Title | Summary |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| `RD-421` | `in_review` | assignee | agent:agent-1 | empty | 2026-06-18T10:00:00.000Z | 2026-06-19T00:00:00.000Z | Agent startup memory context | Define bounded startup context. |",
         "",
         "#### recent chats",
-        "1. `chat_01JY9M2V8Q6Z` |||| 2026-06-19T00:33:00.000Z |||| Agent run startup memory |||| 默认装载今天和昨天的 memory md",
+        "| Chat | Last active | Title | Summary |",
+        "| --- | --- | --- | --- |",
+        "| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z | Agent run startup memory | 默认装载今天和昨天的 memory md |",
         "",
         "#### startup context metadata",
         "version |||| `agent-startup-context/v1`",
@@ -395,8 +393,8 @@ describe("agentRunContextService buildSceneContext", () => {
       context.rudderWorkspace.resourcesPrompt.indexOf("## Recent Rudder Context"),
     );
     expect(context.rudderWorkspace.resourcesPrompt).toContain("#### today memory/2026-06-19.md");
-    expect(context.rudderWorkspace.resourcesPrompt).toContain("1. `RD-421` |||| `in_review` |||| assignee");
-    expect(context.rudderWorkspace.resourcesPrompt).toContain("1. `chat_01JY9M2V8Q6Z` |||| 2026-06-19T00:33:00.000Z");
+    expect(context.rudderWorkspace.resourcesPrompt).toContain("| `RD-421` | `in_review` | assignee | agent:agent-1 | empty");
+    expect(context.rudderWorkspace.resourcesPrompt).toContain("| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z");
     expect(context.rudderWorkspace.resourcesPrompt).not.toContain("recent runs");
     expect(context.rudderWorkspace.orgResourcesPrompt).toBe(context.rudderWorkspace.resourcesPrompt);
     expect(context.rudderStartupContext).toMatchObject({ version: "agent-startup-context/v1" });
@@ -429,10 +427,10 @@ describe("agentRunContextService buildSceneContext", () => {
         resource: {
           id: "resource-1",
           orgId: "organization-1",
-          name: "Rudder repo",
+          name: "Rudder | repo",
           kind: "directory",
           sourceType: "library",
-          locator: "projects/product/product-brief.md",
+          locator: "projects/product/brief`v1`.md",
           description: "Main monorepo checkout",
           metadata: null,
           createdAt: new Date("2026-04-16T09:00:00.000Z"),
@@ -468,18 +466,19 @@ describe("agentRunContextService buildSceneContext", () => {
 
     expect(context.rudderWorkspace.orgResourcesPrompt).toContain("## Project Context Resources");
     expect(context.rudderWorkspace.resourcesPrompt).toContain("## Project Context Resources");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("[working_set] Rudder repo");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("Source type: library");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("Library path: `library:projects/product/product-brief.md`");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("Local file path in local trusted runs: `$RUDDER_ORG_WORKSPACE_ROOT/projects/product/product-brief.md`");
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain('rudder library file ref "projects/product/product-brief.md" --json');
-    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("Work here first");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("| Role | Name | Source | Kind | Locator | Description | Project note |");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("| --- | --- | --- | --- | --- | --- | --- |");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("| working_set | Rudder \\| repo | library | directory | `projects/product/brief'v1'.md` | Main monorepo checkout | Work here first |");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("Library resource guidance:");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("`library:projects/product/brief'v1'.md`");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain("`$RUDDER_ORG_WORKSPACE_ROOT/projects/product/brief'v1'.md`");
+    expect(context.rudderWorkspace.orgResourcesPrompt).toContain('`rudder library file ref "projects/product/brief\'v1\'.md" --json`');
     expect(context.rudderOrganizationResources).toEqual([]);
     expect(context.rudderProjectResources).toEqual(expect.arrayContaining([
       expect.objectContaining({
         projectId: "project-1",
         resource: expect.objectContaining({
-          name: "Rudder repo",
+          name: "Rudder | repo",
         }),
       }),
     ]));

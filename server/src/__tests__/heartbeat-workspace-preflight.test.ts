@@ -839,9 +839,12 @@ describe("heartbeat managed workspace preflight", () => {
     expect(capture.prompt).toContain("- Today startup memory signal");
     expect(capture.prompt).toContain(`#### yesterday memory/${yesterdayKey}.md`);
     expect(capture.prompt).toContain("- Yesterday startup memory signal");
-    expect(capture.prompt).toContain("1. `RD-421` |||| `in_review` |||| assignee |||| Agent startup memory context |||| Define bounded startup context for agent runs.");
-    expect(capture.prompt).toContain(`1. \`${chatId}\` ||||`);
-    expect(capture.prompt).toContain("Agent run startup memory |||| 默认装载今天和昨天的 memory md");
+    expect(capture.prompt).toContain("| Issue | Status | Role | Assignee | Reviewer | Created | Updated | Title | Summary |");
+    expect(capture.prompt).toContain("| `RD-421` | `in_review` | assignee |");
+    expect(capture.prompt).toContain("Agent startup memory context | Define bounded startup context for agent runs.");
+    expect(capture.prompt).toContain("| Chat | Last active | Title | Summary |");
+    expect(capture.prompt).toContain(`| \`${chatId}\` |`);
+    expect(capture.prompt).toContain("Agent run startup memory | 默认装载今天和昨天的 memory md");
     expect(capture.prompt).not.toContain("recent runs");
 
     const [updatedRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id));

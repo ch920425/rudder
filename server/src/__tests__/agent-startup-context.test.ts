@@ -117,24 +117,32 @@ describe("agent startup context prompt", () => {
           identifier: "RD-421",
           status: "in_review",
           role: "assignee",
-          title: "Agent startup memory context",
+          assignee: "agent:agent-1",
+          reviewer: null,
+          title: "Agent startup | memory context",
           snippet: "Define bounded startup context for agent runs without full transcript dumps.",
+          createdAt: new Date("2026-06-18T10:00:00.000Z"),
+          updatedAt: new Date("2026-06-19T00:00:00.000Z"),
         },
         {
           id: "issue-2",
           identifier: null,
           status: "done",
           role: "reviewer",
+          assignee: null,
+          reviewer: "agent:agent-1",
           title: "Messenger title defaults",
           snippet: "Fix generated chat title behavior.",
+          createdAt: new Date("2026-06-17T10:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T00:00:00.000Z"),
         },
       ],
       recentChats: [
         {
           id: "chat_01JY9M2V8Q6Z",
           activityAt: new Date("2026-06-19T00:33:00.000Z"),
-          title: "Agent run startup memory",
-          snippet: "我现在想的是所有的 agent run，把每次启动的时候默认装载今天和昨天的 memory md 进来",
+          title: "Agent run | startup memory",
+          snippet: "我现在想的是所有的 agent run\n把每次启动的时候默认装载今天和昨天的 memory md 进来",
         },
       ],
       metrics: {
@@ -152,15 +160,18 @@ describe("agent startup context prompt", () => {
     expect(prompt).toContain("#### yesterday memory/2026-06-18.md");
     expect(prompt).toContain("- Launch work clustered around Rudder");
     expect(prompt).toContain("#### recent issues");
+    expect(prompt).toContain("| Issue | Status | Role | Assignee | Reviewer | Created | Updated | Title | Summary |");
+    expect(prompt).toContain("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     expect(prompt).toContain(
-      "1. `RD-421` |||| `in_review` |||| assignee |||| Agent startup memory context |||| Define bounded startup context for agent runs without full transcript dumps.",
+      "| `RD-421` | `in_review` | assignee | agent:agent-1 | empty | 2026-06-18T10:00:00.000Z | 2026-06-19T00:00:00.000Z | Agent startup \\| memory context | Define bounded startup context for agent runs without full transcript dumps. |",
     );
     expect(prompt).toContain(
-      "2. `issue-2` |||| `done` |||| reviewer |||| Messenger title defaults |||| Fix generated chat title behavior.",
+      "| `issue-2` | `done` | reviewer | empty | agent:agent-1 | 2026-06-17T10:00:00.000Z | 2026-06-18T00:00:00.000Z | Messenger title defaults | Fix generated chat title behavior. |",
     );
     expect(prompt).toContain("#### recent chats");
+    expect(prompt).toContain("| Chat | Last active | Title | Summary |");
     expect(prompt).toContain(
-      "1. `chat_01JY9M2V8Q6Z` |||| 2026-06-19T00:33:00.000Z |||| Agent run startup memory |||| 我现在想的是所有的 agent run",
+      "| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z | Agent run \\| startup memory | 我现在想的是所有的 agent run 把每次启动的时候默认装载今天和昨天的 memory md 进来 |",
     );
     expect(prompt).toContain("#### startup context metadata");
     expect(prompt).toContain("version |||| `agent-startup-context/v1`");
@@ -190,8 +201,12 @@ describe("agent startup context prompt", () => {
         identifier: "RD-421",
         status: "todo",
         role: "assignee",
+        assignee: "agent:agent-1",
+        reviewer: null,
         title: "Long issue",
         snippet: "c".repeat(500),
+        createdAt: new Date("2026-06-18T10:00:00.000Z"),
+        updatedAt: new Date("2026-06-19T00:00:00.000Z"),
       }],
       recentChats: [{
         id: "chat-1",
@@ -370,7 +385,7 @@ describe("agent startup context service", () => {
     });
 
     expect(bundle.markdown).toContain("`RD-500`");
-    expect(bundle.markdown).toContain(`1. \`${recentChatId}\` ||||`);
+    expect(bundle.markdown).toContain(`| \`${recentChatId}\` |`);
     expect(bundle.markdown).toContain("recent linked chat body");
     expect(bundle.markdown).not.toContain(currentChatId);
     expect(bundle.markdown).not.toContain("current chat body must not be duplicated");

@@ -27,8 +27,12 @@ export type AgentStartupIssueEntry = {
   identifier: string | null;
   status: string;
   role: string;
+  assignee: string | null;
+  reviewer: string | null;
   title: string;
   snippet: string | null;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
 };
 
 export type AgentStartupChatEntry = {
@@ -106,6 +110,31 @@ function formatDate(value: Date | string | null) {
   return Number.isNaN(date.getTime()) ? "unknown" : date.toISOString();
 }
 
+function markdownTableCell(value: string | null | undefined) {
+  const compact = compactSingleLine(value);
+  if (!compact) return "empty";
+  return compact.replace(/\|/g, "\\|");
+}
+
+function markdownCodeCell(value: string | null | undefined) {
+  const compact = markdownTableCell(value);
+  return compact === "empty" ? "empty" : `\`${compact.replace(/`/g, "'")}\``;
+}
+
+function appendMarkdownTable(lines: string[], headers: string[], rows: string[][]) {
+  lines.push(`| ${headers.join(" | ")} |`);
+  lines.push(`| ${headers.map(() => "---").join(" | ")} |`);
+  rows.forEach((row) => {
+    lines.push(`| ${row.join(" | ")} |`);
+  });
+}
+
+function formatIssuePrincipal(agentId: string | null | undefined, userId: string | null | undefined) {
+  if (agentId) return `agent:${agentId}`;
+  if (userId) return `user:${userId}`;
+  return null;
+}
+
 function appendMetadata(lines: string[], input: AgentStartupContextPromptInput, totalChars: number) {
   lines.push(
     "",
@@ -138,17 +167,42 @@ export function buildAgentStartupContextPrompt(
   ];
   if (input.recentIssues.length === 0) lines.push("(none)");
   else {
-    input.recentIssues.forEach((issue, index) => {
-      const ref = issue.identifier ?? issue.id;
-      lines.push(`${index + 1}. \`${ref}\` |||| \`${compactSingleLine(issue.status)}\` |||| ${compactSingleLine(issue.role)} |||| ${clip(issue.title, 120)} |||| ${clip(issue.snippet, resolvedLimits.issueSnippetChars)}`);
-    });
+    appendMarkdownTable(lines, [
+      "Issue",
+      "Status",
+      "Role",
+      "Assignee",
+      "Reviewer",
+      "Created",
+      "Updated",
+      "Title",
+      "Summary",
+    ], input.recentIssues.map((issue) => [
+      markdownCodeCell(issue.identifier ?? issue.id),
+      markdownCodeCell(issue.status),
+      markdownTableCell(issue.role),
+      markdownTableCell(issue.assignee),
+      markdownTableCell(issue.reviewer),
+      markdownTableCell(formatDate(issue.createdAt)),
+      markdownTableCell(formatDate(issue.updatedAt)),
+      markdownTableCell(clip(issue.title, 120)),
+      markdownTableCell(clip(issue.snippet, resolvedLimits.issueSnippetChars)),
+    ]));
   }
   lines.push("", "#### recent chats");
   if (input.recentChats.length === 0) lines.push("(none)");
   else {
-    input.recentChats.forEach((chat, index) => {
-      lines.push(`${index + 1}. \`${chat.id}\` |||| ${formatDate(chat.activityAt)} |||| ${clip(chat.title, 120)} |||| ${clip(chat.snippet, resolvedLimits.chatSnippetChars)}`);
-    });
+    appendMarkdownTable(lines, [
+      "Chat",
+      "Last active",
+      "Title",
+      "Summary",
+    ], input.recentChats.map((chat) => [
+      markdownCodeCell(chat.id),
+      markdownTableCell(formatDate(chat.activityAt)),
+      markdownTableCell(clip(chat.title, 120)),
+      markdownTableCell(clip(chat.snippet, resolvedLimits.chatSnippetChars)),
+    ]));
   }
   appendMetadata(lines, input, 0);
   let prompt = lines.join("\n");
@@ -258,8 +312,12 @@ async function listRecentIssues(db: Db, input: BuildAgentStartupContextInput) {
     title: issues.title,
     description: issues.description,
     assigneeAgentId: issues.assigneeAgentId,
+    assigneeUserId: issues.assigneeUserId,
     reviewerAgentId: issues.reviewerAgentId,
+    reviewerUserId: issues.reviewerUserId,
     createdByAgentId: issues.createdByAgentId,
+    createdAt: issues.createdAt,
+    updatedAt: issues.updatedAt,
   }).from(issues)
     .where(and(eq(issues.orgId, input.orgId), or(...involvement)!))
     .orderBy(desc(issues.updatedAt), desc(issues.createdAt), desc(issues.id))
@@ -270,8 +328,12 @@ async function listRecentIssues(db: Db, input: BuildAgentStartupContextInput) {
       identifier: row.identifier,
       status: row.status,
       role: issueRole(row, input.agentId),
+      assignee: formatIssuePrincipal(row.assigneeAgentId, row.assigneeUserId),
+      reviewer: formatIssuePrincipal(row.reviewerAgentId, row.reviewerUserId),
       title: row.title,
       snippet: row.description,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     })),
     omitted: Math.max(0, rows.length - 10),
   };
