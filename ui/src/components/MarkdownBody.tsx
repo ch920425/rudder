@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { useMarkdownMentions } from "../context/MarkdownMentionsContext";
 import { useTheme } from "../context/ThemeContext";
 import { normalizeRenderedMarkdownSource } from "../lib/markdown-normalize";
-import { mentionChipInlineStyle, mentionChipNavigationPath, parseMentionChipHref, stripMentionChipLabelPrefix } from "../lib/mention-chips";
+import { mentionChipInlineStyle, mentionChipNavigationPath, parseMentionChipHref, stripMentionChipLabelPrefix, type ParsedMentionChip } from "../lib/mention-chips";
 import { applyOrganizationPrefix, extractOrganizationPrefixFromPath } from "../lib/organization-routes";
 import { formatSkillReferenceDisplayLabel, parseSkillReference } from "../lib/skill-reference";
 import { cn } from "../lib/utils";
@@ -62,6 +62,31 @@ function flattenText(value: ReactNode): string {
 
 function normalizeSkillReferenceLookupKey(value: string | null | undefined) {
   return value?.trim().replace(/\/+$/u, "").toLowerCase() ?? "";
+}
+
+function compactMentionId(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "item";
+  const firstSegment = trimmed.split(/[-/]/u).find(Boolean);
+  if (firstSegment && firstSegment.length >= 6) return firstSegment.slice(0, 12);
+  return trimmed.length > 12 ? trimmed.slice(0, 12) : trimmed;
+}
+
+function basenameFromPath(value: string | null | undefined) {
+  const trimmed = value?.trim().replace(/\/+$/u, "") ?? "";
+  return trimmed.split("/").filter(Boolean).at(-1) ?? "";
+}
+
+function mentionFallbackLabel(mention: ParsedMentionChip) {
+  if (mention.kind === "agent") return compactMentionId(mention.agentId);
+  if (mention.kind === "project") return compactMentionId(mention.projectId);
+  if (mention.kind === "automation") return mention.title?.trim() || compactMentionId(mention.automationId);
+  if (mention.kind === "issue") return mention.ref?.trim() || compactMentionId(mention.issueId);
+  if (mention.kind === "chat") return mention.title?.trim() || compactMentionId(mention.conversationId);
+  if (mention.kind === "library_doc") return mention.title?.trim() || compactMentionId(mention.documentId);
+  if (mention.kind === "library_entry") return mention.title?.trim() || basenameFromPath(mention.path) || compactMentionId(mention.entryId);
+  if (mention.kind === "library_file") return mention.title?.trim() || basenameFromPath(mention.filePath) || compactMentionId(mention.filePath);
+  return mention.title?.trim() || basenameFromPath(mention.directoryPath) || compactMentionId(mention.directoryPath);
 }
 
 function currentOrganizationPrefixFromLocation(): string | null {
@@ -836,7 +861,7 @@ export function MarkdownBody({
     a: ({ node, href, children: linkChildren }) => {
       const parsed = href ? parseMentionChipHref(href) : null;
       if (parsed) {
-        const fallbackMentionLabel = stripMentionChipLabelPrefix(flattenText(linkChildren));
+        const fallbackMentionLabel = stripMentionChipLabelPrefix(flattenText(linkChildren)).trim();
         const mention = (() => {
           if (parsed.kind === "agent") {
             return {
@@ -874,7 +899,7 @@ export function MarkdownBody({
           if (mention.kind === "library_file") return libraryFileMentionByPath.get(mention.filePath)?.name ?? fallbackMentionLabel;
           if (mention.kind === "library_directory") return libraryDirectoryMentionByPath.get(mention.directoryPath)?.name ?? fallbackMentionLabel;
           return fallbackMentionLabel;
-        })();
+        })() || mentionFallbackLabel(mention);
         const targetHref = applyOrganizationPrefix(mentionChipNavigationPath(mention), organizationPrefix);
         const mentionLink = (
           <a

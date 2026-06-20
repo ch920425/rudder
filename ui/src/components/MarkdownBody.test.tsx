@@ -710,6 +710,37 @@ describe("MarkdownBody", () => {
     expect(html).toContain('data-mention-status="in_progress"');
   });
 
+  it("renders empty-label issue links without current mention data as readable links", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"- [](issue://843c381d-0b1a-48fb-9015-8c7df88d543f) CI/Release 巡检完成。"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="/issues/843c381d-0b1a-48fb-9015-8c7df88d543f"');
+    expect(html).toContain(">843c381d</a>");
+    expect(html).toContain("rudder-entity-preview-wrap");
+    expect(html).toContain("rudder-mention-chip");
+    expect(html).toContain("CI/Release 巡检完成");
+    expect(html).not.toContain("></a>");
+  });
+
+  it("renders whitespace-label issue links without current mention data as readable links", () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"- [   ](issue://843c381d-0b1a-48fb-9015-8c7df88d543f) CI/Release 巡检完成。"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="/issues/843c381d-0b1a-48fb-9015-8c7df88d543f"');
+    expect(html).toContain(">843c381d</a>");
+    expect(html).not.toContain(">   </a>");
+  });
+
   it("renders issue mentions as chips that link to the issue route", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
