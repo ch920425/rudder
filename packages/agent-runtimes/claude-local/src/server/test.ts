@@ -7,7 +7,6 @@ import {
   asBoolean,
   asNumber,
   asString,
-  asStringArray,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
@@ -15,6 +14,11 @@ import {
   runChildProcess,
 } from "@rudderhq/agent-runtime-utils/server-utils";
 import path from "node:path";
+import {
+  configuredClaudeExtraArgs,
+  resolveClaudePermissionMode,
+  sanitizeClaudeExtraArgs,
+} from "./cli-args.js";
 import { detectClaudeLoginRequired, parseClaudeStreamJson } from "./parse.js";
 
 function summarizeStatus(checks: AgentRuntimeEnvironmentCheck[]): AgentRuntimeEnvironmentTestResult["status"] {
@@ -200,14 +204,12 @@ export async function testEnvironment(
       const chrome = asBoolean(config.chrome, false);
       const maxTurns = asNumber(config.maxTurnsPerRun, 0);
       const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
-      const extraArgs = (() => {
-        const fromExtraArgs = asStringArray(config.extraArgs);
-        if (fromExtraArgs.length > 0) return fromExtraArgs;
-        return asStringArray(config.args);
-      })();
+      const permissionMode = resolveClaudePermissionMode(config);
+      const extraArgs = sanitizeClaudeExtraArgs(configuredClaudeExtraArgs(config)).args;
 
       const args = ["--print", "-", "--output-format", "stream-json", "--verbose"];
       if (dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
+      else args.push("--permission-mode", permissionMode);
       if (chrome) args.push("--chrome");
       if (model) args.push("--model", model);
       if (effort) args.push("--effort", effort);

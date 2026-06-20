@@ -946,15 +946,12 @@ export function applyPlanModeRuntimeOverlay(
     return {
       ...agentRuntimeConfig,
       dangerouslySkipPermissions: false,
-      extraArgs: [
-        "--permission-mode",
-        "plan",
-        ...stripCliArgs(args, {
-          flagsWithValues: ["--permission-mode"],
-          standaloneFlags: ["--dangerously-skip-permissions"],
-          prefixedFlags: ["--permission-mode="],
-        }),
-      ],
+      permissionMode: "plan",
+      extraArgs: stripCliArgs(args, {
+        flagsWithValues: ["--permission-mode"],
+        standaloneFlags: ["--dangerously-skip-permissions"],
+        prefixedFlags: ["--permission-mode="],
+      }),
     };
   }
 

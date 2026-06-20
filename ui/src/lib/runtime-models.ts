@@ -126,7 +126,7 @@ export function runtimeManualProbeCommand(agentRuntimeType: string, command: str
     const modelId = modelNameFromProviderModelId(model) ?? "<model>";
     return `${executable} -p "Respond with hello." --mode json --provider ${provider} --model ${modelId} --tools read`;
   }
-  return `${executable} -p "Respond with hello." --output-format json --no-session-persistence --permission-mode bypassPermissions --bare --tools ""`;
+  return `${executable} -p "Respond with hello." --output-format json --no-session-persistence --permission-mode auto --bare --tools ""`;
 }
 
 export function runtimeAuthRecoveryHint(agentRuntimeType: string, model: string): string {

@@ -23,7 +23,7 @@ export const help: Record<string, string> = {
   modelFallbacks: "Fallback runtime/model attempts tried in order when the primary invocation fails. Each fallback can use its own provider and advanced config.",
   thinkingEffort: "Control model reasoning depth. Supported values vary by runtime/model.",
   chrome: "Enable Claude's Chrome integration by passing --chrome.",
-  dangerouslySkipPermissions: "Run Claude without permission prompts. Required for unattended operation.",
+  dangerouslySkipPermissions: "Run Claude with the dangerous permission bypass. Leave off unless a trusted local agent explicitly needs unrestricted tool execution.",
   dangerouslyBypassSandbox: "Run Codex without sandbox restrictions. Required for filesystem/network access.",
   search: "Enable Codex web search capability during runs.",
   countSubscriptionUsageAsCost: "Normally on for Codex subscription login runs. Known models are estimated as API-equivalent spend and count toward Rudder spend and budget hard stops. Turn this off only when this agent's subscription usage should remain $0.",

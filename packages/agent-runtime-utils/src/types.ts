@@ -403,6 +403,7 @@ export interface CreateConfigValues {
   thinkingEffort: string;
   chrome: boolean;
   dangerouslySkipPermissions: boolean;
+  permissionMode?: string;
   search: boolean;
   countSubscriptionUsageAsCost?: boolean;
   dangerouslyBypassSandbox: boolean;

@@ -723,6 +723,68 @@ describe("chatAssistantService operator profile prompt injection", () => {
     }));
   });
 
+  it("applies plan-mode prompt guidance and a structured Claude permission overlay", async () => {
+    const svc = chatAssistantService({} as any);
+    mockAgentService.getById.mockResolvedValueOnce({
+      id: "agent-1",
+      orgId: "organization-1",
+      name: "Claude Planner",
+      status: "idle",
+      agentRuntimeType: "claude_local",
+      agentRuntimeConfig: {
+        model: "claude-sonnet-4.5",
+        dangerouslySkipPermissions: true,
+        extraArgs: ["--permission-mode", "bypassPermissions", "--dangerously-skip-permissions"],
+      },
+      metadata: null,
+    });
+    mockRunContextService.prepareRuntimeConfig.mockResolvedValueOnce({
+      resolvedConfig: {
+        model: "claude-sonnet-4.5",
+        dangerouslySkipPermissions: true,
+        extraArgs: ["--permission-mode", "bypassPermissions", "--dangerously-skip-permissions"],
+      },
+      runtimeConfig: {
+        model: "claude-sonnet-4.5",
+        dangerouslySkipPermissions: true,
+        extraArgs: ["--permission-mode", "bypassPermissions", "--dangerously-skip-permissions"],
+        rudderSkillSync: { desiredSkills: [] },
+        paperclipSkillSync: { desiredSkills: [] },
+        rudderRuntimeSkills: [],
+        paperclipRuntimeSkills: [],
+      },
+      runtimeSkillEntries: [],
+      secretKeys: new Set(),
+    });
+
+    await svc.generateChatAssistantReply({
+      conversation: makeConversation({
+        planMode: true,
+        chatRuntime: {
+          sourceType: "agent",
+          sourceLabel: "Claude Planner",
+          runtimeAgentId: "agent-1",
+          agentRuntimeType: "claude_local",
+          model: "claude-sonnet-4.5",
+          available: true,
+          error: null,
+        },
+      }),
+      messages: makeMessages(),
+      contextLinks: [],
+      operatorProfile: null,
+    });
+
+    const prompt = mockAdapter.execute.mock.calls.at(-1)?.[0]?.context?.chatPrompt as string;
+    const runtimeConfig = mockAdapter.execute.mock.calls.at(-1)?.[0]?.config as Record<string, unknown>;
+    expect(prompt).toContain("Plan mode is active for this conversation.");
+    expect(runtimeConfig).toEqual(expect.objectContaining({
+      dangerouslySkipPermissions: false,
+      permissionMode: "plan",
+      extraArgs: [],
+    }));
+  });
+
   it("omits dormant plan-mode instructions from normal chat prompts", async () => {
     const svc = chatAssistantService({} as any);
 

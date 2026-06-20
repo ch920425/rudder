@@ -73,6 +73,7 @@ export function buildClaudeLocalConfig(v: CreateConfigValues): Record<string, un
   if (modelFallbacks.length > 0) ac.modelFallbacks = modelFallbacks;
   if (v.thinkingEffort) ac.effort = v.thinkingEffort;
   if (v.chrome) ac.chrome = true;
+  if (v.permissionMode) ac.permissionMode = v.permissionMode;
   ac.timeoutSec = 0;
   ac.graceSec = 15;
   const env = parseEnvBindings(v.envBindings);

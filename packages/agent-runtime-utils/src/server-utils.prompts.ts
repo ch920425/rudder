@@ -330,7 +330,7 @@ export const RUDDER_AGENT_OPERATING_CONTRACT = [
   "- `library:projects/<project-key>/...` is the Rudder product locator for those files, not the Markdown link syntax and not a reason to route ordinary local edits through the CLI.",
   "- When you create or update a durable Library file, always include a user-visible Markdown link to that file in your final chat reply or issue comment. Use `rudder library file ref \"$RUDDER_PROJECT_LIBRARY_PATH/<relative-file>\" --json` and paste the returned `markdownLink`; do not pass the absolute `$RUDDER_PROJECT_LIBRARY_ROOT/...` path to `ref`, and do not hand-write `library-entry://...` or `library-file://...` links.",
   "- If `$RUDDER_PROJECT_LIBRARY_ROOT` is unset or inaccessible, use `rudder library file get/put \"$RUDDER_PROJECT_LIBRARY_PATH/<relative-file>\"` as the remote or restricted runtime fallback.",
-  "- Use `/tmp` only for transient scratch files and temporary verification files; do not put durable work product there.",
+  "- Use `$RUDDER_RUNTIME_TMPDIR` for transient scratch files and temporary verification files when it is set; otherwise use `/tmp`. Do not put durable work product there.",
   "- Local trusted runtimes may expose the host operator home as `$RUDDER_OPERATOR_HOME`; use it only when a local skill or script intentionally needs operator-owned desktop app or CLI state. Do not replace `$HOME` with it.",
   "",
   "When you create or copy a skill under `$AGENT_HOME/skills/<slug>/`, check the agent's Skills snapshot before claiming it will load in future runs. If it is installed but not enabled, say exactly that future runs will not load it until enabled, and offer to enable it with `rudder agent skills enable <agent-id> <selection-ref>` when you have permission.",

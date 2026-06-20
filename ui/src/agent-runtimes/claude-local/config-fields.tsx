@@ -110,7 +110,7 @@ export function ClaudeLocalAdvancedFields({
             : eff(
                 "agentRuntimeConfig",
                 "dangerouslySkipPermissions",
-                config.dangerouslySkipPermissions !== false,
+                config.dangerouslySkipPermissions === true,
               )
         }
         onChange={(v) =>

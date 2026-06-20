@@ -512,7 +512,11 @@ export function OnboardingWizard() {
         agentRuntimeType === "codex_local"
           ? DEFAULT_CODEX_LOCAL_SEARCH
           : defaultCreateValues.search,
-      dangerouslySkipPermissions: agentRuntimeType === "claude_local",
+      dangerouslySkipPermissions: defaultCreateValues.dangerouslySkipPermissions,
+      permissionMode:
+        agentRuntimeType === "claude_local"
+          ? defaultCreateValues.permissionMode
+          : undefined,
       dangerouslyBypassSandbox:
         agentRuntimeType === "codex_local"
           ? DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX

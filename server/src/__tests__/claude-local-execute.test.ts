@@ -33,6 +33,7 @@ const managedClaudeSettingsPath = process.env.RUDDER_CLAUDE_HOME
 const managedClaudeJsonPath = process.env.RUDDER_CLAUDE_HOME
   ? path.join(process.env.RUDDER_CLAUDE_HOME, ".claude.json")
   : null;
+const runtimeTmpDir = process.env.RUDDER_RUNTIME_TMPDIR ?? null;
 const payload = {
   argv: process.argv.slice(2),
   prompt: fs.readFileSync(0, "utf8"),
@@ -45,6 +46,7 @@ const payload = {
     CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null,
     RUDDER_CLAUDE_HOME: process.env.RUDDER_CLAUDE_HOME ?? null,
     RUDDER_OPERATOR_HOME: process.env.RUDDER_OPERATOR_HOME ?? null,
+    RUDDER_RUNTIME_TMPDIR: runtimeTmpDir,
     PATH: process.env.PATH ?? null,
   },
   settingsPath,
@@ -65,6 +67,7 @@ const payload = {
     addDirSkillsPath && fs.existsSync(addDirSkillsPath)
       ? fs.readdirSync(addDirSkillsPath).sort()
       : [],
+  runtimeTmpExists: runtimeTmpDir ? fs.existsSync(runtimeTmpDir) : false,
   gitIdentity: captureGitIdentityEnv(),
 };
 if (capturePath) {
@@ -495,6 +498,7 @@ describe("claude execute", { timeout: 20_000 }, () => {
           CLAUDE_CONFIG_DIR: string | null;
           RUDDER_CLAUDE_HOME: string | null;
           RUDDER_OPERATOR_HOME: string | null;
+          RUDDER_RUNTIME_TMPDIR: string | null;
           PATH: string | null;
         };
         settingsPath: string | null;
@@ -505,16 +509,22 @@ describe("claude execute", { timeout: 20_000 }, () => {
         managedClaudeJsonPath: string | null;
         managedClaudeJsonExists: boolean;
         addDirSkillEntries: string[];
+        runtimeTmpExists: boolean;
       };
       const managedHome = path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "claude-home");
       const managedConfigDir = path.join(managedHome, ".claude");
+      const runtimeTmpDir = path.join(managedHome, "runtime-tmp", "run-3");
       expect(capture.managedClaudeSettingsPath).toContain("/.rudder/instances/default/organizations/organization-1/claude-home/.claude/settings.json");
       expect(capture.env.HOME).toBe(root);
       expect(capture.env.USERPROFILE).toBe(root);
       expect(capture.env.RUDDER_OPERATOR_HOME).toBe(root);
       expect(capture.env.RUDDER_CLAUDE_HOME).toBe(managedHome);
+      expect(capture.env.RUDDER_RUNTIME_TMPDIR).toBe(runtimeTmpDir);
       expect(capture.env.CLAUDE_CONFIG_DIR).toBe(managedConfigDir);
+      expect(capture.runtimeTmpExists).toBe(true);
       expect(capture.managedClaudeConfigDir).toBe(managedConfigDir);
+      expect(capture.argv).toContain("--permission-mode");
+      expect(capture.argv[capture.argv.indexOf("--permission-mode") + 1]).toBe("auto");
       expect(capture.argv).toContain("--settings");
       expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
       expect(capture.argv).toContain("--setting-sources");
@@ -541,7 +551,120 @@ describe("claude execute", { timeout: 20_000 }, () => {
       expect(managedSettings.permissions).toBeUndefined();
       expect(capture.managedClaudeJsonPath).toContain("/.rudder/instances/default/organizations/organization-1/claude-home/.claude.json");
       expect(capture.managedClaudeJsonExists).toBe(false);
+      expect(capture.argv).toContain("--add-dir");
+      expect(capture.argv).toContain(runtimeTmpDir);
       expect(capture.addDirSkillEntries).not.toContain("user-skill.txt");
+    } finally {
+      restoreEnv();
+      await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves explicit Claude permission mode overrides without dangerous bypass", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-permission-mode-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "claude");
+    const capturePath = path.join(root, "capture.json");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeClaudeCommand(commandPath);
+
+    const restoreEnv = setOperatorHomeForTest(root);
+
+    try {
+      const result = await execute({
+        runId: "run-permission-mode",
+        agent: {
+          id: "agent-permission-mode",
+          orgId: "organization-1",
+          name: "Claude Coder",
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            HOME: root,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          permissionMode: "plan",
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+      };
+      expect(capture.argv).toContain("--permission-mode");
+      expect(capture.argv[capture.argv.indexOf("--permission-mode") + 1]).toBe("plan");
+      expect(capture.argv).not.toContain("--dangerously-skip-permissions");
+    } finally {
+      restoreEnv();
+      await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not accept bypassPermissions through the structured non-dangerous permission mode field", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-permission-mode-bypass-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "claude");
+    const capturePath = path.join(root, "capture.json");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeClaudeCommand(commandPath);
+
+    const restoreEnv = setOperatorHomeForTest(root);
+
+    try {
+      const result = await execute({
+        runId: "run-permission-mode-bypass",
+        agent: {
+          id: "agent-permission-mode-bypass",
+          orgId: "organization-1",
+          name: "Claude Coder",
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            HOME: root,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          permissionMode: "bypassPermissions",
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+      };
+      expect(capture.argv).toContain("--permission-mode");
+      expect(capture.argv[capture.argv.indexOf("--permission-mode") + 1]).toBe("auto");
+      expect(capture.argv).not.toContain("bypassPermissions");
+      expect(capture.argv).not.toContain("--dangerously-skip-permissions");
     } finally {
       restoreEnv();
       await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
@@ -602,6 +725,20 @@ describe("claude execute", { timeout: 20_000 }, () => {
             "--plugin-dir",
             path.join(root, "hostile-plugin"),
             "--plugin-url=https://example.invalid/hostile-plugin.zip",
+            "--permission-mode",
+            "bypassPermissions",
+            "--permission-mode=default",
+            "--dangerously-skip-permissions",
+            "--allow-dangerously-skip-permissions",
+            "--allowedTools",
+            "Bash(*)",
+            "--allowedTools=Bash(*)",
+            "--disallowedTools",
+            "",
+            "--disallowedTools=",
+            "--tools",
+            "default",
+            "--tools=default",
             "--strict-mcp-config=false",
             "--no-strict-mcp-config",
           ],
@@ -625,12 +762,21 @@ describe("claude execute", { timeout: 20_000 }, () => {
       expect(capture.argv).not.toContain("--mcp-config");
       expect(capture.argv).not.toContain("--plugin-dir");
       expect(capture.argv).not.toContain("--no-strict-mcp-config");
+      expect(capture.argv).not.toContain("--dangerously-skip-permissions");
+      expect(capture.argv).not.toContain("--allow-dangerously-skip-permissions");
+      expect(capture.argv).not.toContain("Bash(*)");
+      expect(capture.argv).not.toContain("default");
       expect(capture.argv.some((arg) => arg.startsWith("--settings="))).toBe(false);
       expect(capture.argv.some((arg) => arg.startsWith("--setting-sources="))).toBe(false);
       expect(capture.argv.some((arg) => arg.startsWith("--add-dir="))).toBe(false);
       expect(capture.argv.some((arg) => arg.startsWith("--mcp-config="))).toBe(false);
       expect(capture.argv.some((arg) => arg.startsWith("--plugin-url="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--permission-mode="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--allowedTools="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--disallowedTools="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--tools="))).toBe(false);
       expect(capture.argv.some((arg) => arg.startsWith("--strict-mcp-config="))).toBe(false);
+      expect(capture.argv[capture.argv.indexOf("--permission-mode") + 1]).toBe("auto");
       expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
       expect(capture.settingSources).toBe("user");
       expect(capture.addDirSkillEntries).not.toContain("hostile-skill");
@@ -680,6 +826,8 @@ describe("claude execute", { timeout: 20_000 }, () => {
             "--settings",
             hostileSettingsPath,
             "--add-dir=/tmp/legacy-hostile-add-dir",
+            "--dangerously-skip-permissions",
+            "--tools=default",
             "--no-strict-mcp-config",
           ],
           promptTemplate: "Follow the rudder heartbeat.",
@@ -697,6 +845,8 @@ describe("claude execute", { timeout: 20_000 }, () => {
       };
       expect(capture.argv).not.toContain(hostileSettingsPath);
       expect(capture.argv.some((arg) => arg.startsWith("--add-dir="))).toBe(false);
+      expect(capture.argv).not.toContain("--dangerously-skip-permissions");
+      expect(capture.argv.some((arg) => arg.startsWith("--tools="))).toBe(false);
       expect(capture.argv).not.toContain("--no-strict-mcp-config");
       expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
     } finally {

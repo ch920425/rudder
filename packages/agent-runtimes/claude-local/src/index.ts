@@ -22,6 +22,7 @@ Core fields:
 - chrome (boolean, optional): pass --chrome when running Claude
 - promptTemplate (string, optional): run prompt template
 - maxTurnsPerRun (number, optional): max turns for one run
+- permissionMode (string, optional): Claude permission mode passed as --permission-mode when dangerouslySkipPermissions is false; defaults to auto for unattended Rudder issue runs
 - dangerouslySkipPermissions (boolean, optional): pass --dangerously-skip-permissions to claude
 - command (string, optional): defaults to "claude"
 - extraArgs (string[], optional): additional CLI args

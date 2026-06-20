@@ -64,6 +64,8 @@ vi.mock("../agent-runtimes", () => ({
       command?: string;
       args?: string;
       url?: string;
+      dangerouslySkipPermissions?: boolean;
+      permissionMode?: string;
       envBindings?: Record<string, unknown>;
     }) => {
       const config: Record<string, unknown> = {};
@@ -71,6 +73,10 @@ vi.mock("../agent-runtimes", () => ({
       if (values.command) config.command = values.command;
       if (values.args) config.args = values.args;
       if (values.url) config.url = values.url;
+      if (typeof values.dangerouslySkipPermissions === "boolean") {
+        config.dangerouslySkipPermissions = values.dangerouslySkipPermissions;
+      }
+      if (values.permissionMode) config.permissionMode = values.permissionMode;
       if (values.envBindings && Object.keys(values.envBindings).length > 0) {
         config.env = values.envBindings;
       }
@@ -246,6 +252,53 @@ describe("OnboardingWizard runtime config", () => {
     vi.clearAllMocks();
     document.body.innerHTML = "";
   });
+
+  it("creates the default Claude agent with auto permission mode instead of dangerous bypass", async () => {
+    vi.mocked(agentsApi.testEnvironment).mockResolvedValue({
+      agentRuntimeType: "claude_local",
+      status: "pass",
+      testedAt: "2026-06-18T00:00:00.000Z",
+      checks: [{ code: "claude_hello_probe_passed", level: "info", message: "Claude hello probe succeeded." }],
+    });
+
+    const { OnboardingWizard } = await import("./OnboardingWizard");
+    await render(<OnboardingWizard />);
+    const surface = document.body;
+
+    await vi.waitFor(() => {
+      expect(surface.textContent).toContain("Create your first agent");
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(surface.querySelector<HTMLInputElement>("input[placeholder='Agent name']")?.value)
+          .toBe("DeepSeek Agent");
+      });
+    });
+
+    await act(async () => {
+      click(findButton(surface, "Next"));
+      await flush();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(agentsApi.create).toHaveBeenCalledWith("org-1", expect.objectContaining({
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: expect.objectContaining({
+            dangerouslySkipPermissions: false,
+            permissionMode: "auto",
+          }),
+        }));
+      });
+    });
+
+    expect(agentsApi.testEnvironment).toHaveBeenCalledWith("org-1", "claude_local", {
+      agentRuntimeConfig: expect.objectContaining({
+        dangerouslySkipPermissions: false,
+        permissionMode: "auto",
+      }),
+    });
+  }, 15_000);
 
   it("stores a Pi DeepSeek onboarding key as a secret ref in Test now and created agent config", async () => {
     const { OnboardingWizard } = await import("./OnboardingWizard");

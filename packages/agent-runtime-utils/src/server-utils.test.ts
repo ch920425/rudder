@@ -377,7 +377,7 @@ describe("loadAgentInstructionsPrefix", () => {
     expect(loaded.prefix).toContain("local-machine skill ref");
     expect(loaded.prefix).toContain("Library files: use the `markdownLink` returned by");
     expect(loaded.prefix).toContain("not inside code spans or code blocks");
-    expect(loaded.prefix).toContain("Use `/tmp` only for transient scratch files");
+    expect(loaded.prefix).toContain("Use `$RUDDER_RUNTIME_TMPDIR` for transient scratch files");
     expect(loaded.prefix).toContain("Local trusted runtimes may expose the host operator home as `$RUDDER_OPERATOR_HOME`");
     expect(loaded.prefix).toContain("[NameSilo transfer page](https://www.namesilo.com/account_domain_manage_transfer.php)");
     expect(loaded.prefix).toContain("Do not put action URLs in backticks or code blocks");

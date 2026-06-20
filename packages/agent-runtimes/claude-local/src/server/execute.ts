@@ -5,7 +5,6 @@ import {
   asBoolean,
   asNumber,
   asString,
-  asStringArray,
   buildRudderEnv,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
@@ -31,6 +30,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  configuredClaudeExtraArgs,
+  resolveClaudePermissionMode,
+  sanitizeClaudeExtraArgs,
+} from "./cli-args.js";
+import {
   describeClaudeFailure,
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
@@ -54,27 +58,6 @@ const SHARED_CLAUDE_HOME_ENTRIES = [
   ".anthropic",
 ] as const;
 const CLAUDE_SETTINGS_AUTH_ENV_PREFIXES = ["ANTHROPIC_"] as const;
-const CLAUDE_EXTRA_ARGS_VALUE_FLAGS = new Set([
-  "--add-dir",
-  "--mcp-config",
-  "--plugin-dir",
-  "--plugin-url",
-  "--setting-sources",
-  "--settings",
-]);
-const CLAUDE_EXTRA_ARGS_STANDALONE_FLAGS = new Set([
-  "--no-strict-mcp-config",
-  "--strict-mcp-config",
-]);
-const CLAUDE_EXTRA_ARGS_PREFIXED_FLAGS = [
-  "--add-dir=",
-  "--mcp-config=",
-  "--plugin-dir=",
-  "--plugin-url=",
-  "--setting-sources=",
-  "--settings=",
-  "--strict-mcp-config=",
-] as const;
 
 /**
  * Create a tmpdir with `.claude/skills/` containing symlinks to skills from
@@ -166,42 +149,11 @@ async function writeSanitizedClaudeSettings(sourceHome: string, targetHome: stri
   return targetSettingsPath;
 }
 
-function sanitizeClaudeExtraArgs(args: string[]): { args: string[]; removedFlags: string[] } {
-  const sanitized: string[] = [];
-  const removedFlags = new Set<string>();
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index] ?? "";
-    if (CLAUDE_EXTRA_ARGS_VALUE_FLAGS.has(arg)) {
-      removedFlags.add(arg);
-      index += 1;
-      continue;
-    }
-    if (CLAUDE_EXTRA_ARGS_STANDALONE_FLAGS.has(arg)) {
-      removedFlags.add(arg);
-      continue;
-    }
-    const matchedPrefix = CLAUDE_EXTRA_ARGS_PREFIXED_FLAGS.find((prefix) => arg.startsWith(prefix));
-    if (matchedPrefix) {
-      removedFlags.add(matchedPrefix.slice(0, -1));
-      continue;
-    }
-    sanitized.push(arg);
-  }
-
-  return { args: sanitized, removedFlags: [...removedFlags].sort() };
-}
-
 async function resolveClaudeExtraArgs(
   config: Record<string, unknown>,
   onLog: AgentRuntimeExecutionContext["onLog"],
 ): Promise<string[]> {
-  const configuredArgs = (() => {
-    const fromExtraArgs = asStringArray(config.extraArgs);
-    if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
-  })();
-  const result = sanitizeClaudeExtraArgs(configuredArgs);
+  const result = sanitizeClaudeExtraArgs(configuredClaudeExtraArgs(config));
   if (result.removedFlags.length > 0) {
     await onLog?.(
       "stderr",
@@ -276,7 +228,9 @@ interface ClaudeRuntimeConfig {
   timeoutSec: number;
   graceSec: number;
   extraArgs: string[];
+  permissionMode: string;
   settingsPath: string;
+  runtimeTmpDir: string;
 }
 
 function buildLoginResult(input: {
@@ -469,6 +423,9 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     agent.orgId,
   );
   const managedHome = managedClaudeHome.home;
+  const runtimeTmpDir = path.join(managedHome, "runtime-tmp", runId);
+  await fs.rm(runtimeTmpDir, { recursive: true, force: true });
+  await fs.mkdir(runtimeTmpDir, { recursive: true });
   await syncLocalCliCredentialHomeEntries({
     sourceHome: operatorHome,
     targetHome: managedHome,
@@ -489,6 +446,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   env.CLAUDE_CONFIG_DIR = managedClaudeHome.configDir;
   env.RUDDER_CLAUDE_HOME = managedHome;
   env.RUDDER_OPERATOR_HOME = operatorHome;
+  env.RUDDER_RUNTIME_TMPDIR = runtimeTmpDir;
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
   applyGitCredentialHelperPolicyEnv(env);
 
@@ -506,6 +464,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
   const extraArgs = await resolveClaudeExtraArgs(config, input.onLog ?? (async () => {}));
+  const permissionMode = resolveClaudePermissionMode(config);
 
   return {
     command,
@@ -517,7 +476,9 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     timeoutSec,
     graceSec,
     extraArgs,
+    permissionMode,
     settingsPath: managedClaudeHome.settingsPath,
+    runtimeTmpDir,
   };
 }
 
@@ -589,7 +550,9 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     timeoutSec,
     graceSec,
     extraArgs,
+    permissionMode,
     settingsPath,
+    runtimeTmpDir,
   } = runtimeConfig;
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
@@ -729,6 +692,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     const args = ["--print", "-", "--output-format", "stream-json", "--verbose"];
     if (resumeSessionId) args.push("--resume", resumeSessionId);
     if (dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
+    else args.push("--permission-mode", permissionMode);
     if (chrome) args.push("--chrome");
     if (model) args.push("--model", model);
     if (effort) args.push("--effort", effort);
@@ -738,6 +702,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     }
     args.push("--settings", settingsPath, "--setting-sources", "user", "--strict-mcp-config");
     args.push("--add-dir", skillsDir);
+    args.push("--add-dir", runtimeTmpDir);
     if (extraArgs.length > 0) args.push(...extraArgs);
     return args;
   };
