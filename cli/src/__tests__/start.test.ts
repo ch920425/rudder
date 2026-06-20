@@ -1207,6 +1207,34 @@ describe("desktop start command helpers", () => {
     await expect(waitForProcessExit(process.pid, 20, 5)).resolves.toBe(false);
   });
 
+  it("allows first install when the managed Desktop executable does not exist yet", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-first-install-test."));
+    const installRoot = path.join(dir, "Applications");
+    const appPath = path.join(installRoot, "Rudder.app");
+    const executablePath = path.join(appPath, "Contents", "MacOS", "Rudder");
+
+    try {
+      await prepareForDesktopReplace(
+        {
+          installRoot,
+          appPath,
+          executablePath,
+          metadataPath: path.join(installRoot, ".rudder-install.json"),
+        },
+        { platform: "macos", arch: "arm64", extension: ".zip" },
+        {
+          findDesktopExecutablePids: vi.fn(() => []),
+          forceQuitDesktopProcess: vi.fn(),
+          waitForDesktopProcessExit: vi.fn(async () => true),
+        },
+      );
+
+      await expect(access(appPath)).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it.skipIf(process.platform === "win32")("does not replace immediately when legacy Desktop confirms quit without a pid", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "rudder-desktop-legacy-quit-test."));
     const installRoot = path.join(dir, "Rudder");

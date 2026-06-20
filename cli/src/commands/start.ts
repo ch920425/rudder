@@ -1481,8 +1481,6 @@ export async function prepareForDesktopReplace(
     } else {
       await delay(options.updateQuitForceDelayMs ?? UPDATE_QUIT_FORCE_DELAY_MS);
     }
-  } else if (!isRunningInsideDesktopExecutable()) {
-    throw new Error("Cannot find the managed Rudder Desktop executable to request a safe update quit. Close Rudder and rerun start.");
   }
 
   const replacePath = target.platform === "windows" ? paths.installRoot : paths.appPath;
