@@ -1026,7 +1026,11 @@ export function messengerService(db: Db) {
         .select()
         .from(messengerCustomGroups)
         .where(and(eq(messengerCustomGroups.orgId, orgId), eq(messengerCustomGroups.userId, userId)))
-        .orderBy(asc(messengerCustomGroups.sortOrder), asc(messengerCustomGroups.createdAt)),
+        .orderBy(
+          sql`${messengerCustomGroups.pinnedAt} IS NULL`,
+          asc(messengerCustomGroups.sortOrder),
+          asc(messengerCustomGroups.createdAt),
+        ),
       db
         .select()
         .from(messengerCustomGroupEntries)
@@ -1107,13 +1111,18 @@ export function messengerService(db: Db) {
     orgId: string,
     userId: string,
     groupId: string,
-    patch: { name?: string; icon?: string | null; collapsed?: boolean; sortOrder?: number },
+    patch: { name?: string; icon?: string | null; collapsed?: boolean; pinned?: boolean; sortOrder?: number },
   ) {
     await getCustomGroupOrThrow(orgId, userId, groupId);
+    const { pinned, ...groupPatch } = patch;
+    const updatePatch = {
+      ...groupPatch,
+      ...(typeof pinned === "boolean" ? { pinnedAt: pinned ? new Date() : null } : {}),
+    };
     const [group] = await db
       .update(messengerCustomGroups)
       .set({
-        ...patch,
+        ...updatePatch,
         updatedAt: new Date(),
       })
       .where(and(

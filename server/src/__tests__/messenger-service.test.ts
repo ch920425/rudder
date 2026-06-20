@@ -305,6 +305,30 @@ describe("messengerService and issue follows", () => {
     expect(customGroups.groups[0]?.entries[0]?.thread.title).toBe("Grouped chat 8");
   });
 
+  it("persists pinned custom groups and lists them before unpinned groups", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-custom-group-pins";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Custom Group Pins Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Custom Group Pins Org"),
+      issuePrefix: `GP${orgId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const firstGroup = await messengerSvc.createCustomGroup(orgId, userId, "Later group");
+    const pinnedGroup = await messengerSvc.createCustomGroup(orgId, userId, "Pinned group");
+
+    const updated = await messengerSvc.updateCustomGroup(orgId, userId, pinnedGroup!.id, { pinned: true });
+    const customGroups = await messengerSvc.listCustomGroups(orgId, userId);
+
+    expect(updated.pinnedAt).toBeInstanceOf(Date);
+    expect(customGroups.groups.map((group) => group.name)).toEqual(["Pinned group", "Later group"]);
+    expect(customGroups.groups[0]?.pinnedAt).toBeInstanceOf(Date);
+    expect(customGroups.groups[1]?.id).toBe(firstGroup!.id);
+  });
+
   it("creates a custom group with multiple chat entries atomically", async () => {
     const orgId = randomUUID();
     const userId = "board-user-custom-group-merge";

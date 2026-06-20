@@ -11,6 +11,7 @@ export const messengerCustomGroups = pgTable(
     icon: text("icon"),
     sortOrder: integer("sort_order").notNull().default(0),
     collapsed: boolean("collapsed").notNull().default(false),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

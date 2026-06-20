@@ -931,6 +931,105 @@ test.describe("Messenger unified threads contract", () => {
     expect(payload.groups.find((candidate) => candidate.id === group.id)?.icon).toBe("🔥::amber");
   });
 
+  test("pins custom groups from group actions and keeps pinned groups first after reload", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Custom-Group-Pin-${Date.now()}`);
+
+    async function createChat(title: string) {
+      const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+        data: {
+          title,
+          summary: `${title} summary`,
+          issueCreationMode: "manual_approval",
+          planMode: false,
+        },
+      });
+      expect(res.ok()).toBe(true);
+      return res.json() as Promise<{ id: string }>;
+    }
+
+    async function createGroup(name: string, icon: string, threadKey: string) {
+      const groupRes = await page.request.post(`/api/orgs/${organization.id}/messenger/groups`, {
+        data: { name, icon },
+      });
+      expect(groupRes.ok()).toBe(true);
+      const group = await groupRes.json() as { id: string };
+      const assignRes = await page.request.post(`/api/orgs/${organization.id}/messenger/groups/${group.id}/entries`, {
+        data: { threadKey },
+      });
+      expect(assignRes.ok()).toBe(true);
+      return group;
+    }
+
+    const pinCandidateChat = await createChat("Older pin candidate tab");
+    await page.waitForTimeout(25);
+    const regularChat = await createChat("Newer regular tab");
+    const pinCandidateGroup = await createGroup(
+      "Pin candidate",
+      "folder::amber",
+      `chat:${pinCandidateChat.id}`,
+    );
+    const regularGroup = await createGroup(
+      "Regular group",
+      "folder::slate",
+      `chat:${regularChat.id}`,
+    );
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
+    }, organization.id);
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const pinCandidateSectionId = `messenger-thread-section-custom-group-${pinCandidateGroup.id}`;
+    const regularSectionId = `messenger-thread-section-custom-group-${regularGroup.id}`;
+    const pinCandidateSection = page.getByTestId(pinCandidateSectionId);
+    await expect(pinCandidateSection).toContainText("Pin candidate", { timeout: 15_000 });
+    await expect(page.getByTestId(regularSectionId)).toContainText("Regular group");
+
+    const pinResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/orgs/${organization.id}/messenger/groups/${pinCandidateGroup.id}`) &&
+      response.request().method() === "PATCH",
+    );
+    await pinCandidateSection.hover();
+    await pinCandidateSection.getByRole("button", { name: "Group actions" }).click();
+    await page.getByRole("menuitem", { name: "Pin" }).click();
+    expect((await pinResponse).ok()).toBe(true);
+
+    await expect.poll(async () => {
+      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+      expect(groupsRes.ok()).toBe(true);
+      const payload = await groupsRes.json() as { groups: Array<{ id: string; pinnedAt: string | null }> };
+      return payload.groups.find((group) => group.id === pinCandidateGroup.id)?.pinnedAt ?? null;
+    }).not.toBeNull();
+
+    await expectTestIdsInDomOrder(page, [pinCandidateSectionId, regularSectionId]);
+
+    await page.reload({ waitUntil: "commit" });
+
+    await expect(page.getByTestId(pinCandidateSectionId)).toBeVisible({ timeout: 15_000 });
+    await expectTestIdsInDomOrder(page, [pinCandidateSectionId, regularSectionId]);
+
+    await page.getByTestId(pinCandidateSectionId).hover();
+    await page.getByTestId(pinCandidateSectionId).getByRole("button", { name: "Group actions" }).click();
+    await expect(page.getByRole("menuitem", { name: "Unpin" })).toBeVisible();
+    const unpinResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/orgs/${organization.id}/messenger/groups/${pinCandidateGroup.id}`) &&
+      response.request().method() === "PATCH",
+    );
+    await page.getByRole("menuitem", { name: "Unpin" }).click();
+    const unpinnedGroup = await unpinResponse;
+    expect(unpinnedGroup.ok()).toBe(true);
+    await expect((await unpinnedGroup.json() as { pinnedAt: string | null }).pinnedAt).toBeNull();
+
+    await page.reload({ waitUntil: "commit" });
+
+    await expect(page.getByTestId(pinCandidateSectionId)).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId(pinCandidateSectionId).hover();
+    await page.getByTestId(pinCandidateSectionId).getByRole("button", { name: "Group actions" }).click();
+    await expect(page.getByRole("menuitem", { name: "Pin" })).toBeVisible();
+  });
+
   test("moves pinned tabs into groups and merges two loose tabs by dropping one on another", async ({ page }) => {
     const pageErrors: string[] = [];
     const consoleErrors: string[] = [];

@@ -438,6 +438,7 @@ describe("MessengerContextSidebar chat actions", () => {
       icon: "folder",
       sortOrder: 0,
       collapsed: false,
+      pinnedAt: null,
       createdAt: "2026-04-11T09:40:00.000Z",
       updatedAt: "2026-04-11T09:40:00.000Z",
     });
@@ -822,6 +823,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [
@@ -941,6 +943,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [
@@ -1032,6 +1035,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [
@@ -1103,6 +1107,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [],
@@ -1182,6 +1187,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [],
@@ -1234,6 +1240,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [
@@ -1295,6 +1302,119 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(mockAssignCustomGroupEntry).toHaveBeenCalledWith("org-1", "group-1", "chat:pinned");
   });
 
+  it("pins custom groups from the group actions menu", async () => {
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Deep work",
+        icon: "😀::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [],
+      },
+    ];
+    messengerModel = { ...baseModel(), threadSummaries: [] };
+
+    renderSidebar();
+
+    expect(document.body.textContent).toContain("Deep work");
+    const pinButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Pin") as HTMLButtonElement | undefined;
+
+    expect(pinButton).toBeTruthy();
+    await act(async () => {
+      pinButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", { pinned: true });
+  });
+
+  it("renders pinned custom groups before unpinned custom groups", () => {
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Recent regular group",
+        icon: "folder::slate",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:50:00.000Z",
+        updatedAt: "2026-04-11T09:50:00.000Z",
+        entries: [],
+      },
+      {
+        id: "group-2",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Older pinned group",
+        icon: "folder::amber",
+        sortOrder: 1,
+        collapsed: false,
+        pinnedAt: "2026-04-11T09:30:00.000Z",
+        createdAt: "2026-04-11T09:30:00.000Z",
+        updatedAt: "2026-04-11T09:30:00.000Z",
+        entries: [],
+      },
+    ];
+    messengerModel = { ...baseModel(), threadSummaries: [] };
+
+    renderSidebar();
+
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Older pinned group")).toBeLessThan(text.indexOf("Recent regular group"));
+  });
+
+  it("keeps pinned custom groups first when manual custom order puts an unpinned group first", () => {
+    installLocalStorage({
+      "rudder.messengerDefaultThreadOrder:org-1:local-board": JSON.stringify([
+        "custom-group:group-1",
+        "custom-group:group-2",
+      ]),
+    });
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Manual first regular group",
+        icon: "folder::slate",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:50:00.000Z",
+        updatedAt: "2026-04-11T09:50:00.000Z",
+        entries: [],
+      },
+      {
+        id: "group-2",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Manual second pinned group",
+        icon: "folder::amber",
+        sortOrder: 1,
+        collapsed: false,
+        pinnedAt: "2026-04-11T09:30:00.000Z",
+        createdAt: "2026-04-11T09:30:00.000Z",
+        updatedAt: "2026-04-11T09:30:00.000Z",
+        entries: [],
+      },
+    ];
+    messengerModel = { ...baseModel(), threadSummaries: [] };
+
+    renderSidebar();
+
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Manual second pinned group")).toBeLessThan(text.indexOf("Manual first regular group"));
+  });
+
   it("marks group merge targets without scaling the block", async () => {
     customGroupList = [
       {
@@ -1305,6 +1425,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [
@@ -1480,6 +1601,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
+        pinnedAt: null,
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [

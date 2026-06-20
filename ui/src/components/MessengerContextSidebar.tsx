@@ -1838,6 +1838,7 @@ interface OrganizedThreadSection {
   key: string;
   label: string | null;
   icon?: string | null;
+  isPinned?: boolean;
   entries: OrganizedThreadEntry[];
 }
 
@@ -1900,13 +1901,13 @@ function sectionActivityTime(section: OrganizedThreadSection) {
 }
 
 function compareCustomLayoutSections(a: OrganizedThreadSection, b: OrganizedThreadSection) {
+  if (Boolean(a.isPinned) !== Boolean(b.isPinned)) return a.isPinned ? -1 : 1;
   const timeDiff = sectionActivityTime(b) - sectionActivityTime(a);
   if (timeDiff !== 0) return timeDiff;
   return (a.label ?? a.entries[0]?.thread.title ?? a.key).localeCompare(b.label ?? b.entries[0]?.thread.title ?? b.key);
 }
 
-function sortCustomLayoutSections(sections: OrganizedThreadSection[], orderedSectionKeys: string[]) {
-  if (orderedSectionKeys.length === 0) return sections;
+function applyManualCustomLayoutOrder(sections: OrganizedThreadSection[], orderedSectionKeys: string[]) {
   const sectionByKey = new Map(sections.map((section) => [section.key, section]));
   const manualSections = orderedSectionKeys
     .map((sectionKey) => sectionByKey.get(sectionKey) ?? null)
@@ -1920,6 +1921,16 @@ function sortCustomLayoutSections(sections: OrganizedThreadSection[], orderedSec
     ...sections.slice(0, firstManualBaseIndex).filter((section) => !manualSectionKeys.has(section.key)),
     ...manualSections,
     ...sections.slice(firstManualBaseIndex).filter((section) => !manualSectionKeys.has(section.key)),
+  ];
+}
+
+function sortCustomLayoutSections(sections: OrganizedThreadSection[], orderedSectionKeys: string[]) {
+  if (orderedSectionKeys.length === 0) return sections;
+  const pinnedSections = sections.filter((section) => section.isPinned);
+  const unpinnedSections = sections.filter((section) => !section.isPinned);
+  return [
+    ...applyManualCustomLayoutOrder(pinnedSections, orderedSectionKeys),
+    ...applyManualCustomLayoutOrder(unpinnedSections, orderedSectionKeys),
   ];
 }
 
@@ -2324,6 +2335,7 @@ export function MessengerContextSidebar() {
           key: customGroupSectionKey(group.id),
           label: group.name,
           icon: group.icon,
+          isPinned: Boolean(group.pinnedAt),
           entries,
         } satisfies OrganizedThreadSection;
       });
@@ -2560,7 +2572,7 @@ export function MessengerContextSidebar() {
   });
 
   const updateCustomGroupMutation = useMutation({
-    mutationFn: ({ groupId, data }: { groupId: string; data: { name?: string; icon?: string | null; collapsed?: boolean; sortOrder?: number } }) => {
+    mutationFn: ({ groupId, data }: { groupId: string; data: { name?: string; icon?: string | null; collapsed?: boolean; pinned?: boolean; sortOrder?: number } }) => {
       if (!model.selectedOrganizationId) throw new Error("Organization is required to update a Messenger group");
       return messengerApi.updateCustomGroup(model.selectedOrganizationId, groupId, data);
     },
@@ -3188,6 +3200,24 @@ export function MessengerContextSidebar() {
                 <DropdownMenuItem onClick={() => handleRenameCustomGroup(customGroup)}>
                   <PencilLine className="h-4 w-4" />
                   Rename...
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => updateCustomGroupMutation.mutate({
+                    groupId: customGroup.id,
+                    data: { pinned: !customGroup.pinnedAt },
+                  })}
+                >
+                  {customGroup.pinnedAt ? (
+                    <>
+                      <PinOff className="h-4 w-4" />
+                      Unpin
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="h-4 w-4" />
+                      Pin
+                    </>
+                  )}
                 </DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>

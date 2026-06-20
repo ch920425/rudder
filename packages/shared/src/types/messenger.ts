@@ -28,6 +28,7 @@ export interface MessengerCustomGroup {
   icon: string | null;
   sortOrder: number;
   collapsed: boolean;
+  pinnedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
