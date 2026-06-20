@@ -1129,6 +1129,11 @@ describe("MessengerContextSidebar chat actions", () => {
 
     renderSidebar();
 
+    const pinnedRow = document.querySelector('[data-testid="messenger-thread-chat-pinned"]') as HTMLElement | null;
+    expect(pinnedRow).toBeTruthy();
+    expect(pinnedRow?.className).toContain("cursor-pointer");
+    expect(pinnedRow?.className).not.toContain("cursor-grab");
+    expect(pinnedRow?.className).not.toContain("cursor-grabbing");
     expect(mockUseSortable).toHaveBeenCalledWith(expect.objectContaining({ id: "chat:pinned" }));
   });
 
@@ -1609,6 +1614,12 @@ describe("MessengerContextSidebar chat actions", () => {
     };
 
     renderSidebar();
+
+    const issuesRow = document.querySelector('[data-testid="messenger-thread-issues"]') as HTMLElement | null;
+    expect(issuesRow).toBeTruthy();
+    expect(issuesRow?.className).toContain("cursor-pointer");
+    expect(issuesRow?.className).not.toContain("cursor-grab");
+    expect(issuesRow?.className).not.toContain("cursor-grabbing");
 
     expect(document.querySelector('[aria-label="Thread actions"]')).toBeNull();
   });

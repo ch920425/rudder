@@ -1212,7 +1212,7 @@ function ChatThreadRow({
       className={cn(
         "group relative mx-1.5 flex rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
         compact ? "items-center gap-2 px-2 py-1.5" : "items-start gap-3 px-3 py-2.5",
-        dragHandleProps && "touch-none cursor-grab active:cursor-grabbing",
+        dragHandleProps && "touch-none cursor-pointer",
         active
           ? "chat-conversation-active border-[color:var(--border-strong)] bg-[color:color-mix(in_oklab,var(--surface-active)_90%,var(--surface-elevated))]"
           : "border-transparent hover:border-[color:color-mix(in_oklab,var(--border-soft)_70%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--surface-active)_62%,transparent)]",
@@ -1488,7 +1488,7 @@ function ThreadRow({
       className={cn(
         "group relative mx-1.5 flex rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
         compact ? "items-center gap-2 px-2 py-1.5" : "items-start gap-3 px-3 py-2.5",
-        dragHandleProps && "touch-none cursor-grab active:cursor-grabbing",
+        dragHandleProps && "touch-none cursor-pointer",
         active
           ? "chat-conversation-active border-[color:var(--border-strong)] bg-[color:color-mix(in_oklab,var(--surface-active)_90%,var(--surface-elevated))]"
           : "border-transparent hover:border-[color:color-mix(in_oklab,var(--border-soft)_70%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--surface-active)_62%,transparent)]",
