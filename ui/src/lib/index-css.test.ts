@@ -246,7 +246,7 @@ describe("index.css motion rules", () => {
     expect(summary).not.toContain("-webkit-line-clamp");
   });
 
-  it("caps long inline reference tokens inside chat composers", () => {
+  it("caps long non-agent inline reference tokens inside chat composers", () => {
     const composerMentionTokenBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-project-mention-chip \{[\s\S]*?\n\}/)?.[0] ?? "";
     const composerSkillTokenBlock =
@@ -268,6 +268,16 @@ describe("index.css motion rules", () => {
 
     expect(composerMentionIconBlock).toContain("margin-right: 0.28em");
     expect(composerSkillIconBlock).toContain("margin-right: 0.28em");
+  });
+
+  it("shows full agent mention labels inside chat composers", () => {
+    const composerAgentMentionTokenBlock =
+      indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="agent"],[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-mention-chip\[data-mention-kind="agent"] \{[\s\S]*?\n\}/)?.[0] ?? "";
+
+    expect(composerAgentMentionTokenBlock).toContain("max-width: none");
+    expect(composerAgentMentionTokenBlock).toContain("overflow: visible");
+    expect(composerAgentMentionTokenBlock).toContain("text-overflow: clip");
+    expect(composerAgentMentionTokenBlock).toContain("white-space: nowrap");
   });
 
   it("keeps glass popovers above utility backgrounds", () => {

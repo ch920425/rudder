@@ -4476,6 +4476,14 @@ a.rudder-mention-chip[data-mention-kind="library_directory"]::before {
   white-space: nowrap;
 }
 
+.chat-composer .rudder-mdxeditor-content .rudder-mention-chip[data-mention-kind="agent"],
+.chat-composer .rudder-milkdown-content .rudder-mention-chip[data-mention-kind="agent"] {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 .chat-composer .rudder-mdxeditor-content .rudder-mention-chip[data-mention-kind="project"] {
   vertical-align: -0.08em;
 }
