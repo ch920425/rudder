@@ -49,13 +49,31 @@ const CLAUDE_PROTECTED_ENV_KEYS = new Set([
   "USERPROFILE",
 ]);
 const SHARED_CLAUDE_HOME_ENTRIES = [
-  ".claude.json",
   ".config/claude",
   ".config/anthropic",
   ".anthropic",
 ] as const;
-const SHARED_CLAUDE_DOTDIR_ENTRIES = [
-  "settings.json",
+const CLAUDE_SETTINGS_AUTH_ENV_PREFIXES = ["ANTHROPIC_"] as const;
+const CLAUDE_EXTRA_ARGS_VALUE_FLAGS = new Set([
+  "--add-dir",
+  "--mcp-config",
+  "--plugin-dir",
+  "--plugin-url",
+  "--setting-sources",
+  "--settings",
+]);
+const CLAUDE_EXTRA_ARGS_STANDALONE_FLAGS = new Set([
+  "--no-strict-mcp-config",
+  "--strict-mcp-config",
+]);
+const CLAUDE_EXTRA_ARGS_PREFIXED_FLAGS = [
+  "--add-dir=",
+  "--mcp-config=",
+  "--plugin-dir=",
+  "--plugin-url=",
+  "--setting-sources=",
+  "--settings=",
+  "--strict-mcp-config=",
 ] as const;
 
 /**
@@ -119,6 +137,80 @@ async function ensureSymlink(target: string, source: string) {
   await fs.symlink(source, target);
 }
 
+async function readJsonObject(filePath: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSanitizedClaudeSettings(sourceHome: string, targetHome: string): Promise<string> {
+  const sourceSettings = await readJsonObject(path.join(sourceHome, ".claude", "settings.json"));
+  const targetSettingsPath = path.join(targetHome, ".claude", "settings.json");
+  const sourceEnv = parseObject(sourceSettings?.env);
+  const authEnv: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(sourceEnv)) {
+    if (!CLAUDE_SETTINGS_AUTH_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+    if (typeof value === "string" && value.trim().length > 0) authEnv[key] = value;
+  }
+
+  const sanitized = Object.keys(authEnv).length > 0 ? { env: authEnv } : {};
+  await fs.mkdir(path.dirname(targetSettingsPath), { recursive: true });
+  await fs.writeFile(targetSettingsPath, `${JSON.stringify(sanitized, null, 2)}\n`, "utf8");
+  return targetSettingsPath;
+}
+
+function sanitizeClaudeExtraArgs(args: string[]): { args: string[]; removedFlags: string[] } {
+  const sanitized: string[] = [];
+  const removedFlags = new Set<string>();
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index] ?? "";
+    if (CLAUDE_EXTRA_ARGS_VALUE_FLAGS.has(arg)) {
+      removedFlags.add(arg);
+      index += 1;
+      continue;
+    }
+    if (CLAUDE_EXTRA_ARGS_STANDALONE_FLAGS.has(arg)) {
+      removedFlags.add(arg);
+      continue;
+    }
+    const matchedPrefix = CLAUDE_EXTRA_ARGS_PREFIXED_FLAGS.find((prefix) => arg.startsWith(prefix));
+    if (matchedPrefix) {
+      removedFlags.add(matchedPrefix.slice(0, -1));
+      continue;
+    }
+    sanitized.push(arg);
+  }
+
+  return { args: sanitized, removedFlags: [...removedFlags].sort() };
+}
+
+async function resolveClaudeExtraArgs(
+  config: Record<string, unknown>,
+  onLog: AgentRuntimeExecutionContext["onLog"],
+): Promise<string[]> {
+  const configuredArgs = (() => {
+    const fromExtraArgs = asStringArray(config.extraArgs);
+    if (fromExtraArgs.length > 0) return fromExtraArgs;
+    return asStringArray(config.args);
+  })();
+  const result = sanitizeClaudeExtraArgs(configuredArgs);
+  if (result.removedFlags.length > 0) {
+    await onLog?.(
+      "stderr",
+      `[rudder] Ignored Claude extraArgs that would override Rudder-managed config isolation: ${result.removedFlags.join(", ")}\n`,
+    );
+  }
+  return result.args;
+}
+
 function resolveSharedClaudeHomeDir(env: NodeJS.ProcessEnv): string {
   return path.resolve(nonEmpty(env.HOME) ?? os.homedir());
 }
@@ -129,29 +221,28 @@ function resolveManagedClaudeHomeDir(env: NodeJS.ProcessEnv, orgId: string): str
   return path.resolve(rudderHome, "instances", instanceId, "organizations", resolveOrganizationStorageKey(orgId), "claude-home");
 }
 
-async function syncClaudeSharedDotdirEntries(sourceHome: string, targetHome: string) {
-  const sourceClaudeDir = path.join(sourceHome, ".claude");
-  const targetClaudeDir = path.join(targetHome, ".claude");
-  await fs.mkdir(targetClaudeDir, { recursive: true });
-  for (const relativeEntry of SHARED_CLAUDE_DOTDIR_ENTRIES) {
-    const source = path.join(sourceClaudeDir, relativeEntry);
-    if (!(await pathExists(source))) continue;
-    await ensureSymlink(path.join(targetClaudeDir, relativeEntry), source);
-  }
-}
-
 async function prepareManagedClaudeHome(
   env: NodeJS.ProcessEnv,
   onLog: AgentRuntimeExecutionContext["onLog"],
   orgId: string,
-): Promise<string> {
+): Promise<{ home: string; configDir: string; settingsPath: string }> {
   const sourceHome = resolveSharedClaudeHomeDir(env);
   const targetHome = resolveManagedClaudeHomeDir(env, orgId);
-  if (targetHome === sourceHome) return targetHome;
+  const configDir = path.join(targetHome, ".claude");
+  if (targetHome === sourceHome) {
+    return {
+      home: targetHome,
+      configDir,
+      settingsPath: path.join(configDir, "settings.json"),
+    };
+  }
 
   await fs.mkdir(targetHome, { recursive: true });
-  await fs.mkdir(path.join(targetHome, ".claude", "skills"), { recursive: true });
-  await syncClaudeSharedDotdirEntries(sourceHome, targetHome);
+  await fs.rm(path.join(configDir, "skills"), { recursive: true, force: true });
+  await fs.rm(path.join(configDir, "plugins"), { recursive: true, force: true });
+  await fs.rm(path.join(targetHome, ".claude.json"), { force: true });
+  await fs.mkdir(path.join(configDir, "skills"), { recursive: true });
+  const settingsPath = await writeSanitizedClaudeSettings(sourceHome, targetHome);
 
   for (const relativeEntry of SHARED_CLAUDE_HOME_ENTRIES) {
     const source = path.join(sourceHome, relativeEntry);
@@ -163,7 +254,7 @@ async function prepareManagedClaudeHome(
     "stdout",
     `[rudder] Using Rudder-managed Claude home "${targetHome}" (seeded from "${sourceHome}").\n`,
   );
-  return targetHome;
+  return { home: targetHome, configDir, settingsPath };
 }
 
 interface ClaudeExecutionInput {
@@ -185,6 +276,7 @@ interface ClaudeRuntimeConfig {
   timeoutSec: number;
   graceSec: number;
   extraArgs: string[];
+  settingsPath: string;
 }
 
 function buildLoginResult(input: {
@@ -371,11 +463,12 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
 
   const sourceEnv = { ...process.env };
   const operatorHome = resolveLocalOperatorHome(sourceEnv);
-  const managedHome = await prepareManagedClaudeHome(
+  const managedClaudeHome = await prepareManagedClaudeHome(
     { ...sourceEnv, ...env },
     input.onLog ?? (async () => {}),
     agent.orgId,
   );
+  const managedHome = managedClaudeHome.home;
   await syncLocalCliCredentialHomeEntries({
     sourceHome: operatorHome,
     targetHome: managedHome,
@@ -393,6 +486,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   }
   env.HOME = operatorHome;
   env.USERPROFILE = process.env.USERPROFILE ?? operatorHome;
+  env.CLAUDE_CONFIG_DIR = managedClaudeHome.configDir;
   env.RUDDER_CLAUDE_HOME = managedHome;
   env.RUDDER_OPERATOR_HOME = operatorHome;
   applyGitIdentityPreparationEnv(env, preparedGitIdentity);
@@ -411,11 +505,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
 
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
-  const extraArgs = (() => {
-    const fromExtraArgs = asStringArray(config.extraArgs);
-    if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
-  })();
+  const extraArgs = await resolveClaudeExtraArgs(config, input.onLog ?? (async () => {}));
 
   return {
     command,
@@ -427,6 +517,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     timeoutSec,
     graceSec,
     extraArgs,
+    settingsPath: managedClaudeHome.settingsPath,
   };
 }
 
@@ -498,6 +589,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     timeoutSec,
     graceSec,
     extraArgs,
+    settingsPath,
   } = runtimeConfig;
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
@@ -644,6 +736,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     if (effectiveInstructionsFilePath) {
       args.push("--append-system-prompt-file", effectiveInstructionsFilePath);
     }
+    args.push("--settings", settingsPath, "--setting-sources", "user", "--strict-mcp-config");
     args.push("--add-dir", skillsDir);
     if (extraArgs.length > 0) args.push(...extraArgs);
     return args;

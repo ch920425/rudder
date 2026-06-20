@@ -22,8 +22,16 @@ const addDir = addDirIndex >= 0 ? process.argv[addDirIndex + 1] : null;
 const appendSystemPromptFileIndex = process.argv.indexOf("--append-system-prompt-file");
 const appendSystemPromptFile = appendSystemPromptFileIndex >= 0 ? process.argv[appendSystemPromptFileIndex + 1] : null;
 const addDirSkillsPath = addDir ? path.join(addDir, ".claude", "skills") : null;
+const settingsIndex = process.argv.indexOf("--settings");
+const settingsPath = settingsIndex >= 0 ? process.argv[settingsIndex + 1] : null;
+const settingSourcesIndex = process.argv.indexOf("--setting-sources");
+const settingSources = settingSourcesIndex >= 0 ? process.argv[settingSourcesIndex + 1] : null;
+const managedClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR ?? null;
 const managedClaudeSettingsPath = process.env.RUDDER_CLAUDE_HOME
   ? path.join(process.env.RUDDER_CLAUDE_HOME, ".claude", "settings.json")
+  : null;
+const managedClaudeJsonPath = process.env.RUDDER_CLAUDE_HOME
+  ? path.join(process.env.RUDDER_CLAUDE_HOME, ".claude.json")
   : null;
 const payload = {
   argv: process.argv.slice(2),
@@ -31,11 +39,24 @@ const payload = {
   rudderEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("RUDDER_"))
     .sort(),
+  env: {
+    HOME: process.env.HOME ?? null,
+    USERPROFILE: process.env.USERPROFILE ?? null,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null,
+    RUDDER_CLAUDE_HOME: process.env.RUDDER_CLAUDE_HOME ?? null,
+    RUDDER_OPERATOR_HOME: process.env.RUDDER_OPERATOR_HOME ?? null,
+    PATH: process.env.PATH ?? null,
+  },
+  settingsPath,
+  settingSources,
+  managedClaudeConfigDir,
   managedClaudeSettingsPath,
   managedClaudeSettings:
     managedClaudeSettingsPath && fs.existsSync(managedClaudeSettingsPath)
       ? fs.readFileSync(managedClaudeSettingsPath, "utf8")
       : null,
+  managedClaudeJsonPath,
+  managedClaudeJsonExists: managedClaudeJsonPath ? fs.existsSync(managedClaudeJsonPath) : false,
   appendedSystemPrompt:
     appendSystemPromptFile && fs.existsSync(appendSystemPromptFile)
       ? fs.readFileSync(appendSystemPromptFile, "utf8")
@@ -388,7 +409,7 @@ describe("claude execute", { timeout: 20_000 }, () => {
     }
   });
 
-  it("inherits shared Claude settings into the managed home without reusing the shared skills dir", async () => {
+  it("runs Claude with managed config dir and sanitized user settings", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-settings-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "claude");
@@ -403,7 +424,30 @@ describe("claude execute", { timeout: 20_000 }, () => {
         env: {
           ANTHROPIC_API_KEY: "test-key",
           ANTHROPIC_BASE_URL: "https://example.invalid/anthropic",
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1",
+          ENABLE_TOOL_SEARCH: "true",
         },
+        enabledPlugins: {
+          "skill-creator@claude-plugins-official": true,
+        },
+        hooks: {
+          Stop: [{ command: "echo host hook" }],
+        },
+        mcpServers: {
+          host: { command: "host-mcp" },
+        },
+        permissions: {
+          defaultMode: "bypassPermissions",
+        },
+      }),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(root, ".claude.json"),
+      JSON.stringify({
+        mcpServers: { hostJson: { command: "host-json-mcp" } },
+        projects: { [workspace]: { enabledMcpjsonServers: ["hostJson"] } },
+        skillUsage: { "host-global-skill": 2 },
       }),
       "utf8",
     );
@@ -444,14 +488,217 @@ describe("claude execute", { timeout: 20_000 }, () => {
 
       expect(result.exitCode).toBe(0);
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+        env: {
+          HOME: string | null;
+          USERPROFILE: string | null;
+          CLAUDE_CONFIG_DIR: string | null;
+          RUDDER_CLAUDE_HOME: string | null;
+          RUDDER_OPERATOR_HOME: string | null;
+          PATH: string | null;
+        };
+        settingsPath: string | null;
+        settingSources: string | null;
+        managedClaudeConfigDir: string | null;
         managedClaudeSettingsPath: string | null;
         managedClaudeSettings: string | null;
+        managedClaudeJsonPath: string | null;
+        managedClaudeJsonExists: boolean;
         addDirSkillEntries: string[];
       };
+      const managedHome = path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "claude-home");
+      const managedConfigDir = path.join(managedHome, ".claude");
       expect(capture.managedClaudeSettingsPath).toContain("/.rudder/instances/default/organizations/organization-1/claude-home/.claude/settings.json");
-      expect(capture.managedClaudeSettings).toContain("\"ANTHROPIC_API_KEY\":\"test-key\"");
-      expect(capture.managedClaudeSettings).toContain("\"ANTHROPIC_BASE_URL\":\"https://example.invalid/anthropic\"");
+      expect(capture.env.HOME).toBe(root);
+      expect(capture.env.USERPROFILE).toBe(root);
+      expect(capture.env.RUDDER_OPERATOR_HOME).toBe(root);
+      expect(capture.env.RUDDER_CLAUDE_HOME).toBe(managedHome);
+      expect(capture.env.CLAUDE_CONFIG_DIR).toBe(managedConfigDir);
+      expect(capture.managedClaudeConfigDir).toBe(managedConfigDir);
+      expect(capture.argv).toContain("--settings");
+      expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
+      expect(capture.argv).toContain("--setting-sources");
+      expect(capture.settingSources).toBe("user");
+      expect(capture.argv).toContain("--strict-mcp-config");
+      const settingsStat = await fs.lstat(capture.managedClaudeSettingsPath!);
+      expect(settingsStat.isSymbolicLink()).toBe(false);
+      const managedSettings = JSON.parse(capture.managedClaudeSettings ?? "{}") as {
+        env?: Record<string, string>;
+        enabledPlugins?: unknown;
+        hooks?: unknown;
+        mcpServers?: unknown;
+        permissions?: unknown;
+      };
+      expect(managedSettings.env).toMatchObject({
+        ANTHROPIC_API_KEY: "test-key",
+        ANTHROPIC_BASE_URL: "https://example.invalid/anthropic",
+      });
+      expect(managedSettings.env).not.toHaveProperty("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
+      expect(managedSettings.env).not.toHaveProperty("ENABLE_TOOL_SEARCH");
+      expect(managedSettings.enabledPlugins).toBeUndefined();
+      expect(managedSettings.hooks).toBeUndefined();
+      expect(managedSettings.mcpServers).toBeUndefined();
+      expect(managedSettings.permissions).toBeUndefined();
+      expect(capture.managedClaudeJsonPath).toContain("/.rudder/instances/default/organizations/organization-1/claude-home/.claude.json");
+      expect(capture.managedClaudeJsonExists).toBe(false);
       expect(capture.addDirSkillEntries).not.toContain("user-skill.txt");
+    } finally {
+      restoreEnv();
+      await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("prevents extra args from overriding managed Claude config isolation", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-extra-args-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "claude");
+    const capturePath = path.join(root, "capture.json");
+    const hostileSettingsPath = path.join(root, "hostile-settings.json");
+    const hostileAddDir = path.join(root, "hostile-add-dir");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.writeFile(hostileSettingsPath, JSON.stringify({ mcpServers: { host: { command: "host-mcp" } } }), "utf8");
+    await fs.mkdir(path.join(hostileAddDir, ".claude", "skills", "hostile-skill"), { recursive: true });
+    await writeFakeClaudeCommand(commandPath);
+
+    const restoreEnv = setOperatorHomeForTest(root);
+
+    try {
+      const result = await execute({
+        runId: "run-4",
+        agent: {
+          id: "agent-4",
+          orgId: "organization-1",
+          name: "Claude Coder",
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            HOME: root,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          extraArgs: [
+            "--settings",
+            hostileSettingsPath,
+            "--setting-sources",
+            "user,project,local",
+            "--settings=/tmp/hostile-prefixed-settings.json",
+            "--setting-sources=project,local",
+            "--add-dir",
+            hostileAddDir,
+            `--add-dir=${path.join(root, "hostile-prefixed-add-dir")}`,
+            "--mcp-config",
+            path.join(root, "hostile-mcp.json"),
+            "--mcp-config=/tmp/hostile-prefixed-mcp.json",
+            "--plugin-dir",
+            path.join(root, "hostile-plugin"),
+            "--plugin-url=https://example.invalid/hostile-plugin.zip",
+            "--strict-mcp-config=false",
+            "--no-strict-mcp-config",
+          ],
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+        settingsPath: string | null;
+        settingSources: string | null;
+        managedClaudeSettingsPath: string | null;
+        addDirSkillEntries: string[];
+      };
+      expect(capture.argv).not.toContain(hostileSettingsPath);
+      expect(capture.argv).not.toContain(hostileAddDir);
+      expect(capture.argv).not.toContain("--mcp-config");
+      expect(capture.argv).not.toContain("--plugin-dir");
+      expect(capture.argv).not.toContain("--no-strict-mcp-config");
+      expect(capture.argv.some((arg) => arg.startsWith("--settings="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--setting-sources="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--add-dir="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--mcp-config="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--plugin-url="))).toBe(false);
+      expect(capture.argv.some((arg) => arg.startsWith("--strict-mcp-config="))).toBe(false);
+      expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
+      expect(capture.settingSources).toBe("user");
+      expect(capture.addDirSkillEntries).not.toContain("hostile-skill");
+    } finally {
+      restoreEnv();
+      await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("prevents legacy args from overriding managed Claude config isolation", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-legacy-args-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "claude");
+    const capturePath = path.join(root, "capture.json");
+    const hostileSettingsPath = path.join(root, "legacy-hostile-settings.json");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.writeFile(hostileSettingsPath, JSON.stringify({ hooks: { Stop: [{ command: "host-hook" }] } }), "utf8");
+    await writeFakeClaudeCommand(commandPath);
+
+    const restoreEnv = setOperatorHomeForTest(root);
+
+    try {
+      const result = await execute({
+        runId: "run-5",
+        agent: {
+          id: "agent-5",
+          orgId: "organization-1",
+          name: "Claude Coder",
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            HOME: root,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          args: [
+            "--settings",
+            hostileSettingsPath,
+            "--add-dir=/tmp/legacy-hostile-add-dir",
+            "--no-strict-mcp-config",
+          ],
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+        settingsPath: string | null;
+        managedClaudeSettingsPath: string | null;
+      };
+      expect(capture.argv).not.toContain(hostileSettingsPath);
+      expect(capture.argv.some((arg) => arg.startsWith("--add-dir="))).toBe(false);
+      expect(capture.argv).not.toContain("--no-strict-mcp-config");
+      expect(capture.settingsPath).toBe(capture.managedClaudeSettingsPath);
     } finally {
       restoreEnv();
       await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
