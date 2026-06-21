@@ -295,6 +295,12 @@ export function formatInvocationValueForDisplay(value: unknown, censorUsernameIn
   }
 }
 
+export function readInvocationAgentInstructionStack(payload: Record<string, unknown> | null | undefined): unknown {
+  if (!payload) return undefined;
+  if (payload.agentInstructionStack !== undefined) return payload.agentInstructionStack;
+  return payload.prompt;
+}
+
 export function shouldRedactSecretValue(key: string, value: unknown): boolean {
   if (SECRET_ENV_KEY_RE.test(key)) return true;
   if (typeof value !== "string") return false;

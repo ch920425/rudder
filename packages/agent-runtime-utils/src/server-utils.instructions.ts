@@ -102,6 +102,22 @@ export function prepareAgentInstructionRuntimeContext(context: Record<string, un
   };
 }
 
+function instructionFileSection(input: {
+  title: string;
+  contents: string;
+  displayFilePath: string;
+  displayFileDir: string;
+}) {
+  return [
+    `## Agent Instruction: ${input.title}`,
+    "",
+    input.contents.trimEnd(),
+    "",
+    `The above Agent Instruction: ${input.title} was loaded from ${input.displayFilePath}.`,
+    `Resolve any relative file references from ${input.displayFileDir}.`,
+  ].join("\n");
+}
+
 export async function loadAgentInstructionsPrefix(input: {
   instructionsFilePath: string;
   includeHeartbeatInstructions?: boolean;
@@ -187,10 +203,12 @@ export async function loadAgentInstructionsPrefix(input: {
     try {
       const instructionsContents = await fs.readFile(instructionsFilePath, "utf8");
       loadedPaths.add(path.resolve(instructionsFilePath));
-      entrySection =
-        `${instructionsContents}\n\n` +
-        `The above agent instructions were loaded from ${displayInstructionsFilePath}. ` +
-        `Resolve any relative file references from ${displayInstructionsDir}.`;
+      entrySection = instructionFileSection({
+        title: path.basename(instructionsFilePath),
+        contents: instructionsContents,
+        displayFilePath: displayInstructionsFilePath,
+        displayFileDir: displayInstructionsDir,
+      });
       await input.onLog(
         "stdout",
         `[rudder] Loaded agent instructions file: ${displayInstructionsFilePath}\n`,
@@ -230,10 +248,12 @@ export async function loadAgentInstructionsPrefix(input: {
       );
       return {
         path: filePath,
-        section:
-          `${contents}\n\n` +
-          `The above ${siblingInput.label} were loaded from ${displayFilePath}. ` +
-          `Resolve any relative file references from ${displayFileDir}.`,
+        section: instructionFileSection({
+          title: siblingInput.fileName,
+          contents,
+          displayFilePath,
+          displayFileDir,
+        }),
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {

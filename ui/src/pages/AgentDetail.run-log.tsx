@@ -39,7 +39,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { getRunFailureDisplay } from "../lib/run-detail-display";
 import { heartbeatRunEventsToTranscriptEntries, mergeTranscriptEntries } from "../lib/run-detail-events";
 import { cn } from "../lib/utils";
-import { asNonEmptyString, asRecord, findScrollContainer, formatEnvForDisplay, formatInvocationValueForDisplay, InvocationSkillEvidence, LIVE_SCROLL_BOTTOM_TOLERANCE_PX, readScrollMetrics, redactPathText, redactPathValue, RunEventsList, RunLogChunk, runLogChunkDedupeKey, ScrollContainer, scrollToContainerBottom, utf8ByteLength, WorkspaceOperationsSection } from "./AgentDetail.helpers";
+import { asNonEmptyString, asRecord, findScrollContainer, formatEnvForDisplay, formatInvocationValueForDisplay, InvocationSkillEvidence, LIVE_SCROLL_BOTTOM_TOLERANCE_PX, readInvocationAgentInstructionStack, readScrollMetrics, redactPathText, redactPathValue, RunEventsList, RunLogChunk, runLogChunkDedupeKey, ScrollContainer, scrollToContainerBottom, utf8ByteLength, WorkspaceOperationsSection } from "./AgentDetail.helpers";
 
 export function runDateToIso(value: Date | string | null | undefined): string | null {
   if (!value) return null;
@@ -503,9 +503,10 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
     return mergeTranscriptEntries(effectiveLogTranscript, eventTranscript);
   }, [adapter, censorUsernameInLogs, events, liveTranscriptByRun, logLines, run.id]);
   const hasInvocationTab = Boolean(adapterInvokePayload);
+  const invocationAgentInstructionStack = readInvocationAgentInstructionStack(adapterInvokePayload);
   const invocationPromptText =
-    adapterInvokePayload?.prompt !== undefined
-      ? formatInvocationValueForDisplay(adapterInvokePayload.prompt, censorUsernameInLogs)
+    invocationAgentInstructionStack !== undefined
+      ? formatInvocationValueForDisplay(invocationAgentInstructionStack, censorUsernameInLogs)
       : null;
   const transcriptEntryLabel = `${transcript.length} ${transcript.length === 1 ? "entry" : "entries"}`;
   const openTranscriptModal = useCallback(() => {
@@ -594,7 +595,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
                     value: "invocation",
                     label: "Invocation",
                     mobileLabel: "Invocation",
-                    tooltip: "Exact adapter invoke payload",
+                    tooltip: "Exact adapter invocation and Agent Instruction stack",
                   },
                 ]}
                 value={activeDetailTab}
@@ -714,12 +715,12 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
               <InvocationSkillEvidence invocationPayload={adapterInvokePayload} usagePayload={adapterSkillUsagePayload} />
               {invocationPromptText !== null && (
                 <div>
-                  <div className="mb-1 text-xs text-muted-foreground">Prompt</div>
+                  <div className="mb-1 text-xs text-muted-foreground">Agent Instruction Stack</div>
                   <div className="relative">
                     <CopyText
                       text={invocationPromptText}
-                      ariaLabel="Copy invocation prompt"
-                      title="Copy prompt"
+                      ariaLabel="Copy agent instruction stack"
+                      title="Copy agent instruction stack"
                       containerClassName="absolute right-2 top-2"
                       className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground shadow-sm hover:bg-muted/80 hover:text-foreground"
                     >

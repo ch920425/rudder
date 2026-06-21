@@ -182,6 +182,7 @@ describe("claude execute", { timeout: 20_000 }, () => {
 
     try {
       const logs: LogEntry[] = [];
+      let agentInstructionStack = "";
       const result = await execute({
         runId: "run-1",
         agent: {
@@ -222,6 +223,9 @@ describe("claude execute", { timeout: 20_000 }, () => {
         authToken: "run-jwt-token",
         onLog: async (stream, chunk) => {
           logs.push({ stream, chunk });
+        },
+        onMeta: async (meta) => {
+          agentInstructionStack = meta.agentInstructionStack ?? "";
         },
       });
 
@@ -266,6 +270,14 @@ describe("claude execute", { timeout: 20_000 }, () => {
       expect(systemPrompt.indexOf("# Tacit Memory")).toBeLessThan(systemPrompt.indexOf("## Your Current Automations"));
       expect(systemPrompt.indexOf("## Your Current Automations")).toBeLessThan(systemPrompt.indexOf("## Current Time"));
       expect(systemPrompt.indexOf("## Current Time")).toBeLessThan(systemPrompt.indexOf("# Rudder Heartbeat Instruction"));
+      expect(agentInstructionStack).toContain(systemPrompt);
+      expect(agentInstructionStack).toContain("Follow the rudder heartbeat.");
+      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("## Your Current Automations");
+      expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(capture.rudderEnvKeys).toContain("RUDDER_PROJECT_LIBRARY_ROOT");
       expect(capture.rudderEnvKeys).toContain("RUDDER_PROJECT_LIBRARY_PATH");
     } finally {

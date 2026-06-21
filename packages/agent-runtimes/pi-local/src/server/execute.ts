@@ -642,6 +642,10 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     sessionHandoffNote,
     renderedHeartbeatPrompt,
   ]);
+  const agentInstructionStack = joinPromptSections([
+    renderedSystemPromptExtension,
+    userPrompt,
+  ]);
   const promptMetrics = {
     systemPromptChars: renderedSystemPromptExtension.length,
     promptChars: userPrompt.length,
@@ -701,6 +705,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         commandArgs: [...args, `<prompt ${userPrompt.length} chars>`],
         env: redactEnvForLogs(env),
         prompt: userPrompt,
+        agentInstructionStack,
         promptMetrics,
         loadedSkills,
         realizedSkills: loadedSkills,

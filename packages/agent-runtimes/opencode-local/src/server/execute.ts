@@ -569,6 +569,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         commandArgs: [...args, `<stdin prompt ${prompt.length} chars>`],
         env: redactEnvForLogs(env),
         prompt,
+        agentInstructionStack: prompt,
         promptMetrics,
         loadedSkills,
         realizedSkills: loadedSkills,

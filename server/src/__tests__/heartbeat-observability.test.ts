@@ -350,6 +350,45 @@ describe("heartbeat observability surface", () => {
     });
   });
 
+  it("keeps the full agent instruction stack visible while sanitizing legacy prompt persistence", () => {
+    const payload = buildHeartbeatAdapterInvokePayload({
+      meta: {
+        agentRuntimeType: "pi_local",
+        command: "pi",
+        prompt: [
+          "# Rudder Agent Operating Contract",
+          "",
+          "## Recent Rudder Context",
+          "",
+          "- private startup detail",
+          "",
+          "## Current Time",
+          "",
+          "Instruction load time: 2026-06-21T05:50:43.024Z.",
+        ].join("\n"),
+        agentInstructionStack: [
+          "# Rudder Agent Operating Contract",
+          "",
+          "## Agent Instruction: SOUL.md",
+          "",
+          "## Recent Rudder Context",
+          "",
+          "- private startup detail",
+          "",
+          "## Current Time",
+          "",
+          "# Rudder Heartbeat Instruction",
+        ].join("\n"),
+      },
+      runtimeSkills: [],
+    });
+
+    expect(payload.prompt).toContain("[startup context omitted from persisted prompt]");
+    expect(payload.agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
+    expect(payload.agentInstructionStack).toContain("- private startup detail");
+    expect(payload.agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
+  });
+
   it("preserves explicit runtime-reported used skills as strongest evidence", () => {
     expect(buildHeartbeatAdapterInvokePayload({
       meta: {

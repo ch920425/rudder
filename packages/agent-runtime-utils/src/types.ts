@@ -115,6 +115,14 @@ export interface AgentRuntimeInvocationMeta {
   commandNotes?: string[];
   env?: Record<string, string>;
   prompt?: string;
+  /**
+   * Full Rudder-loaded instruction stack shown in run invocation diagnostics.
+   * This is the operator-visible audit surface for runtime-injected contract,
+   * instruction files, memory/context sections, current time, and runtime
+   * heartbeat instructions, even when the runtime receives them through a
+   * system-prompt channel instead of the main prompt field.
+   */
+  agentInstructionStack?: string;
   promptMetrics?: Record<string, number>;
   /**
    * Skills made available to the runtime for this invocation.

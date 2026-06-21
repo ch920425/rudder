@@ -154,6 +154,7 @@ describe("pi execute", { timeout: 20_000 }, () => {
     let loadedSkills: unknown[] = [];
     let realizedSkills: unknown[] = [];
     let nativeDiscoverableSkills: unknown[] | undefined;
+    let agentInstructionStack = "";
     const runtimeSkillsRoot = path.join(root, "runtime-skills");
     const rudderDir = await createSkillDir(runtimeSkillsRoot, "rudder");
     const asciiHeartDir = await createSkillDir(runtimeSkillsRoot, "ascii-heart");
@@ -221,6 +222,7 @@ describe("pi execute", { timeout: 20_000 }, () => {
           loadedSkills = meta.loadedSkills ?? [];
           realizedSkills = meta.realizedSkills ?? [];
           nativeDiscoverableSkills = meta.nativeDiscoverableSkills;
+          agentInstructionStack = meta.agentInstructionStack ?? "";
         },
       });
 
@@ -263,6 +265,14 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(systemPrompt.indexOf("# Tacit Memory")).toBeLessThan(systemPrompt.indexOf("## Your Current Automations"));
       expect(systemPrompt.indexOf("## Your Current Automations")).toBeLessThan(systemPrompt.indexOf("## Current Time"));
       expect(systemPrompt.indexOf("## Current Time")).toBeLessThan(systemPrompt.indexOf("# Rudder Heartbeat Instruction"));
+      expect(agentInstructionStack).toContain(systemPrompt);
+      expect(agentInstructionStack).toContain("Follow the rudder heartbeat.");
+      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("## Your Current Automations");
+      expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(capture.rudderEnvKeys).toEqual(expect.arrayContaining([
         "RUDDER_PROJECT_LIBRARY_PATH",
         "RUDDER_PROJECT_LIBRARY_ROOT",

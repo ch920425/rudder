@@ -605,6 +605,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         }),
         env: redactEnvForLogs(env),
         prompt,
+        agentInstructionStack: prompt,
         promptMetrics,
         loadedSkills,
         realizedSkills: loadedSkills,

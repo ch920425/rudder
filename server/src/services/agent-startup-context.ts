@@ -135,20 +135,6 @@ function formatIssuePrincipal(agentId: string | null | undefined, userId: string
   return null;
 }
 
-function appendMetadata(lines: string[], input: AgentStartupContextPromptInput, totalChars: number) {
-  lines.push(
-    "",
-    "#### startup context metadata",
-    `version |||| \`${input.metrics.version || AGENT_STARTUP_CONTEXT_VERSION}\``,
-    "date_basis |||| UTC",
-    `limits |||| ${totalChars} / ${input.metrics.limitChars} chars`,
-  );
-  const omitted: string[] = [];
-  if (input.metrics.omittedIssues > 0) omitted.push(`${input.metrics.omittedIssues} older issues`);
-  if (input.metrics.omittedChats > 0) omitted.push(`${input.metrics.omittedChats} older chats`);
-  if (omitted.length > 0) lines.push(`omitted |||| ${omitted.join(" |||| ")}`);
-}
-
 export function buildAgentStartupContextPrompt(
   input: AgentStartupContextPromptInput,
   limits: AgentStartupContextLimits = {},
@@ -204,24 +190,9 @@ export function buildAgentStartupContextPrompt(
       markdownTableCell(clip(chat.snippet, resolvedLimits.chatSnippetChars)),
     ]));
   }
-  appendMetadata(lines, input, 0);
   let prompt = lines.join("\n");
-  const totalChars = Math.min(prompt.length, resolvedLimits.totalChars);
-  const metadataStart = prompt.lastIndexOf("\n#### startup context metadata");
-  if (metadataStart >= 0) {
-    const body = prompt.slice(0, metadataStart);
-    const metadataLines: string[] = [];
-    appendMetadata(metadataLines, input, totalChars);
-    prompt = `${body}${metadataLines.join("\n")}`;
-  }
   if (prompt.length <= resolvedLimits.totalChars) return prompt;
-  const suffix = [
-    "",
-    "#### startup context metadata",
-    `version |||| \`${input.metrics.version || AGENT_STARTUP_CONTEXT_VERSION}\``,
-    `limits |||| ${resolvedLimits.totalChars} / ${input.metrics.limitChars} chars`,
-    "omitted |||| startup context truncated by char limit",
-  ].join("\n");
+  const suffix = "\n\n[Recent Rudder Context truncated by char limit]";
   const bodyLimit = Math.max(0, resolvedLimits.totalChars - suffix.length - 4);
   return `${prompt.slice(0, bodyLimit).trimEnd()}...\n${suffix}`;
 }

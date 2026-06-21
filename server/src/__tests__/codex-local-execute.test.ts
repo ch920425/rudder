@@ -1493,6 +1493,7 @@ describe("codex execute", { timeout: 20_000 }, () => {
     let commandNotes: string[] = [];
     let promptMetrics: Record<string, number> = {};
     let loadedSkills: unknown[] = [];
+    let agentInstructionStack = "";
     try {
       const result = await execute({
         runId: "run-notes",
@@ -1540,6 +1541,7 @@ describe("codex execute", { timeout: 20_000 }, () => {
           commandNotes = Array.isArray(meta.commandNotes) ? meta.commandNotes : [];
           promptMetrics = meta.promptMetrics ?? {};
           loadedSkills = meta.loadedSkills ?? [];
+          agentInstructionStack = meta.agentInstructionStack ?? "";
         },
       });
 
@@ -1562,6 +1564,13 @@ describe("codex execute", { timeout: 20_000 }, () => {
       expect(capture.prompt.indexOf("## Current Time")).toBeLessThan(
         capture.prompt.indexOf("# Rudder Heartbeat Instruction"),
       );
+      expect(agentInstructionStack).toBe(capture.prompt);
+      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
+      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("## Your Current Automations");
+      expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");
       expect(commandNotes).toContain("Loaded Rudder heartbeat instructions from runtime code");
       expect(commandNotes).not.toContain("Loaded supplemental agent heartbeat notes from $AGENT_HOME/instructions/HEARTBEAT.md");
