@@ -604,6 +604,11 @@ test.describe("Organization and agent skills", () => {
 
     await expect(agentMain.getByRole("button", { name: /External skills/ })).toBeVisible();
     await agentMain.getByRole("button", { name: /External skills/ }).click();
+    const externalSkillsScroll = agentMain.getByTestId("agent-external-skills-scroll");
+    await expect(externalSkillsScroll).toBeVisible();
+    await expect(externalSkillsScroll.locator('[role="switch"]')).toHaveCount(2);
+    await expect(externalSkillsScroll).toHaveClass(/overflow-y-auto/);
+    await expect(externalSkillsScroll).toHaveClass(/scrollbar-auto-hide/);
     await expect(agentMain.getByText("Global skills", { exact: true })).toBeVisible();
     expect(await readNamedSkillSwitchOrder(agentMain, [
       "alpha-global",

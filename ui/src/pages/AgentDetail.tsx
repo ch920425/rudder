@@ -108,6 +108,7 @@ import { useOrganization } from "../context/OrganizationContext";
 import { usePanel } from "../context/PanelContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useToast } from "../context/ToastContext";
+import { useScrollbarActivityRef } from "../hooks/useScrollbarActivityRef";
 import { agentSupportingLabel } from "../lib/agent-labels";
 import {
   arraysEqual,
@@ -2477,6 +2478,7 @@ function AgentSkillsTab({
   const [skillFilter, setSkillFilter] = useState("");
   const [externalSectionOpen, setExternalSectionOpen] = useState(false);
   const [createSkillOpen, setCreateSkillOpen] = useState(false);
+  const externalSkillsScrollRef = useScrollbarActivityRef(`rudder:agent-skills:external:${agent.id}`);
   const skillDraftRef = useRef<string[]>([]);
   const lastSavedSkillsRef = useRef<string[]>([]);
   const hasHydratedSkillSnapshotRef = useRef(false);
@@ -3158,7 +3160,11 @@ function AgentSkillsTab({
                         No external skills match this search.
                       </div>
                     ) : (
-                      <div className="space-y-4 px-3.5 py-3.5">
+                      <div
+                        ref={externalSkillsScrollRef}
+                        data-testid="agent-external-skills-scroll"
+                        className="scrollbar-auto-hide max-h-[min(620px,calc(100dvh-16rem))] space-y-4 overflow-y-auto overscroll-contain px-3.5 py-3.5"
+                      >
                         {filteredGlobalSkillRows.length > 0 ? (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 px-0.5">
