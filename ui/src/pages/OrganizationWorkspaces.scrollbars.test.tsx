@@ -1004,6 +1004,14 @@ describe("OrganizationWorkspaces scroll regions", () => {
 
     expect(document.body.textContent).toContain("Add skill to Library");
     expect(document.body.textContent).toContain("Import or move a skill");
+    expect(document.querySelector("[data-testid='org-workspaces-skills-add-button']")?.className).toContain("opacity-0");
+
+    const dialog = document.querySelector("[data-slot='dialog-content']");
+    expect(dialog?.className).toContain("!w-[min(34rem,calc(100vw-2rem))]");
+    const sourceTextarea = document.querySelector("textarea");
+    expect(sourceTextarea?.className).toContain("field-sizing-fixed");
+    expect(sourceTextarea?.className).toContain("min-w-0");
+    expect(sourceTextarea?.className).toContain("break-all");
 
     await act(async () => {
       document.querySelector("[data-testid='org-workspaces-skill-agent-install-button']")?.dispatchEvent(

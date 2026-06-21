@@ -1806,7 +1806,7 @@ function WorkspaceTreeNode({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="h-6 w-6 shrink-0 opacity-70 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100"
+                  className="h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100"
                   aria-label="Add skill to Library"
                   data-testid="org-workspaces-skills-add-button"
                   onClick={(event) => {
@@ -2012,10 +2012,10 @@ function SkillLibraryAddDialog({
       if (!nextOpen && !importSkills.isPending && !scanLocalSkills.isPending) onOpenChange(false);
       else if (nextOpen) onOpenChange(true);
     }}>
-      <DialogContent>
+      <DialogContent className="!w-[min(34rem,calc(100vw-2rem))] !max-w-[calc(100vw-2rem)] gap-5 p-5 sm:!max-w-[34rem]">
         <DialogHeader>
           <DialogTitle>Add skill to Library</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-w-[30rem]">
             Import or move a skill into this organization. Workspace-backed skills become editable Library files;
             bundled or remote skills appear here as read-only references.
           </DialogDescription>
@@ -2027,7 +2027,7 @@ function SkillLibraryAddDialog({
               value={sourceDraft}
               onChange={(event) => setSourceDraft(event.target.value)}
               placeholder="https://github.com/org/repo/tree/main/.agents/skills/example&#10;/Users/me/.agents/skills/example&#10;skills install example"
-              className="min-h-28 resize-y font-mono text-xs"
+              className="field-sizing-fixed min-h-28 min-w-0 resize-y overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs"
               disabled={importSkills.isPending || scanLocalSkills.isPending}
               autoFocus
             />
