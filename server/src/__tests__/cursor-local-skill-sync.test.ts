@@ -49,11 +49,15 @@ describe("cursor local skill sync", () => {
         },
       },
     } as const;
+    await fs.mkdir(path.join(managedCursorSkillsHome(home), "external-cursor-skill"), { recursive: true });
 
     const before = await listCursorSkills(ctx);
     expect(before.mode).toBe("persistent");
     expect(before.desiredSkills).toContain(rudderSkillKey);
-    expect(before.entries.find((entry) => entry.key === rudderSkillKey)?.state).toBe("missing");
+    const beforeEntry = before.entries.find((entry) => entry.key === rudderSkillKey);
+    expect(beforeEntry?.state).toBe("missing");
+    const externalEntry = before.entries.find((entry) => entry.key === "external-cursor-skill");
+    expect(externalEntry?.locationLabel).toBe("Rudder-managed Cursor home/.cursor/skills");
 
     const after = await syncCursorSkills(ctx, [rudderSkillKey]);
     const installedEntry = after.entries.find((entry) => entry.key === rudderSkillKey);

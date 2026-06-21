@@ -29,6 +29,7 @@ const payload = {
   argv: process.argv.slice(2),
   home: process.env.HOME,
   userProfile: process.env.USERPROFILE,
+  rudderOperatorHome: process.env.RUDDER_OPERATOR_HOME,
   prompt: fs.readFileSync(0, "utf8"),
   rudderEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("RUDDER_"))
@@ -63,6 +64,7 @@ type CapturePayload = {
   argv: string[];
   home: string;
   userProfile: string;
+  rudderOperatorHome: string;
   prompt: string;
   rudderEnvKeys: string[];
   gitIdentity: GitIdentityCapture;
@@ -170,9 +172,11 @@ describe("cursor execute", { timeout: 20_000 }, () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      const managedHome = path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "cursor-home");
       expectPreparedGitConfigCapture(capture);
-      expect(capture.home).toBe(root);
-      expect(capture.userProfile).toBe(process.env.USERPROFILE ?? root);
+      expect(capture.home).toBe(managedHome);
+      expect(capture.userProfile).toBe(managedHome);
+      expect(capture.rudderOperatorHome).toBe(root);
       expect(capture.argv).not.toContain("Follow the rudder heartbeat.");
       expect(capture.argv).not.toContain("--mode");
       expect(capture.argv).not.toContain("ask");
@@ -256,7 +260,7 @@ describe("cursor execute", { timeout: 20_000 }, () => {
     }
   });
 
-  it("uses the operator HOME shim when Cursor auth works outside the managed HOME", async () => {
+  it("does not wrap the Cursor process in an operator HOME shim", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-shim-"));
     const workspace = path.join(root, "workspace");
     const binDir = path.join(root, "bin");
@@ -307,13 +311,193 @@ describe("cursor execute", { timeout: 20_000 }, () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
-      expect(logs.join("")).toContain("Prepared local CLI credential shim");
+      expect(logs.join("")).not.toContain("Prepared local CLI credential shim");
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expect(capture.home).toBe(root);
+      expect(capture.home).toBe(path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "cursor-home"));
+      expect(capture.rudderOperatorHome).toBe(root);
     } finally {
       if (previousPath === undefined) delete process.env.PATH;
       else process.env.PATH = previousPath;
       restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("bridges operator keychain into the managed Cursor home for subscription auth", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-keychain-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "agent");
+    const capturePath = path.join(root, "capture.json");
+    const operatorKeychains = path.join(root, "Library", "Keychains");
+    const managedHome = path.join(
+      root,
+      ".rudder",
+      "instances",
+      "default",
+      "organizations",
+      "organization-1",
+      "cursor-home",
+    );
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(path.join(root, ".cursor"), { recursive: true });
+    await fs.mkdir(operatorKeychains, { recursive: true });
+    await fs.writeFile(path.join(operatorKeychains, "login.keychain-db"), "operator-keychain\n", "utf8");
+    await writeFakeCursorCommand(commandPath);
+
+    const restoreEnv = setManagedCursorEnv(root);
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-keychain",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expect(capture.home).toBe(managedHome);
+      expect(capture.rudderOperatorHome).toBe(root);
+      const linkedKeychains = path.join(managedHome, "Library", "Keychains");
+      expect((await fs.lstat(linkedKeychains)).isSymbolicLink()).toBe(true);
+      expect(await fs.realpath(linkedKeychains)).toBe(await fs.realpath(operatorKeychains));
+      await expect(fs.lstat(path.join(managedHome, ".cursor", "skills"))).resolves.toBeTruthy();
+      await expect(fs.lstat(path.join(root, ".cursor", "skills"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses RUDDER_OPERATOR_HOME for the keychain bridge when the server HOME is isolated", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-operator-home-"));
+    const operatorHome = path.join(root, "operator-home");
+    const serverHome = path.join(root, "server-home");
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "agent");
+    const capturePath = path.join(root, "capture.json");
+    const operatorConfig = path.join(operatorHome, ".cursor", "cli-config.json");
+    const operatorMcpConfig = path.join(operatorHome, ".cursor", "mcp.json");
+    const operatorSkill = path.join(operatorHome, ".cursor", "skills", "operator-only", "SKILL.md");
+    const operatorKeychains = path.join(operatorHome, "Library", "Keychains");
+    const managedHome = path.join(
+      serverHome,
+      ".rudder",
+      "instances",
+      "default",
+      "organizations",
+      "organization-1",
+      "cursor-home",
+    );
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(serverHome, { recursive: true });
+    await fs.mkdir(path.dirname(operatorConfig), { recursive: true });
+    await fs.mkdir(path.dirname(operatorSkill), { recursive: true });
+    await fs.mkdir(operatorKeychains, { recursive: true });
+    await fs.writeFile(operatorConfig, "{}\n", "utf8");
+    await fs.writeFile(operatorMcpConfig, "{}\n", "utf8");
+    await fs.writeFile(operatorSkill, "---\nname: operator-only\n---\n", "utf8");
+    await fs.writeFile(path.join(operatorKeychains, "login.keychain-db"), "operator-keychain\n", "utf8");
+    await writeFakeCursorCommand(commandPath);
+
+    const previous = {
+      HOME: process.env.HOME,
+      RUDDER_OPERATOR_HOME: process.env.RUDDER_OPERATOR_HOME,
+      RUDDER_HOME: process.env.RUDDER_HOME,
+      RUDDER_INSTANCE_ID: process.env.RUDDER_INSTANCE_ID,
+      RUDDER_LOCAL_ENV: process.env.RUDDER_LOCAL_ENV,
+    };
+    process.env.HOME = serverHome;
+    process.env.RUDDER_OPERATOR_HOME = operatorHome;
+    process.env.RUDDER_HOME = path.join(serverHome, ".rudder");
+    process.env.RUDDER_INSTANCE_ID = "default";
+    delete process.env.RUDDER_LOCAL_ENV;
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-operator-home",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expect(capture.home).toBe(managedHome);
+      expect(capture.rudderOperatorHome).toBe(operatorHome);
+      const linkedKeychains = path.join(managedHome, "Library", "Keychains");
+      expect((await fs.lstat(linkedKeychains)).isSymbolicLink()).toBe(true);
+      expect(await fs.realpath(linkedKeychains)).toBe(await fs.realpath(operatorKeychains));
+      await expect(fs.lstat(path.join(managedHome, ".cursor", "cli-config.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.lstat(path.join(managedHome, ".cursor", "mcp.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.lstat(path.join(managedHome, ".cursor", "skills", "operator-only"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      if (previous.HOME === undefined) delete process.env.HOME;
+      else process.env.HOME = previous.HOME;
+      if (previous.RUDDER_OPERATOR_HOME === undefined) delete process.env.RUDDER_OPERATOR_HOME;
+      else process.env.RUDDER_OPERATOR_HOME = previous.RUDDER_OPERATOR_HOME;
+      if (previous.RUDDER_HOME === undefined) delete process.env.RUDDER_HOME;
+      else process.env.RUDDER_HOME = previous.RUDDER_HOME;
+      if (previous.RUDDER_INSTANCE_ID === undefined) delete process.env.RUDDER_INSTANCE_ID;
+      else process.env.RUDDER_INSTANCE_ID = previous.RUDDER_INSTANCE_ID;
+      if (previous.RUDDER_LOCAL_ENV === undefined) delete process.env.RUDDER_LOCAL_ENV;
+      else process.env.RUDDER_LOCAL_ENV = previous.RUDDER_LOCAL_ENV;
       await fs.rm(root, { recursive: true, force: true });
     }
   });
@@ -403,6 +587,8 @@ describe("cursor execute", { timeout: 20_000 }, () => {
       expect(result.exitCode).toBe(0);
       expect(result.errorMessage).toBeNull();
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
+      expect(capture.home).toBe(path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "cursor-home"));
+      expect(capture.rudderOperatorHome).toBe(root);
       expect((await fs.lstat(path.join(managedSkillsHome, "ascii-heart"))).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(path.join(managedSkillsHome, "ascii-heart"))).toBe(
         await fs.realpath(asciiHeartDir),

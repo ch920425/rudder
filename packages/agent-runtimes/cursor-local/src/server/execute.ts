@@ -134,41 +134,34 @@ async function ensureSymlink(target: string, source: string) {
   await fs.symlink(source, target);
 }
 
-function resolveSharedCursorHomeDir(env: NodeJS.ProcessEnv): string {
-  return path.resolve(nonEmpty(env.HOME) ?? os.homedir());
-}
-
 function resolveManagedCursorSkillsDir(homeDir: string): string {
   return path.join(homeDir, ".cursor", "skills");
 }
 
-async function syncCursorSharedHomeEntries(sourceHome: string, targetHome: string) {
-  const sourceCursorDir = path.join(sourceHome, ".cursor");
-  const entries = await fs.readdir(sourceCursorDir, { withFileTypes: true }).catch(() => []);
-  const targetCursorDir = path.join(targetHome, ".cursor");
-  await fs.mkdir(targetCursorDir, { recursive: true });
-  for (const entry of entries) {
-    if (entry.name === "skills") continue;
-    await ensureSymlink(
-      path.join(targetCursorDir, entry.name),
-      path.join(sourceCursorDir, entry.name),
-    );
-  }
+async function syncCursorSharedAuthEntries(sourceHome: string, targetHome: string) {
+  if (process.platform !== "darwin") return;
+  const sourceKeychains = path.join(sourceHome, "Library", "Keychains");
+  if (!(await pathExists(sourceKeychains))) return;
+  await ensureSymlink(path.join(targetHome, "Library", "Keychains"), sourceKeychains);
 }
 
 async function prepareManagedCursorHome(
   env: NodeJS.ProcessEnv,
   onLog: AgentRuntimeExecutionContext["onLog"],
   orgId: string,
+  sourceHomeOverride?: string | null,
 ): Promise<string> {
-  const sourceHome = resolveSharedCursorHomeDir(env);
+  const sourceHome = path.resolve(
+    nonEmpty(sourceHomeOverride ?? undefined)
+      ?? nonEmpty(env.RUDDER_OPERATOR_HOME)
+      ?? nonEmpty(env.HOME)
+      ?? os.homedir(),
+  );
   const targetHome = resolveManagedCursorHomeDir({ env }, orgId);
   if (targetHome === sourceHome) return targetHome;
 
   await fs.mkdir(resolveManagedCursorSkillsDir(targetHome), { recursive: true });
-  if (await pathExists(path.join(sourceHome, ".cursor"))) {
-    await syncCursorSharedHomeEntries(sourceHome, targetHome);
-  }
+  await syncCursorSharedAuthEntries(sourceHome, targetHome);
 
   await onLog(
     "stdout",
@@ -318,7 +311,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     ...process.env,
   };
   const operatorHome = resolveLocalOperatorHome(sourceEnv);
-  const managedHome = await prepareManagedCursorHome({ ...sourceEnv, ...envConfigStrings }, onLog, agent.orgId);
+  const managedHome = await prepareManagedCursorHome({ ...sourceEnv, ...envConfigStrings }, onLog, agent.orgId, operatorHome);
   await syncLocalCliCredentialHomeEntries({ sourceHome: operatorHome, targetHome: managedHome, onLog });
   const preparedGitIdentity = await ensureGitIdentityFileConfig({
     cwd,
@@ -344,8 +337,8 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
   const hasExplicitApiKey =
     typeof envConfig.RUDDER_API_KEY === "string" && envConfig.RUDDER_API_KEY.trim().length > 0;
   const env: Record<string, string> = { ...buildRudderEnv(agent) };
-  env.HOME = operatorHome;
-  env.USERPROFILE = process.env.USERPROFILE ?? operatorHome;
+  env.HOME = managedHome;
+  env.USERPROFILE = managedHome;
   env.RUDDER_RUN_ID = runId;
   const wakeTaskId =
     (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
@@ -421,8 +414,8 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     if (CURSOR_PROTECTED_ENV_KEYS.has(k)) continue;
     if (typeof v === "string") env[k] = v;
   }
-  env.HOME = operatorHome;
-  env.USERPROFILE = process.env.USERPROFILE ?? operatorHome;
+  env.HOME = managedHome;
+  env.USERPROFILE = managedHome;
   env.RUDDER_OPERATOR_HOME = operatorHome;
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
@@ -440,12 +433,6 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       targetHome: managedHome,
       cwd,
       env: ensurePathInEnv(await ensureRudderCliInPath(__moduleDir, effectiveEnv)),
-      commands: [
-        {
-          command: path.basename(command),
-          credentialEntries: [".cursor"],
-        },
-      ],
       onLog,
     })).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
