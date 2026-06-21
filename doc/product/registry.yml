@@ -1,0 +1,179 @@
+contracts:
+  ISSUE.STATE.001:
+    owner: product
+    domain: issues
+    docs:
+      - doc/product/domains/issues/state-machines.md
+    related_code:
+      - server/src/services/issues.helpers.ts
+      - server/src/services/issues.ts
+      - server/src/routes/issues.mutations.ts
+    related_tests:
+      - server/src/__tests__/issue-lifecycle-routes.test.ts
+      - tests/e2e/issue-detail-done-project-edit.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ISSUE.WORKFLOW.001:
+    owner: product
+    domain: issues
+    docs:
+      - doc/product/domains/issues/workflows.md
+    related_code:
+      - server/src/routes/issues.mutations.ts
+      - server/src/services/issues.ts
+    related_tests:
+      - server/src/__tests__/issue-comment-reopen-routes.test.ts
+      - tests/e2e/issue-detail-toolbar-actions.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ISSUE.SURFACE.001:
+    owner: product
+    domain: issues
+    docs:
+      - doc/product/domains/issues/surfaces.md
+    related_code:
+      - ui/src/pages/IssueDetail.tsx
+      - ui/src/pages/Issues.tsx
+    related_tests:
+      - tests/e2e/issue-detail-toolbar-actions.spec.ts
+      - tests/e2e/issue-board-display-properties.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.WAKEUP.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/heartbeats.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.wakeup.ts
+      - server/src/services/runtime-kernel/heartbeat.recovery.ts
+      - server/src/services/runtime-kernel/heartbeat.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-paused-wakeups.test.ts
+      - server/src/__tests__/heartbeat-run-concurrency.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.EXECUTION.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/agent-runs.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+      - server/src/services/runtime-kernel/model-fallback.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-observability.test.ts
+      - server/src/__tests__/heartbeat-process-recovery.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.ADMISSION.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/run-admission-and-recovery.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.wakeup.ts
+      - server/src/services/runtime-kernel/heartbeat.release.ts
+      - server/src/services/runtime-kernel/heartbeat.recovery.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-passive-issue-closeout.test.ts
+      - tests/e2e/issue-passive-followup.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.RESULT.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/transcripts-and-results.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+      - server/src/services/heartbeat-run-summary.ts
+      - server/src/services/heartbeat-run-reference.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-run-summary.test.ts
+      - tests/e2e/run-transcript-detail.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ROUTING.ASSIGNMENT.001:
+    owner: product
+    domain: work-routing
+    docs:
+      - doc/product/domains/work-routing/ownership-and-assignment.md
+    related_code:
+      - server/src/routes/issues.mutations.ts
+      - server/src/services/issue-assignment-wakeup.ts
+      - server/src/services/issues.ts
+    related_tests:
+      - server/src/__tests__/issues-checkout-wakeup.test.ts
+      - tests/e2e/issues-inline-assignee.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ROUTING.CHECKOUT.001:
+    owner: product
+    domain: work-routing
+    docs:
+      - doc/product/domains/work-routing/atomic-checkout.md
+    related_code:
+      - server/src/routes/issues.mutations.ts
+      - server/src/routes/issues-checkout-wakeup.ts
+      - server/src/services/issues.ts
+    related_tests:
+      - server/src/__tests__/issues-checkout-wakeup.test.ts
+      - tests/e2e/agent-detail-issues-tab.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ROUTING.REVIEWER.001:
+    owner: product
+    domain: work-routing
+    docs:
+      - doc/product/domains/work-routing/reviewer-routing.md
+    related_code:
+      - server/src/routes/issues.mutations.ts
+      - server/src/services/issue-review-wakeup.ts
+      - server/resources/bundled-skills/rudder/references/cli-reference.md
+    related_tests:
+      - tests/e2e/issues-reviewer-routing.spec.ts
+      - server/src/__tests__/agent-inbox-reviewer.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ROUTING.ATTENTION.001:
+    owner: product
+    domain: work-routing
+    docs:
+      - doc/product/domains/work-routing/attention-and-wakeup-eligibility.md
+    related_code:
+      - server/src/routes/issues.comments-attachments.ts
+      - server/src/routes/issues.mutations.ts
+      - server/src/services/runtime-kernel/heartbeat.recovery.ts
+      - server/src/services/issue-review-wakeup.ts
+    related_tests:
+      - tests/e2e/issue-comment-mentions.spec.ts
+      - tests/e2e/issue-comment-mention-boundary.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.INSTRUCTIONS.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/instruction-loading.md
+    related_code:
+      - packages/agent-runtime-utils/src/server-utils.instructions.ts
+      - packages/agent-runtime-utils/src/server-utils.prompts.ts
+      - packages/agent-runtimes/claude-local/src/server/execute.ts
+      - packages/agent-runtimes/codex-local/src/server/execute.ts
+      - packages/agent-runtimes/cursor-local/src/server/execute.ts
+      - packages/agent-runtimes/gemini-local/src/server/execute.ts
+      - packages/agent-runtimes/opencode-local/src/server/execute.ts
+      - packages/agent-runtimes/pi-local/src/server/execute.ts
+      - server/src/services/agent-run-context.ts
+      - server/src/services/agent-instructions.ts
+      - server/src/services/agent-startup-context.ts
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+      - server/src/services/workspace-runtime.helpers.ts
+    related_tests:
+      - packages/agent-runtime-utils/src/server-utils.test.ts
+      - server/src/__tests__/agent-instructions-service.test.ts
+      - server/src/__tests__/agent-run-context.test.ts
+      - server/src/__tests__/workspace-runtime.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md

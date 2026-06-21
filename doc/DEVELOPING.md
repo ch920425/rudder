@@ -193,6 +193,53 @@ When revisiting an existing feature area, inspect plan history in this order:
 6. inspect linked `issue`, `related_code`, and `commit_refs`
 7. fall back to slug/title keyword search for older unstructured plans
 
+## Product Logic Registry
+
+`doc/product/` is the guarded source for current product behavior contracts.
+It is more specific than `doc/PRODUCT.md` and more current than historical
+plans, but it does not replace implementation code or tests.
+
+Use it when a change touches:
+
+- user-visible workflows or UI interaction behavior
+- agent-visible runtime behavior
+- issue status, assignment, checkout, reviewer, wakeup, or close-out logic
+- permissions, organization boundaries, budgets, approvals, or activity logging
+- CLI/API behavior that operators or agents rely on
+
+Agent editing rule:
+
+- Agents may always read `doc/product/**`.
+- Agents may semantically edit `doc/product/**` only when the current user
+  explicitly authorizes it or when an approved proposal/plan contains the
+  product doc delta.
+- An agent-written handoff, draft plan, or PR body is not authorization by
+  itself.
+
+Development flow:
+
+1. Before implementation, identify whether the task restores an existing
+   contract, intentionally changes product behavior, is implementation-only, or
+   is unknown.
+2. Read the owning domain docs and list affected contract IDs.
+3. During implementation, keep schema/API/server/UI/tests aligned with the
+   contract IDs.
+4. If code and registry disagree, classify the conflict as code regression,
+   stale doc, or product decision. Do not silently rewrite `doc/product/**`
+   without authorization.
+5. Before hand-off, run:
+
+```sh
+pnpm product-logic:check
+```
+
+6. Include Product Logic Alignment in hand-off: docs read, affected contract
+   IDs, docs updated/no impact/deferred, tests or E2E proving the contract, and
+   remaining gaps.
+
+Deferred registry updates require explicit human approval plus an owner, linked
+issue or plan, affected contract IDs, due date, and reason.
+
 ## Dependency Lockfile Policy
 
 GitHub Actions owns `pnpm-lock.yaml`.

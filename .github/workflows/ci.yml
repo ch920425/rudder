@@ -54,6 +54,12 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      - name: Product logic registry
+        run: pnpm product-logic:check
+
+      - name: Product logic registry tests
+        run: pnpm product-logic:test
+
       - name: Unit tests
         if: matrix.test == 'full'
         run: pnpm test:run --maxWorkers=1

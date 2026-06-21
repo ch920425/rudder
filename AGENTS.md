@@ -46,6 +46,7 @@ Then choose the route that matches the work:
   - `doc/DEVELOPING.md`
   - `doc/DATABASE.md`
   - `doc/DEPLOYMENT-MODES.md`
+  - relevant `doc/product/domains/**` contracts when behavior changes
 - CLI/task-surface work:
   - `doc/README.md`
   - `doc/CLI.md`
@@ -55,6 +56,7 @@ Then choose the route that matches the work:
   - `doc/README.md`
   - `doc/PRODUCT.md`
   - `doc/DESIGN.md`
+  - relevant `doc/product/domains/**` contracts for user-visible behavior
 - Release/publishing work:
   - `doc/README.md`
   - `doc/RELEASING.md`
@@ -168,6 +170,12 @@ Repository-based agent skills for local development, maintenance, release, debug
 New plan documents belong in `doc/plans/` and should use `YYYY-MM-DD-slug.md` filenames. Plan docs must be written in English.
 When using plan mode, write the plan in `doc/plans/` before starting implementation work.
 New plan docs should start with the standard YAML frontmatter described in `doc/DEVELOPING.md`, use the most specific supported `kind`, and choose `area` / `entities` using `doc/plans/_taxonomy.md` plus relevant prior plans.
+
+1. Treat `doc/product/` as the guarded Product Logic Registry.
+
+`doc/product/` is the current product-behavior contract. Agents may read it at any time, but must not semantically edit `doc/product/**` unless the current user explicitly authorizes that edit or has approved a proposal/plan that includes the product doc delta.
+
+When changing product logic, state the affected contract IDs before implementation when practical, keep code/tests aligned with those contracts, and run `pnpm product-logic:check` before hand-off. If a behavior change needs a product doc update but the agent lacks authorization, stop with a proposed product logic delta instead of silently editing the registry or claiming the change is complete.
 
 1. Require end-to-end coverage for feature work.
 
