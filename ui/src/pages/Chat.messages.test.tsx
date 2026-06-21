@@ -289,6 +289,30 @@ describe("user chat message rendering", () => {
     expect(mention?.getAttribute("data-mention-status")).toBe("done");
     expect(mention?.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
   });
+
+  it("renders automation-style assistant issue links as issue chips", () => {
+    window.history.pushState({}, "", "/MARAAA/messenger/issues/MARAAA-752");
+    markdownMentionsMock.mentions = [{
+      id: "issue:1664b23e-1111-4111-8111-111111111111",
+      name: "MARAAA-747 Rudder SEO / GSC Daily Check",
+      kind: "issue",
+      issueId: "1664b23e-1111-4111-8111-111111111111",
+      issueIdentifier: "MARAAA-747",
+      issueStatus: "done",
+    }];
+
+    const container = renderChatMessageItem(message({
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "- 完成 [1664b23e](/issues/1664b23e): 2026-06-21 Rudder SEO / GSC Daily Check。",
+    }));
+    const mention = container.querySelector('[data-mention-kind="issue"]');
+
+    expect(mention?.textContent).toBe("1664b23e");
+    expect(mention?.getAttribute("href")).toBe("/MARAAA/issues/1664b23e");
+    expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
+  });
 });
 
 describe("failed chat transcript rendering", () => {

@@ -12,6 +12,7 @@ import { formatSkillReferenceDisplayLabel, parseSkillReference } from "../lib/sk
 import { cn } from "../lib/utils";
 import { ImagePreviewDialog, type ImagePreviewState } from "./ImagePreviewDialog";
 import { InspectableImage } from "./InspectableImage";
+import type { MentionOption } from "./MarkdownEditor";
 import { RudderEntityPreview } from "./RudderEntityPreview";
 import { SkillReferenceToken, type MarkdownSkillReferencePreview } from "./SkillReferenceToken";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
@@ -314,6 +315,43 @@ function internalAppRouteFromHref(href: string, organizationPrefix: string | nul
   } catch {
     return null;
   }
+}
+
+function issueRouteRefFromHref(href: string | null | undefined) {
+  if (!href || typeof window === "undefined") return null;
+
+  try {
+    const parsed = new URL(href, window.location.href);
+    if (parsed.origin !== window.location.origin) return null;
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const issueSegmentIndex = segments.findIndex((segment) => segment.toLowerCase() === "issues");
+    if (issueSegmentIndex < 0) return null;
+    const issueRef = segments[issueSegmentIndex + 1];
+    if (!issueRef) return null;
+    return decodeURIComponent(issueRef);
+  } catch {
+    return null;
+  }
+}
+
+function matchingIssueMentionFromRouteRef(
+  issueRouteRef: string | null | undefined,
+  issueMentions: MentionOption[],
+) {
+  const normalizedRouteRef = issueRouteRef?.trim().toLowerCase();
+  if (!normalizedRouteRef) return null;
+
+  return issueMentions.find((mention) => {
+    if (mention.kind !== "issue" || !mention.issueId) return false;
+    const issueId = mention.issueId.toLowerCase();
+    const issueIdentifier = mention.issueIdentifier?.toLowerCase() ?? "";
+    return (
+      issueId === normalizedRouteRef ||
+      issueIdentifier === normalizedRouteRef ||
+      (normalizedRouteRef.length >= 6 && issueId.startsWith(normalizedRouteRef))
+    );
+  }) ?? null;
 }
 
 function navigateInternalAppRoute(route: string) {
@@ -710,6 +748,7 @@ export function MarkdownBody({
       .filter((mention) => mention.kind === "issue" && mention.issueId)
       .map((mention) => [mention.issueId!, mention] as const),
   );
+  const issueMentions = mentions.filter((mention) => mention.kind === "issue" && mention.issueId);
   const chatMentionById = new Map(
     mentions
       .filter((mention) => mention.kind === "chat" && mention.chatConversationId)
@@ -945,6 +984,36 @@ export function MarkdownBody({
       const websiteUrl = websiteUrlFromMarkdownHref(href);
       const isBareUrlLink = isExternal && isBareMarkdownUrlLabel(linkLabel);
       const internalHref = href ? internalAppRouteFromHref(href, organizationPrefix) : null;
+      const internalIssueMention = matchingIssueMentionFromRouteRef(issueRouteRefFromHref(href), issueMentions);
+      if (internalIssueMention && internalHref) {
+        const mention: ParsedMentionChip = {
+          kind: "issue",
+          issueId: internalIssueMention.issueId!,
+          ref: internalIssueMention.issueIdentifier ?? null,
+          commentId: null,
+          status: internalIssueMention.issueStatus ?? null,
+        };
+        const mentionLabel = linkLabel.trim() || internalIssueMention.name || mentionFallbackLabel(mention);
+        const mentionLink = (
+          <a
+            href={internalHref}
+            className="rudder-mention-chip rudder-mention-chip--issue"
+            data-mention-kind="issue"
+            data-mention-status={mention.status ?? undefined}
+            {...markdownSourceAttributes(node)}
+            onClick={(event) => {
+              handleMarkdownLinkClick(event, internalHref, mentionLabel);
+            }}
+          >
+            {mentionLabel}
+          </a>
+        );
+        return (
+          <RudderEntityPreview mention={mention} label={mentionLabel}>
+            {mentionLink}
+          </RudderEntityPreview>
+        );
+      }
       const renderedHref = internalHref && !isAbsoluteMarkdownHref(href) ? internalHref : href;
       if (websiteUrl) {
         return (

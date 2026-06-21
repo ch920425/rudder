@@ -1791,6 +1791,31 @@ describe("MarkdownBody", () => {
     expect(html).not.toContain('target="_blank"');
   });
 
+  it("renders resolved app-relative issue links as issue mention chips", () => {
+    window.history.pushState({}, "", "/ZST/messenger/issues/ZST-752");
+    markdownMentionsMock.mentions = [{
+      id: "issue:1664b23e-1111-4111-8111-111111111111",
+      name: "ZST-747 Rudder SEO / GSC Daily Check",
+      kind: "issue",
+      issueId: "1664b23e-1111-4111-8111-111111111111",
+      issueIdentifier: "ZST-747",
+      issueStatus: "done",
+    }];
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>{"- 完成 [1664b23e](/issues/1664b23e): 2026-06-21 Rudder SEO / GSC Daily Check。"}</MarkdownBody>
+      </ThemeProvider>,
+    );
+    const mention = container.querySelector('[data-mention-kind="issue"]');
+
+    expect(mention?.textContent).toBe("1664b23e");
+    expect(mention?.getAttribute("href")).toBe("/ZST/issues/1664b23e");
+    expect(mention?.getAttribute("data-mention-status")).toBe("done");
+    expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
+    expect(mention?.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
+  });
+
   it("renders relaxed Library markdown link and list syntax", () => {
     const container = render(
       <ThemeProvider>
