@@ -179,15 +179,12 @@ describe("LazyStreamTranscriptItem", () => {
 });
 
 describe("ChatMessagesLoadingState", () => {
-  it("uses the wandering eyes loading animation instead of message skeletons", () => {
+  it("uses message skeletons for the chat loading state", () => {
     const container = render(<ChatMessagesLoadingState />);
 
-    expect(container.querySelector("[data-testid='chat-messages-loading-eyes']")).not.toBeNull();
-    expect(container.querySelector(".wandering-eyes")).not.toBeNull();
-    expect(container.querySelectorAll(".wandering-eyes__eye")).toHaveLength(2);
-    expect(container.querySelector("[role='status']")?.textContent).toContain("Loading");
-    expect(container.querySelector(".chat-message-user")).toBeNull();
-    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
+    expect(container.querySelector("[role='status']")?.getAttribute("aria-label")).toBe("Chat messages loading");
+    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(5);
+    expect(container.querySelector(".chat-message-user")).not.toBeNull();
   });
 });
 
