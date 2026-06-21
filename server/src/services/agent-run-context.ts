@@ -13,6 +13,7 @@ import {
   ensureOrganizationWorkspaceLayout,
   ensureProjectLibraryLayout,
 } from "../home-paths.js";
+import { agentInstructionsService } from "./agent-instructions.js";
 import { agentStartupContextService } from "./agent-startup-context.js";
 import { organizationSkillService } from "./organization-skills.js";
 import { listProjectResourceAttachments } from "./resource-catalog.js";
@@ -26,6 +27,7 @@ export type AgentRunContextAgent = {
   id: string;
   orgId: string;
   name: string;
+  role?: string | null;
   workspaceKey?: string | null;
   status?: string | null;
   agentRuntimeType: string;
@@ -414,6 +416,7 @@ async function resolveProjectLibraryContext(
 }
 
 export function agentRunContextService(db: Db) {
+  const instructions = agentInstructionsService();
   const secretsSvc = secretService(db);
   const organizationSkills = organizationSkillService(db);
   const startupContextSvc = agentStartupContextService(db);
@@ -460,6 +463,13 @@ export function agentRunContextService(db: Db) {
       runtimeSkillEntries,
       secretKeys,
     };
+  }
+
+  async function materializeManagedInstructionsForRun(
+    agent: AgentRunContextAgent,
+  ): Promise<Record<string, unknown>> {
+    const result = await instructions.reconcileBundle(agent);
+    return result.agentRuntimeConfig;
   }
 
   async function resolveWorkspaceForRun(
@@ -764,6 +774,7 @@ export function agentRunContextService(db: Db) {
   return {
     buildSceneContext,
     isHiddenSystemAgentMetadata,
+    materializeManagedInstructionsForRun,
     prepareRuntimeConfig,
     resolveWorkspaceForRun,
   };

@@ -202,7 +202,10 @@ export function createHeartbeatExecuteHandlers(context: any) {
       explicitResumeSessionParams ??
       (explicitResumeSessionDisplayId ? { sessionId: explicitResumeSessionDisplayId } : null) ??
       normalizeSessionParams(sessionCodec.deserialize(taskSessionForRun?.sessionParamsJson ?? null));
-    const config = parseObject(agent.agentRuntimeConfig);
+    const config = await runContextSvc.materializeManagedInstructionsForRun({
+      ...agent,
+      agentRuntimeConfig: parseObject(agent.agentRuntimeConfig),
+    });
     const executionWorkspaceMode = resolveExecutionWorkspaceMode({
       projectPolicy: projectExecutionWorkspacePolicy,
       issueSettings: issueExecutionWorkspaceSettings,

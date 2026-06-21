@@ -57,11 +57,12 @@ const mockAdapter = vi.hoisted(() => ({
 const mockFindServerAdapter = vi.hoisted(() => vi.fn(() => mockAdapter));
 
 const mockAgentService = vi.hoisted(() => ({
-  getById: vi.fn(),
+  getInternalById: vi.fn(),
 }));
 
 const mockRunContextService = vi.hoisted(() => ({
   prepareRuntimeConfig: vi.fn(),
+  materializeManagedInstructionsForRun: vi.fn(),
   resolveWorkspaceForRun: vi.fn(),
   buildSceneContext: vi.fn(),
 }));
@@ -336,7 +337,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
     currentAgentHome = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-chat-agent-home-"));
     cleanupDirs.add(currentAgentHome);
     mockFindServerAdapter.mockImplementation(() => mockAdapter);
-    mockAgentService.getById.mockResolvedValue({
+    mockAgentService.getInternalById.mockResolvedValue({
       id: "agent-1",
       orgId: "organization-1",
       name: "Chat Specialist",
@@ -357,6 +358,9 @@ describe("chatAssistantService operator profile prompt injection", () => {
       runtimeSkillEntries: [{ key: "org/build-advisor", name: "Build Advisor", runtimeName: "codex" }],
       secretKeys: new Set(),
     });
+    mockRunContextService.materializeManagedInstructionsForRun.mockImplementation(async (agent) =>
+      (agent.agentRuntimeConfig ?? {}) as Record<string, unknown>,
+    );
     mockRunContextService.resolveWorkspaceForRun.mockResolvedValue({
       cwd: process.cwd(),
       source: "project_primary",
@@ -419,7 +423,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
       available: false,
       error: "Choose a chat agent before sending messages.",
     });
-    expect(mockAgentService.getById).not.toHaveBeenCalled();
+    expect(mockAgentService.getInternalById).not.toHaveBeenCalled();
   });
 
   it("refuses to generate a reply without a preferred agent", async () => {
@@ -441,7 +445,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
       messages: makeMessages(),
       contextLinks: [],
     })).rejects.toThrow("Choose a chat agent before sending messages.");
-    expect(mockAgentService.getById).not.toHaveBeenCalled();
+    expect(mockAgentService.getInternalById).not.toHaveBeenCalled();
     expect(mockAdapter.execute).not.toHaveBeenCalled();
   });
 
@@ -634,7 +638,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
   it("prepares chat image attachments for Claude chat agents too", async () => {
     const storage = makeStorageService();
     const svc = chatAssistantService({} as any, storage as any);
-    mockAgentService.getById.mockResolvedValueOnce({
+    mockAgentService.getInternalById.mockResolvedValueOnce({
       id: "agent-1",
       orgId: "organization-1",
       name: "Claude Specialist",
@@ -725,7 +729,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
 
   it("applies plan-mode prompt guidance and a structured Claude permission overlay", async () => {
     const svc = chatAssistantService({} as any);
-    mockAgentService.getById.mockResolvedValueOnce({
+    mockAgentService.getInternalById.mockResolvedValueOnce({
       id: "agent-1",
       orgId: "organization-1",
       name: "Claude Planner",
@@ -1395,7 +1399,7 @@ describe("chatAssistantService operator profile prompt injection", () => {
   });
 
   it("uses the preferred agent as the chat speaker and preserves prepared runtime context", async () => {
-    mockAgentService.getById.mockResolvedValueOnce({
+    mockAgentService.getInternalById.mockResolvedValueOnce({
       id: "agent-1",
       orgId: "organization-1",
       name: "Builder",
@@ -1506,6 +1510,55 @@ describe("chatAssistantService operator profile prompt injection", () => {
       resolvedWorkspace: expect.objectContaining({
         cwd: "/tmp/rudder-chat-agent-home",
         source: "agent_home",
+      }),
+    }));
+    expect(mockRunContextService.materializeManagedInstructionsForRun).not.toHaveBeenCalled();
+    expect(mockRunContextService.prepareRuntimeConfig).toHaveBeenCalledWith(expect.not.objectContaining({
+      materializeManagedInstructions: true,
+    }));
+  });
+
+  it("materializes managed instructions before executing a chat reply", async () => {
+    mockAgentService.getInternalById.mockResolvedValueOnce({
+      id: "agent-1",
+      orgId: "organization-1",
+      name: "Chat Specialist",
+      role: "ceo",
+      workspaceKey: "chat-specialist--agent-1",
+      status: "idle",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: { model: "gpt-5.4", instructionsBundleMode: "managed" },
+      metadata: null,
+    });
+    mockRunContextService.materializeManagedInstructionsForRun.mockResolvedValueOnce({
+      model: "gpt-5.4",
+      instructionsBundleMode: "managed",
+      instructionsRootPath: "/tmp/chat-specialist/instructions",
+      instructionsEntryFile: "SOUL.md",
+      instructionsFilePath: "/tmp/chat-specialist/instructions/SOUL.md",
+    });
+
+    const svc = chatAssistantService({} as any);
+    await svc.generateChatAssistantReply({
+      conversation: makeConversation(),
+      messages: makeMessages(),
+      contextLinks: [],
+    });
+
+    expect(mockRunContextService.materializeManagedInstructionsForRun).toHaveBeenCalledWith(expect.objectContaining({
+      id: "agent-1",
+      role: "ceo",
+      workspaceKey: "chat-specialist--agent-1",
+      agentRuntimeConfig: expect.objectContaining({ instructionsBundleMode: "managed" }),
+    }));
+    expect(mockRunContextService.prepareRuntimeConfig).toHaveBeenCalledWith(expect.objectContaining({
+      scene: "chat",
+      agent: expect.objectContaining({
+        workspaceKey: "chat-specialist--agent-1",
+        agentRuntimeConfig: expect.objectContaining({
+          instructionsRootPath: "/tmp/chat-specialist/instructions",
+          instructionsFilePath: "/tmp/chat-specialist/instructions/SOUL.md",
+        }),
       }),
     }));
   });

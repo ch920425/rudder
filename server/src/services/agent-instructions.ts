@@ -6,6 +6,10 @@ import {
   resolveAgentInstructionsDir,
   resolveHomeAwarePath,
 } from "../home-paths.js";
+import {
+  loadDefaultAgentInstructionsBundle,
+  resolveDefaultAgentInstructionsBundleRole,
+} from "./default-agent-instructions.js";
 
 const ENTRY_FILE_DEFAULT = "SOUL.md";
 const MEMORY_FILE_NAME = "MEMORY.md";
@@ -35,6 +39,7 @@ type AgentLike = {
   id: string;
   orgId: string;
   name: string;
+  role?: string | null;
   workspaceKey?: string | null;
   agentRuntimeConfig: unknown;
 };
@@ -238,6 +243,30 @@ async function readLegacyInstructions(agent: AgentLike, config: Record<string, u
   return asString(config[PROMPT_KEY]) ?? "";
 }
 
+async function defaultManagedBundleFiles(agent: AgentLike): Promise<Record<string, string>> {
+  return loadDefaultAgentInstructionsBundle(
+    resolveDefaultAgentInstructionsBundleRole(agent.role ?? "default"),
+  );
+}
+
+async function managedEntryRecoveryFiles(
+  agent: AgentLike,
+  state: BundleState,
+): Promise<Record<string, string>> {
+  const legacyInstructions = await readLegacyInstructions(agent, state.config);
+  if (legacyInstructions.trim().length > 0) {
+    return { [state.entryFile || ENTRY_FILE_DEFAULT]: legacyInstructions };
+  }
+  const defaultFiles = await defaultManagedBundleFiles(agent);
+  if (state.entryFile === ENTRY_FILE_DEFAULT || defaultFiles[state.entryFile]) {
+    return defaultFiles;
+  }
+  return {
+    ...defaultFiles,
+    [state.entryFile]: defaultFiles[ENTRY_FILE_DEFAULT] ?? "",
+  };
+}
+
 function deriveBundleState(agent: AgentLike): BundleState {
   const config = asRecord(agent.agentRuntimeConfig);
   const warnings: string[] = [];
@@ -289,15 +318,41 @@ function deriveBundleState(agent: AgentLike): BundleState {
   };
 }
 
-async function recoverManagedBundleState(agent: AgentLike, state: BundleState): Promise<BundleState> {
+async function recoverManagedBundleState(
+  agent: AgentLike,
+  state: BundleState,
+  options?: { materializeMissingManagedEntry?: boolean },
+): Promise<BundleState> {
   await ensureAgentWorkspaceLayout(agent);
   const managedRootPath = resolveManagedInstructionsRoot(agent);
   const stat = await statIfExists(managedRootPath);
   if (!stat?.isDirectory()) return state;
 
   let files = await listFilesRecursive(managedRootPath);
+  const configuredManagedRoot =
+    state.mode === "managed"
+    && state.rootPath
+    && path.resolve(state.rootPath) === managedRootPath;
+  if (
+    files.length === 0
+    && configuredManagedRoot
+    && options?.materializeMissingManagedEntry
+  ) {
+    await writeBundleFiles(managedRootPath, await managedEntryRecoveryFiles(agent, state));
+    await copyLegacyRootMemoryIntoManagedInstructions(agent);
+    files = await listFilesRecursive(managedRootPath);
+  }
+  if (
+    configuredManagedRoot
+    && files.length > 0
+    && !files.includes(state.entryFile)
+    && options?.materializeMissingManagedEntry
+  ) {
+    await writeBundleFiles(managedRootPath, await managedEntryRecoveryFiles(agent, state));
+    files = await listFilesRecursive(managedRootPath);
+  }
   if (files.length === 0) return state;
-  if (await copyLegacyRootMemoryIntoManagedInstructions(agent)) {
+  if (options?.materializeMissingManagedEntry && await copyLegacyRootMemoryIntoManagedInstructions(agent)) {
     files = await listFilesRecursive(managedRootPath);
   }
 
@@ -489,7 +544,9 @@ export function agentInstructionsService() {
 
   async function reconcileBundle(agent: AgentLike): Promise<ReconciledBundleResult> {
     const derived = deriveBundleState(agent);
-    const current = await recoverManagedBundleState(agent, derived);
+    const current = await recoverManagedBundleState(agent, derived, {
+      materializeMissingManagedEntry: true,
+    });
     if (current.mode === "managed" && !current.rootPath && current.legacyPromptTemplateActive) {
       const prepared = await ensureWritableBundle(agent, { clearLegacyPromptTemplate: true });
       const nextAgent = { ...agent, agentRuntimeConfig: prepared.agentRuntimeConfig };
@@ -552,7 +609,9 @@ export function agentInstructionsService() {
     options?: { clearLegacyPromptTemplate?: boolean },
   ): Promise<{ agentRuntimeConfig: Record<string, unknown>; state: BundleState }> {
     const derived = deriveBundleState(agent);
-    const current = await recoverManagedBundleState(agent, derived);
+    const current = await recoverManagedBundleState(agent, derived, {
+      materializeMissingManagedEntry: true,
+    });
     if (current.rootPath && current.mode) {
       const agentRuntimeConfig = buildPersistedBundleConfig(derived, current, options);
       return {
@@ -595,7 +654,9 @@ export function agentInstructionsService() {
       clearLegacyPromptTemplate?: boolean;
     },
   ): Promise<{ bundle: AgentInstructionsBundle; agentRuntimeConfig: Record<string, unknown> }> {
-    const state = await recoverManagedBundleState(agent, deriveBundleState(agent));
+    const state = await recoverManagedBundleState(agent, deriveBundleState(agent), {
+      materializeMissingManagedEntry: true,
+    });
     const nextMode = input.mode ?? state.mode ?? "managed";
     const nextEntryFile = input.entryFile ? normalizeRelativeFilePath(input.entryFile) : state.entryFile;
     let nextRootPath: string;
@@ -679,7 +740,9 @@ export function agentInstructionsService() {
     agentRuntimeConfig: Record<string, unknown>;
   }> {
     const derived = deriveBundleState(agent);
-    const state = await recoverManagedBundleState(agent, derived);
+    const state = await recoverManagedBundleState(agent, derived, {
+      materializeMissingManagedEntry: true,
+    });
     if (relativePath === LEGACY_PROMPT_TEMPLATE_PATH) {
       throw unprocessable("Cannot delete the legacy promptTemplate pseudo-file");
     }
