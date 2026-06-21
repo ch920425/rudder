@@ -995,6 +995,18 @@ export function messengerService(db: Db) {
     return threadKey.startsWith("chat:") ? threadKey.slice("chat:".length) : null;
   }
 
+  function issueIdFromThreadKey(threadKey: string) {
+    return threadKey.startsWith("issue:") ? threadKey.slice("issue:".length) : null;
+  }
+
+  function isSyntheticMessengerThreadKey(threadKey: string) {
+    return threadKey === "issues"
+      || threadKey === "approvals"
+      || threadKey === "failed-runs"
+      || threadKey === "budget-alerts"
+      || threadKey === "join-requests";
+  }
+
   async function getCustomGroupOrThrow(orgId: string, userId: string, groupId: string) {
     const [group] = await db
       .select()
@@ -1009,14 +1021,81 @@ export function messengerService(db: Db) {
     return group;
   }
 
-  async function ensureChatThreadCanBeGrouped(orgId: string, userId: string, threadKey: string) {
-    const conversationId = chatConversationIdFromThreadKey(threadKey);
-    if (!conversationId) {
-      throw badRequest("Only chat threads can be added to custom Messenger groups");
+  async function loadIssueThreadSummaryById(orgId: string, userId: string, issueId: string): Promise<MessengerThreadSummary | null> {
+    const lastReadAtPromise = lastReadAtForThread(db, orgId, userId, "issues");
+    const rows = (await db.execute(issueEntryRowsQuery(
+      orgId,
+      userId,
+      sql`
+        where id = ${issueId}
+        limit 1
+      `,
+    ))) as IssueThreadEntryRow[];
+    const entry = rows[0] ? issueThreadEntryFromRow(rows[0], userId) : null;
+    if (!entry) return null;
+
+    const [card] = await buildIssueCardsForEntries(orgId, userId, [entry], "latest");
+    if (!card) return null;
+
+    const lastReadAt = await lastReadAtPromise;
+    const issueThreadStates = await loadThreadStates(db, orgId, userId, [`issue:${issueId}`]);
+    return splitIssueSummary(card.entry, card.item, lastReadAt, issueThreadStates.get(`issue:${issueId}`) ?? null);
+  }
+
+  async function loadSyntheticThreadSummaryByKey(orgId: string, userId: string, threadKey: string): Promise<MessengerThreadSummary | null> {
+    const syntheticThreadStates = loadThreadStates(db, orgId, userId, [
+      "issues",
+      "approvals",
+      "failed-runs",
+      "budget-alerts",
+      "join-requests",
+    ]);
+    switch (threadKey) {
+      case "issues": {
+        const data = await loadIssueThreadSummaryData(orgId, userId, syntheticThreadStates);
+        return data.itemCount > 0 ? data.summary : null;
+      }
+      case "approvals": {
+        const data = await loadApprovalThreadSummaryData(orgId, userId, syntheticThreadStates);
+        return data.itemCount > 0 ? data.summary : null;
+      }
+      case "failed-runs": {
+        const data = await loadFailedRunSummaryData(orgId, userId, syntheticThreadStates);
+        return data.itemCount > 0 ? data.summary : null;
+      }
+      case "budget-alerts": {
+        const data = await loadBudgetAlertData(orgId, userId, syntheticThreadStates);
+        return data.detail.items.length > 0 ? data.summary : null;
+      }
+      case "join-requests": {
+        const data = await loadJoinRequestSummaryData(orgId, userId, syntheticThreadStates);
+        return data.itemCount > 0 ? data.summary : null;
+      }
+      default:
+        return null;
     }
-    const conversations = await chatsSvc.listSummariesByIds(orgId, [conversationId], userId);
-    if (conversations.length === 0) {
-      throw notFound("Messenger chat thread not found");
+  }
+
+  async function findMessengerThreadSummary(orgId: string, userId: string, threadKey: string): Promise<MessengerThreadSummary | null> {
+    const conversationId = chatConversationIdFromThreadKey(threadKey);
+    if (conversationId) {
+      const conversations = await chatsSvc.listSummariesByIds(orgId, [conversationId], userId);
+      const conversation = conversations[0];
+      return conversation ? chatSummary(conversation) : null;
+    }
+
+    const issueId = issueIdFromThreadKey(threadKey);
+    if (issueId) {
+      return loadIssueThreadSummaryById(orgId, userId, issueId);
+    }
+
+    return loadSyntheticThreadSummaryByKey(orgId, userId, threadKey);
+  }
+
+  async function ensureMessengerThreadCanBeGrouped(orgId: string, userId: string, threadKey: string) {
+    const summary = await findMessengerThreadSummary(orgId, userId, threadKey);
+    if (!summary) {
+      throw notFound("Messenger thread not found");
     }
   }
 
@@ -1038,10 +1117,8 @@ export function messengerService(db: Db) {
         .orderBy(asc(messengerCustomGroupEntries.sortOrder), asc(messengerCustomGroupEntries.createdAt)),
     ]);
 
-    const chatThreadKeys = entries
+    const conversationIds = entries
       .map((entry) => entry.threadKey)
-      .filter((threadKey) => Boolean(chatConversationIdFromThreadKey(threadKey)));
-    const conversationIds = chatThreadKeys
       .map((threadKey) => chatConversationIdFromThreadKey(threadKey))
       .filter((id): id is string => Boolean(id));
     const conversations = await chatsSvc.listSummariesByIds(orgId, conversationIds, userId);
@@ -1049,12 +1126,35 @@ export function messengerService(db: Db) {
       const summary = chatSummary(conversation);
       return [summary.threadKey, summary] as const;
     }));
+    const nonChatThreadKeys = [...new Set(entries
+      .map((entry) => entry.threadKey)
+      .filter((threadKey) => !chatConversationIdFromThreadKey(threadKey)))];
+    const issueThreadKeys = nonChatThreadKeys.filter((threadKey) => Boolean(issueIdFromThreadKey(threadKey)));
+    if (nonChatThreadKeys.length > 0) {
+      const syntheticThreadKeys = nonChatThreadKeys.filter((threadKey) => !issueIdFromThreadKey(threadKey));
+      const [issueSummaries, syntheticSummaries] = await Promise.all([
+        Promise.all(issueThreadKeys.map(async (threadKey) => {
+          const issueId = issueIdFromThreadKey(threadKey);
+          return issueId ? loadIssueThreadSummaryById(orgId, userId, issueId) : null;
+        })),
+        Promise.all(syntheticThreadKeys.map((threadKey) => loadSyntheticThreadSummaryByKey(orgId, userId, threadKey))),
+      ]);
+      for (const summary of issueSummaries) {
+        if (summary) summaryByThreadKey.set(summary.threadKey, summary);
+      }
+      for (const summary of syntheticSummaries) {
+        if (summary) summaryByThreadKey.set(summary.threadKey, summary);
+      }
+    }
 
     const staleEntryIds: string[] = [];
     const entriesByGroupId = new Map<string, MessengerCustomGroupHydratedEntry[]>();
     for (const entry of entries) {
       const summary = summaryByThreadKey.get(entry.threadKey);
       if (!summary) {
+        if (isSyntheticMessengerThreadKey(entry.threadKey)) {
+          continue;
+        }
         staleEntryIds.push(entry.id);
         continue;
       }
@@ -1180,7 +1280,7 @@ export function messengerService(db: Db) {
   }
 
   async function assignThreadToCustomGroupWithClient(client: Pick<Db, "insert" | "select">, orgId: string, userId: string, groupId: string, threadKey: string) {
-    await ensureChatThreadCanBeGrouped(orgId, userId, threadKey);
+    await ensureMessengerThreadCanBeGrouped(orgId, userId, threadKey);
     const [lastEntry] = await client
       .select({ sortOrder: messengerCustomGroupEntries.sortOrder })
       .from(messengerCustomGroupEntries)
@@ -1908,7 +2008,6 @@ export function messengerService(db: Db) {
 
   async function loadApprovalThreadSummaryData(orgId: string, userId: string, threadStates?: ThreadStateSource): Promise<SystemSummaryData> {
     const lastReadAt = await lastReadAtForThread(db, orgId, userId, "approvals", threadStates);
-    const approvalPredicate = eq(approvals.orgId, orgId);
     const pendingApprovalPredicate = and(eq(approvals.orgId, orgId), eq(approvals.status, "pending"));
 
     const [summaryRows, latestApprovalRows, latestCommentRows, unreadRows] = await Promise.all([
@@ -1917,11 +2016,11 @@ export function messengerService(db: Db) {
           itemCount: sql<number>`count(*)::int`,
         })
         .from(approvals)
-        .where(approvalPredicate),
+        .where(pendingApprovalPredicate),
       db
         .select()
         .from(approvals)
-        .where(approvalPredicate)
+        .where(pendingApprovalPredicate)
         .orderBy(desc(approvals.updatedAt), desc(approvals.createdAt))
         .limit(1),
       db
@@ -1943,6 +2042,7 @@ export function messengerService(db: Db) {
             limit 1
           ) latest_comment on true
           where ${approvals.orgId} = ${orgId}
+            and ${approvals.status} = 'pending'
           order by latest_comment.created_at desc
           limit 1
         `),
@@ -1972,7 +2072,7 @@ export function messengerService(db: Db) {
       ? await db
         .select()
         .from(approvals)
-        .where(and(eq(approvals.id, latestCommentRow.approvalId), approvalPredicate))
+        .where(and(eq(approvals.id, latestCommentRow.approvalId), pendingApprovalPredicate))
         .limit(1)
       : [];
 

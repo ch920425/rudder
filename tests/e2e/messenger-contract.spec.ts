@@ -822,8 +822,10 @@ test.describe("Messenger unified threads contract", () => {
 
     await page.getByTestId(groupSectionId).hover();
     await page.getByRole("button", { name: "Group actions" }).click();
-    await expect(page.getByRole("menuitem", { name: "Edit group" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Separate tabs" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Rename..." })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Change icon" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Pick color" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Separate items" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
@@ -867,8 +869,8 @@ test.describe("Messenger unified threads contract", () => {
     );
     await page.getByTestId(groupSectionId).hover();
     await page.getByRole("button", { name: "Group actions" }).click();
-    await page.getByRole("menuitem", { name: "Separate tabs" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Separate tabs" }).click();
+    await page.getByRole("menuitem", { name: "Separate items" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Separate items" }).click();
     expect((await separateResponse).ok()).toBe(true);
     await expect(page.getByTestId(groupSectionId)).toHaveCount(0);
     const firstMainRow = page.getByTestId(threadTestId(`chat:${untouchedChat.id}`));
@@ -882,12 +884,274 @@ test.describe("Messenger unified threads contract", () => {
       secondMainRow,
       firstMainRow,
     );
-    const persistedMainListOrder = await page.evaluate((orgId) => {
-      const prefix = `rudder.messengerDefaultThreadOrder:${orgId}:`;
-      const storageKey = Object.keys(window.localStorage).find((key) => key.startsWith(prefix));
-      return storageKey ? JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as string[] : [];
-    }, organization.id);
-    expect(persistedMainListOrder.length).toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => {
+      try {
+        return await page.evaluate((orgId) => {
+          const prefix = `rudder.messengerDefaultThreadOrder:${orgId}:`;
+          const storageKey = Object.keys(window.localStorage).find((key) => key.startsWith(prefix));
+          const order = storageKey ? JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as string[] : [];
+          return order.length;
+        }, organization.id);
+      } catch {
+        return 0;
+      }
+    }).toBeGreaterThanOrEqual(2);
+  });
+
+  test("groups aggregate issue and synthetic Messenger rows through the same group contract", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Nonchat-Groups-${Date.now()}`);
+
+    const chatRes = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+      data: {
+        title: "Grouped contract chat",
+        summary: "Chat row keeps the group mixed with non-chat rows.",
+        issueCreationMode: "manual_approval",
+        planMode: false,
+      },
+    });
+    expect(chatRes.ok()).toBe(true);
+    const chat = await chatRes.json() as { id: string };
+
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Grouped aggregate issue",
+        description: "The aggregate Issues Messenger row should be groupable.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json() as { id: string };
+    const followRes = await page.request.post(`/api/issues/${issue.id}/follow`);
+    expect(followRes.ok()).toBe(true);
+
+    const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
+      data: {
+        type: "chat_issue_creation",
+        payload: {
+          chatConversationId: chat.id,
+          proposedIssue: {
+            title: "Grouped approval",
+            description: "The approvals Messenger row should be groupable.",
+            priority: "medium",
+          },
+        },
+        issueIds: [issue.id],
+      },
+    });
+    expect(approvalRes.ok()).toBe(true);
+
+    const mergeRes = await page.request.post(`/api/orgs/${organization.id}/messenger/groups/merge`, {
+      data: {
+        name: "Mixed Messenger rows",
+        icon: "folder::teal",
+        threadKeys: [`chat:${chat.id}`, "issues", "approvals"],
+      },
+    });
+    expect(mergeRes.ok()).toBe(true);
+    const mergePayload = await mergeRes.json() as {
+      groups: Array<{ id: string; entries: Array<{ threadKey: string; thread: { threadKey: string; title: string } }> }>;
+    };
+    const group = mergePayload.groups[0];
+    expect(group?.entries.map((entry) => entry.threadKey)).toEqual([`chat:${chat.id}`, "issues", "approvals"]);
+    expect(group?.entries.map((entry) => entry.thread.threadKey)).toEqual([`chat:${chat.id}`, "issues", "approvals"]);
+
+    await page.goto("/");
+    await page.evaluate(({ orgId }) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
+      window.localStorage.setItem("rudder.messengerSplitIssueNotificationsByOrg", JSON.stringify({ [orgId]: false }));
+    }, { orgId: organization.id });
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const groupSection = page.getByTestId(`messenger-thread-section-custom-group-${group!.id}`);
+    await expect(groupSection).toContainText("Mixed Messenger rows", { timeout: 15_000 });
+    await expect(groupSection).toContainText("Grouped contract chat");
+    await expect(groupSection).toContainText("Issues");
+    await expect(groupSection).toContainText("Approvals");
+  });
+
+  test("keeps synthetic row group membership while the row is temporarily empty", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Synthetic-Dormant-${Date.now()}`);
+
+    const approvalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
+      data: {
+        type: "chat_issue_creation",
+        payload: {
+          proposedIssue: {
+            title: "Dormant row approval",
+            description: "Synthetic row grouping should survive an empty pending queue.",
+            priority: "medium",
+          },
+        },
+      },
+    });
+    expect(approvalRes.ok()).toBe(true);
+    const approval = await approvalRes.json() as { id: string };
+
+    const mergeRes = await page.request.post(`/api/orgs/${organization.id}/messenger/groups/merge`, {
+      data: {
+        name: "Approval queue",
+        icon: "folder::teal",
+        threadKeys: ["approvals"],
+      },
+    });
+    expect(mergeRes.ok()).toBe(true);
+    const mergePayload = await mergeRes.json() as {
+      groups: Array<{ id: string; entries: Array<{ threadKey: string }> }>;
+    };
+    const group = mergePayload.groups[0];
+    expect(group?.entries.map((entry) => entry.threadKey)).toEqual(["approvals"]);
+
+    const rejectRes = await page.request.post(`/api/approvals/${approval.id}/reject`, {
+      data: { decisionNote: "Clear the pending queue for synthetic row durability." },
+    });
+    expect(rejectRes.ok()).toBe(true);
+
+    const dormantGroupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+    expect(dormantGroupsRes.ok()).toBe(true);
+    const dormantGroups = await dormantGroupsRes.json() as {
+      groups: Array<{ id: string; entries: Array<{ threadKey: string }> }>;
+    };
+    expect(dormantGroups.groups.find((candidate) => candidate.id === group!.id)?.entries).toEqual([]);
+
+    const restoredApprovalRes = await page.request.post(`/api/orgs/${organization.id}/approvals`, {
+      data: {
+        type: "chat_issue_creation",
+        payload: {
+          proposedIssue: {
+            title: "Restored row approval",
+            description: "The approvals row should reappear in the same custom group.",
+            priority: "medium",
+          },
+        },
+      },
+    });
+    expect(restoredApprovalRes.ok()).toBe(true);
+
+    const restoredGroupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+    expect(restoredGroupsRes.ok()).toBe(true);
+    const restoredGroups = await restoredGroupsRes.json() as {
+      groups: Array<{ id: string; entries: Array<{ threadKey: string; thread: { threadKey: string; title: string } }> }>;
+    };
+    expect(restoredGroups.groups.find((candidate) => candidate.id === group!.id)?.entries.map((entry) => entry.threadKey)).toEqual(["approvals"]);
+    expect(restoredGroups.groups.find((candidate) => candidate.id === group!.id)?.entries[0]?.thread).toMatchObject({
+      threadKey: "approvals",
+      title: "Approvals",
+    });
+  });
+
+  test("creates an aggregate issue group from the Messenger row actions menu", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Issue-Row-Group-${Date.now()}`);
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Row menu grouped issue",
+        description: "The Issues row should create a group from the row actions menu.",
+        status: "todo",
+        priority: "medium",
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json() as { id: string };
+    const followRes = await page.request.post(`/api/issues/${issue.id}/follow`);
+    expect(followRes.ok()).toBe(true);
+
+    await page.goto("/");
+    await page.evaluate(({ orgId }) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
+      window.localStorage.setItem("rudder.messengerSplitIssueNotificationsByOrg", JSON.stringify({ [orgId]: false }));
+    }, { orgId: organization.id });
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const issuesRow = page.getByTestId(threadTestId("issues"));
+    await expect(issuesRow).toContainText("Issues", { timeout: 15_000 });
+    await issuesRow.hover();
+    await issuesRow.getByRole("button", { name: "Thread actions" }).click();
+    await page.getByRole("menuitem", { name: "New group" }).click();
+    await page.getByLabel("Group name").fill("Issue row group");
+
+    const createGroupResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/orgs/${organization.id}/messenger/groups`) &&
+      response.request().method() === "POST",
+    );
+    const assignEntryResponse = page.waitForResponse((response) =>
+      response.url().includes(`/api/orgs/${organization.id}/messenger/groups/`) &&
+      response.url().endsWith("/entries") &&
+      response.request().method() === "POST",
+    );
+    await page.getByTestId("messenger-custom-group-editor").getByRole("button", { name: "Create" }).click();
+    expect((await createGroupResponse).ok()).toBe(true);
+    expect((await assignEntryResponse).ok()).toBe(true);
+
+    const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+    expect(groupsRes.ok()).toBe(true);
+    const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
+    const group = payload.groups.find((candidate) => candidate.name === "Issue row group");
+    expect(group?.entries.map((entry) => entry.threadKey)).toEqual(["issues"]);
+
+    const groupSection = page.getByTestId(`messenger-thread-section-custom-group-${group!.id}`);
+    await expect(groupSection).toContainText("Issue row group", { timeout: 15_000 });
+    await expect(groupSection).toContainText("Issues");
+  });
+
+  test("creates a split issue group from the single issue row actions menu", async ({ page }) => {
+    const sessionRes = await page.request.get("/api/auth/get-session");
+    expect(sessionRes.ok()).toBe(true);
+    const session = await sessionRes.json();
+    const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
+    expect(currentUserId).toBeTruthy();
+
+    const organization = await createOrganization(page, `Messenger-Split-Issue-Row-Group-${Date.now()}`);
+    const issueRes = await page.request.post(`/api/orgs/${organization.id}/issues`, {
+      data: {
+        title: "Single issue row group target",
+        description: "A single split issue Messenger row should create a group from its row actions menu.",
+        status: "todo",
+        priority: "medium",
+        assigneeUserId: currentUserId,
+      },
+    });
+    expect(issueRes.ok()).toBe(true);
+    const issue = await issueRes.json() as { id: string; title: string };
+
+    await page.goto("/");
+    await page.evaluate(({ orgId }) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
+      window.localStorage.setItem("rudder.messengerSplitIssueNotificationsByOrg", JSON.stringify({ [orgId]: true }));
+    }, { orgId: organization.id });
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const splitIssueRow = page.getByTestId(threadTestId(`issue:${issue.id}`));
+    await expect(splitIssueRow).toContainText("Single issue row group target", { timeout: 15_000 });
+    await splitIssueRow.hover();
+    await splitIssueRow.getByRole("button", { name: "Thread actions" }).click();
+    await page.getByRole("menuitem", { name: "New group" }).click();
+    await page.getByLabel("Group name").fill("Single issue group");
+
+    const createGroupResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/orgs/${organization.id}/messenger/groups`) &&
+      response.request().method() === "POST",
+    );
+    const assignEntryResponse = page.waitForResponse((response) =>
+      response.url().includes(`/api/orgs/${organization.id}/messenger/groups/`) &&
+      response.url().endsWith("/entries") &&
+      response.request().method() === "POST",
+    );
+    await page.getByTestId("messenger-custom-group-editor").getByRole("button", { name: "Create" }).click();
+    expect((await createGroupResponse).ok()).toBe(true);
+    expect((await assignEntryResponse).ok()).toBe(true);
+
+    const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+    expect(groupsRes.ok()).toBe(true);
+    const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
+    const group = payload.groups.find((candidate) => candidate.name === "Single issue group");
+    expect(group?.entries.map((entry) => entry.threadKey)).toEqual([`issue:${issue.id}`]);
+
+    const groupSection = page.getByTestId(`messenger-thread-section-custom-group-${group!.id}`);
+    await expect(groupSection).toContainText("Single issue group", { timeout: 15_000 });
+    await expect(groupSection).toContainText("Single issue row group target");
   });
 
   test("shows a compact emoji picker when changing a custom group icon", async ({ page }) => {
@@ -965,7 +1229,7 @@ test.describe("Messenger unified threads contract", () => {
     const regularChat = await createChat("Newer regular tab");
     const pinCandidateGroup = await createGroup(
       "Pin candidate",
-      "folder::amber",
+      "📌::amber",
       `chat:${pinCandidateChat.id}`,
     );
     const regularGroup = await createGroup(

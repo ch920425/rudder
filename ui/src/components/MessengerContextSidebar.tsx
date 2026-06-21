@@ -55,10 +55,17 @@ import { cn, relativeTime } from "@/lib/utils";
 import {
   closestCenter,
   DndContext,
+  MeasuringFrequency,
+  MeasuringStrategy,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { buildChatMentionHref, formatMessengerPreview, formatMessengerTitle, type Agent, type ChatConversation, type MessengerCustomGroupWithEntries } from "@rudderhq/shared";
@@ -174,6 +181,21 @@ function sortableTranslateTransform(transform: { x: number; y: number } | null) 
   if (!transform) return undefined;
   return `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`;
 }
+
+const messengerThreadCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) return pointerCollisions;
+  const rectCollisions = rectIntersection(args);
+  if (rectCollisions.length > 0) return rectCollisions;
+  return closestCenter(args);
+};
+
+const MESSENGER_THREAD_DND_MEASURING = {
+  droppable: {
+    strategy: MeasuringStrategy.WhileDragging,
+    frequency: MeasuringFrequency.Optimized,
+  },
+} as const;
 
 function escapeMarkdownLinkLabel(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/]/g, "\\]");
@@ -1442,7 +1464,11 @@ function ThreadRow({
   density,
   onTogglePin,
   onHideIssue,
-  customGroupsEnabled,
+  customGroups,
+  customGroupId,
+  onMoveToCustomGroup,
+  onRemoveFromCustomGroup,
+  onCreateCustomGroup,
   dragHandleProps,
   dragging,
   onSelect,
@@ -1452,7 +1478,11 @@ function ThreadRow({
   density: MessengerThreadDensity;
   onTogglePin: () => void;
   onHideIssue?: () => void;
-  customGroupsEnabled?: boolean;
+  customGroups?: MessengerCustomGroupWithEntries[];
+  customGroupId?: string | null;
+  onMoveToCustomGroup?: (groupId: string) => void;
+  onRemoveFromCustomGroup?: () => void;
+  onCreateCustomGroup?: () => void;
   dragHandleProps?: Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
   dragging?: boolean;
   onSelect: (href: string) => void;
@@ -1465,7 +1495,7 @@ function ThreadRow({
   const secondaryActionClass = compact ? "right-7" : "right-8";
   const canTogglePin = thread.metadata?.splitIssue === true;
   const canHideIssue = thread.metadata?.splitIssue === true && Boolean(onHideIssue);
-  const showActions = canTogglePin || canHideIssue || customGroupsEnabled;
+  const showActions = canTogglePin || canHideIssue || Boolean(customGroups);
   const issueStatus =
     thread.metadata?.splitIssue === true && typeof thread.metadata.status === "string"
       ? thread.metadata.status
@@ -1619,13 +1649,41 @@ function ThreadRow({
                 Hide
               </DropdownMenuItem>
             ) : null}
-            {customGroupsEnabled ? (
+            {customGroups ? (
               <>
                 {(canTogglePin || canHideIssue) ? <DropdownMenuSeparator /> : null}
-                <DropdownMenuItem disabled>
-                  <FolderInput className="h-4 w-4" />
-                  Chat threads only
+                <DropdownMenuItem onClick={onCreateCustomGroup}>
+                  <FolderPlus className="h-4 w-4" />
+                  New group
                 </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FolderInput className="h-4 w-4" />
+                    Move to group
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="surface-overlay text-foreground">
+                    {customGroupId ? (
+                      <DropdownMenuItem onClick={onRemoveFromCustomGroup}>
+                        <Folder className="h-4 w-4" />
+                        Move out of group
+                      </DropdownMenuItem>
+                    ) : null}
+                    {customGroups.length > 0 ? (
+                      customGroups.map((group) => (
+                        <DropdownMenuItem
+                          key={group.id}
+                          disabled={group.id === customGroupId}
+                          onClick={() => onMoveToCustomGroup?.(group.id)}
+                        >
+                          <CustomGroupIcon icon={group.icon} />
+                          {group.name}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <DropdownMenuItem disabled>No groups</DropdownMenuItem>
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
               </>
             ) : null}
           </DropdownMenuContent>
@@ -2080,6 +2138,8 @@ export function MessengerContextSidebar() {
   const [pendingCustomGroupIcons, setPendingCustomGroupIcons] = useState<Record<string, string | null>>({});
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const draggingThreadIdRef = useRef<string | null>(null);
+  const dragOverIdRef = useRef<string | null>(null);
   const [unreadScrollRequestId, setUnreadScrollRequestId] = useState(0);
   const [threadOrganizationRule, setThreadOrganizationRule] = useState<ThreadOrganizationRule>(() =>
     readThreadOrganizationRule(model.selectedOrganizationId),
@@ -2126,9 +2186,30 @@ export function MessengerContextSidebar() {
   );
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 5 },
     }),
   );
+  const updateDraggingThreadId = useCallback((threadId: string | null) => {
+    if (draggingThreadIdRef.current === threadId) return;
+    draggingThreadIdRef.current = threadId;
+    setDraggingThreadId(threadId);
+  }, []);
+  const updateDragOverId = useCallback((threadId: string | null) => {
+    if (dragOverIdRef.current === threadId) return;
+    dragOverIdRef.current = threadId;
+    setDragOverId(threadId);
+  }, []);
+  const resetThreadDragState = useCallback(() => {
+    updateDraggingThreadId(null);
+    updateDragOverId(null);
+  }, [updateDragOverId, updateDraggingThreadId]);
+  const handleThreadSectionDragStart = useCallback((event: DragStartEvent) => {
+    updateDraggingThreadId(String(event.active.id));
+    updateDragOverId(null);
+  }, [updateDragOverId, updateDraggingThreadId]);
+  const handleThreadSectionDragOver = useCallback((event: DragOverEvent) => {
+    updateDragOverId(event.over ? String(event.over.id) : null);
+  }, [updateDragOverId]);
 
   useEffect(() => {
     setThreadOrganizationRule(readThreadOrganizationRule(model.selectedOrganizationId));
@@ -2646,8 +2727,7 @@ export function MessengerContextSidebar() {
   };
 
   const handleThreadSectionDragEnd = useCallback((event: DragEndEvent) => {
-    setDraggingThreadId(null);
-    setDragOverId(null);
+    resetThreadDragState();
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     if (!isManagedThreadGroupRule(effectiveThreadOrganizationRule)) return;
@@ -2666,7 +2746,6 @@ export function MessengerContextSidebar() {
       };
       const activeIsThread = customEntryGroupByThreadKey.has(activeThreadKey);
       const overIsThread = customEntryGroupByThreadKey.has(overThreadKey);
-      const overSection = organizedThreadSections.find((section) => section.key === overThreadKey);
       const activeEntry = organizedThreadSections
         .flatMap((section) => section.entries)
         .find((entry) => entry.thread.threadKey === activeThreadKey) ?? null;
@@ -2681,8 +2760,6 @@ export function MessengerContextSidebar() {
         && overIsThread
         && activeGroupId === null
         && overEntryGroupId === null
-        && activeEntry?.thread.kind === "chat"
-        && overEntry?.thread.kind === "chat"
         && activeThreadKey !== overThreadKey
       ) {
         createCustomGroupWithEntriesMutation.mutate({
@@ -2697,11 +2774,22 @@ export function MessengerContextSidebar() {
         && overIsThread
         && activeGroupId
         && overEntryGroupId === null
-        && activeEntry?.thread.kind === "chat"
-        && overEntry?.thread.kind === "chat"
         && activeThreadKey !== overThreadKey
       ) {
-        assignCustomGroupEntryMutation.mutate({ groupId: activeGroupId, threadKey: overThreadKey });
+        const insertionIndex = topLevelSectionKeys.indexOf(overThreadKey);
+        if (insertionIndex !== -1) {
+          const sectionKeysWithActive = topLevelSectionKeys.includes(activeThreadKey)
+            ? topLevelSectionKeys
+            : [
+              ...topLevelSectionKeys.slice(0, insertionIndex),
+              activeThreadKey,
+              ...topLevelSectionKeys.slice(insertionIndex),
+            ];
+          const oldIndex = sectionKeysWithActive.indexOf(activeThreadKey);
+          const newIndex = sectionKeysWithActive.indexOf(overThreadKey);
+          if (oldIndex !== -1 && newIndex !== -1) persistTopLevelOrder(sectionKeysWithActive, oldIndex, newIndex);
+        }
+        removeCustomGroupEntryMutation.mutate(activeThreadKey);
         return;
       }
       if (activeIsThread && overGroupId !== undefined) {
@@ -2723,7 +2811,6 @@ export function MessengerContextSidebar() {
             }
           }
           if (overGroupId) {
-            if (activeEntry?.thread.kind !== "chat") return;
             assignCustomGroupEntryMutation.mutate({ groupId: overGroupId, threadKey: activeThreadKey });
           } else {
             removeCustomGroupEntryMutation.mutate(activeThreadKey);
@@ -2750,17 +2837,6 @@ export function MessengerContextSidebar() {
           });
         }
         return;
-      }
-      if (
-        !activeIsThread
-        && overEntry?.thread.kind === "chat"
-        && (overSection?.entries.length === 1 || overEntryGroupId === null)
-      ) {
-        const activeGroupId = customGroupIdFromSectionKey(activeThreadKey);
-        if (activeGroupId) {
-          assignCustomGroupEntryMutation.mutate({ groupId: activeGroupId, threadKey: overEntry.thread.threadKey });
-          return;
-        }
       }
     }
 
@@ -2810,7 +2886,7 @@ export function MessengerContextSidebar() {
     if (projectOrderStorageKey) {
       writeProjectOrder(projectOrderStorageKey, nextProjectOrderIds);
     }
-  }, [assignCustomGroupEntryMutation, createCustomGroupWithEntriesMutation, customEntryGroupByThreadKey, defaultThreadOrderKeys, defaultThreadOrderStorageKey, effectiveThreadOrganizationRule, messengerThreadGroupOrderStorageKey, organizedThreadSections, projectOrderIds, projectOrderStorageKey, removeCustomGroupEntryMutation, reorderCustomGroupEntriesMutation, reorderCustomGroupsMutation]);
+  }, [assignCustomGroupEntryMutation, createCustomGroupWithEntriesMutation, customEntryGroupByThreadKey, defaultThreadOrderKeys, defaultThreadOrderStorageKey, effectiveThreadOrganizationRule, messengerThreadGroupOrderStorageKey, organizedThreadSections, projectOrderIds, projectOrderStorageKey, removeCustomGroupEntryMutation, reorderCustomGroupEntriesMutation, reorderCustomGroupsMutation, resetThreadDragState]);
 
   const handleShowMoreThreadSection = (section: OrganizedThreadSection, visibleCount: number) => {
     if (visibleCount < section.entries.length) {
@@ -2941,9 +3017,9 @@ export function MessengerContextSidebar() {
 
   const handleSeparateCustomGroup = async (group: MessengerCustomGroupWithEntries) => {
     const confirmed = await confirm({
-      title: "Separate tabs",
-      description: `Move the tabs in "${group.name}" back into the main list? The chats will stay intact.`,
-      confirmLabel: "Separate tabs",
+      title: "Separate items",
+      description: `Move the items in "${group.name}" back into the main list? The Messenger threads will stay intact.`,
+      confirmLabel: "Separate items",
       tone: "default",
     });
     if (!confirmed) return;
@@ -3044,7 +3120,11 @@ export function MessengerContextSidebar() {
           });
         }}
         onHideIssue={() => handleHideIssueThread(thread)}
-        customGroupsEnabled={false}
+        customGroups={customGroups}
+        customGroupId={entry.customGroupId}
+        onMoveToCustomGroup={(groupId) => assignCustomGroupEntryMutation.mutate({ groupId, threadKey: thread.threadKey })}
+        onRemoveFromCustomGroup={() => removeCustomGroupEntryMutation.mutate(thread.threadKey)}
+        onCreateCustomGroup={() => handleCreateCustomGroup(thread.threadKey)}
         dragHandleProps={dragHandleProps}
         dragging={dragging}
         onSelect={handleMessengerEntrySelect}
@@ -3090,7 +3170,7 @@ export function MessengerContextSidebar() {
     const isPinnedCustomSection = effectiveThreadOrganizationRule === "custom" && section.key === "custom:pinned";
     const canSortCustomEntries = effectiveThreadOrganizationRule === "custom"
       && (Boolean(customGroup) || isPinnedCustomSection)
-      && (visibleEntries.length > 1 || isPinnedCustomSection);
+      && visibleEntries.length > 0;
     const canDragStandaloneCustomEntry = effectiveThreadOrganizationRule === "custom"
       && !customGroup
       && (section.label === null || isPinnedCustomSection)
@@ -3156,8 +3236,8 @@ export function MessengerContextSidebar() {
           data-testid={`messenger-thread-section-${sanitizeThreadKey(section.key)}`}
           data-drag-merge-target={isMergeTarget ? "true" : undefined}
           className={cn(
-            "mx-1.5 rounded-[calc(var(--radius-md)-1px)] border p-1.5 text-[color:var(--messenger-group-text)] shadow-[0_8px_20px_-18px_rgba(15,23,42,0.45)] transition-[background-color,border-color,box-shadow] duration-200 bg-[color:var(--messenger-group-bg)] border-[color:var(--messenger-group-border)] hover:bg-[color:var(--messenger-group-bg-hover)] hover:shadow-[0_12px_24px_-18px_rgba(15,23,42,0.62)] dark:bg-[color:var(--messenger-group-bg-dark)] dark:text-[color:var(--messenger-group-text-dark)] dark:border-[color:var(--messenger-group-border-dark)] dark:hover:bg-[color:var(--messenger-group-bg-hover-dark)]",
-            isMergeTarget && "bg-[color:var(--messenger-group-bg-hover)] shadow-[0_16px_30px_-18px_rgba(15,23,42,0.75)] ring-2 ring-[color:color-mix(in_oklab,var(--messenger-group-text)_34%,transparent)]",
+            "mx-1.5 rounded-[calc(var(--radius-md)-1px)] border p-1.5 text-[color:var(--messenger-group-text)] shadow-[0_8px_20px_-18px_rgba(15,23,42,0.45)] transition-[background-color,border-color] duration-150 bg-[color:var(--messenger-group-bg)] border-[color:var(--messenger-group-border)] hover:bg-[color:var(--messenger-group-bg-hover)] dark:bg-[color:var(--messenger-group-bg-dark)] dark:text-[color:var(--messenger-group-text-dark)] dark:border-[color:var(--messenger-group-border-dark)] dark:hover:bg-[color:var(--messenger-group-bg-hover-dark)]",
+            isMergeTarget && "bg-[color:var(--messenger-group-bg-hover)] ring-2 ring-[color:color-mix(in_oklab,var(--messenger-group-text)_34%,transparent)]",
           )}
           style={customGroupStyle(customGroup)}
         >
@@ -3279,7 +3359,7 @@ export function MessengerContextSidebar() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void handleSeparateCustomGroup(customGroup)}>
                   <FolderInput className="h-4 w-4" />
-                  Separate tabs
+                  Separate items
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -3305,7 +3385,7 @@ export function MessengerContextSidebar() {
       return (
         <div
           data-drag-drop-target="true"
-          className="rounded-[calc(var(--radius-md)-1px)] ring-2 ring-[color:color-mix(in_oklab,var(--accent-strong)_30%,transparent)] ring-offset-1 ring-offset-[color:var(--surface-page)] transition-[box-shadow,transform] duration-150"
+          className="rounded-[calc(var(--radius-md)-1px)] ring-2 ring-[color:color-mix(in_oklab,var(--accent-strong)_30%,transparent)] ring-offset-1 ring-offset-[color:var(--surface-page)] transition-[background-color,border-color] duration-150"
         >
           {sectionBody}
         </div>
@@ -3818,18 +3898,11 @@ export function MessengerContextSidebar() {
           <>
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={(event) => {
-                setDraggingThreadId(String(event.active.id));
-                setDragOverId(null);
-              }}
-              onDragOver={(event) => {
-                setDragOverId(event.over ? String(event.over.id) : null);
-              }}
-              onDragCancel={() => {
-                setDraggingThreadId(null);
-                setDragOverId(null);
-              }}
+              collisionDetection={messengerThreadCollisionDetection}
+              measuring={MESSENGER_THREAD_DND_MEASURING}
+              onDragStart={handleThreadSectionDragStart}
+              onDragOver={handleThreadSectionDragOver}
+              onDragCancel={resetThreadDragState}
               onDragEnd={handleThreadSectionDragEnd}
             >
               <SortableContext
