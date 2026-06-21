@@ -3236,7 +3236,7 @@ export function MessengerContextSidebar() {
           data-testid={`messenger-thread-section-${sanitizeThreadKey(section.key)}`}
           data-drag-merge-target={isMergeTarget ? "true" : undefined}
           className={cn(
-            "mx-1.5 rounded-[calc(var(--radius-md)-1px)] border p-1.5 text-[color:var(--messenger-group-text)] shadow-[0_8px_20px_-18px_rgba(15,23,42,0.45)] transition-[background-color,border-color] duration-150 bg-[color:var(--messenger-group-bg)] border-[color:var(--messenger-group-border)] hover:bg-[color:var(--messenger-group-bg-hover)] dark:bg-[color:var(--messenger-group-bg-dark)] dark:text-[color:var(--messenger-group-text-dark)] dark:border-[color:var(--messenger-group-border-dark)] dark:hover:bg-[color:var(--messenger-group-bg-hover-dark)]",
+            "group/custom-group mx-1.5 rounded-[calc(var(--radius-md)-1px)] border p-1.5 text-[color:var(--messenger-group-text)] shadow-[0_8px_20px_-18px_rgba(15,23,42,0.45)] transition-[background-color,border-color] duration-150 bg-[color:var(--messenger-group-bg)] border-[color:var(--messenger-group-border)] hover:bg-[color:var(--messenger-group-bg-hover)] dark:bg-[color:var(--messenger-group-bg-dark)] dark:text-[color:var(--messenger-group-text-dark)] dark:border-[color:var(--messenger-group-border-dark)] dark:hover:bg-[color:var(--messenger-group-bg-hover-dark)]",
             isMergeTarget && "bg-[color:var(--messenger-group-bg-hover)] ring-2 ring-[color:color-mix(in_oklab,var(--messenger-group-text)_34%,transparent)]",
           )}
           style={customGroupStyle(customGroup)}
@@ -3271,7 +3271,7 @@ export function MessengerContextSidebar() {
                 <button
                   type="button"
                   aria-label="Group actions"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] text-current/70 transition-[background-color,color] hover:bg-white/45 hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] text-current/70 opacity-0 transition-[opacity,background-color,color] hover:bg-white/45 hover:text-current focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 group-hover/custom-group:opacity-100 group-focus-within/custom-group:opacity-100 data-[state=open]:opacity-100"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>

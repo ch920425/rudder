@@ -1592,6 +1592,10 @@ describe("MessengerContextSidebar chat actions", () => {
     renderSidebar();
 
     expect(document.body.textContent).toContain("Deep work");
+    const groupActionsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Group actions"]');
+    expect(groupActionsButton?.className).toContain("opacity-0");
+    expect(groupActionsButton?.className).toContain("group-hover/custom-group:opacity-100");
+    expect(groupActionsButton?.className).toContain("data-[state=open]:opacity-100");
     const pinButton = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "Unpin") as HTMLButtonElement | undefined;
 
