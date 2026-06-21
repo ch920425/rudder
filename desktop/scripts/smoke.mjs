@@ -287,11 +287,11 @@ async function verifyPackagedDesktopCli(baseUrl, ceo, issue) {
     RUDDER_ORG_ID: ceo.orgId,
   };
 
-  const meResult = await runDesktopCliCommand(executablePath, ["agent", "me", "--json"], cliEnv);
+  const meResult = await runDesktopCliCommand(executablePath, ["agent", "me", "--json", "--full-ids"], cliEnv);
   const me = JSON.parse(meResult.stdout);
   assert.equal(me.id, ceo.id, "packaged desktop CLI should return the authenticated agent");
 
-  const inboxResult = await runDesktopCliCommand(executablePath, ["agent", "inbox", "--json"], cliEnv);
+  const inboxResult = await runDesktopCliCommand(executablePath, ["agent", "inbox", "--json", "--full-ids"], cliEnv);
   const inbox = JSON.parse(inboxResult.stdout);
   assert.ok(Array.isArray(inbox), "packaged desktop CLI inbox should return an array");
   assert.ok(
@@ -601,7 +601,7 @@ async function verifyIssueDetailEscapeNavigation(page, companyId, issuePrefix, i
 }
 
 async function verifyOrganizationWorkspacesNavigation(electronApp, page, companyId, issuePrefix) {
-  console.log("[desktop-smoke] verifying organization Workspaces navigation");
+  console.log("[desktop-smoke] verifying organization Library navigation");
   await page.evaluate(({ nextCompanyId, nextPath }) => {
     window.localStorage.setItem("rudder.selectedOrganizationId", nextCompanyId);
     window.history.replaceState({}, "", nextPath);
@@ -612,13 +612,13 @@ async function verifyOrganizationWorkspacesNavigation(electronApp, page, company
   });
   await page.waitForURL(new RegExp(`/${issuePrefix}/org$`), { timeout: 30_000 });
 
-  await page.getByRole("link", { name: "Workspaces" }).click();
+  await page.getByRole("link", { name: "Library" }).click();
   page = await waitForBoardWindow(electronApp, page, {
-    expectedUrlPattern: new RegExp(`/${issuePrefix}/workspaces(?:[?#].*)?$`),
+    expectedUrlPattern: new RegExp(`/${issuePrefix}/library(?:[?#].*)?$`),
   });
   await page.getByTestId("org-workspaces-files-card").waitFor({ state: "visible", timeout: 30_000 });
   await page.getByTestId("org-workspaces-editor-card").waitFor({ state: "visible", timeout: 30_000 });
-  console.log("[desktop-smoke] organization Workspaces page opened");
+  console.log("[desktop-smoke] organization Library page opened");
   return page;
 }
 
