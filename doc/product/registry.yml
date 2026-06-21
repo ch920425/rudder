@@ -177,3 +177,620 @@ contracts:
       - server/src/__tests__/workspace-runtime.test.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
+
+  ISSUE.HIERARCHY.001:
+    owner: product
+    domain: issues
+    docs:
+      - doc/product/domains/issues/hierarchy-and-comments.md
+    related_code:
+      - packages/db/src/schema/issues.ts
+      - server/src/services/issues.ts
+      - server/src/routes/issues.ts
+      - ui/src/pages/IssueDetail.tsx
+      - ui/src/components/IssueProperties.tsx
+    related_tests:
+      - tests/e2e/issue-detail-subissues.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ISSUE.COMMENTS.001:
+    owner: product
+    domain: issues
+    docs:
+      - doc/product/domains/issues/hierarchy-and-comments.md
+    related_code:
+      - server/src/routes/issues.comments-attachments.ts
+      - ui/src/components/CommentThread.tsx
+    related_tests:
+      - server/src/__tests__/issue-comment-reopen-routes.test.ts
+      - tests/e2e/issue-comment-mentions.spec.ts
+      - tests/e2e/issue-comment-mention-boundary.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ROUTING.COMMENT.WAKE.001:
+    owner: product
+    domain: work-routing
+    docs:
+      - doc/product/domains/work-routing/attention-and-wakeup-eligibility.md
+    related_code:
+      - server/src/routes/issues.comments-attachments.ts
+      - server/src/services/runtime-kernel/heartbeat.wakeup.ts
+    related_tests:
+      - tests/e2e/issue-comment-mentions.spec.ts
+      - tests/e2e/issue-comment-mention-boundary.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.AGENT.UNIFICATION.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/agent-runs.md
+    related_code:
+      - packages/shared/src/agent-run.ts
+      - server/src/routes/agents.management-routes.ts
+      - ui/src/pages/AgentDetail.runs.tsx
+    related_tests:
+      - ui/src/pages/AgentDetail.runs.test.ts
+      - tests/e2e/agent-runs-filter-menu.spec.ts
+    related_plans:
+      - doc/plans/2026-06-20-agent-run-unification-completion.md
+  RUN.CHAT.AGENT.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/agent-runs.md
+    related_code:
+      - server/src/services/chat-agent-runs.ts
+      - ui/src/pages/AgentDetail.chat-context.tsx
+    related_tests:
+      - server/src/__tests__/chat-agent-runs.test.ts
+      - tests/e2e/agent-detail-chat-run-context.spec.ts
+    related_plans:
+      - doc/plans/2026-06-20-agent-run-unification-completion.md
+  AGENT.IDENTITY.CONFIG.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/identity-config.md
+    related_code:
+      - packages/db/src/schema/agents.ts
+      - packages/shared/src/types/agent.ts
+      - server/src/services/agents.ts
+      - server/src/routes/agents.ts
+      - server/src/routes/agents.management-routes.ts
+    related_tests:
+      - server/src/__tests__/agent-permissions-routes.test.ts
+      - server/src/__tests__/agent-startup-context.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.RUNTIME.ADAPTERS.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/identity-config.md
+    related_code:
+      - server/src/agent-runtimes/registry.ts
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+    related_tests:
+      - server/src/__tests__/agent-run-context.test.ts
+      - server/src/__tests__/heartbeat-process-recovery.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.SKILLS.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/skills-and-inbox.md
+    related_code:
+      - server/src/routes/agents.ts
+      - server/src/services/agent-enabled-skills.ts
+      - server/src/services/knowledge-portability/organization-skills.ts
+      - server/src/services/knowledge-portability/organization-skills.catalog.ts
+      - ui/src/pages/AgentDetail.skills.tsx
+    related_tests:
+      - server/src/__tests__/agent-skill-contract.test.ts
+      - tests/e2e/organization-agent-skills.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.SKILL.TELEMETRY.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/skills-and-inbox.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.core.ts
+      - server/src/routes/agents.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-skill-analytics.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.INBOX.001:
+    owner: product
+    domain: agents
+    docs:
+      - doc/product/domains/agents/skills-and-inbox.md
+    related_code:
+      - server/src/routes/agents.ts
+      - packages/agent-runtime-utils/src/server-utils.prompts.ts
+    related_tests:
+      - server/src/__tests__/agent-inbox-reviewer.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ORG.GOAL.001:
+    owner: product
+    domain: organizations-and-goals
+    docs:
+      - doc/product/domains/organizations-and-goals/goals-and-projects.md
+    related_code:
+      - packages/db/src/schema/goals.ts
+      - server/src/routes/goals.ts
+      - server/src/services/goals.ts
+      - ui/src/pages/Goals.tsx
+      - ui/src/pages/GoalDetail.tsx
+    related_tests:
+      - tests/e2e/goal-detail-lifecycle.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ORG.PROJECT.001:
+    owner: product
+    domain: organizations-and-goals
+    docs:
+      - doc/product/domains/organizations-and-goals/goals-and-projects.md
+    related_code:
+      - packages/db/src/schema/projects.ts
+      - packages/db/src/schema/project_goals.ts
+      - server/src/routes/projects.ts
+      - server/src/services/projects.ts
+      - ui/src/pages/ProjectDetail.tsx
+    related_tests:
+      - server/src/__tests__/projects-service.test.ts
+      - server/src/__tests__/project-routes.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTEXT.RESOURCES.001:
+    owner: product
+    domain: library-and-context
+    docs:
+      - doc/product/domains/library-and-context/resources-library-workspaces.md
+    related_code:
+      - packages/db/src/schema/organization_resources.ts
+      - packages/db/src/schema/project_resource_attachments.ts
+      - server/src/services/resource-catalog.ts
+      - server/src/services/agent-run-context.ts
+      - ui/src/components/ProjectResourcesPanel.tsx
+    related_tests:
+      - server/src/__tests__/agent-run-context.test.ts
+      - server/src/__tests__/library-path-markdown.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  LIBRARY.FILES.001:
+    owner: product
+    domain: library-and-context
+    docs:
+      - doc/product/domains/library-and-context/resources-library-workspaces.md
+    related_code:
+      - packages/db/src/schema/library_entries.ts
+      - server/src/services/library-entries.ts
+      - server/src/services/organization-workspace-browser.ts
+      - ui/src/pages/OrganizationResources.tsx
+    related_tests:
+      - server/src/__tests__/library-path-markdown.test.ts
+      - server/src/__tests__/organization-workspace-browser.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  WORKSPACE.PROJECT.001:
+    owner: product
+    domain: library-and-context
+    docs:
+      - doc/product/domains/library-and-context/resources-library-workspaces.md
+    related_code:
+      - packages/db/src/schema/project_workspaces.ts
+      - server/src/services/agent-run-context.ts
+      - ui/src/pages/OrganizationWorkspaces.tsx
+    related_tests:
+      - server/src/__tests__/agent-run-context.test.ts
+      - tests/e2e/organization-workspaces-launcher.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  WORKSPACE.RUN.001:
+    owner: product
+    domain: library-and-context
+    docs:
+      - doc/product/domains/library-and-context/resources-library-workspaces.md
+    related_code:
+      - packages/db/src/schema/execution_workspaces.ts
+      - server/src/services/execution-workspace-policy.ts
+      - server/src/services/execution-workspaces.ts
+      - server/src/routes/execution-workspaces.ts
+      - ui/src/pages/RunWorkspaceDetail.tsx
+    related_tests:
+      - server/src/__tests__/execution-workspace-policy.test.ts
+      - server/src/__tests__/run-workspace-routes.test.ts
+      - tests/e2e/workspace-shell.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AUTOMATION.DEFINITION.001:
+    owner: product
+    domain: automations
+    docs:
+      - doc/product/domains/automations/definition-triggers-runs.md
+    related_code:
+      - packages/db/src/schema/automations.ts
+      - packages/shared/src/validators/automation.ts
+      - server/src/routes/automations.ts
+      - server/src/services/automations.ts
+      - ui/src/pages/Automations.tsx
+      - ui/src/pages/AutomationDetail.tsx
+    related_tests:
+      - server/src/__tests__/automations-service.test.ts
+      - server/src/__tests__/automations-routes.test.ts
+      - tests/e2e/automations-index-layout.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AUTOMATION.TRIGGER.001:
+    owner: product
+    domain: automations
+    docs:
+      - doc/product/domains/automations/definition-triggers-runs.md
+    related_code:
+      - server/src/routes/automations.ts
+      - server/src/services/automations.scheduler.ts
+      - ui/src/components/ScheduleEditor.tsx
+    related_tests:
+      - server/src/__tests__/automations-service.test.ts
+      - server/src/__tests__/automations-routes.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AUTOMATION.RUN.001:
+    owner: product
+    domain: automations
+    docs:
+      - doc/product/domains/automations/definition-triggers-runs.md
+    related_code:
+      - packages/db/src/schema/automations.ts
+      - server/src/services/automations.ts
+      - server/src/services/automations.scheduler.ts
+      - ui/src/pages/AutomationDetail.tsx
+    related_tests:
+      - server/src/__tests__/automations-service.test.ts
+      - server/src/__tests__/automations-e2e.test.ts
+      - tests/e2e/automation-detail-layout.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  AUTOMATION.OUTPUT.001:
+    owner: product
+    domain: automations
+    docs:
+      - doc/product/domains/automations/output-routing.md
+    related_code:
+      - server/src/services/automations.ts
+      - server/src/services/automation-chat-output.ts
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+    related_tests:
+      - server/src/__tests__/automations-service.test.ts
+      - server/src/__tests__/automations-e2e.test.ts
+      - tests/e2e/automation-chat-output-ambiguity.spec.ts
+      - tests/e2e/chat-automation-create.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CHAT.LIFECYCLE.001:
+    owner: product
+    domain: collaboration
+    docs:
+      - doc/product/domains/collaboration/chat-messenger-im.md
+    related_code:
+      - packages/db/src/schema/chat_conversations.ts
+      - packages/db/src/schema/chat_messages.ts
+      - server/src/routes/chats.ts
+      - server/src/services/chats.ts
+      - server/src/services/chat-agent-runs.ts
+      - ui/src/pages/Chat.tsx
+    related_tests:
+      - server/src/__tests__/chat-routes.test.ts
+      - server/src/__tests__/chat-assistant.test.ts
+      - tests/e2e/chat-rich-references.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  MESSENGER.ATTENTION.001:
+    owner: product
+    domain: collaboration
+    docs:
+      - doc/product/domains/collaboration/chat-messenger-im.md
+    related_code:
+      - server/src/services/messenger.ts
+      - server/src/routes/sidebar-badges.ts
+      - ui/src/pages/Messenger.tsx
+    related_tests:
+      - server/src/__tests__/messenger-service.test.ts
+      - server/src/__tests__/sidebar-badges-service.test.ts
+      - tests/e2e/messenger-contract.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  IM.FEISHU.001:
+    owner: product
+    domain: collaboration
+    docs:
+      - doc/product/domains/collaboration/chat-messenger-im.md
+    related_code:
+      - packages/db/src/schema/agent_integrations.ts
+      - server/src/routes/integrations.ts
+      - server/src/services/integrations/agent-integrations.ts
+      - server/src/services/integrations/feishu/inbound-dispatcher.ts
+      - server/src/services/integrations/feishu/inbound-dispatcher-db.ts
+      - server/src/services/integrations/feishu/inbound-normalizer.ts
+      - server/src/services/integrations/feishu/event-verifier.ts
+      - ui/src/pages/AgentDetail.integrations.tsx
+    related_tests:
+      - server/src/__tests__/agent-integration-routes.test.ts
+      - server/src/__tests__/agent-integration-inbound-dispatcher.test.ts
+      - server/src/__tests__/agent-integration-feishu-db-dispatcher.test.ts
+      - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
+      - tests/e2e/agent-detail-feishu-integration.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.APPROVALS.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/approvals-budgets-activity.md
+    related_code:
+      - packages/db/src/schema/approvals.ts
+      - packages/db/src/schema/approval_comments.ts
+      - packages/db/src/schema/issue_approvals.ts
+      - server/src/services/issue-approvals.ts
+    related_tests:
+      - server/src/__tests__/approvals-service.test.ts
+      - server/src/__tests__/approval-routes-chat-application.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.BUDGETS.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/approvals-budgets-activity.md
+    related_code:
+      - packages/db/src/schema/cost_events.ts
+      - server/src/services/budgets.ts
+      - server/src/services/costs.ts
+    related_tests:
+      - server/src/__tests__/budgets-service.test.ts
+      - server/src/__tests__/costs-service.test.ts
+      - server/src/__tests__/costs-rollups-service.test.ts
+      - tests/e2e/cost-trend.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.ACTIVITY.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/approvals-budgets-activity.md
+    related_code:
+      - server/src/services/activity.ts
+    related_tests:
+      - server/src/__tests__/activity-service.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.RUN.INTELLIGENCE.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/approvals-budgets-activity.md
+    related_code:
+      - server/src/services/run-intelligence.ts
+      - server/src/services/heartbeat-run-summary.ts
+      - server/src/services/heartbeat-run-reference.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-run-summary.test.ts
+      - tests/e2e/run-transcript-detail.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  REVIEW.DECISION.001:
+    owner: product
+    domain: review-feedback-learning
+    docs:
+      - doc/product/domains/review-feedback-learning/review-closeout-learning.md
+    related_code:
+      - server/src/routes/issues.mutations.ts
+      - server/src/services/issue-review-wakeup.ts
+    related_tests:
+      - tests/e2e/issues-reviewer-routing.spec.ts
+      - server/src/__tests__/agent-inbox-reviewer.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  REVIEW.CLOSEOUT.001:
+    owner: product
+    domain: review-feedback-learning
+    docs:
+      - doc/product/domains/review-feedback-learning/review-closeout-learning.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.recovery.ts
+      - server/src/services/runtime-kernel/heartbeat.release.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-passive-issue-closeout.test.ts
+      - tests/e2e/issue-passive-followup.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  LEARNING.PROMOTION.001:
+    owner: product
+    domain: review-feedback-learning
+    docs:
+      - doc/product/domains/review-feedback-learning/review-closeout-learning.md
+    related_code:
+      - doc/product/GOVERNANCE.md
+      - doc/product/README.md
+    related_tests:
+      - scripts/product-logic-check.test.mjs
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+
+  DOCUMENT.WORKPRODUCT.001:
+    owner: product
+    domain: library-and-context
+    docs:
+      - doc/product/domains/library-and-context/documents-and-work-products.md
+    related_code:
+      - packages/db/src/schema/documents.ts
+      - packages/db/src/schema/document_revisions.ts
+      - packages/db/src/schema/issue_documents.ts
+      - packages/db/src/schema/issue_work_products.ts
+      - server/src/services/documents.ts
+      - server/src/services/work-products.ts
+    related_tests:
+      - server/src/__tests__/work-products.test.ts
+      - tests/e2e/issue-detail-documents-ux.spec.ts
+    related_plans:
+      - doc/plans/2026-05-06-issue-document-autosave-and-workspace-attach.md
+      - doc/plans/2026-05-19-library-project-context-workspace-proposal.md
+  CONTROL.DASHBOARD.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/dashboard-calendar-inbox.md
+    related_code:
+      - server/src/routes/dashboard.ts
+      - server/src/services/dashboard.ts
+      - ui/src/pages/Dashboard.tsx
+    related_tests:
+      - tests/e2e/dashboard-date-filter.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.CALENDAR.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/dashboard-calendar-inbox.md
+    related_code:
+      - packages/db/src/schema/calendar_events.ts
+      - packages/db/src/schema/calendar_sources.ts
+      - server/src/routes/calendar.ts
+      - server/src/services/calendar.ts
+      - ui/src/pages/Calendar.tsx
+    related_tests:
+      - server/src/__tests__/calendar-routes.test.ts
+      - tests/e2e/calendar-v1.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  CONTROL.INBOX.001:
+    owner: product
+    domain: control-plane
+    docs:
+      - doc/product/domains/control-plane/dashboard-calendar-inbox.md
+    related_code:
+      - server/src/routes/sidebar-badges.ts
+      - server/src/services/messenger.ts
+      - ui/src/pages/Inbox.tsx
+      - ui/src/pages/Messenger.tsx
+    related_tests:
+      - server/src/__tests__/sidebar-badges-service.test.ts
+      - tests/e2e/messenger-contract.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ORG.SETTINGS.001:
+    owner: product
+    domain: organizations-and-goals
+    docs:
+      - doc/product/domains/organizations-and-goals/settings-onboarding-portability.md
+    related_code:
+      - packages/db/src/schema/instance_settings.ts
+      - packages/db/src/schema/operator_profiles.ts
+      - packages/db/src/schema/organization_intelligence_profiles.ts
+      - server/src/routes/instance-settings.ts
+      - server/src/services/instance-settings.ts
+      - server/src/services/operator-profile.ts
+      - server/src/services/organization-intelligence-profiles.ts
+      - ui/src/pages/InstanceSettings.tsx
+      - ui/src/pages/OrganizationSettings.tsx
+    related_tests:
+      - server/src/__tests__/instance-settings-service.test.ts
+      - server/src/__tests__/instance-settings-routes.test.ts
+      - server/src/__tests__/operator-profile-service.test.ts
+      - server/src/__tests__/organization-intelligence-profiles.test.ts
+      - tests/e2e/settings-sidebar.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  ORG.ONBOARDING.001:
+    owner: product
+    domain: organizations-and-goals
+    docs:
+      - doc/product/domains/organizations-and-goals/settings-onboarding-portability.md
+    related_code:
+      - server/src/routes/onboarding.ts
+      - server/src/routes/access-onboarding.helpers.ts
+      - ui/src/pages/InviteLanding.tsx
+    related_tests:
+      - server/src/__tests__/invite-onboarding-text.test.ts
+      - tests/e2e/onboarding.spec.ts
+    related_plans:
+      - doc/plans/2026-05-08-onboarding-getting-started-dashboard.md
+  ORG.PORTABILITY.001:
+    owner: product
+    domain: organizations-and-goals
+    docs:
+      - doc/product/domains/organizations-and-goals/settings-onboarding-portability.md
+    related_code:
+      - server/src/services/knowledge-portability/organization-portability.export.ts
+      - server/src/services/knowledge-portability/organization-portability.import.ts
+      - server/src/services/export-jobs.ts
+      - ui/src/pages/OrganizationExport.tsx
+      - ui/src/pages/OrganizationImport.tsx
+    related_tests:
+      - server/src/__tests__/export-jobs.test.ts
+      - tests/e2e/organization-export-build-job.spec.ts
+      - tests/e2e/profile-context-import.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
+  PLUGIN.LIFECYCLE.001:
+    owner: product
+    domain: plugins
+    docs:
+      - doc/product/domains/plugins/lifecycle-capabilities.md
+    related_code:
+      - packages/db/src/schema/plugins.ts
+      - packages/db/src/schema/plugin_config.ts
+      - server/src/routes/plugins.ts
+      - server/src/routes/plugins.operations-routes.ts
+      - server/src/services/plugin-registry.ts
+      - server/src/services/plugin-loader.ts
+      - server/src/services/plugin-lifecycle.ts
+      - server/src/services/plugin-worker-manager.ts
+      - ui/src/pages/PluginManager.tsx
+      - ui/src/pages/PluginSettings.tsx
+    related_tests:
+      - server/src/__tests__/plugin-worker-manager.test.ts
+      - server/src/__tests__/plugin-package-resolution.test.ts
+      - server/src/__tests__/plugin-dev-watcher.test.ts
+      - tests/e2e/linear-plugin-import.spec.ts
+    related_plans:
+      - doc/plugins/PLUGIN_SPEC.md
+  PLUGIN.CAPABILITY.001:
+    owner: product
+    domain: plugins
+    docs:
+      - doc/product/domains/plugins/lifecycle-capabilities.md
+    related_code:
+      - server/src/services/plugin-capability-validator.ts
+      - server/src/services/plugin-tool-dispatcher.ts
+      - server/src/services/plugin-tool-registry.ts
+      - server/src/services/plugin-host-services.ts
+    related_tests:
+      - server/src/__tests__/plugin-worker-manager.test.ts
+    related_plans:
+      - doc/plugins/PLUGIN_SPEC.md
+  PLUGIN.JOBS.WEBHOOKS.001:
+    owner: product
+    domain: plugins
+    docs:
+      - doc/product/domains/plugins/lifecycle-capabilities.md
+    related_code:
+      - packages/db/src/schema/plugin_jobs.ts
+      - packages/db/src/schema/plugin_webhooks.ts
+      - packages/db/src/schema/plugin_logs.ts
+      - packages/db/src/schema/plugin_state.ts
+      - server/src/services/plugin-job-scheduler.ts
+      - server/src/services/plugin-job-store.ts
+      - server/src/services/plugin-state-store.ts
+      - server/src/routes/plugins.operations-routes.ts
+    related_tests:
+      - server/src/__tests__/plugin-job-scheduler.test.ts
+    related_plans:
+      - doc/plugins/PLUGIN_SPEC.md

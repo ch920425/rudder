@@ -35,6 +35,10 @@ edit_policy: user_confirmed_only
 ## Contract Index
 
 - `ISSUE.STATE.001`: issue status lifecycle remains explicit and review-aware.
+- `ISSUE.HIERARCHY.001`: parent and sub-issue relationships preserve work
+  context without crossing organization or cycle boundaries.
+- `ISSUE.COMMENTS.001`: comments preserve local collaboration evidence before
+  routing decides wake eligibility.
 - `ISSUE.WORKFLOW.001`: issue mutations preserve activity, comments, and wake
   integration.
 - `ISSUE.SURFACE.001`: issue surfaces expose state and linked evidence without

@@ -21,6 +21,7 @@ edit_policy: user_confirmed_only
 - Durable agent identity, role, capability, runtime config, and instruction
   loading.
 - Enabled skill resolution for a runtime invocation.
+- Agent-facing inbox and skill telemetry.
 - Stable instruction and dynamic run-context separation.
 
 ## Does Not Own
@@ -34,3 +35,12 @@ edit_policy: user_confirmed_only
 - `AGENT.INSTRUCTIONS.001`: stable instructions, runtime skills, workspace
   context, project resources, automations, and startup context are loaded in a
   bounded runtime context.
+- `AGENT.IDENTITY.CONFIG.001`: agent identity and config define durable team
+  membership and invocation eligibility.
+- `AGENT.RUNTIME.ADAPTERS.001`: runtime adapter capabilities define what Rudder
+  may test, inject, execute, parse, and report.
+- `AGENT.SKILLS.001`: skills have source, desired, enabled, materialized, and
+  always-enabled semantics.
+- `AGENT.SKILL.TELEMETRY.001`: skill analytics preserve evidence level.
+- `AGENT.INBOX.001`: agent-facing inbox exposes actionable assignee and reviewer
+  work.

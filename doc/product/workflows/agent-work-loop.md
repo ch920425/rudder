@@ -9,14 +9,44 @@ edit_policy: user_confirmed_only
 
 This is a composed workflow view. It is not an owning source of behavior.
 
+Entry paths:
+
+- Issue-first work enters through issue creation, assignment, checkout, review,
+  or comment wake.
+- Chat/Messenger work can stay chat-native or convert/propose tracked issue
+  work; see `CHAT.LIFECYCLE.001`, `MESSENGER.ATTENTION.001`, and
+  `RUN.CHAT.AGENT.001`.
+- IM integrations such as Feishu enter through Messenger/chat binding and may
+  create issue/run work; see `IM.FEISHU.001`.
+- Automations enter through trigger/run/output routing and then either create
+  tracked issues or per-run chats; see `AUTOMATION.*`.
+
 Path:
 
-1. Issue state and local mutation: `ISSUE.STATE.001`,
+1. Goal/project reason and context: `ORG.GOAL.001`,
+   `ORG.PROJECT.001`.
+2. Issue state, hierarchy, comment evidence, and local mutation:
+   `ISSUE.STATE.001`, `ISSUE.HIERARCHY.001`, `ISSUE.COMMENTS.001`,
    `ISSUE.WORKFLOW.001`.
-2. Assignment or reviewer routing: `ROUTING.ASSIGNMENT.001`,
-   `ROUTING.REVIEWER.001`.
-3. Wakeup admission: `RUN.WAKEUP.001`, `RUN.ADMISSION.001`.
-4. Runtime instruction/context loading: `AGENT.INSTRUCTIONS.001`.
-5. Adapter execution and result persistence: `RUN.EXECUTION.001`,
+3. Assignment, checkout, reviewer, and attention routing:
+   `ROUTING.ASSIGNMENT.001`, `ROUTING.CHECKOUT.001`,
+   `ROUTING.REVIEWER.001`, `ROUTING.ATTENTION.001`,
+   `ROUTING.COMMENT.WAKE.001`.
+4. Wakeup admission and issue execution serialization: `RUN.WAKEUP.001`,
+   `RUN.ADMISSION.001`.
+5. Agent identity, inbox, skills, adapter, instruction/context loading:
+   `AGENT.IDENTITY.CONFIG.001`, `AGENT.INBOX.001`,
+   `AGENT.SKILLS.001`, `AGENT.RUNTIME.ADAPTERS.001`,
+   `AGENT.INSTRUCTIONS.001`.
+6. Project resources and workspace context:
+   `CONTEXT.RESOURCES.001`, `WORKSPACE.PROJECT.001`,
+   `WORKSPACE.RUN.001`.
+7. Unified Agent Run execution and result persistence:
+   `RUN.AGENT.UNIFICATION.001`, `RUN.EXECUTION.001`,
    `RUN.RESULT.001`.
-6. Release, promotion, or follow-up: `RUN.ADMISSION.001`.
+8. Review, close-out, feedback, and learning:
+   `REVIEW.DECISION.001`, `REVIEW.CLOSEOUT.001`,
+   `LEARNING.PROMOTION.001`.
+9. Spend, activity, and intelligence readback:
+   `CONTROL.BUDGETS.001`, `CONTROL.ACTIVITY.001`,
+   `CONTROL.RUN.INTELLIGENCE.001`.

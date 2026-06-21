@@ -33,6 +33,8 @@ Seed domains:
   and dashboard-derived signals.
 - `organizations-and-goals`: organization identity, goals, projects, and org
   lifecycle.
+- `plugins`: installed plugins, plugin workers, capabilities, jobs, webhooks,
+  UI slots, logs, and plugin-owned state.
 
 ## Tie-Breakers
 
