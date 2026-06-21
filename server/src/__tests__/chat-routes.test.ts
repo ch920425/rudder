@@ -51,6 +51,19 @@ const mockChatService = vi.hoisted(() => ({
   resolveOperationProposal: vi.fn(),
   updateDefaultTitle: vi.fn(),
   replaceSystemGeneratedTitle: vi.fn(),
+  getQueueSnapshot: vi.fn(),
+  createQueuedMessage: vi.fn(),
+  updateQueuedMessage: vi.fn(),
+  cancelQueuedMessage: vi.fn(),
+  markQueuedMessageSteerFallback: vi.fn(),
+  claimNextQueuedMessage: vi.fn(),
+  releaseQueuedMessageClaim: vi.fn(),
+  createGeneration: vi.fn(),
+  markGenerationTerminal: vi.fn(),
+  getLatestActiveGeneration: vi.fn(),
+  assertQueuedMessageClaimedForDelivery: vi.fn(),
+  markQueuedMessageRunning: vi.fn(),
+  markQueuedMessageDeliveryTerminal: vi.fn(),
 }));
 
 const mockCompanyService = vi.hoisted(() => ({
@@ -393,6 +406,65 @@ describe("chat routes", () => {
       replyingAgentId: typeof input.replyingAgentId === "string" ? input.replyingAgentId : null,
     }));
     mockChatService.markInterruptedStreamingMessages.mockResolvedValue([]);
+    mockChatService.getQueueSnapshot.mockResolvedValue({ activeGenerationId: null, items: [] });
+    mockChatService.createQueuedMessage.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: "queued-1",
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      position: 1,
+      status: "queued",
+      version: 1,
+      clientMutationId: input.clientMutationId,
+      payload: input.payload,
+      expectedGenerationId: input.expectedGenerationId ?? null,
+      activeGenerationId: null,
+      deliveryAttempts: 0,
+      lastAttemptAt: null,
+      lastDeliveryReason: null,
+      sourceMessageId: null,
+      deliveredMessageId: null,
+      cancelledAt: null,
+      steeredAt: null,
+      dequeuedAt: null,
+      createdAt: new Date("2026-03-26T08:02:00.000Z"),
+      updatedAt: new Date("2026-03-26T08:02:00.000Z"),
+    }));
+    mockChatService.updateQueuedMessage.mockImplementation(async (_chatId: string, itemId: string, input: Record<string, unknown>) => ({
+      id: itemId,
+      orgId: "organization-1",
+      conversationId: "chat-1",
+      position: 1,
+      status: "queued",
+      version: Number(input.version ?? 1) + 1,
+      clientMutationId: "client-1",
+      payload: input.payload,
+      expectedGenerationId: null,
+      activeGenerationId: null,
+      deliveryAttempts: 0,
+      lastAttemptAt: null,
+      lastDeliveryReason: null,
+      sourceMessageId: null,
+      deliveredMessageId: null,
+      cancelledAt: null,
+      steeredAt: null,
+      dequeuedAt: null,
+      createdAt: new Date("2026-03-26T08:02:00.000Z"),
+      updatedAt: new Date("2026-03-26T08:03:00.000Z"),
+    }));
+    mockChatService.cancelQueuedMessage.mockResolvedValue(null);
+    mockChatService.markQueuedMessageSteerFallback.mockResolvedValue({
+      id: "queued-1",
+      status: "queued",
+      lastDeliveryReason: "unsupported",
+    });
+    mockChatService.claimNextQueuedMessage.mockResolvedValue(null);
+    mockChatService.releaseQueuedMessageClaim.mockResolvedValue(null);
+    mockChatService.createGeneration.mockResolvedValue({ id: "generation-1" });
+    mockChatService.markGenerationTerminal.mockResolvedValue(undefined);
+    mockChatService.getLatestActiveGeneration.mockResolvedValue(null);
+    mockChatService.assertQueuedMessageClaimedForDelivery.mockResolvedValue(undefined);
+    mockChatService.markQueuedMessageRunning.mockResolvedValue(undefined);
+    mockChatService.markQueuedMessageDeliveryTerminal.mockResolvedValue(undefined);
   });
 
   it("passes chat search query and status to the chat list service", async () => {

@@ -51,6 +51,37 @@ export const updateChatConversationSchema = createChatConversationSchema
 export const addChatMessageSchema = z.object({
   body: z.string().trim().min(1).max(20000),
   editUserMessageId: z.string().uuid().optional().nullable(),
+  queuedMessageId: z.string().uuid().optional().nullable(),
+});
+
+export const chatQueuedMessagePayloadSchema = z.object({
+  body: z.string().trim().min(1).max(20000),
+  attachmentIds: z.array(z.string().uuid()).optional().default([]),
+  projectId: z.string().uuid().optional().nullable(),
+  skillRefs: z.array(z.string().trim().min(1).max(240)).optional().default([]),
+  accessMode: z.string().trim().min(1).max(120).optional().nullable(),
+  model: z.string().trim().min(1).max(120).optional().nullable(),
+  effort: z.string().trim().min(1).max(120).optional().nullable(),
+  metadata: z.record(z.unknown()).optional().nullable(),
+});
+
+export const createChatQueuedMessageSchema = z.object({
+  clientMutationId: z.string().trim().min(1).max(120),
+  expectedGenerationId: z.string().uuid().optional().nullable(),
+  payload: chatQueuedMessagePayloadSchema,
+});
+
+export const updateChatQueuedMessageSchema = z.object({
+  version: z.number().int().positive(),
+  payload: chatQueuedMessagePayloadSchema,
+});
+
+export const cancelChatQueuedMessageSchema = z.object({
+  version: z.number().int().positive().optional(),
+});
+
+export const steerChatQueuedMessageSchema = z.object({
+  expectedActiveGenerationId: z.string().uuid().optional().nullable(),
 });
 
 const chatRichReferenceDisplaySchema = z.enum(["card", "inline"]);
@@ -323,6 +354,11 @@ export type UpdateMessengerCustomGroup = z.infer<typeof updateMessengerCustomGro
 export type ReorderMessengerCustomGroups = z.infer<typeof reorderMessengerCustomGroupsSchema>;
 export type AssignMessengerCustomGroupEntry = z.infer<typeof assignMessengerCustomGroupEntrySchema>;
 export type ReorderMessengerCustomGroupEntries = z.infer<typeof reorderMessengerCustomGroupEntriesSchema>;
+export type ChatQueuedMessagePayloadInput = z.infer<typeof chatQueuedMessagePayloadSchema>;
+export type CreateChatQueuedMessage = z.infer<typeof createChatQueuedMessageSchema>;
+export type UpdateChatQueuedMessage = z.infer<typeof updateChatQueuedMessageSchema>;
+export type CancelChatQueuedMessage = z.infer<typeof cancelChatQueuedMessageSchema>;
+export type SteerChatQueuedMessage = z.infer<typeof steerChatQueuedMessageSchema>;
 export type ChatAskUserOption = z.infer<typeof chatAskUserOptionSchema>;
 export type ChatAskUserQuestion = z.infer<typeof chatAskUserQuestionSchema>;
 export type ChatAskUserRequest = z.infer<typeof chatAskUserRequestSchema>;
