@@ -366,14 +366,14 @@ describe("Messenger page headers", () => {
   it("renders a system header without an items counter", () => {
     messengerModel.systemThreadDetail = {
       title: "Failed runs",
-      description: "Recent failed heartbeat runs",
+      description: "Recent failed agent runs",
       unreadCount: 4,
       items: [
         {
           id: "run-1",
           kind: "failed-runs",
           title: "Run failed for Messenger worker",
-          subtitle: "Failed heartbeat run",
+          subtitle: "Failed agent run",
           body: "The run hit a system-level execution problem. Rudder saved the technical details for diagnostics.",
           preview: "The run hit a system-level execution problem. Rudder saved the technical details for diagnostics.",
           href: "/heartbeats/run-1",
@@ -395,7 +395,7 @@ describe("Messenger page headers", () => {
     const html = renderToStaticMarkup(<MessengerSystemView threadKind="failed-runs" />);
 
     expect(html).toContain("Failed runs");
-    expect(html).toContain("Recent failed heartbeat runs");
+    expect(html).toContain("Recent failed agent runs");
     expect(html).toContain("Run failed for Messenger worker");
     expect(html).toContain("Recover the failed workspace bootstrap");
     expect(html).toContain('data-testid="messenger-failed-run-issue-status-run-1"');
@@ -410,7 +410,7 @@ describe("Messenger page headers", () => {
   it("keeps failed run cards in chronological order so the newest message stays at the bottom", () => {
     messengerModel.systemThreadDetail = {
       title: "Failed runs",
-      description: "Recent failed heartbeat runs",
+      description: "Recent failed agent runs",
       unreadCount: 3,
       items: [
         {

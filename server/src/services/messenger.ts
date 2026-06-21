@@ -2163,7 +2163,7 @@ export function messengerService(db: Db) {
         needsAttention: unreadCount > 0,
         isPinned: false,
         href: "/messenger/system/failed-runs",
-        description: "Recent failed heartbeat runs",
+        description: "Recent failed agent runs",
         items: chronologicalItems,
       } satisfies MessengerThreadDetail<MessengerHeartbeatRunThreadItem>,
     };

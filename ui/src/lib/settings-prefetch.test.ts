@@ -28,7 +28,7 @@ vi.mock("@/api/health", () => ({
 }));
 
 vi.mock("@/api/heartbeats", () => ({
-  heartbeatsApi: {
+  schedulerHeartbeatsApi: {
     listInstanceSchedulerAgents: vi.fn(async () => []),
   },
 }));

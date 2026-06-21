@@ -8,7 +8,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { useEffect, useRef, type ReactNode } from "react";
 import type { RunForIssue } from "../api/activity";
 import { authApi } from "../api/auth";
-import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
+import type { ActiveRunForIssue, LiveRunForIssue } from "../api/agent-runs";
 import { toOrganizationRelativePath } from "../lib/organization-routes";
 import { queryKeys } from "../lib/queryKeys";
 import { useLocation } from "../lib/router";
@@ -615,7 +615,7 @@ function invalidateHeartbeatQueries(
   payload: Record<string, unknown>,
 ) {
   queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(orgId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(orgId) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(orgId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(orgId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(orgId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.costs(orgId) });
@@ -624,7 +624,7 @@ function invalidateHeartbeatQueries(
   const agentId = readString(payload.agentId);
   if (agentId) {
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(orgId, agentId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(orgId, agentId) });
   }
 }
 
@@ -683,7 +683,7 @@ function invalidateActivityQueries(
     queryClient.invalidateQueries({ queryKey: queryKeys.org(orgId) });
     if (entityId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(entityId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(orgId, entityId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(orgId, entityId) });
     }
     return;
   }

@@ -388,8 +388,8 @@ export function calendarService(db: Db) {
       .from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, runId))
       .then((rows) => rows[0] ?? null);
-    if (!run) throw notFound("Heartbeat run not found");
-    if (run.orgId !== orgId) throw unprocessable("Heartbeat run must belong to same organization");
+    if (!run) throw notFound("Agent run not found");
+    if (run.orgId !== orgId) throw unprocessable("Agent run must belong to same organization");
     return run;
   }
 
@@ -695,7 +695,7 @@ export function calendarService(db: Db) {
           title: row.automationTitle,
         }
         : fallback?.automation ?? null;
-      const title = issue ? `${row.agentName} · ${issue.title}` : `${row.agentName} · Heartbeat run`;
+      const title = issue ? `${row.agentName} · ${issue.title}` : `${row.agentName} · Agent run`;
       return [{
         id: `run:${row.id}`,
         orgId: row.orgId,

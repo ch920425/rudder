@@ -1,5 +1,5 @@
 import { agentsApi } from "@/api/agents";
-import { HEARTBEAT_RUN_LIST_HISTORY_LIMIT, heartbeatsApi, type LiveRunForIssue } from "@/api/heartbeats";
+import { AGENT_RUN_LIST_HISTORY_LIMIT, agentRunsApi, type LiveRunForIssue } from "@/api/agent-runs";
 import { AgentIcon } from "@/components/AgentAvatar";
 import { EmptyState } from "@/components/EmptyState";
 import { HeartbeatEnabledButtons } from "@/components/HeartbeatEnabledButtons";
@@ -135,15 +135,15 @@ export function OrganizationHeartbeats() {
   });
 
   const runsQuery = useQuery({
-    queryKey: queryKeys.heartbeats(viewedOrganizationId ?? "__none__", undefined, HEARTBEAT_RUN_LIST_HISTORY_LIMIT),
-    queryFn: () => heartbeatsApi.list(viewedOrganizationId!, undefined, HEARTBEAT_RUN_LIST_HISTORY_LIMIT),
+    queryKey: queryKeys.agentRuns(viewedOrganizationId ?? "__none__", undefined, AGENT_RUN_LIST_HISTORY_LIMIT),
+    queryFn: () => agentRunsApi.list(viewedOrganizationId!, undefined, AGENT_RUN_LIST_HISTORY_LIMIT),
     enabled: !!viewedOrganizationId,
     refetchInterval: 15_000,
   });
 
   const liveRunsQuery = useQuery({
     queryKey: queryKeys.liveRuns(viewedOrganizationId ?? "__none__"),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(viewedOrganizationId!),
+    queryFn: () => agentRunsApi.liveRunsForCompany(viewedOrganizationId!),
     enabled: !!viewedOrganizationId,
     refetchInterval: 10_000,
   });
@@ -155,7 +155,7 @@ export function OrganizationHeartbeats() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(variables.agent.orgId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(variables.agent.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(variables.agent.orgId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(variables.agent.orgId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(variables.agent.orgId) }),
       ]);
     },
@@ -171,7 +171,7 @@ export function OrganizationHeartbeats() {
     mutationFn: async (agent: Agent) => agentsApi.invoke(agent.id, agent.orgId),
     onSuccess: async (run, agent) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(agent.orgId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(agent.orgId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(agent.orgId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) }),
       ]);
@@ -410,7 +410,7 @@ export function OrganizationHeartbeats() {
         </div>
         <div className="px-5 py-4">
           {(runsQuery.data ?? []).length === 0 ? (
-            <div className="text-sm text-muted-foreground">No heartbeat runs yet.</div>
+            <div className="text-sm text-muted-foreground">No agent runs yet.</div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {(runsQuery.data ?? []).slice(0, 6).map((run) => {

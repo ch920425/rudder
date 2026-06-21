@@ -1273,7 +1273,7 @@ function KitchenSinkHostIntegrationDemo({ context }: { context: PluginPageProps[
             <strong>Recent Heartbeats</strong>
             <MiniList
               items={recentRuns}
-              empty="No recent heartbeat runs."
+              empty="No recent agent runs."
               render={(item) => {
                 const run = item as HostHeartbeatRunRecord;
                 return (

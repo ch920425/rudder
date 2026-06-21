@@ -13,7 +13,7 @@ import {
   SquarePen,
   Target,
 } from "lucide-react";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { useDialog } from "../context/DialogContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useInboxBadge } from "../hooks/useInboxBadge";
@@ -34,7 +34,7 @@ export function MobileWorkspaceDrawer() {
   const inboxBadge = useInboxBadge(selectedOrganizationId);
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.liveRuns(selectedOrganizationId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedOrganizationId!),
+    queryFn: () => agentRunsApi.liveRunsForCompany(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
     refetchInterval: 10_000,
   });

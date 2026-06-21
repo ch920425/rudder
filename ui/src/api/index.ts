@@ -1,5 +1,6 @@
 export { accessApi } from "./access";
 export { activityApi } from "./activity";
+export { agentRunsApi } from "./agent-runs";
 export { agentsApi } from "./agents";
 export { approvalsApi } from "./approvals";
 export { authApi } from "./auth";

@@ -45,7 +45,7 @@ export function financeService(db: Db) {
       if (data.issueId) await assertBelongsToCompany(db, issues, data.issueId, orgId, "Issue");
       if (data.projectId) await assertBelongsToCompany(db, projects, data.projectId, orgId, "Project");
       if (data.goalId) await assertBelongsToCompany(db, goals, data.goalId, orgId, "Goal");
-      if (data.heartbeatRunId) await assertBelongsToCompany(db, heartbeatRuns, data.heartbeatRunId, orgId, "Heartbeat run");
+      if (data.heartbeatRunId) await assertBelongsToCompany(db, heartbeatRuns, data.heartbeatRunId, orgId, "Agent run");
       if (data.costEventId) await assertBelongsToCompany(db, costEvents, data.costEventId, orgId, "Cost event");
 
       const event = await db

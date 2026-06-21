@@ -30,7 +30,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { agentsApi } from "../api/agents";
 import { automationsApi, type AutomationTriggerResponse, type RotateAutomationTriggerResponse } from "../api/automations";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { organizationSkillsApi } from "../api/organizationSkills";
 import { projectsApi } from "../api/projects";
@@ -107,7 +107,7 @@ export function AutomationDetail() {
   const activeIssueId = automation?.activeIssue?.id;
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.issues.liveRuns(activeIssueId!),
-    queryFn: () => heartbeatsApi.liveRunsForIssue(activeIssueId!),
+    queryFn: () => agentRunsApi.liveRunsForIssue(activeIssueId!),
     enabled: !!activeIssueId,
     refetchInterval: 3000,
   });

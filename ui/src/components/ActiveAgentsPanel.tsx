@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { TranscriptEntry } from "../agent-runtimes";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
+import { agentRunsApi, type LiveRunForIssue } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, formatRunElapsedDuration, relativeTime } from "../lib/utils";
@@ -94,7 +94,7 @@ export function filterDashboardRunPreviewTranscript(entries: TranscriptEntry[]):
 export function ActiveAgentsPanel({ orgId }: ActiveAgentsPanelProps) {
   const { data: liveRuns, isLoading: liveRunsLoading } = useQuery({
     queryKey: [...queryKeys.liveRuns(orgId), "dashboard"],
-    queryFn: () => heartbeatsApi.liveRunsForCompany(orgId, MIN_DASHBOARD_RUNS),
+    queryFn: () => agentRunsApi.liveRunsForCompany(orgId, MIN_DASHBOARD_RUNS),
   });
 
   const runs = liveRuns ?? [];

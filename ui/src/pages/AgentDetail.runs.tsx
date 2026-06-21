@@ -25,14 +25,14 @@ import {
   agentsApi,
   type ClaudeLoginResult
 } from "../api/agents";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { CopyText } from "../components/CopyText";
 import { ScrollToBottom } from "../components/ScrollToBottom";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialog } from "../context/DialogContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useToast } from "../context/ToastContext";
-import { retryHeartbeatRun } from "../lib/heartbeat-retry";
+import { retryAgentRun } from "../lib/agent-run-retry";
 import { queryKeys } from "../lib/queryKeys";
 import {
   GENERIC_RUN_FAILURE_BODY,
@@ -408,7 +408,7 @@ export function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: {
   const { confirm } = useDialog();
   const { data: hydratedRun } = useQuery({
     queryKey: queryKeys.runDetail(initialRun.id),
-    queryFn: () => heartbeatsApi.get(initialRun.id),
+    queryFn: () => agentRunsApi.get(initialRun.id),
     enabled: Boolean(initialRun.id),
   });
   const run = hydratedRun ?? initialRun;
@@ -421,17 +421,17 @@ export function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: {
   }, [run.id]);
 
   const cancelRun = useMutation({
-    mutationFn: () => heartbeatsApi.cancel(run.id),
+    mutationFn: () => agentRunsApi.cancel(run.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.orgId, run.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(run.orgId, run.agentId) });
     },
   });
   const canResumeLostRun = run.errorCode === "process_lost" && run.status === "failed";
   const canRetryRun = run.status === "failed" || run.status === "timed_out" || run.status === "cancelled";
   const recoverRun = useMutation({
-    mutationFn: async () => retryHeartbeatRun(run),
+    mutationFn: async () => retryAgentRun(run),
     onSuccess: (newRun) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.orgId, run.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(run.orgId, run.agentId) });
       navigate(appendRunSearchParams(`/agents/${agentRouteId}/runs/${newRun.id}`, searchParams));
     },
   });

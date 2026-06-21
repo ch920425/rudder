@@ -173,22 +173,27 @@ export function activityRoutes(db: Db) {
     res.json(result);
   });
 
-  async function handleIssuesForRun(req: Request, res: Response) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function handleIssuesForRun(req: Request, res: Response, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const run = await db
       .select({ orgId: heartbeatRuns.orgId })
       .from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, runId))
       .then((rows) => rows[0] ?? null);
-    if (!run) throw notFound("Heartbeat run not found");
+    if (!run) throw notFound(notFoundMessage);
     assertCompanyAccess(req, run.orgId);
 
     const result = await svc.issuesForRun(runId);
     res.json(result);
   }
 
-  router.get("/heartbeat-runs/:runId/issues", handleIssuesForRun);
-  router.get("/agent-runs/:runId/issues", handleIssuesForRun);
+  router.get("/heartbeat-runs/:runId/issues", (req, res) =>
+    handleIssuesForRun(req, res, "Heartbeat run not found"));
+  router.get("/agent-runs/:runId/issues", (req, res) =>
+    handleIssuesForRun(req, res, "Agent run not found"));
 
   return router;
 }

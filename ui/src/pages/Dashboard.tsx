@@ -7,7 +7,7 @@ import { agentsApi } from "../api/agents";
 import { costsApi } from "../api/costs";
 import { dashboardApi } from "../api/dashboard";
 import { goalsApi } from "../api/goals";
-import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
+import { agentRunsApi, type LiveRunForIssue } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { EmptyState } from "../components/EmptyState";
@@ -188,7 +188,7 @@ export function Dashboard() {
 
   const { data: companyLiveRuns } = useQuery({
     queryKey: [...queryKeys.liveRuns(selectedOrganizationId!), "dashboard-recent-tasks"],
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedOrganizationId!, 8),
+    queryFn: () => agentRunsApi.liveRunsForCompany(selectedOrganizationId!, 8),
     enabled: !!selectedOrganizationId,
   });
 
@@ -237,8 +237,8 @@ export function Dashboard() {
   const showFilteredSections = preset !== "custom" || customReady;
 
   const { data: runs, isLoading: runsLoading } = useQuery({
-    queryKey: ["heartbeats", selectedOrganizationId ?? "__none__", "dashboard-range", from, to],
-    queryFn: () => heartbeatsApi.list(selectedOrganizationId!, undefined, null, { startDate: from, endDate: to }),
+    queryKey: ["agent-runs", selectedOrganizationId ?? "__none__", "dashboard-range", from, to],
+    queryFn: () => agentRunsApi.list(selectedOrganizationId!, undefined, null, { startDate: from, endDate: to }),
     enabled: Boolean(selectedOrganizationId) && showFilteredSections,
     placeholderData: keepPreviousData,
   });

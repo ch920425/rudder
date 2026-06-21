@@ -15,7 +15,7 @@ function mockRunIdLookup(rows: Array<{ id: string }>) {
   return { db: { select }, select, from, where, orderBy, limit };
 }
 
-describe("heartbeat run references", () => {
+describe("agent run references", () => {
   it("formats UUID run IDs as short CLI run IDs", () => {
     expect(formatShortRunId("609695f1-f90a-4b17-be61-4f0c6fe37c42")).toBe("609695f1f90a");
     expect(formatShortRunId("run-1")).toBe("run-1");
@@ -51,7 +51,7 @@ describe("heartbeat run references", () => {
 
     await expect(resolveHeartbeatRunIdReference(lookup.db as never, "deadbeef")).rejects.toMatchObject({
       status: 404,
-      message: "Heartbeat run not found",
+      message: "Agent run not found",
     });
   });
 
@@ -61,7 +61,7 @@ describe("heartbeat run references", () => {
     await expect(resolveHeartbeatRunIdReference(lookup.db as never, "609695f1", { orgIds: [] }))
       .rejects.toMatchObject({
         status: 404,
-        message: "Heartbeat run not found",
+        message: "Agent run not found",
       });
     expect(lookup.select).not.toHaveBeenCalled();
   });

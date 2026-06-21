@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Square } from "lucide-react";
 import { useMemo, useState } from "react";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
+import { agentRunsApi, type LiveRunForIssue } from "../api/agent-runs";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, formatDateTime, formatRunElapsedDuration } from "../lib/utils";
 import { AgentIdentity } from "./AgentAvatar";
@@ -32,14 +32,14 @@ export function LiveRunWidget({ issueId, orgId }: LiveRunWidgetProps) {
 
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.issues.liveRuns(issueId),
-    queryFn: () => heartbeatsApi.liveRunsForIssue(issueId),
+    queryFn: () => agentRunsApi.liveRunsForIssue(issueId),
     enabled: !!issueId,
     refetchInterval: 3000,
   });
 
   const { data: activeRun } = useQuery({
     queryKey: queryKeys.issues.activeRun(issueId),
-    queryFn: () => heartbeatsApi.activeRunForIssue(issueId),
+    queryFn: () => agentRunsApi.activeRunForIssue(issueId),
     enabled: !!issueId,
     refetchInterval: 3000,
   });
@@ -81,7 +81,7 @@ export function LiveRunWidget({ issueId, orgId }: LiveRunWidgetProps) {
   const handleCancelRun = async (runId: string) => {
     setCancellingRunIds((prev) => new Set(prev).add(runId));
     try {
-      await heartbeatsApi.cancel(runId);
+      await agentRunsApi.cancel(runId);
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.liveRuns(issueId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.activeRun(issueId) });
     } finally {

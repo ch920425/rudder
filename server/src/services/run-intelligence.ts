@@ -482,7 +482,7 @@ export async function getObservedRunEvents(db: Db, runId: string, scope: RunIdRe
     .where(eq(heartbeatRuns.id, resolvedRunId))
     .limit(1)
     .then((rows) => rows[0] ?? null);
-  if (!run) throw notFound("Heartbeat run not found");
+  if (!run) throw notFound("Agent run not found");
   return loadRunEvents(db, resolvedRunId);
 }
 
@@ -494,7 +494,7 @@ export async function getObservedRunLog(db: Db, runId: string, scope: RunIdResol
     .where(eq(heartbeatRuns.id, resolvedRunId))
     .limit(1)
     .then((rows) => rows[0] ?? null);
-  if (!run) throw notFound("Heartbeat run not found");
+  if (!run) throw notFound("Agent run not found");
   return { content: await loadRunLogContent(run) };
 }
 
@@ -525,7 +525,7 @@ export async function diagnoseObservedRun(
   mode: RunDiagnosisMode = "auto",
 ): Promise<{ detail: ObservedRunDetail; diagnosis: RunDiagnosis }> {
   const detail = await getObservedRunDetail(db, runId);
-  if (!detail) throw notFound("Heartbeat run not found");
+  if (!detail) throw notFound("Agent run not found");
   return {
     detail,
     diagnosis: diagnoseRun(detail, mode),

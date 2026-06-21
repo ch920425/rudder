@@ -7,13 +7,13 @@ import { approvalsApi } from "../api/approvals";
 import { chatsApi } from "../api/chats";
 import { ApiError } from "../api/client";
 import { dashboardApi } from "../api/dashboard";
-import { HEARTBEAT_RUN_LIST_DEFAULT_LIMIT, heartbeatsApi } from "../api/heartbeats";
+import { AGENT_RUN_LIST_DEFAULT_LIMIT, agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useOrganization } from "../context/OrganizationContext";
-import { retryHeartbeatRun } from "../lib/heartbeat-retry";
+import { retryAgentRun } from "../lib/agent-run-retry";
 import { createIssueDetailLocationState } from "../lib/issueDetailBreadcrumb";
 import { queryKeys } from "../lib/queryKeys";
 import { getRunFailureDisplay } from "../lib/run-detail-display";
@@ -533,8 +533,8 @@ export function Inbox() {
   });
 
   const { data: heartbeatRuns, isLoading: isRunsLoading } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedOrganizationId!, undefined, HEARTBEAT_RUN_LIST_DEFAULT_LIMIT),
-    queryFn: () => heartbeatsApi.list(selectedOrganizationId!, undefined, HEARTBEAT_RUN_LIST_DEFAULT_LIMIT),
+    queryKey: queryKeys.agentRuns(selectedOrganizationId!, undefined, AGENT_RUN_LIST_DEFAULT_LIMIT),
+    queryFn: () => agentRunsApi.list(selectedOrganizationId!, undefined, AGENT_RUN_LIST_DEFAULT_LIMIT),
     enabled: !!selectedOrganizationId,
   });
 
@@ -685,15 +685,15 @@ export function Inbox() {
 
   const retryRunMutation = useMutation({
     mutationFn: async (run: HeartbeatRun) => ({
-      newRun: await retryHeartbeatRun(run),
+      newRun: await retryAgentRun(run),
       originalRun: run,
     }),
     onMutate: (run) => {
       setRetryingRunIds((prev) => new Set(prev).add(run.id));
     },
     onSuccess: ({ newRun, originalRun }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.orgId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.orgId, originalRun.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(originalRun.orgId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(originalRun.orgId, originalRun.agentId) });
       navigate(`/agents/${originalRun.agentId}/runs/${newRun.id}`);
     },
     onSettled: (_data, _error, run) => {

@@ -114,12 +114,12 @@ function createRunIdLookupDb(rows: Array<{ id: string }>) {
   };
 }
 
-describe("heartbeat run retry route", () => {
+describe("agent run retry route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("lists heartbeat runs by date range without applying the default recency limit", async () => {
+  it("lists agent runs by date range without applying the default recency limit", async () => {
     mockHeartbeatService.list.mockResolvedValue([]);
 
     const res = await request(createApp())
@@ -422,6 +422,17 @@ describe("heartbeat run retry route", () => {
     const res = await request(createApp()).post("/api/heartbeat-runs/missing/retry").send({});
 
     expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Heartbeat run not found" });
+    expect(mockHeartbeatService.retryRun).not.toHaveBeenCalled();
+  });
+
+  it("returns agent-run 404 copy through the agent-runs alias", async () => {
+    mockHeartbeatService.getRun.mockResolvedValue(null);
+
+    const res = await request(createApp()).post("/api/agent-runs/missing/retry").send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Agent run not found" });
     expect(mockHeartbeatService.retryRun).not.toHaveBeenCalled();
   });
 });

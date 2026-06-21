@@ -32,7 +32,7 @@ export const help: Record<string, string> = {
   workspaceBranchTemplate: "Template for naming derived branches. Supports {{issue.identifier}}, {{issue.title}}, {{agent.name}}, {{project.id}}, {{workspace.repoRef}}, and {{slug}}.",
   worktreeParentDir: "Directory where derived worktrees should be created. Absolute, ~-prefixed, and repo-relative paths are supported.",
   runtimeServicesJson: "Optional workspace runtime service definitions. Use this for shared app servers, workers, or other long-lived companion processes attached to the workspace.",
-  maxTurnsPerRun: "Maximum number of agentic turns (tool calls) per heartbeat run.",
+  maxTurnsPerRun: "Maximum number of agentic turns (tool calls) per agent run.",
   command: "The command to execute (e.g. node, python).",
   localCommand: "Override the path to the CLI command you want the runtime to call (e.g. /usr/local/bin/claude, codex, opencode).",
   args: "Command-line arguments, comma-separated.",
@@ -47,7 +47,7 @@ export const help: Record<string, string> = {
   timeoutSec: "Maximum seconds a run can take before being terminated. 0 means no timeout.",
   graceSec: "Seconds to wait after sending interrupt before force-killing the process.",
   wakeOnDemand: "Allow this agent to be woken by assignments, API calls, UI actions, or automated systems.",
-  cooldownSec: "Minimum seconds between consecutive heartbeat runs.",
+  cooldownSec: "Minimum seconds between consecutive agent runs.",
   maxConcurrentRuns: "Maximum number of agent runs Rudder may execute simultaneously for this agent. This is separate from the timer heartbeat interval.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
 };

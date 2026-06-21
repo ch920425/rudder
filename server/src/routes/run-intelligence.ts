@@ -227,7 +227,7 @@ export function runIntelligenceRoutes(db: Db) {
     const runId = req.params.runId as string;
     const scope = { orgIds: getAuthorizedOrgScope(req) };
     const row = await getObservedRun(db, runId, scope);
-    if (!row) throw notFound("Heartbeat run not found");
+    if (!row) throw notFound("Agent run not found");
     assertCompanyAccess(req, row.run.orgId);
     res.json(row);
   });
@@ -236,7 +236,7 @@ export function runIntelligenceRoutes(db: Db) {
     const runId = req.params.runId as string;
     const scope = { orgIds: getAuthorizedOrgScope(req) };
     const run = await getObservedRun(db, runId, scope);
-    if (!run) throw notFound("Heartbeat run not found");
+    if (!run) throw notFound("Agent run not found");
     assertCompanyAccess(req, run.run.orgId);
     res.json(await getObservedRunEvents(db, runId, scope));
   });
@@ -245,7 +245,7 @@ export function runIntelligenceRoutes(db: Db) {
     const runId = req.params.runId as string;
     const scope = { orgIds: getAuthorizedOrgScope(req) };
     const run = await getObservedRun(db, runId, scope);
-    if (!run) throw notFound("Heartbeat run not found");
+    if (!run) throw notFound("Agent run not found");
     assertCompanyAccess(req, run.run.orgId);
     res.json(await getObservedRunLog(db, runId, scope));
   });
@@ -254,7 +254,7 @@ export function runIntelligenceRoutes(db: Db) {
     const runId = req.params.runId as string;
     const scope = { orgIds: getAuthorizedOrgScope(req) };
     const detail = await getObservedRunDetail(db, runId, scope);
-    if (!detail) throw notFound("Heartbeat run not found");
+    if (!detail) throw notFound("Agent run not found");
     assertCompanyAccess(req, detail.run.orgId);
 
     const maxChars = asPositiveInteger(req.query.maxChars ?? req.query.maxOutputChars, 1200, 20000);
@@ -316,7 +316,7 @@ export function runIntelligenceRoutes(db: Db) {
     const runId = req.params.runId as string;
     const scope = { orgIds: getAuthorizedOrgScope(req) };
     const detail = await getObservedRunDetail(db, runId, scope);
-    if (!detail) throw notFound("Heartbeat run not found");
+    if (!detail) throw notFound("Agent run not found");
     assertCompanyAccess(req, detail.run.orgId);
     const maxChars = asPositiveInteger(req.query.maxChars, 1200, 20000);
     res.json({

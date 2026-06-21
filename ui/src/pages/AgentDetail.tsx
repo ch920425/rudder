@@ -76,7 +76,7 @@ import { assetsApi } from "../api/assets";
 import { budgetsApi } from "../api/budgets";
 import { ApiError } from "../api/client";
 import { costsApi } from "../api/costs";
-import { HEARTBEAT_RUN_LIST_AGENT_LIMIT, heartbeatsApi } from "../api/heartbeats";
+import { AGENT_RUN_LIST_AGENT_LIMIT, agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { organizationSkillsApi } from "../api/organizationSkills";
 import {
@@ -280,8 +280,8 @@ export function AgentDetail() {
   });
 
   const { data: heartbeats, isLoading: isHeartbeatsLoading } = useQuery({
-    queryKey: queryKeys.heartbeats(resolvedCompanyId!, agent?.id ?? undefined, HEARTBEAT_RUN_LIST_AGENT_LIMIT),
-    queryFn: () => heartbeatsApi.list(resolvedCompanyId!, agent?.id ?? undefined, HEARTBEAT_RUN_LIST_AGENT_LIMIT),
+    queryKey: queryKeys.agentRuns(resolvedCompanyId!, agent?.id ?? undefined, AGENT_RUN_LIST_AGENT_LIMIT),
+    queryFn: () => agentRunsApi.list(resolvedCompanyId!, agent?.id ?? undefined, AGENT_RUN_LIST_AGENT_LIMIT),
     enabled: !!resolvedCompanyId && !!agent?.id && shouldLoadHeartbeats,
   });
 
@@ -424,7 +424,7 @@ export function AgentDetail() {
       if (resolvedCompanyId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
         if (agent?.id) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedCompanyId, agent.id) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(resolvedCompanyId, agent.id) });
         }
       }
       if (action === "invoke" && data && typeof data === "object" && "id" in data) {

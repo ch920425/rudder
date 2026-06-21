@@ -706,7 +706,7 @@ export function DesignGuide() {
           <div className="space-y-2 p-3">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="rounded-md border border-border p-2 text-sm">
-                Heartbeat run #{i + 1}: completed successfully
+                Agent run #{i + 1}: completed successfully
               </div>
             ))}
           </div>

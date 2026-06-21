@@ -21,11 +21,12 @@ export function isShortRunIdReference(value: string): boolean {
 export async function resolveHeartbeatRunIdReference(
   db: Db,
   runIdRef: string,
-  scope: { orgIds?: string[] } = {},
+  scope: { orgIds?: string[]; notFoundMessage?: string } = {},
 ): Promise<string> {
   const normalized = runIdRef.trim().toLowerCase();
   if (!isShortRunIdReference(normalized)) return runIdRef;
-  if (scope.orgIds?.length === 0) throw notFound("Heartbeat run not found");
+  const notFoundMessage = scope.notFoundMessage ?? "Agent run not found";
+  if (scope.orgIds?.length === 0) throw notFound(notFoundMessage);
 
   const rows = await db
     .select({ id: heartbeatRuns.id })
@@ -37,7 +38,7 @@ export async function resolveHeartbeatRunIdReference(
     .orderBy(desc(heartbeatRuns.createdAt))
     .limit(2);
 
-  if (rows.length === 0) throw notFound("Heartbeat run not found");
+  if (rows.length === 0) throw notFound(notFoundMessage);
   if (rows.length === 1) return rows[0]!.id;
 
   throw conflict("Run ID prefix is ambiguous", {

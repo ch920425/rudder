@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bot, GitBranch, List, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { agentsApi, type OrgNode } from "../api/agents";
-import { HEARTBEAT_RUN_LIST_COMPACT_LIMIT, heartbeatsApi } from "../api/heartbeats";
+import { AGENT_RUN_LIST_COMPACT_LIMIT, agentRunsApi } from "../api/agent-runs";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PageTabBar } from "../components/PageTabBar";
@@ -90,8 +90,8 @@ export function Agents() {
   });
 
   const { data: runs } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedOrganizationId!, undefined, HEARTBEAT_RUN_LIST_COMPACT_LIMIT),
-    queryFn: () => heartbeatsApi.list(selectedOrganizationId!, undefined, HEARTBEAT_RUN_LIST_COMPACT_LIMIT),
+    queryKey: queryKeys.agentRuns(selectedOrganizationId!, undefined, AGENT_RUN_LIST_COMPACT_LIMIT),
+    queryFn: () => agentRunsApi.list(selectedOrganizationId!, undefined, AGENT_RUN_LIST_COMPACT_LIMIT),
     enabled: !!selectedOrganizationId,
     refetchInterval: 15_000,
   });

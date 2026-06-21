@@ -15,7 +15,7 @@ import { Check, ChevronDown, Copy, Link2, MoreHorizontal, Paperclip, Pencil, Ter
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { TranscriptEntry } from "../agent-runtimes";
-import type { LiveRunForIssue } from "../api/heartbeats";
+import type { LiveRunForIssue } from "../api/agent-runs";
 import { formatChatAgentLabel } from "../lib/agent-labels";
 import { resolveOperatorDisplayName } from "../lib/operator-display";
 import { formatRunDurationLabel, formatRunTimingTitle, isRunTimingActive } from "../lib/run-duration-label";

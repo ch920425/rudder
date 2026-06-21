@@ -272,8 +272,8 @@ vi.mock("../api/activity", () => ({
   },
 }));
 
-vi.mock("../api/heartbeats", () => ({
-  heartbeatsApi: {
+vi.mock("../api/agent-runs", () => ({
+  agentRunsApi: {
     liveRunsForIssue: vi.fn(),
     activeRunForIssue: vi.fn(),
   },

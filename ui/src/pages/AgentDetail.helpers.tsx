@@ -35,7 +35,7 @@ import {
   useMemo,
   useState
 } from "react";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { type DashboardDatePreset } from "../components/DashboardDateRangeControl";
 import { heartbeatRunEventText } from "../lib/run-detail-events";
 import { cn, formatTokens, relativeTime, visibleRunCostUsd } from "../lib/utils";
@@ -758,7 +758,7 @@ export function WorkspaceOperationLogViewer({
   const [open, setOpen] = useState(false);
   const { data: logData, isLoading, error } = useQuery({
     queryKey: ["workspace-operation-log", operation.id],
-    queryFn: () => heartbeatsApi.workspaceOperationLog(operation.id),
+    queryFn: () => agentRunsApi.workspaceOperationLog(operation.id),
     enabled: open && Boolean(operation.logRef),
     refetchInterval: open && operation.status === "running" ? 2000 : false,
   });

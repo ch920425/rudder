@@ -9,7 +9,7 @@ import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { useDialog } from "../context/DialogContext";
 import { useOrganization } from "../context/OrganizationContext";
 import { useSidebar } from "../context/SidebarContext";
@@ -43,7 +43,7 @@ export function SidebarAgents() {
 
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.liveRuns(selectedOrganizationId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedOrganizationId!),
+    queryFn: () => agentRunsApi.liveRunsForCompany(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
     refetchInterval: 10_000,
   });

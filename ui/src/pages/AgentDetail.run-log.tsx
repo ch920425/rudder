@@ -28,7 +28,7 @@ import {
 } from "react";
 import { buildTranscript, getUIAdapter } from "../agent-runtimes";
 import { ApiError } from "../api/client";
-import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
+import { agentRunsApi, type LiveRunForIssue } from "../api/agent-runs";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { CopyText } from "../components/CopyText";
 import { PageTabBar } from "../components/PageTabBar";
@@ -115,7 +115,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
   });
   const { data: workspaceOperations = [] } = useQuery({
     queryKey: queryKeys.runWorkspaceOperations(run.id),
-    queryFn: () => heartbeatsApi.workspaceOperations(run.id),
+    queryFn: () => agentRunsApi.workspaceOperations(run.id),
     refetchInterval: isLive ? 2000 : false,
   });
 
@@ -176,7 +176,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
   // Fetch events
   const { data: initialEvents } = useQuery({
     queryKey: ["run-events", run.id],
-    queryFn: () => heartbeatsApi.events(run.id, 0, 200),
+    queryFn: () => agentRunsApi.events(run.id, 0, 200),
   });
 
   useEffect(() => {
@@ -294,7 +294,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
         let offset = 0;
         let first = true;
         while (!cancelled) {
-          const result = await heartbeatsApi.log(run.id, offset, first ? firstLimit : 256_000);
+          const result = await agentRunsApi.log(run.id, offset, first ? firstLimit : 256_000);
           if (cancelled) break;
           appendLogContent(result.content, result.nextOffset === undefined);
           const next = result.nextOffset ?? result.endOffset ?? offset + utf8ByteLength(result.content);
@@ -328,7 +328,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
     const interval = setInterval(async () => {
       const maxSeq = events.length > 0 ? Math.max(...events.map((e) => e.seq)) : 0;
       try {
-        const newEvents = await heartbeatsApi.events(run.id, maxSeq, 100);
+        const newEvents = await agentRunsApi.events(run.id, maxSeq, 100);
         if (newEvents.length > 0) {
           setEvents((prev) => [...prev, ...newEvents]);
         }
@@ -344,7 +344,7 @@ export function LogViewer({ run, agentRuntimeType }: { run: HeartbeatRun; agentR
     if (!shouldPollLiveRunBackfill({ isLive, isStreamingConnected })) return;
     const interval = setInterval(async () => {
       try {
-        const result = await heartbeatsApi.log(run.id, logOffset, 256_000);
+        const result = await agentRunsApi.log(run.id, logOffset, 256_000);
         if (result.content) {
           appendLogContent(result.content, result.nextOffset === undefined);
         }

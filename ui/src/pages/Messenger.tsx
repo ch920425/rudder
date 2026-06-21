@@ -2,7 +2,7 @@ import { accessApi } from "@/api/access";
 import { agentsApi } from "@/api/agents";
 import { approvalsApi } from "@/api/approvals";
 import { chatsApi } from "@/api/chats";
-import { heartbeatsApi } from "@/api/heartbeats";
+import { agentRunsApi } from "@/api/agent-runs";
 import { issuesApi } from "@/api/issues";
 import { messengerApi } from "@/api/messenger";
 import { projectsApi } from "@/api/projects";
@@ -850,7 +850,7 @@ async function runSystemAction(action: MessengerEvent["actions"][number]) {
 
   const retryMatch = action.href.match(/^\/(?:agent-runs|heartbeat-runs)\/([^/]+)\/retry$/);
   if (retryMatch) {
-    await heartbeatsApi.retry(retryMatch[1] ?? "");
+    await agentRunsApi.retry(retryMatch[1] ?? "");
     return;
   }
 
@@ -928,7 +928,7 @@ function MessengerSystemCard({
         ]);
       }
       if (item.kind === "failed-runs") {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(orgId) });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(orgId) });
       }
       pushToast({ title: action.label, body: "Completed.", tone: "success" });
     },

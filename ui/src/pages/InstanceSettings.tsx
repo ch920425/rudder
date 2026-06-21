@@ -15,7 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi } from "../api/heartbeats";
+import { schedulerHeartbeatsApi } from "../api/heartbeats";
 import { EmptyState } from "../components/EmptyState";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useDialog } from "../context/DialogContext";
@@ -74,7 +74,7 @@ export function InstanceSettings() {
 
   const heartbeatsQuery = useQuery({
     queryKey: queryKeys.instance.schedulerHeartbeats,
-    queryFn: () => heartbeatsApi.listInstanceSchedulerAgents(),
+    queryFn: () => schedulerHeartbeatsApi.listInstanceSchedulerAgents(),
     refetchInterval: 15_000,
     staleTime: SETTINGS_PREFETCH_STALE_TIME_MS,
   });

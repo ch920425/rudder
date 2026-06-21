@@ -2,7 +2,7 @@ import { agentsApi } from "@/api/agents";
 import { authApi } from "@/api/auth";
 import { calendarApi } from "@/api/calendar";
 import { chatsApi } from "@/api/chats";
-import { heartbeatsApi } from "@/api/heartbeats";
+import { agentRunsApi } from "@/api/agent-runs";
 import { issuesApi } from "@/api/issues";
 import { pluginsApi, type PluginUiContribution } from "@/api/plugins";
 import { projectsApi } from "@/api/projects";
@@ -837,7 +837,7 @@ export function ThreeColumnContextSidebar() {
   });
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.liveRuns(selectedOrganizationId ?? "__none__"),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedOrganizationId!),
+    queryFn: () => agentRunsApi.liveRunsForCompany(selectedOrganizationId!),
     enabled: !!selectedOrganizationId && (isAgentRoute || isIssuesRoute),
     refetchInterval: 10_000,
   });

@@ -196,12 +196,16 @@ export const queryKeys = {
     ["usage-window-spend", orgId] as const,
   usageQuotaWindows: (orgId: string) =>
     ["usage-quota-windows", orgId] as const,
+  agentRuns: (orgId: string, agentId?: string, limit?: number) =>
+    agentId === undefined && limit === undefined
+      ? ["agent-runs", orgId] as const
+      : limit === undefined
+      ? ["agent-runs", orgId, agentId] as const
+      : ["agent-runs", orgId, agentId, limit] as const,
   heartbeats: (orgId: string, agentId?: string, limit?: number) =>
-    limit === undefined
-      ? ["heartbeats", orgId, agentId] as const
-      : ["heartbeats", orgId, agentId, limit] as const,
-  runDetail: (runId: string) => ["heartbeat-run", runId] as const,
-  runWorkspaceOperations: (runId: string) => ["heartbeat-run", runId, "workspace-operations"] as const,
+    queryKeys.agentRuns(orgId, agentId, limit),
+  runDetail: (runId: string) => ["agent-run", runId] as const,
+  runWorkspaceOperations: (runId: string) => ["agent-run", runId, "workspace-operations"] as const,
   liveRuns: (orgId: string) => ["live-runs", orgId] as const,
   runIssues: (runId: string) => ["run-issues", runId] as const,
   org: (orgId: string) => ["org", orgId] as const,

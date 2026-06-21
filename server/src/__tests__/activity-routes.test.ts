@@ -178,7 +178,7 @@ describe("activity routes", () => {
     expect(res.body).toEqual([{ runId: "run-1" }]);
   });
 
-  it("aliases agent run issue lookup to the heartbeat run issue route", async () => {
+  it("aliases agent run issue lookup to the agent run issue route", async () => {
     mockActivityService.issuesForRun.mockResolvedValue([
       {
         issueId: "issue-1",
@@ -204,6 +204,28 @@ describe("activity routes", () => {
       .get("/api/agent-runs/run-1/issues");
 
     expect(res.status).toBe(403);
+    expect(mockActivityService.issuesForRun).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy heartbeat run issue lookup not-found copy", async () => {
+    mockActivityService.issuesForRun.mockResolvedValue([]);
+
+    const res = await request(createApp(createRunLookupDb(null)))
+      .get("/api/heartbeat-runs/run-1/issues");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Heartbeat run not found" });
+    expect(mockActivityService.issuesForRun).not.toHaveBeenCalled();
+  });
+
+  it("uses agent-run issue lookup not-found copy", async () => {
+    mockActivityService.issuesForRun.mockResolvedValue([]);
+
+    const res = await request(createApp(createRunLookupDb(null)))
+      .get("/api/agent-runs/run-1/issues");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Agent run not found" });
     expect(mockActivityService.issuesForRun).not.toHaveBeenCalled();
   });
 });

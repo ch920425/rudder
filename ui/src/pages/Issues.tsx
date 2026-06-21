@@ -6,7 +6,7 @@ import { CircleDot, Clock3, FolderKanban, PencilLine, Trash2, UserRound } from "
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { EmptyState } from "../components/EmptyState";
@@ -324,7 +324,7 @@ export function Issues() {
 
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.liveRuns(selectedOrganizationId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedOrganizationId!),
+    queryFn: () => agentRunsApi.liveRunsForCompany(selectedOrganizationId!),
     enabled: !!selectedOrganizationId,
     refetchInterval: 5000,
   });

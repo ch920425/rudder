@@ -1253,22 +1253,25 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   });
 
   router.get("/heartbeat-runs/:runId", async (req, res) => {
-    const run = await getAuthorizedRun(req, res);
+    const run = await getAuthorizedRun(req, res, "Heartbeat run not found");
     if (!run) return;
     res.json(redactCurrentUserValue(run, await getCurrentUserRedactionOptions()));
   });
 
   router.get("/agent-runs/:runId", async (req, res) => {
-    const run = await getAuthorizedRun(req, res);
+    const run = await getAuthorizedRun(req, res, "Agent run not found");
     if (!run) return;
     res.json(redactCurrentUserValue(toAgentRun(run), await getCurrentUserRedactionOptions()));
   });
 
-  async function getAuthorizedRun(req: Request, res: any) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function getAuthorizedRun(req: Request, res: any, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const run = await heartbeat.getRun(runId);
     if (!run) {
-      res.status(404).json({ error: "Heartbeat run not found" });
+      res.status(404).json({ error: notFoundMessage });
       return null;
     }
     assertCompanyAccess(req, run.orgId);
@@ -1276,20 +1279,23 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   }
 
   router.post("/heartbeat-runs/:runId/cancel", async (req, res) => {
-    const run = await cancelRunForRequest(req);
+    const run = await cancelRunForRequest(req, "Heartbeat run not found");
     res.json(run);
   });
 
   router.post("/agent-runs/:runId/cancel", async (req, res) => {
-    const run = await cancelRunForRequest(req);
+    const run = await cancelRunForRequest(req, "Agent run not found");
     res.json(run ? toAgentRun(run) : run);
   });
 
-  async function cancelRunForRequest(req: Request) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function cancelRunForRequest(req: Request, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const originalRun = await heartbeat.getRun(runId);
     if (!originalRun) {
-      throw notFound("Heartbeat run not found");
+      throw notFound(notFoundMessage);
     }
     assertCompanyAccess(req, originalRun.orgId);
 
@@ -1312,22 +1318,25 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   }
 
   router.post("/heartbeat-runs/:runId/retry", async (req, res) => {
-    const run = await retryRunForRequest(req, res);
+    const run = await retryRunForRequest(req, res, "Heartbeat run not found");
     if (!run) return;
     res.json(redactCurrentUserValue(run, await getCurrentUserRedactionOptions()));
   });
 
   router.post("/agent-runs/:runId/retry", async (req, res) => {
-    const run = await retryRunForRequest(req, res);
+    const run = await retryRunForRequest(req, res, "Agent run not found");
     if (!run) return;
     res.json(redactCurrentUserValue(toAgentRun(run), await getCurrentUserRedactionOptions()));
   });
 
-  async function retryRunForRequest(req: Request, res: any) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function retryRunForRequest(req: Request, res: any, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const originalRun = await heartbeat.getRun(runId);
     if (!originalRun) {
-      res.status(404).json({ error: "Heartbeat run not found" });
+      res.status(404).json({ error: notFoundMessage });
       return null;
     }
     assertCompanyAccess(req, originalRun.orgId);
@@ -1356,22 +1365,25 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   }
 
   router.get("/heartbeat-runs/:runId/events", async (req, res) => {
-    const events = await listRunEventsForRequest(req, res);
+    const events = await listRunEventsForRequest(req, res, "Heartbeat run not found");
     if (!events) return;
     res.json(events);
   });
 
   router.get("/agent-runs/:runId/events", async (req, res) => {
-    const events = await listRunEventsForRequest(req, res);
+    const events = await listRunEventsForRequest(req, res, "Agent run not found");
     if (!events) return;
     res.json(events);
   });
 
-  async function listRunEventsForRequest(req: Request, res: any) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function listRunEventsForRequest(req: Request, res: any, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const run = await heartbeat.getRun(runId);
     if (!run) {
-      res.status(404).json({ error: "Heartbeat run not found" });
+      res.status(404).json({ error: notFoundMessage });
       return null;
     }
     assertCompanyAccess(req, run.orgId);
@@ -1390,24 +1402,27 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   }
 
   router.get("/heartbeat-runs/:runId/log", async (req, res) => {
-    const result = await readRunLogForRequest(req, res);
+    const result = await readRunLogForRequest(req, res, "Heartbeat run not found");
     if (!result) return;
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(result);
   });
 
   router.get("/agent-runs/:runId/log", async (req, res) => {
-    const result = await readRunLogForRequest(req, res);
+    const result = await readRunLogForRequest(req, res, "Agent run not found");
     if (!result) return;
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(result);
   });
 
-  async function readRunLogForRequest(req: Request, res: any) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function readRunLogForRequest(req: Request, res: any, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const run = await heartbeat.getRun(runId);
     if (!run) {
-      res.status(404).json({ error: "Heartbeat run not found" });
+      res.status(404).json({ error: notFoundMessage });
       return null;
     }
     assertCompanyAccess(req, run.orgId);
@@ -1423,22 +1438,25 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
   }
 
   router.get("/heartbeat-runs/:runId/workspace-operations", async (req, res) => {
-    const operations = await listRunWorkspaceOperationsForRequest(req, res);
+    const operations = await listRunWorkspaceOperationsForRequest(req, res, "Heartbeat run not found");
     if (!operations) return;
     res.json(operations);
   });
 
   router.get("/agent-runs/:runId/workspace-operations", async (req, res) => {
-    const operations = await listRunWorkspaceOperationsForRequest(req, res);
+    const operations = await listRunWorkspaceOperationsForRequest(req, res, "Agent run not found");
     if (!operations) return;
     res.json(operations);
   });
 
-  async function listRunWorkspaceOperationsForRequest(req: Request, res: any) {
-    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, { orgIds: getAuthorizedOrgScope(req) });
+  async function listRunWorkspaceOperationsForRequest(req: Request, res: any, notFoundMessage: string) {
+    const runId = await resolveHeartbeatRunIdReference(db, req.params.runId as string, {
+      orgIds: getAuthorizedOrgScope(req),
+      notFoundMessage,
+    });
     const run = await heartbeat.getRun(runId);
     if (!run) {
-      res.status(404).json({ error: "Heartbeat run not found" });
+      res.status(404).json({ error: notFoundMessage });
       return null;
     }
     assertCompanyAccess(req, run.orgId);

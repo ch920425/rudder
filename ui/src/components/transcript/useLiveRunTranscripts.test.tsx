@@ -4,7 +4,7 @@ import type { LiveEvent } from "@rudderhq/shared";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LiveRunForIssue } from "../../api/heartbeats";
+import type { LiveRunForIssue } from "../../api/agent-runs";
 import { useLiveRunTranscripts } from "./useLiveRunTranscripts";
 
 (
@@ -17,8 +17,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: { censorUsernameInLogs: false } }),
 }));
 
-vi.mock("../../api/heartbeats", () => ({
-  heartbeatsApi: {
+vi.mock("../../api/agent-runs", () => ({
+  agentRunsApi: {
     log: logMock,
   },
 }));

@@ -52,7 +52,7 @@ import { accessApi } from "../api/access";
 import { activityApi } from "../api/activity";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
-import { heartbeatsApi } from "../api/heartbeats";
+import { agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { organizationSkillsApi } from "../api/organizationSkills";
 import { organizationsApi } from "../api/orgs";
@@ -1151,14 +1151,14 @@ export function IssueDetail() {
 
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.issues.liveRuns(issueId!),
-    queryFn: () => heartbeatsApi.liveRunsForIssue(issueId!),
+    queryFn: () => agentRunsApi.liveRunsForIssue(issueId!),
     enabled: !!issueId,
     refetchInterval: 3000,
   });
 
   const { data: activeRun } = useQuery({
     queryKey: queryKeys.issues.activeRun(issueId!),
-    queryFn: () => heartbeatsApi.activeRunForIssue(issueId!),
+    queryFn: () => agentRunsApi.activeRunForIssue(issueId!),
     enabled: !!issueId,
     refetchInterval: 3000,
   });

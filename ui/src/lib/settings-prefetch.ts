@@ -1,7 +1,7 @@
 import { accessApi } from "@/api/access";
 import { chatsApi } from "@/api/chats";
 import { healthApi } from "@/api/health";
-import { heartbeatsApi } from "@/api/heartbeats";
+import { schedulerHeartbeatsApi } from "@/api/heartbeats";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { issuesApi } from "@/api/issues";
 import { organizationsApi } from "@/api/orgs";
@@ -221,7 +221,7 @@ export function prefetchSettingsQueries(
     jobs.push(
       queryClient.prefetchQuery({
         queryKey: queryKeys.instance.schedulerHeartbeats,
-        queryFn: () => heartbeatsApi.listInstanceSchedulerAgents(),
+        queryFn: () => schedulerHeartbeatsApi.listInstanceSchedulerAgents(),
         staleTime: 15_000,
       }),
     );

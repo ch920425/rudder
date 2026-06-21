@@ -9,7 +9,7 @@ import {
   type RunLogChunk,
   type TranscriptBuildOptions,
 } from "../../agent-runtimes/transcript";
-import { heartbeatsApi, type LiveRunForIssue } from "../../api/heartbeats";
+import { agentRunsApi, type LiveRunForIssue } from "../../api/agent-runs";
 import { instanceSettingsApi } from "../../api/instanceSettings";
 import { queryKeys } from "../../lib/queryKeys";
 import { heartbeatRunEventTranscriptEntry } from "../../lib/run-detail-events";
@@ -196,7 +196,7 @@ export function useLiveRunTranscripts({
     const readRunLog = async (run: LiveRunForIssue) => {
       const offset = logOffsetByRunRef.current.get(run.id) ?? 0;
       try {
-        const result = await heartbeatsApi.log(run.id, offset, LOG_READ_LIMIT_BYTES);
+        const result = await agentRunsApi.log(run.id, offset, LOG_READ_LIMIT_BYTES);
         if (cancelled) return;
 
         appendChunks(run.id, parsePersistedLogContent(run.id, result.content, pendingLogRowsByRunRef.current));

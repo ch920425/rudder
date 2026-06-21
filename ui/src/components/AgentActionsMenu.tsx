@@ -43,7 +43,7 @@ export function AgentActionsMenu({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(orgId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.org(orgId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(orgId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentRuns(orgId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(orgId) }),
     ]);
   };
