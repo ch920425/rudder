@@ -151,36 +151,51 @@ export function ProjectIdentityPicker({
           );
         })}
       </div>
-      <div className="grid grid-cols-6 gap-1.5" aria-label="Project icons">
-        {PROJECT_ICONS.map((candidate) => {
-          const Icon = getProjectIconComponent(candidate);
-          const selected = candidate === currentIcon;
-          return (
-            <button
-              key={candidate}
-              type="button"
-              className={cn(
-                "relative inline-flex h-9 w-9 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                selected
-                  ? "border-[color:color-mix(in_oklab,var(--project-accent-color)_54%,var(--border-base))] bg-muted/55 text-[color:var(--project-accent-color)]"
-                  : "border-border/70 bg-transparent",
-              )}
-              aria-label={`Select ${candidate} project icon`}
-              aria-pressed={selected}
-              onClick={() => onIconChange(candidate)}
-            >
-              <Icon className="h-5 w-5" strokeWidth={2.2} />
-              {selected ? <Check className="absolute h-2.5 w-2.5 translate-x-3 translate-y-3 text-[color:var(--project-accent-color)]" /> : null}
-            </button>
-          );
-        })}
-      </div>
+      <ProjectIconGrid icon={currentIcon} onIconChange={onIconChange} />
       <div className="flex items-center gap-2 rounded-[calc(var(--radius-sm)-1px)] border border-border/70 bg-muted/35 px-2 py-1.5">
         <ProjectIcon color={color} icon={currentIcon || DEFAULT_PROJECT_ICON} size="lg" />
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {currentIcon}
         </span>
       </div>
+    </div>
+  );
+}
+
+export function ProjectIconGrid({
+  icon,
+  onIconChange,
+  ariaLabel = "Project icons",
+}: {
+  icon: string | null | undefined;
+  onIconChange: (icon: ProjectIconName) => void;
+  ariaLabel?: string;
+}) {
+  const currentIcon = normalizeProjectIconName(icon);
+  return (
+    <div className="grid grid-cols-6 gap-1.5" aria-label={ariaLabel}>
+      {PROJECT_ICONS.map((candidate) => {
+        const Icon = getProjectIconComponent(candidate);
+        const selected = candidate === currentIcon;
+        return (
+          <button
+            key={candidate}
+            type="button"
+            className={cn(
+              "relative inline-flex h-9 w-9 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+              selected
+                ? "border-[color:color-mix(in_oklab,var(--project-accent-color)_54%,var(--border-base))] bg-muted/55 text-[color:var(--project-accent-color)]"
+                : "border-border/70 bg-transparent",
+            )}
+            aria-label={`Select ${candidate} project icon`}
+            aria-pressed={selected}
+            onClick={() => onIconChange(candidate)}
+          >
+            <Icon className="h-5 w-5" strokeWidth={2.2} />
+            {selected ? <Check className="absolute h-2.5 w-2.5 translate-x-3 translate-y-3 text-[color:var(--project-accent-color)]" /> : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
