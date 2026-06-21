@@ -36,6 +36,37 @@ A product logic change is any change that affects:
 Implementation-only changes do not need registry edits when they preserve the
 same contract.
 
+## Documentation Depth
+
+Product contracts must stay useful as alignment evidence without becoming a
+second implementation tree.
+
+Use `spec_depth: compact` for simple product facts whose behavior can be
+captured by behavior, invariant, rationale, and traceability bullets.
+
+Use `spec_depth: logic_contract` for contracts where future agents need a
+replayable product-logic reference, especially when the behavior is:
+
+- agent-visible or runtime-visible
+- user-visible or workflow-critical
+- spread across domain state, routing, runtime config, prompt assembly,
+  persistence, and UI or transcript surfaces
+- dependent on negative cases such as skipped, deferred, ignored, excluded, or
+  must-not-happen branches
+
+A Product Logic Contract must explain:
+
+- the current design reason and tradeoff, not only what the code does
+- the actors, objects, state, and entry points
+- the product-level flow in enough detail to check a real work loop
+- decision cases, including negative and deferred cases
+- what the agent sees, what the operator sees, and what evidence persists
+- canonical scenarios and traceability to code, tests, and plans
+
+Do not duplicate implementation internals unless the detail is part of the
+product contract. Keep historical debate and future proposals in `doc/plans/**`
+and link them from traceability.
+
 ## Required Alignment
 
 Every product-logic task must report Product Logic Alignment:
@@ -47,6 +78,10 @@ Every product-logic task must report Product Logic Alignment:
   no product logic impact
 - tests or E2E coverage proving the contract
 - remaining alignment gaps
+
+`pnpm product-logic:check` validates registry/doc consistency and required
+headings for active `logic_contract` entries. It is a structural completeness
+check, not proof that the prose matches runtime behavior.
 
 ## No-Permission Path
 

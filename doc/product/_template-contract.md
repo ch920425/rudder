@@ -3,6 +3,7 @@ title: Contract Template
 domain: replace-with-domain
 status: draft
 coverage: seed
+spec_depth: compact
 contract_ids:
   - DOMAIN.AREA.001
 related_code: []

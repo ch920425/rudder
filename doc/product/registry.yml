@@ -2,6 +2,7 @@ contracts:
   ISSUE.STATE.001:
     owner: product
     domain: issues
+    spec_depth: compact
     docs:
       - doc/product/domains/issues/state-machines.md
     related_code:
@@ -16,6 +17,7 @@ contracts:
   ISSUE.WORKFLOW.001:
     owner: product
     domain: issues
+    spec_depth: compact
     docs:
       - doc/product/domains/issues/workflows.md
     related_code:
@@ -29,6 +31,7 @@ contracts:
   ISSUE.SURFACE.001:
     owner: product
     domain: issues
+    spec_depth: compact
     docs:
       - doc/product/domains/issues/surfaces.md
     related_code:
@@ -42,6 +45,7 @@ contracts:
   RUN.WAKEUP.001:
     owner: product
     domain: execution
+    spec_depth: compact
     docs:
       - doc/product/domains/execution/heartbeats.md
     related_code:
@@ -56,6 +60,7 @@ contracts:
   RUN.EXECUTION.001:
     owner: product
     domain: execution
+    spec_depth: compact
     docs:
       - doc/product/domains/execution/agent-runs.md
     related_code:
@@ -69,6 +74,7 @@ contracts:
   RUN.ADMISSION.001:
     owner: product
     domain: execution
+    spec_depth: compact
     docs:
       - doc/product/domains/execution/run-admission-and-recovery.md
     related_code:
@@ -83,6 +89,7 @@ contracts:
   RUN.RESULT.001:
     owner: product
     domain: execution
+    spec_depth: compact
     docs:
       - doc/product/domains/execution/transcripts-and-results.md
     related_code:
@@ -97,6 +104,7 @@ contracts:
   ROUTING.ASSIGNMENT.001:
     owner: product
     domain: work-routing
+    spec_depth: compact
     docs:
       - doc/product/domains/work-routing/ownership-and-assignment.md
     related_code:
@@ -111,6 +119,7 @@ contracts:
   ROUTING.CHECKOUT.001:
     owner: product
     domain: work-routing
+    spec_depth: compact
     docs:
       - doc/product/domains/work-routing/atomic-checkout.md
     related_code:
@@ -125,6 +134,7 @@ contracts:
   ROUTING.REVIEWER.001:
     owner: product
     domain: work-routing
+    spec_depth: compact
     docs:
       - doc/product/domains/work-routing/reviewer-routing.md
     related_code:
@@ -139,6 +149,7 @@ contracts:
   ROUTING.ATTENTION.001:
     owner: product
     domain: work-routing
+    spec_depth: compact
     docs:
       - doc/product/domains/work-routing/attention-and-wakeup-eligibility.md
     related_code:
@@ -154,6 +165,7 @@ contracts:
   AGENT.INSTRUCTIONS.001:
     owner: product
     domain: agents
+    spec_depth: logic_contract
     docs:
       - doc/product/domains/agents/instruction-loading.md
     related_code:
@@ -175,5 +187,11 @@ contracts:
       - server/src/__tests__/agent-instructions-service.test.ts
       - server/src/__tests__/agent-run-context.test.ts
       - server/src/__tests__/workspace-runtime.test.ts
+      - server/src/__tests__/codex-local-execute.test.ts
+      - server/src/__tests__/claude-local-execute.test.ts
+      - server/src/__tests__/cursor-local-execute.test.ts
+      - server/src/__tests__/gemini-local-execute.test.ts
+      - server/src/__tests__/opencode-local-execute.test.ts
+      - server/src/__tests__/pi-local-execute.test.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md

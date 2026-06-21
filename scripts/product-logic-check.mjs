@@ -12,6 +12,23 @@ const root = rootArgIndex >= 0 && args[rootArgIndex + 1]
 const productRoot = path.join(root, "doc", "product");
 const registryPath = path.join(productRoot, "registry.yml");
 const pathFields = new Set(["docs", "related_code", "related_tests", "related_plans"]);
+const allowedSpecDepths = new Set(["compact", "logic_contract"]);
+const requiredLogicContractHeadings = [
+  "Contract Summary",
+  "Intent / User Job",
+  "Why / Design Reasoning",
+  "Actors / Objects / State",
+  "Entry Points / Inputs",
+  "Product Logic Flow",
+  "Decision Table",
+  "Actor-Visible Input",
+  "Operator-Visible Output",
+  "Persisted Evidence",
+  "Canonical Scenarios",
+  "Invariants / Non-Goals",
+  "Drift Boundaries",
+  "Traceability",
+];
 
 function normalizeRelative(value) {
   return value.split(path.sep).join("/");
@@ -123,11 +140,14 @@ function readRegistry() {
 function collectDocumentContracts(files) {
   const occurrences = [];
   const frontmatterContracts = new Map();
+  const fileDetails = new Map();
 
   for (const file of files) {
     const relative = toRelative(file);
     const text = fs.readFileSync(file, "utf8");
     const frontmatter = parseFrontmatter(text);
+    const headings = [...text.matchAll(/^##+\s+(.+?)\s*$/gm)].map((match) => match[1]);
+    const contractSections = new Map();
     const declared = Array.isArray(frontmatter.contract_ids)
       ? frontmatter.contract_ids.filter((entry) => typeof entry === "string")
       : [];
@@ -138,13 +158,29 @@ function collectDocumentContracts(files) {
     }
 
     const headingRegex = /^##\s+([A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)+)\s*$/gm;
+    const contractMatches = [...text.matchAll(headingRegex)];
+    for (let index = 0; index < contractMatches.length; index += 1) {
+      const contractMatch = contractMatches[index];
+      if (!contractMatch || typeof contractMatch.index !== "number") continue;
+      const contractId = contractMatch[1];
+      const nextContractMatch = contractMatches[index + 1];
+      const sectionEnd = typeof nextContractMatch?.index === "number"
+        ? nextContractMatch.index
+        : text.length;
+      const sectionText = text.slice(contractMatch.index, sectionEnd);
+      const sectionHeadings = [...sectionText.matchAll(/^##+\s+(.+?)\s*$/gm)].map((headingMatch) => headingMatch[1]);
+      const sections = contractSections.get(contractId) ?? [];
+      sections.push({ headings: sectionHeadings, text: sectionText });
+      contractSections.set(contractId, sections);
+    }
+    fileDetails.set(relative, { frontmatter, headings, contractSections, text });
     let match;
     while ((match = headingRegex.exec(text)) !== null) {
       occurrences.push({ contractId: match[1], location: relative });
     }
   }
 
-  return { occurrences, frontmatterContracts };
+  return { occurrences, frontmatterContracts, fileDetails };
 }
 
 function pathExists(relativePath) {
@@ -174,11 +210,97 @@ function validateRegistryPaths(contracts) {
   return errors;
 }
 
+function contractSpecDepth(entry, fileDetails, docs) {
+  const registryDepth = typeof entry?.spec_depth === "string" ? entry.spec_depth : "";
+  if (registryDepth) return registryDepth;
+  for (const docPath of docs) {
+    const frontmatter = fileDetails.get(docPath)?.frontmatter;
+    const docDepth = typeof frontmatter?.spec_depth === "string"
+      ? frontmatter.spec_depth
+      : typeof frontmatter?.coverage === "string"
+        ? frontmatter.coverage
+        : "";
+    if (docDepth === "logic_contract") return docDepth;
+  }
+  return "compact";
+}
+
+function validateSpecDepthValues(contracts, fileDetails) {
+  const errors = [];
+  for (const [contractId, entry] of Object.entries(contracts)) {
+    if (!entry || typeof entry !== "object") continue;
+    const specDepth = entry.spec_depth;
+    if (typeof specDepth === "string" && !allowedSpecDepths.has(specDepth)) {
+      errors.push({
+        code: "invalid_spec_depth",
+        contractId,
+        value: specDepth,
+      });
+    }
+  }
+
+  for (const [location, details] of fileDetails.entries()) {
+    const specDepth = details.frontmatter?.spec_depth;
+    if (typeof specDepth === "string" && !allowedSpecDepths.has(specDepth)) {
+      errors.push({
+        code: "invalid_spec_depth",
+        path: location,
+        value: specDepth,
+      });
+    }
+  }
+  return errors;
+}
+
+function contractStatus(entry, fileDetails, docs) {
+  const registryStatus = typeof entry?.status === "string" ? entry.status : "";
+  if (registryStatus) return registryStatus;
+  for (const docPath of docs) {
+    const frontmatter = fileDetails.get(docPath)?.frontmatter;
+    const docStatus = typeof frontmatter?.status === "string" ? frontmatter.status : "";
+    if (docStatus) return docStatus;
+  }
+  return "active";
+}
+
+function validateLogicContractHeadings(contracts, fileDetails) {
+  const errors = [];
+  for (const [contractId, entry] of Object.entries(contracts)) {
+    if (!entry || typeof entry !== "object") continue;
+    const registryDocs = entry.docs;
+    const docs = Array.isArray(registryDocs)
+      ? registryDocs.filter((docPath) => typeof docPath === "string")
+      : [];
+    if (contractStatus(entry, fileDetails, docs) !== "active") continue;
+    if (contractSpecDepth(entry, fileDetails, docs) !== "logic_contract") continue;
+
+    const matchingDoc = docs.find((docPath) => {
+      const details = fileDetails.get(docPath);
+      return details?.headings.includes(contractId);
+    });
+    if (!matchingDoc) continue;
+
+    const matchingSections = fileDetails.get(matchingDoc)?.contractSections.get(contractId) ?? [];
+    const headings = new Set(matchingSections[0]?.headings ?? []);
+    for (const heading of requiredLogicContractHeadings) {
+      if (!headings.has(heading)) {
+        errors.push({
+          code: "logic_contract_missing_heading",
+          contractId,
+          heading,
+          location: matchingDoc,
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 function validate() {
   const { contracts, errors } = readRegistry();
   const contractIds = Object.keys(contracts).sort();
   const files = readMarkdownFiles(productRoot);
-  const { occurrences, frontmatterContracts } = collectDocumentContracts(files);
+  const { occurrences, frontmatterContracts, fileDetails } = collectDocumentContracts(files);
   const grouped = new Map();
 
   for (const occurrence of occurrences) {
@@ -244,6 +366,8 @@ function validate() {
   }
 
   errors.push(...validateRegistryPaths(contracts));
+  errors.push(...validateSpecDepthValues(contracts, fileDetails));
+  errors.push(...validateLogicContractHeadings(contracts, fileDetails));
 
   return {
     ok: errors.length === 0,

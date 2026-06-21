@@ -303,3 +303,250 @@ test("product logic check ignores product template contract placeholders", () =>
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("product logic check requires headings for active logic contracts", () => {
+  const repo = makeFixtureRepo();
+  try {
+    writeRegistry(repo, [
+      "contracts:",
+      "  ISSUE.STATE.001:",
+      "    owner: product",
+      "    domain: issues",
+      "    spec_depth: logic_contract",
+      "    docs:",
+      "      - doc/product/domains/issues/state-machines.md",
+      "",
+    ].join("\n"));
+    writeDomainDoc(repo, "state-machines.md", [
+      "---",
+      "title: Issue state machines",
+      "domain: issues",
+      "status: active",
+      "coverage: logic_contract",
+      "spec_depth: logic_contract",
+      "contract_ids:",
+      "  - ISSUE.STATE.001",
+      "---",
+      "",
+      "# Issue State Machines",
+      "",
+      "## ISSUE.STATE.001",
+      "",
+      "## Contract Summary",
+      "",
+      "Issue states must remain visible.",
+      "",
+    ].join("\n"));
+
+    const result = runCheck(repo);
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.deepEqual(output.errors.map((error) => error.code), [
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+      "logic_contract_missing_heading",
+    ]);
+    assert.equal(output.errors[0].contractId, "ISSUE.STATE.001");
+    assert.equal(output.errors[0].heading, "Intent / User Job");
+    assert.equal(output.errors[0].location, "doc/product/domains/issues/state-machines.md");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("product logic check does not require logic headings for compact contracts", () => {
+  const repo = makeFixtureRepo();
+  try {
+    writeRegistry(repo, [
+      "contracts:",
+      "  ISSUE.STATE.001:",
+      "    owner: product",
+      "    domain: issues",
+      "    spec_depth: compact",
+      "    docs:",
+      "      - doc/product/domains/issues/state-machines.md",
+      "",
+    ].join("\n"));
+    writeDomainDoc(repo, "state-machines.md", [
+      "---",
+      "title: Issue state machines",
+      "domain: issues",
+      "status: active",
+      "coverage: seed",
+      "contract_ids:",
+      "  - ISSUE.STATE.001",
+      "---",
+      "",
+      "# Issue State Machines",
+      "",
+      "## ISSUE.STATE.001",
+      "",
+      "Issue states must remain visible.",
+      "",
+    ].join("\n"));
+
+    const result = runCheck(repo);
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, true);
+    assert.deepEqual(output.errors, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("product logic check scopes required logic headings to the matching contract section", () => {
+  const repo = makeFixtureRepo();
+  try {
+    writeRegistry(repo, [
+      "contracts:",
+      "  ISSUE.STATE.001:",
+      "    owner: product",
+      "    domain: issues",
+      "    spec_depth: logic_contract",
+      "    docs:",
+      "      - doc/product/domains/issues/state-machines.md",
+      "  ISSUE.STATE.002:",
+      "    owner: product",
+      "    domain: issues",
+      "    spec_depth: compact",
+      "    docs:",
+      "      - doc/product/domains/issues/state-machines.md",
+      "",
+    ].join("\n"));
+    writeDomainDoc(repo, "state-machines.md", [
+      "---",
+      "title: Issue state machines",
+      "domain: issues",
+      "status: active",
+      "coverage: logic_contract",
+      "contract_ids:",
+      "  - ISSUE.STATE.001",
+      "  - ISSUE.STATE.002",
+      "---",
+      "",
+      "# Issue State Machines",
+      "",
+      "## ISSUE.STATE.001",
+      "",
+      "## Contract Summary",
+      "",
+      "Issue states must remain visible.",
+      "",
+      "## ISSUE.STATE.002",
+      "",
+      "## Intent / User Job",
+      "",
+      "## Why / Design Reasoning",
+      "",
+      "## Actors / Objects / State",
+      "",
+      "## Entry Points / Inputs",
+      "",
+      "## Product Logic Flow",
+      "",
+      "## Decision Table",
+      "",
+      "## Actor-Visible Input",
+      "",
+      "## Operator-Visible Output",
+      "",
+      "## Persisted Evidence",
+      "",
+      "## Canonical Scenarios",
+      "",
+      "## Invariants / Non-Goals",
+      "",
+      "## Drift Boundaries",
+      "",
+      "## Traceability",
+      "",
+    ].join("\n"));
+
+    const result = runCheck(repo);
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.deepEqual(output.errors.map((error) => error.heading), [
+      "Intent / User Job",
+      "Why / Design Reasoning",
+      "Actors / Objects / State",
+      "Entry Points / Inputs",
+      "Product Logic Flow",
+      "Decision Table",
+      "Actor-Visible Input",
+      "Operator-Visible Output",
+      "Persisted Evidence",
+      "Canonical Scenarios",
+      "Invariants / Non-Goals",
+      "Drift Boundaries",
+      "Traceability",
+    ]);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("product logic check fails on invalid spec depth values", () => {
+  const repo = makeFixtureRepo();
+  try {
+    writeRegistry(repo, [
+      "contracts:",
+      "  ISSUE.STATE.001:",
+      "    owner: product",
+      "    domain: issues",
+      "    spec_depth: encyclopedia",
+      "    docs:",
+      "      - doc/product/domains/issues/state-machines.md",
+      "",
+    ].join("\n"));
+    writeDomainDoc(repo, "state-machines.md", [
+      "---",
+      "title: Issue state machines",
+      "domain: issues",
+      "status: active",
+      "coverage: seed",
+      "spec_depth: verbose",
+      "contract_ids:",
+      "  - ISSUE.STATE.001",
+      "---",
+      "",
+      "# Issue State Machines",
+      "",
+      "## ISSUE.STATE.001",
+      "",
+      "Issue states must remain visible.",
+      "",
+    ].join("\n"));
+
+    const result = runCheck(repo);
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.deepEqual(output.errors, [
+      {
+        code: "invalid_spec_depth",
+        contractId: "ISSUE.STATE.001",
+        value: "encyclopedia",
+      },
+      {
+        code: "invalid_spec_depth",
+        path: "doc/product/domains/issues/state-machines.md",
+        value: "verbose",
+      },
+    ]);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});

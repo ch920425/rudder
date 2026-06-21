@@ -30,8 +30,25 @@ implementation. Use this registry for the current product behavior contract.
   and must not reauthor business rules.
 - `surfaces/` maps pages and UI surfaces to owning domain contracts. It must not
   define behavior independently.
-- `registry.yml` maps contract IDs to owner, domain, docs, plans, code, and
-  tests.
+- `registry.yml` maps contract IDs to owner, domain, docs, plans, code, tests,
+  and the required documentation depth.
+
+## Contract Depth
+
+Contracts use one of two depths:
+
+- `compact`: a short current-behavior contract for simple or stable product
+  facts. Use `_template-contract.md`.
+- `logic_contract`: a detailed Product Logic Contract for high-risk behavior
+  that crosses product, runtime, workflow, persistence, or UI boundaries. Use
+  `_template-logic-contract.md`.
+
+Use `logic_contract` when a contract is agent-visible, user-visible,
+state-machine-heavy, or likely to regress during future implementation work.
+These documents must explain the current "why", the executable product flow,
+decision cases, actor-visible input/output, persisted evidence, and traceability
+to code/tests/plans. They are still current-state contracts, not proposal
+history or line-by-line code copies.
 
 ## Seeded Domains
 

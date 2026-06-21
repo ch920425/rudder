@@ -221,7 +221,10 @@ Development flow:
 1. Before implementation, identify whether the task restores an existing
    contract, intentionally changes product behavior, is implementation-only, or
    is unknown.
-2. Read the owning domain docs and list affected contract IDs.
+2. Read the owning domain docs and list affected contract IDs. For contracts
+   marked `spec_depth: logic_contract`, align with the documented intent,
+   reasoning, flow, decision table, actor-visible output, persisted evidence,
+   and canonical scenarios before changing code.
 3. During implementation, keep schema/API/server/UI/tests aligned with the
    contract IDs.
 4. If code and registry disagree, classify the conflict as code regression,
@@ -236,6 +239,18 @@ pnpm product-logic:check
 6. Include Product Logic Alignment in hand-off: docs read, affected contract
    IDs, docs updated/no impact/deferred, tests or E2E proving the contract, and
    remaining gaps.
+
+Contract depth:
+
+- `spec_depth: compact` is for simple current-behavior contracts.
+- `spec_depth: logic_contract` is for high-risk product logic where the doc must
+  also explain why the design exists, the executable flow, decision cases,
+  agent/operator-visible output, persisted evidence, and canonical scenarios.
+
+`pnpm product-logic:check` validates registry/doc consistency and required
+headings for active `logic_contract` entries. It does not prove that the prose
+matches runtime behavior; code anchors, tests, E2E, logs, and reviewer evidence
+remain required for product proof.
 
 Deferred registry updates require explicit human approval plus an owner, linked
 issue or plan, affected contract IDs, due date, and reason.
