@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 async function writeFakePiCommand(
   binDir: string,
-  mode: "success" | "auth-required" | "stale-package",
+  mode: "success" | "auth-required" | "membership-required" | "stale-package",
 ): Promise<void> {
   const commandPath = path.join(binDir, "pi");
   const script =
@@ -32,18 +32,35 @@ console.log(JSON.stringify({
 `
       : mode === "auth-required"
         ? `#!/usr/bin/env node
-if (process.argv.includes("--list-models")) {
-  console.log("provider  model");
-  console.log("kimi-coding  kimi-for-coding");
-  process.exit(0);
-}
-console.error('No API key found for deepseek.');
-process.exit(1);
-`
-      : `#!/usr/bin/env node
-if (process.argv.includes("--list-models")) {
-  console.error("npm error 404 'pi-driver@*' is not in this registry.");
-  process.exit(1);
+	if (process.argv.includes("--list-models")) {
+	  console.log("provider  model");
+	  console.log("kimi-coding  kimi-for-coding");
+	  process.exit(0);
+	}
+	console.error('No API key found for deepseek.');
+	process.exit(1);
+	`
+        : mode === "membership-required"
+          ? `#!/usr/bin/env node
+	if (process.argv.includes("--list-models")) {
+	  console.log("provider  model");
+	  console.log("kimi-coding  kimi-for-coding");
+	  process.exit(0);
+	}
+	console.log(JSON.stringify({
+	  type: "turn_end",
+	  message: {
+	    role: "assistant",
+	    stopReason: "error",
+	    errorMessage: "402 {\\\"error\\\":{\\\"message\\\":\\\"We're unable to verify your membership benefits at this time. Please ensure your membership is active.\\\"}}"
+	  }
+	}));
+	process.exit(0);
+	`
+          : `#!/usr/bin/env node
+	if (process.argv.includes("--list-models")) {
+	  console.error("npm error 404 'pi-driver@*' is not in this registry.");
+	  process.exit(1);
 }
 process.exit(1);
 `;
@@ -145,6 +162,37 @@ describe("pi_local environment diagnostics", () => {
     expect(authCheck?.level).toBe("warn");
     expect(authCheck?.hint).toContain("DEEPSEEK_API_KEY");
     expect(authCheck?.hint).toContain("Pi /login");
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it("surfaces Pi membership entitlement errors as auth readiness warnings", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `rudder-pi-local-membership-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.mkdir(cwd, { recursive: true });
+    await writeFakePiCommand(binDir, "membership-required");
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "pi_local",
+      config: {
+        command: "pi",
+        cwd,
+        model: "kimi-coding/kimi-for-coding",
+        env: {
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    const authCheck = result.checks.find((check) => check.code === "pi_hello_probe_auth_required");
+    expect(result.status).toBe("warn");
+    expect(authCheck?.level).toBe("warn");
+    expect(authCheck?.detail).toContain("membership benefits");
     await fs.rm(root, { recursive: true, force: true });
   });
 

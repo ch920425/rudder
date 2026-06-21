@@ -785,13 +785,15 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
 
     const stderrLine = firstNonEmptyLine(attempt.proc.stderr);
     const rawExitCode = attempt.proc.exitCode;
-    const fallbackErrorMessage = stderrLine || `Pi exited with code ${rawExitCode ?? -1}`;
+    const parsedError = attempt.parsed.errors.find((message) => message.trim().length > 0)?.trim() ?? "";
+    const fallbackErrorMessage = parsedError || stderrLine || `Pi exited with code ${rawExitCode ?? -1}`;
+    const hasSemanticError = parsedError.length > 0;
 
     return {
       exitCode: rawExitCode,
       signal: attempt.proc.signal,
       timedOut: false,
-      errorMessage: (rawExitCode ?? 0) === 0 ? null : fallbackErrorMessage,
+      errorMessage: (rawExitCode ?? 0) === 0 && !hasSemanticError ? null : fallbackErrorMessage,
       usage: {
         inputTokens: attempt.parsed.usage.inputTokens,
         outputTokens: attempt.parsed.usage.outputTokens,

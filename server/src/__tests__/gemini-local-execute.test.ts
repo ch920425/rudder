@@ -29,6 +29,27 @@ const payload = {
 if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
 }
+if (process.env.RUDDER_TEST_GEMINI_INELIGIBLE_TIER === "1") {
+  console.error("Warning: Basic terminal detected (TERM=dumb).");
+  console.error("YOLO mode is enabled. All tool calls will be automatically approved.");
+  console.error("Error authenticating: IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals. reasonCode: 'UNSUPPORTED_CLIENT'");
+  process.exit(1);
+}
+if (process.env.RUDDER_TEST_GEMINI_SEMANTIC_AUTH_ERROR === "1") {
+  console.log(JSON.stringify({
+    type: "system",
+    subtype: "init",
+    session_id: "gemini-session-1",
+    model: "gemini-2.5-pro",
+  }));
+  console.log(JSON.stringify({
+    type: "result",
+    subtype: "error",
+    session_id: "gemini-session-1",
+    error: { message: "Please set an Auth method in your managed .gemini/settings.json" },
+  }));
+  process.exit(0);
+}
 console.log(JSON.stringify({
   type: "system",
   subtype: "init",
@@ -70,6 +91,7 @@ describe("gemini execute", { timeout: 20_000 }, () => {
     const operatorHookPath = path.join(root, ".gemini", "hooks", "operator-hook.json");
     const operatorSettingsPath = path.join(root, ".gemini", "settings.json");
     const operatorCredentialsPath = path.join(root, ".gemini", "oauth_creds.json");
+    const operatorGoogleAccountsPath = path.join(root, ".gemini", "google_accounts.json");
     const instructionsPath = path.join(root, "instructions", "AGENTS.md");
     const memoryPath = path.join(root, "instructions", "MEMORY.md");
     await fs.mkdir(workspace, { recursive: true });
@@ -80,8 +102,13 @@ describe("gemini execute", { timeout: 20_000 }, () => {
     await fs.writeFile(operatorSkillPath, "---\nname: operator-skill\n---\n", "utf8");
     await fs.writeFile(operatorExtensionPath, "{\"name\":\"operator-extension\"}\n", "utf8");
     await fs.writeFile(operatorHookPath, "{\"name\":\"operator-hook\"}\n", "utf8");
-    await fs.writeFile(operatorSettingsPath, "{\"mcpServers\":{\"operator\":{}}}\n", "utf8");
+    await fs.writeFile(
+      operatorSettingsPath,
+      "{\"mcpServers\":{\"operator\":{}},\"security\":{\"auth\":{\"selectedType\":\"oauth-personal\"}}}\n",
+      "utf8",
+    );
     await fs.writeFile(operatorCredentialsPath, "{\"refresh_token\":\"operator\"}\n", "utf8");
+    await fs.writeFile(operatorGoogleAccountsPath, "{\"active\":\"operator@example.com\"}\n", "utf8");
     await fs.writeFile(instructionsPath, "# Agent Instructions\n", "utf8");
     await fs.writeFile(memoryPath, "# Tacit Memory\n\n- Use concise updates.\n", "utf8");
     await writeFakeGeminiCommand(commandPath);
@@ -192,11 +219,21 @@ describe("gemini execute", { timeout: 20_000 }, () => {
       await expect(fs.lstat(path.join(managedGeminiHome, ".gemini", "hooks"))).rejects.toMatchObject({
         code: "ENOENT",
       });
-      await expect(fs.lstat(path.join(managedGeminiHome, ".gemini", "settings.json"))).rejects.toMatchObject({
-        code: "ENOENT",
+      const managedSettings = JSON.parse(
+        await fs.readFile(path.join(managedGeminiHome, ".gemini", "settings.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect(managedSettings).toEqual({
+        security: {
+          auth: {
+            selectedType: "oauth-personal",
+          },
+        },
       });
       expect(await fs.realpath(path.join(managedGeminiHome, ".gemini", "oauth_creds.json"))).toBe(
         await fs.realpath(operatorCredentialsPath),
+      );
+      expect(await fs.realpath(path.join(managedGeminiHome, ".gemini", "google_accounts.json"))).toBe(
+        await fs.realpath(operatorGoogleAccountsPath),
       );
     } finally {
       if (previousHome === undefined) {
@@ -250,6 +287,125 @@ describe("gemini execute", { timeout: 20_000 }, () => {
       expect(capture.argv).not.toContain("--policy");
       expect(capture.argv).not.toContain("--allow-all");
       expect(capture.argv).not.toContain("--allow-read");
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+      if (previousOperatorHome === undefined) {
+        delete process.env.RUDDER_OPERATOR_HOME;
+      } else {
+        process.env.RUDDER_OPERATOR_HOME = previousOperatorHome;
+      }
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces the meaningful Gemini auth error after terminal warnings", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-gemini-auth-error-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "gemini");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeGeminiCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_OPERATOR_HOME = root;
+
+    try {
+      const result = await execute({
+        runId: "run-gemini-auth-error",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Gemini Coder",
+          agentRuntimeType: "gemini_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_GEMINI_INELIGIBLE_TIER: "1",
+          },
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.errorCode).toBe("gemini_auth_required");
+      expect(result.errorMessage).toContain("IneligibleTierError");
+      expect(result.errorMessage).not.toContain("Basic terminal detected");
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+      if (previousOperatorHome === undefined) {
+        delete process.env.RUDDER_OPERATOR_HOME;
+      } else {
+        process.env.RUDDER_OPERATOR_HOME = previousOperatorHome;
+      }
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns an adapter error when Gemini reports a semantic auth error with exit zero", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-gemini-semantic-auth-error-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "gemini");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeGeminiCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_OPERATOR_HOME = root;
+
+    try {
+      const result = await execute({
+        runId: "run-gemini-semantic-auth-error",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Gemini Coder",
+          agentRuntimeType: "gemini_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_GEMINI_SEMANTIC_AUTH_ERROR: "1",
+          },
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorCode).toBe("gemini_auth_required");
+      expect(result.errorMessage).toContain("Please set an Auth method");
     } finally {
       if (previousHome === undefined) {
         delete process.env.HOME;

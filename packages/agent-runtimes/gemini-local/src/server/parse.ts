@@ -240,7 +240,7 @@ export function describeGeminiFailure(parsed: Record<string, unknown>): string |
   return parts.length > 1 ? parts.join(": ") : null;
 }
 
-const GEMINI_AUTH_REQUIRED_RE = /(?:not\s+authenticated|please\s+authenticate|api[_ ]?key\s+(?:required|missing|invalid)|authentication\s+required|unauthorized|invalid\s+credentials|not\s+logged\s+in|login\s+required|run\s+`?gemini\s+auth(?:\s+login)?`?\s+first)/i;
+const GEMINI_AUTH_REQUIRED_RE = /(?:not\s+authenticated|please\s+authenticate|please\s+set\s+an\s+auth\s+method|ineligibletier|unsupported_client|client\s+is\s+no\s+longer\s+supported|api[_ ]?key\s+(?:required|missing|invalid)|authentication\s+required|unauthorized|invalid\s+credentials|not\s+logged\s+in|login\s+required|run\s+`?gemini\s+auth(?:\s+login)?`?\s+first)/i;
 const GEMINI_QUOTA_EXHAUSTED_RE =
   /(?:resource_exhausted|quota|rate[-\s]?limit|too many requests|\b429\b|billing details)/i;
 
@@ -248,7 +248,7 @@ export function detectGeminiAuthRequired(input: {
   parsed: Record<string, unknown> | null;
   stdout: string;
   stderr: string;
-}): { requiresAuth: boolean } {
+}): { requiresAuth: boolean; message: string | null } {
   const errors = extractGeminiErrorMessages(input.parsed ?? {});
   const messages = [...errors, input.stdout, input.stderr]
     .join("\n")
@@ -256,8 +256,8 @@ export function detectGeminiAuthRequired(input: {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const requiresAuth = messages.some((line) => GEMINI_AUTH_REQUIRED_RE.test(line));
-  return { requiresAuth };
+  const message = messages.find((line) => GEMINI_AUTH_REQUIRED_RE.test(line)) ?? null;
+  return { requiresAuth: Boolean(message), message };
 }
 
 export function detectGeminiQuotaExhausted(input: {
