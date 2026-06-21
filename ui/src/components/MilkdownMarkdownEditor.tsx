@@ -258,6 +258,9 @@ export function milkdownMentionDecorationAttrs(mention: ParsedMentionChip, label
   if (mention.kind === "issue" && mention.status) {
     attrs["data-mention-status"] = mention.status;
   }
+  if (mention.kind === "issue" && mention.commentId) {
+    attrs["data-mention-comment"] = "true";
+  }
   const navigationPath = rudderTokenNavigationPath(href);
   attrs.title = navigationPath ? `Open ${label}` : label;
   const style = serializeInlineStyle(mentionChipInlineStyle(mention));
@@ -285,16 +288,17 @@ function applyMentionStyleProperties(element: HTMLElement, mention: ParsedMentio
 }
 
 function applyMentionStatusProperties(element: HTMLElement, mention: ParsedMentionChip) {
-  if (mention.kind === "issue" && mention.status) {
-    element.dataset.mentionStatus = mention.status;
-    element.classList.add("rudder-mention-chip--with-status-icon");
-    return;
-  }
-  if (mention.kind === "issue") {
-    return;
+  if (mention.kind === "issue" && mention.commentId) {
+    element.dataset.mentionComment = "true";
+  } else {
+    delete element.dataset.mentionComment;
   }
   delete element.dataset.mentionStatus;
   element.classList.remove("rudder-mention-chip--with-status-icon");
+  if (mention.kind === "issue" && mention.status) {
+    element.dataset.mentionStatus = mention.status;
+    element.classList.add("rudder-mention-chip--with-status-icon");
+  }
 }
 
 function isMilkdownTokenWrapper(element: HTMLElement) {

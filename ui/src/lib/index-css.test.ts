@@ -37,7 +37,9 @@ describe("index.css motion rules", () => {
     expect(doneStatusBlock).toContain("M4.75 8.25 7 10.5l4.25-5");
     expect(doneCheckBlock).toContain("background: var(--rudder-mention-status-check-color, var(--background))");
     expect(doneCheckBlock).toContain("--rudder-mention-status-check-mask");
-    expect(indexCss).toContain('.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after');
+    expect(doneCheckBlock).toContain('a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after');
+    expect(indexCss).not.toContain('.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before {\n  content: none;');
+    expect(indexCss).not.toContain('.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after {\n  content: none;');
   });
 
   it("keeps command palette visible and avoids duplicate centering transforms", () => {

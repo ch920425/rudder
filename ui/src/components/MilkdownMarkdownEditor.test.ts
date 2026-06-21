@@ -173,18 +173,19 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
   });
 
   it("decorates status-bearing issue mentions with editor status icon attributes", () => {
-    const href = buildIssueMentionHref("issue-1", "R-6", null, "todo");
+    const href = buildIssueMentionHref("issue-1", "R-6", "comment-1", "todo");
     const attrs = milkdownMentionDecorationAttrs({
       kind: "issue",
       issueId: "issue-1",
       ref: "R-6",
-      commentId: null,
+      commentId: "comment-1",
       status: "todo",
     }, "R-6", href);
 
     expect(attrs.class).toContain("rudder-mention-chip--issue");
     expect(attrs.class).toContain("rudder-mention-chip--with-status-icon");
     expect(attrs["data-mention-kind"]).toBe("issue");
+    expect(attrs["data-mention-comment"]).toBe("true");
     expect(attrs["data-mention-status"]).toBe("todo");
     expect(attrs["data-mention-href"]).toBe(href);
   });
@@ -203,14 +204,21 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
     const wrapper = root.querySelector("a") as HTMLAnchorElement;
     const visualChip = root.querySelector("span") as HTMLSpanElement;
 
-    refreshMilkdownMentionTokenStyles(root, []);
+    refreshMilkdownMentionTokenStyles(root, [{
+      id: "issue:issue-1",
+      name: "R-6 Markdown consistency",
+      kind: "issue",
+      issueId: "issue-1",
+      issueIdentifier: "R-6",
+      issueStatus: "blocked",
+    }]);
 
     expect(wrapper.classList.contains("rudder-mention-chip")).toBe(false);
     expect(wrapper.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
     expect(wrapper.dataset.mentionKind).toBeUndefined();
     expect(wrapper.dataset.mentionStatus).toBeUndefined();
     expect(visualChip.classList.contains("rudder-mention-chip--with-status-icon")).toBe(true);
-    expect(visualChip.dataset.mentionStatus).toBe("todo");
+    expect(visualChip.dataset.mentionStatus).toBe("blocked");
   });
 
   it("refreshes existing issue token status from current mention options", () => {
@@ -235,6 +243,49 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
 
     expect(token.classList.contains("rudder-mention-chip--with-status-icon")).toBe(true);
     expect(token.dataset.mentionStatus).toBe("blocked");
+  });
+
+  it("refreshes existing issue comment token semantics from its canonical href", () => {
+    const href = buildIssueMentionHref("issue-1", "R-6", "comment-1");
+    const root = document.createElement("div");
+    root.innerHTML = [
+      `<a href="${href}"`,
+      ' class="rudder-mention-chip rudder-mention-chip--issue"',
+      ' data-mention-kind="issue"',
+      ` data-mention-href="${href}">Issue comment comment-1</a>`,
+    ].join("");
+    const token = root.querySelector("a") as HTMLAnchorElement;
+
+    refreshMilkdownMentionTokenStyles(root, [{
+      id: "issue:issue-1",
+      name: "R-6 Markdown consistency",
+      kind: "issue",
+      issueId: "issue-1",
+      issueIdentifier: "R-6",
+      issueStatus: "backlog",
+    }]);
+
+    expect(token.dataset.mentionComment).toBe("true");
+    expect(token.dataset.mentionStatus).toBe("backlog");
+    expect(token.classList.contains("rudder-mention-chip--with-status-icon")).toBe(true);
+  });
+
+  it("removes stale issue status semantics when refreshed options no longer include status", () => {
+    const href = buildIssueMentionHref("issue-1", "R-6");
+    const root = document.createElement("div");
+    root.innerHTML = [
+      `<a href="${href}"`,
+      ' class="rudder-mention-chip rudder-mention-chip--issue rudder-mention-chip--with-status-icon"',
+      ' data-mention-kind="issue"',
+      ' data-mention-status="blocked"',
+      ` data-mention-href="${href}">R-6</a>`,
+    ].join("");
+    const token = root.querySelector("a") as HTMLAnchorElement;
+
+    refreshMilkdownMentionTokenStyles(root, []);
+
+    expect(token.dataset.mentionStatus).toBeUndefined();
+    expect(token.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
   });
 
   it("recognizes Rudder mention and skill links as token links", () => {

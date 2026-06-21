@@ -1575,10 +1575,10 @@ const LegacyMarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
   const decorateInlineTokens = useCallback(() => {
     const editable = containerRef.current?.querySelector('[contenteditable="true"]');
     if (!editable) return;
-    const links = editable.querySelectorAll("a");
+    const links = editable.querySelectorAll("a, [data-mention-href]");
     for (const node of links) {
-      const link = node as HTMLAnchorElement;
-      const parsed = parseMentionChipHref(link.getAttribute("href") ?? "");
+      const link = node as HTMLElement;
+      const parsed = parseMentionChipHref(link.dataset.mentionHref ?? link.getAttribute("href") ?? "");
       if (!parsed) {
         clearMentionChipDecoration(link);
 

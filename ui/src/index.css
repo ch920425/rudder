@@ -4289,21 +4289,11 @@ a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-
   --rudder-mention-status-color: #f87171;
 }
 
-.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before {
-  content: none;
-  display: none;
-}
-
-.rudder-markdown a.rudder-mention-chip[data-mention-kind="issue"]::before {
+.rudder-markdown a.rudder-mention-chip[data-mention-kind="issue"]:not(.rudder-mention-chip--with-status-icon)::before {
   content: none;
   display: none;
   mask: none;
   -webkit-mask: none;
-}
-
-.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after {
-  content: none;
-  display: none;
 }
 
 .rudder-milkdown-content a.rudder-mention-chip:has(> .rudder-mention-chip),

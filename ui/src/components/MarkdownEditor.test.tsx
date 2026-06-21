@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { applyMentionChipDecoration } from "../lib/mention-chips";
 import {
   getMentionMenuPositionForViewport,
   getMentionPanelPositionForViewport,
@@ -554,6 +555,53 @@ describe("MarkdownEditor", () => {
     });
 
     expect(container.querySelector(".rudder-mdxeditor-scope")?.getAttribute("data-rudder-has-content")).toBe("true");
+  });
+
+  it("decorates legacy editor mention token spans with issue comment status semantics", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    cleanupFn = () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    };
+
+    act(() => {
+      root.render(
+        <MarkdownEditor
+          value="[Issue comment comment-1](issue://issue-1?c=comment-1)"
+          onChange={() => undefined}
+          mentions={[
+            {
+              id: "issue:issue-1",
+              name: "RUD-8 Markdown consistency",
+              kind: "issue",
+              issueId: "issue-1",
+              issueIdentifier: "RUD-8",
+              issueStatus: "backlog",
+            },
+          ]}
+          plainText
+        />,
+      );
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(applyMentionChipDecoration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset: expect.objectContaining({ mentionHref: "issue://issue-1?c=comment-1" }),
+      }),
+      expect.objectContaining({
+        kind: "issue",
+        issueId: "issue-1",
+        commentId: "comment-1",
+        status: "backlog",
+      }),
+    );
   });
 
   it("navigates mention tokens by default when clicked", () => {

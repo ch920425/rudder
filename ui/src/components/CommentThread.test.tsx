@@ -311,6 +311,33 @@ describe("CommentThread", () => {
     }
   });
 
+  it("keeps the hash-scroll end spacer compact so comments stay close to the composer", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={["/issues/issue-1#comment-comment-2"]}>
+        <CommentThread
+          comments={[
+            {
+              id: "comment-2",
+              issueId: "issue-1",
+              orgId: "org-1",
+              authorUserId: "user-1",
+              authorAgentId: null,
+              body: "Target comment",
+              createdAt: new Date("2026-05-07T00:01:00.000Z"),
+              updatedAt: new Date("2026-05-07T00:01:00.000Z"),
+            },
+          ]}
+          onAdd={async () => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain('data-testid="comment-hash-scroll-end-space"');
+    expect(html).toContain("h-[var(--comment-hash-scroll-end-space)]");
+    expect(html).toContain("--comment-hash-scroll-end-space:min(6rem, 12vh)");
+    expect(html).not.toContain("h-[min(18rem,35vh)]");
+  });
+
   it("retries hash-targeted comment positioning after asynchronous layout shifts", () => {
     vi.useFakeTimers();
     const scrollTo = vi.fn();

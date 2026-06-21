@@ -1230,9 +1230,10 @@ export function ChatUserPlainTextBody({
               "rudder-mention-chip",
               `rudder-mention-chip--${mention.kind}`,
               mention.kind === "project" && "rudder-project-mention-chip",
-              mention.kind === "issue" && mention.status && "rudder-mention-chip--with-status-icon",
+              mention.kind === "issue" && mention.commentId && mention.status && "rudder-mention-chip--with-status-icon",
             )}
             data-mention-kind={mention.kind}
+            data-mention-comment={mention.kind === "issue" && mention.commentId ? "true" : undefined}
             data-mention-status={mention.kind === "issue" && mention.status ? mention.status : undefined}
             style={mentionChipInlineStyle(mention)}
           >
