@@ -35,6 +35,7 @@ const UPDATE_PHASES: DesktopUpdateProgressPhase[] = [
   "waiting_for_active_runs",
   "preparing_restart",
   "closing",
+  "complete",
 ];
 const UPDATE_PHASE_LABEL_KEYS: Record<DesktopUpdateProgressPhase, TranslationKey> = {
   starting: "about.updates.progress.phase.starting",
@@ -46,6 +47,7 @@ const UPDATE_PHASE_LABEL_KEYS: Record<DesktopUpdateProgressPhase, TranslationKey
   waiting_for_active_runs: "about.updates.progress.phase.waiting_for_active_runs",
   preparing_restart: "about.updates.progress.phase.preparing_restart",
   closing: "about.updates.progress.phase.closing",
+  complete: "about.updates.progress.phase.complete",
   failed: "about.updates.progress.phase.failed",
 };
 

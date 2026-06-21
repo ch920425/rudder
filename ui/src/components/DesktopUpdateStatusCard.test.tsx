@@ -75,6 +75,7 @@ function renderHarness(initialProgress: DesktopUpdateProgressEvent | null) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanupFn?.();
   cleanupFn = null;
 });
@@ -255,5 +256,30 @@ describe("DesktopUpdateStatusCard", () => {
     });
 
     expect(document.body.textContent).toContain("Update installer exited with code 1.");
+  });
+
+  it("clears a completed desktop update after a short confirmation window", async () => {
+    vi.useFakeTimers();
+    renderHarness({
+      updateId: "update-complete",
+      version: "0.3.4",
+      phase: "complete",
+      message: "Rudder Desktop launched.",
+      percent: 100,
+      at: new Date().toISOString(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("Restart handoff complete");
+    expect(document.body.textContent).toContain("Rudder Desktop launched.");
+
+    act(() => {
+      vi.advanceTimersByTime(4_000);
+    });
+
+    expect(document.body.textContent).not.toContain("Restart handoff complete");
   });
 });

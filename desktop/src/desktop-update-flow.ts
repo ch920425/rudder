@@ -75,6 +75,7 @@ export function createDesktopUpdateFlow(context: {
     | "waiting_for_active_runs"
     | "preparing_restart"
     | "closing"
+    | "complete"
     | "failed";
 
   type DesktopUpdateProgressEvent = {
@@ -211,6 +212,7 @@ export function createDesktopUpdateFlow(context: {
       "waiting_for_active_runs",
       "preparing_restart",
       "closing",
+      "complete",
       "failed",
     ].includes(phase)) return null;
 
@@ -512,6 +514,7 @@ export function createDesktopUpdateFlow(context: {
         updateChildFinalized = true;
         activeDesktopUpdates.delete(updateId);
         clearActiveDesktopUpdateAttempt(updateId);
+        clearPendingPostUpdateReloadMarker();
         updateDesktopUpdateProgress(updateId, normalizedVersion, {
           phase: "failed",
           message: "Update failed to start.",
@@ -536,7 +539,18 @@ export function createDesktopUpdateFlow(context: {
             message: `Update installer exited with code ${code}.`,
             ...(diagnostic ? { error: diagnostic } : {}),
           });
+          clearPendingPostUpdateReloadMarker();
+          return;
         }
+        const finalProgress = latestDesktopUpdateProgress?.updateId === updateId ? latestDesktopUpdateProgress : null;
+        clearPendingPostUpdateReloadMarker();
+        updateDesktopUpdateProgress(updateId, normalizedVersion, {
+          phase: "complete",
+          message: finalProgress?.phase === "closing"
+            ? finalProgress.message
+            : "Rudder Desktop launch handoff completed.",
+          percent: 100,
+        });
       });
       child.unref();
       if (forceWhenApplying) {

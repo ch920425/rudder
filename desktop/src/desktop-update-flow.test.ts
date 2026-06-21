@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.hoisted(() => vi.fn());
@@ -82,6 +84,7 @@ function createFlow(overrides: Partial<Parameters<typeof createDesktopUpdateFlow
 describe("desktop update flow", () => {
   beforeEach(() => {
     spawnMock.mockReset();
+    fs.rmSync("/tmp/rudder-desktop-test/post-update-reload.json", { force: true });
   });
 
   it("waits for child close before publishing final failed update diagnostics", async () => {
@@ -119,6 +122,67 @@ describe("desktop update flow", () => {
       phase: "failed",
       message: "Update failed to start.",
       error: "spawn EACCES",
+    });
+  });
+
+  it("publishes a terminal complete event when the update child exits successfully", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow();
+
+    await flow.installUpdate("0.3.4");
+    child.stdout.emit("data", `${JSON.stringify({
+      source: "rudder-desktop-update",
+      phase: "closing",
+      message: "Rudder Desktop launched.",
+      percent: 100,
+    })}\n`);
+    child.emit("close", 0);
+
+    expect(flow.getDesktopUpdateProgress()).toMatchObject({
+      phase: "complete",
+      message: "Rudder Desktop launched.",
+      percent: 100,
+    });
+  });
+
+  it("clears the post-update reload marker when an applied update child exits successfully", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow();
+
+    const installResult = await flow.installUpdate("0.3.4");
+    await expect(flow.applyUpdate(installResult.updateId)).resolves.toMatchObject({
+      status: "started",
+    });
+    const markerPath = path.join("/tmp/rudder-desktop-test", "post-update-reload.json");
+    expect(fs.existsSync(markerPath)).toBe(true);
+
+    child.emit("close", 0);
+
+    expect(fs.existsSync(markerPath)).toBe(false);
+    expect(flow.getDesktopUpdateProgress()).toMatchObject({
+      phase: "complete",
+    });
+  });
+
+  it("clears the post-update reload marker when an applied update child fails", async () => {
+    const child = createMockUpdateChild();
+    spawnMock.mockReturnValue(child);
+    const { flow } = createFlow();
+
+    const installResult = await flow.installUpdate("0.3.4");
+    await flow.applyUpdate(installResult.updateId);
+    const markerPath = path.join("/tmp/rudder-desktop-test", "post-update-reload.json");
+    expect(fs.existsSync(markerPath)).toBe(true);
+
+    child.stderr.emit("data", "replace failed\n");
+    child.emit("close", 1);
+
+    expect(fs.existsSync(markerPath)).toBe(false);
+    expect(flow.getDesktopUpdateProgress()).toMatchObject({
+      phase: "failed",
+      error: "replace failed",
     });
   });
 

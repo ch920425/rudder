@@ -61,6 +61,7 @@ type DesktopUpdateProgressPhase =
   | "waiting_for_active_runs"
   | "preparing_restart"
   | "closing"
+  | "complete"
   | "failed";
 
 type DesktopUpdateProgressEvent = {

@@ -18,6 +18,7 @@ const PHASE_LABEL_KEYS: Record<DesktopUpdateProgressPhase, TranslationKey> = {
   waiting_for_active_runs: "about.updates.progress.phase.waiting_for_active_runs",
   preparing_restart: "about.updates.progress.phase.preparing_restart",
   closing: "about.updates.progress.phase.closing",
+  complete: "about.updates.progress.phase.complete",
   failed: "about.updates.progress.phase.failed",
 };
 
@@ -35,7 +36,7 @@ function formatBytes(value: number | null | undefined): string | null {
 
 function phaseTone(phase: DesktopUpdateProgressPhase): "active" | "ready" | "failed" {
   if (phase === "failed") return "failed";
-  if (phase === "ready_to_install" || phase === "closing") return "ready";
+  if (phase === "ready_to_install" || phase === "closing" || phase === "complete") return "ready";
   return "active";
 }
 
@@ -129,6 +130,8 @@ export function DesktopUpdateStatusCard() {
                   ? t("about.updates.progress.failedTitle")
                   : currentProgress.phase === "ready_to_install"
                     ? t("about.updates.progress.readyTitle")
+                    : currentProgress.phase === "complete"
+                      ? t("about.updates.progress.completeTitle")
                     : t("about.updates.progress.title", { version: currentProgress.version.startsWith("v") ? currentProgress.version : `v${currentProgress.version}` })}
               </p>
               {progressLabel ? (

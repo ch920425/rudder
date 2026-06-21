@@ -27,14 +27,23 @@ export function DesktopUpdateProgressProvider({ children }: { children: ReactNod
     const desktopShell = readDesktopShell();
     if (!desktopShell) return undefined;
 
+    function setProgressAndScheduleClear(event: DesktopUpdateProgressEvent) {
+      setProgress(event);
+      if (event.phase === "complete") {
+        window.setTimeout(() => {
+          setProgress((current) => current?.updateId === event.updateId && current.phase === "complete" ? null : current);
+        }, 4_000);
+      }
+    }
+
     void desktopShell.getUpdateProgress?.()
       .then((event) => {
-        if (event) setProgress(event);
+        if (event) setProgressAndScheduleClear(event);
       })
       .catch(() => undefined);
 
     return desktopShell.onUpdateProgress?.((event) => {
-      setProgress(event);
+      setProgressAndScheduleClear(event);
       setDismissedUpdateId((current) => current === event.updateId && event.phase !== "failed" ? current : null);
     });
   }, []);
