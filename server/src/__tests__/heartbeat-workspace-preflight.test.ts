@@ -441,6 +441,87 @@ describe("heartbeat managed workspace preflight", () => {
     });
   });
 
+  it("fails a successful adapter run when forbidden marker evidence is nested in result JSON", async () => {
+    const forbiddenMarker = "ZST646_FORBIDDEN_OPENCODE_NATIVE_SKILL";
+    const { agentId } = await seedAgentFixture({
+      runtimeSkillIsolation: {
+        forbiddenMarkers: [forbiddenMarker],
+      },
+    });
+    mockRuntimeAdapter.execute.mockImplementationOnce(async (ctx) => {
+      await ctx.onMeta?.({
+        agentRuntimeType: "opencode_local",
+        command: "opencode",
+        cwd: "/tmp/run-workspace",
+        forbiddenMarkerObserved: false,
+      });
+      return {
+        summary: "adapter completed",
+        resultJson: {
+          output: {
+            steps: [
+              {
+                message: {
+                  content: [
+                    {
+                      toolUse: {
+                        name: "skill",
+                        result: {
+                          metadata: {
+                            display: {
+                              text: `loaded forbidden native skill ${forbiddenMarker}`,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        timedOut: false,
+        exitCode: 0,
+        errorMessage: null,
+      };
+    });
+
+    const run = await heartbeatService(db).wakeup(agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_forbidden_marker_nested_result_json",
+      contextSnapshot: { taskKey: "runtime-skill-isolation:nested-result-json" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const latestRun = await getRun(run!.id);
+      if (latestRun?.status !== "failed") return false;
+      const events = await getRunEvents(run!.id);
+      return events.some((event) => event.eventType === "adapter.forbidden_marker");
+    });
+
+    const latestRun = await getRun(run!.id);
+    expect(latestRun).toMatchObject({
+      status: "failed",
+      errorCode: "runtime_skill_isolation_failed",
+      error: "Forbidden runtime skill marker observed",
+    });
+    const events = await getRunEvents(run!.id);
+    expect(events.find((event) => event.eventType === "adapter.forbidden_marker")).toMatchObject({
+      eventType: "adapter.forbidden_marker",
+      level: "error",
+      message: "forbidden runtime skill marker observed",
+      payload: {
+        forbiddenMarkerObserved: true,
+        forbiddenMarkerEvidence: [
+          { marker: forbiddenMarker, source: "resultJson" },
+        ],
+      },
+    });
+  });
+
   it("preserves timeout status when forbidden marker evidence is also present", async () => {
     const forbiddenMarker = "ZST646_FORBIDDEN_GLOBAL_SKILL_LOADED";
     const { agentId } = await seedAgentFixture({

@@ -436,6 +436,54 @@ describe("heartbeat observability surface", () => {
     });
   });
 
+  it("detects forbidden runtime skill markers inside deeply nested OpenCode result payloads", () => {
+    const marker = "ZST646_FORBIDDEN_OPENCODE_NATIVE_SKILL";
+
+    expect(detectForbiddenRuntimeSkillMarker({
+      markers: [marker],
+      meta: {
+        agentRuntimeType: "opencode_local",
+        command: "opencode",
+        forbiddenMarkerObserved: false,
+      },
+      stdoutExcerpt: "opencode completed",
+      stderrExcerpt: "",
+      resultJson: {
+        output: {
+          steps: [
+            {
+              message: {
+                content: [
+                  {
+                    toolUse: {
+                      name: "skill",
+                      result: {
+                        metadata: {
+                          display: {
+                            text: `loaded forbidden native skill ${marker}`,
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      transcript: [],
+    })).toEqual({
+      observed: true,
+      evidence: [
+        {
+          marker,
+          source: "resultJson",
+        },
+      ],
+    });
+  });
+
   it("keeps adapter-reported forbidden marker observations even without configured marker strings", () => {
     expect(detectForbiddenRuntimeSkillMarker({
       markers: [],

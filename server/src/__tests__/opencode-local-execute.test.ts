@@ -26,6 +26,10 @@ const payload = {
   argv: process.argv.slice(2),
   home: process.env.HOME || null,
   userProfile: process.env.USERPROFILE || null,
+  rudderOperatorHome: process.env.RUDDER_OPERATOR_HOME || null,
+  xdgConfigHome: process.env.XDG_CONFIG_HOME || null,
+  xdgDataHome: process.env.XDG_DATA_HOME || null,
+  xdgCacheHome: process.env.XDG_CACHE_HOME || null,
   prompt: fs.readFileSync(0, "utf8"),
   rudderEnvKeys: Object.keys(process.env)
     .filter((key) => key.startsWith("RUDDER_"))
@@ -199,13 +203,15 @@ describe("opencode execute", { timeout: 20_000 }, () => {
         argv: string[];
         home: string | null;
         userProfile: string | null;
+        rudderOperatorHome: string | null;
         prompt: string;
         rudderEnvKeys: string[];
         gitIdentity: GitIdentityCapture;
       };
       expectPreparedGitConfigCapture(capture);
-      expect(capture.home).toBe(root);
-      expect(capture.userProfile).toBe(process.env.USERPROFILE ?? root);
+      expect(capture.home).toBe(path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "opencode-home"));
+      expect(capture.userProfile).toBe(capture.home);
+      expect(capture.rudderOperatorHome).toBe(root);
       expect(capture.argv).toEqual(expect.arrayContaining(["run", "--pure", "--format", "json", "--dir", workspace]));
       expect(capture.argv).not.toContain("--dangerously-skip-permissions");
       expect(capture.prompt).toContain("# Agent Instructions");
@@ -349,7 +355,10 @@ describe("opencode execute", { timeout: 20_000 }, () => {
     const capturePath = path.join(root, "capture.json");
     const runtimeSkillsRoot = path.join(root, "runtime-skills");
     const operatorSkillPath = path.join(root, ".claude", "skills", "operator-skill", "SKILL.md");
-    const managedSkillsHome = path.join(
+    const operatorOpenCodeConfigDir = path.join(root, ".config", "opencode");
+    const operatorOpenCodePluginPath = path.join(operatorOpenCodeConfigDir, "plugins", "forbidden-plugin.js");
+    const forbiddenConfigMarker = "ZST646_FORBIDDEN_OPENCODE_CONFIG_PLUGIN";
+    const managedOpenCodeHome = path.join(
       root,
       ".rudder",
       "instances",
@@ -357,12 +366,66 @@ describe("opencode execute", { timeout: 20_000 }, () => {
       "organizations",
       "organization-1",
       "opencode-home",
+    );
+    const managedSkillsHome = path.join(
+      managedOpenCodeHome,
       ".claude",
       "skills",
     );
     await fs.mkdir(workspace, { recursive: true });
     await fs.mkdir(path.dirname(operatorSkillPath), { recursive: true });
+    await fs.mkdir(path.dirname(operatorOpenCodePluginPath), { recursive: true });
     await fs.writeFile(operatorSkillPath, "---\nname: operator-skill\n---\n", "utf8");
+    await fs.mkdir(path.join(managedOpenCodeHome, ".config", "opencode", "skills", "stale-skill"), { recursive: true });
+    await fs.mkdir(path.join(managedOpenCodeHome, ".config", "opencode", "plugin"), { recursive: true });
+    await fs.writeFile(
+      path.join(managedOpenCodeHome, ".config", "opencode", "skills", "stale-skill", "SKILL.md"),
+      `---\nname: stale-skill\n---\n\n${forbiddenConfigMarker}\n`,
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(managedOpenCodeHome, ".config", "opencode", "plugin", "stale-plugin.js"),
+      `export default () => "${forbiddenConfigMarker}";\n`,
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(managedOpenCodeHome, ".config", "opencode", "opencode.jsonc"),
+      JSON.stringify({
+        plugin: ["./plugin/stale-plugin.js"],
+        mcp: {
+          forbidden: {
+            command: `printf ${forbiddenConfigMarker}`,
+          },
+        },
+      }, null, 2),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(operatorOpenCodeConfigDir, "opencode.json"),
+      JSON.stringify({
+        $schema: "https://opencode.ai/config.json",
+        model: {
+          command: ["printf", forbiddenConfigMarker],
+        },
+        autoupdate: true,
+        provider: {
+          localDanger: {
+            command: ["printf", forbiddenConfigMarker],
+          },
+        },
+        keybinds: {
+          danger: `plugin:${forbiddenConfigMarker}`,
+        },
+        plugin: ["./plugins/forbidden-plugin.js"],
+        mcp: {
+          forbidden: {
+            command: `printf ${forbiddenConfigMarker}`,
+          },
+        },
+      }, null, 2),
+      "utf8",
+    );
+    await fs.writeFile(operatorOpenCodePluginPath, `export default () => "${forbiddenConfigMarker}";\n`, "utf8");
     await writeFakeOpenCodeCommand(commandPath);
 
     const rudderDir = await createSkillDir(runtimeSkillsRoot, "rudder");
@@ -376,10 +439,16 @@ describe("opencode execute", { timeout: 20_000 }, () => {
     const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
     const previousRudderHome = process.env.RUDDER_HOME;
     const previousRudderInstanceId = process.env.RUDDER_INSTANCE_ID;
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    const previousXdgDataHome = process.env.XDG_DATA_HOME;
+    const previousXdgCacheHome = process.env.XDG_CACHE_HOME;
     process.env.HOME = root;
     process.env.RUDDER_OPERATOR_HOME = root;
     process.env.RUDDER_HOME = path.join(root, ".rudder");
     process.env.RUDDER_INSTANCE_ID = "default";
+    process.env.XDG_CONFIG_HOME = path.join(root, ".config");
+    process.env.XDG_DATA_HOME = path.join(root, ".local", "share");
+    process.env.XDG_CACHE_HOME = path.join(root, ".cache");
 
     try {
       const result = await execute({
@@ -436,10 +505,39 @@ describe("opencode execute", { timeout: 20_000 }, () => {
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
         argv: string[];
         home: string | null;
+        rudderOperatorHome: string | null;
+        xdgConfigHome: string | null;
+        xdgDataHome: string | null;
+        xdgCacheHome: string | null;
         prompt: string;
       };
-      expect(capture.home).toBe(root);
+      expect(capture.home).toBe(path.join(root, ".rudder", "instances", "default", "organizations", "organization-1", "opencode-home"));
+      expect(capture.rudderOperatorHome).toBe(root);
+      expect(capture.xdgConfigHome).toBe(path.join(capture.home!, ".config"));
+      expect(capture.xdgDataHome).toBe(path.join(capture.home!, ".local", "share"));
+      expect(capture.xdgCacheHome).toBe(path.join(capture.home!, ".cache"));
       expect(capture.argv).toContain("--pure");
+      const managedConfigDir = path.join(managedOpenCodeHome, ".config", "opencode");
+      expect((await fs.lstat(managedConfigDir)).isSymbolicLink()).toBe(false);
+      await expect(fs.lstat(path.join(managedConfigDir, "plugins", "forbidden-plugin.js"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.lstat(path.join(managedConfigDir, "skills", "stale-skill", "SKILL.md"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.lstat(path.join(managedConfigDir, "plugin", "stale-plugin.js"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.lstat(path.join(managedConfigDir, "opencode.jsonc"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.readFile(path.join(managedConfigDir, "opencode.json"), "utf8")).resolves.not.toContain(
+        forbiddenConfigMarker,
+      );
+      const managedConfig = JSON.parse(await fs.readFile(path.join(managedConfigDir, "opencode.json"), "utf8")) as {
+        autoupdate?: unknown;
+      };
+      expect(managedConfig.autoupdate).toBe(false);
       expect((await fs.lstat(path.join(managedSkillsHome, "ascii-heart"))).isSymbolicLink()).toBe(true);
       expect(await fs.realpath(path.join(managedSkillsHome, "ascii-heart"))).toBe(
         await fs.realpath(asciiHeartDir),
@@ -468,6 +566,12 @@ describe("opencode execute", { timeout: 20_000 }, () => {
       else process.env.RUDDER_HOME = previousRudderHome;
       if (previousRudderInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
       else process.env.RUDDER_INSTANCE_ID = previousRudderInstanceId;
+      if (previousXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdgConfigHome;
+      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+      else process.env.XDG_DATA_HOME = previousXdgDataHome;
+      if (previousXdgCacheHome === undefined) delete process.env.XDG_CACHE_HOME;
+      else process.env.XDG_CACHE_HOME = previousXdgCacheHome;
       await fs.rm(root, { recursive: true, force: true });
     }
   });

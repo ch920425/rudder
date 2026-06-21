@@ -44,9 +44,32 @@ const OPENCODE_PROTECTED_ENV_KEYS = new Set([
   "USERPROFILE",
 ]);
 const SHARED_OPENCODE_HOME_ENTRIES = [
-  ".config/opencode",
   ".local/share/opencode",
   ".cache/opencode",
+] as const;
+const OPENCODE_CONFIG_FILE_CANDIDATES = ["opencode.json", "opencode.jsonc"] as const;
+const MANAGED_OPENCODE_CONFIG_FILE = "opencode.json";
+const SAFE_OPENCODE_STRING_CONFIG_KEYS = [
+  "$schema",
+  "model",
+  "small_model",
+  "theme",
+  "username",
+] as const;
+const UNSAFE_OPENCODE_CONFIG_ENTRIES = [
+  "agent",
+  "agents",
+  "mode",
+  "modes",
+  "skill",
+  "skills",
+  "plugin",
+  "plugins",
+  "tools",
+  "command",
+  "commands",
+  "hooks",
+  "mcp",
 ] as const;
 
 function firstNonEmptyLine(text: string): string {
@@ -97,6 +120,70 @@ async function ensureSymlink(target: string, source: string) {
   await fs.symlink(source, target);
 }
 
+async function removeManagedOpenCodeConfigExtensions(configDir: string) {
+  for (const entry of UNSAFE_OPENCODE_CONFIG_ENTRIES) {
+    await fs.rm(path.join(configDir, entry), { recursive: true, force: true }).catch(() => {});
+  }
+  for (const fileName of OPENCODE_CONFIG_FILE_CANDIDATES) {
+    if (fileName === MANAGED_OPENCODE_CONFIG_FILE) continue;
+    await fs.rm(path.join(configDir, fileName), { force: true }).catch(() => {});
+  }
+}
+
+function sanitizeOpenCodeConfig(rawConfig: unknown): Record<string, unknown> {
+  const source = parseObject(rawConfig);
+  const sanitized: Record<string, unknown> = {};
+  for (const key of SAFE_OPENCODE_STRING_CONFIG_KEYS) {
+    const value = source[key];
+    if (typeof value === "string") sanitized[key] = value;
+  }
+  sanitized.autoupdate = false;
+  if (typeof sanitized.$schema !== "string") {
+    sanitized.$schema = "https://opencode.ai/config.json";
+  }
+  return sanitized;
+}
+
+async function readOpenCodeConfigFile(sourceHome: string): Promise<Record<string, unknown>> {
+  for (const fileName of OPENCODE_CONFIG_FILE_CANDIDATES) {
+    const configPath = path.join(sourceHome, ".config", "opencode", fileName);
+    const content = await fs.readFile(configPath, "utf8").catch(() => "");
+    if (!content.trim()) continue;
+    try {
+      return sanitizeOpenCodeConfig(JSON.parse(content));
+    } catch {
+      continue;
+    }
+  }
+  return sanitizeOpenCodeConfig({});
+}
+
+async function ensureManagedOpenCodeConfig(input: {
+  sourceHome: string;
+  targetHome: string;
+  onLog: AgentRuntimeExecutionContext["onLog"];
+}) {
+  const configDir = path.join(input.targetHome, ".config", "opencode");
+  const existing = await fs.lstat(configDir).catch(() => null);
+  if (existing?.isSymbolicLink()) {
+    await fs.unlink(configDir);
+  }
+
+  await fs.mkdir(configDir, { recursive: true });
+  await removeManagedOpenCodeConfigExtensions(configDir);
+
+  const config = await readOpenCodeConfigFile(input.sourceHome);
+  await fs.writeFile(
+    path.join(configDir, MANAGED_OPENCODE_CONFIG_FILE),
+    `${JSON.stringify(config, null, 2)}\n`,
+    "utf8",
+  );
+  await input.onLog(
+    "stdout",
+    `[rudder] Wrote sanitized OpenCode config into managed HOME ${configDir}.\n`,
+  );
+}
+
 function resolveSharedOpenCodeHomeDir(env: NodeJS.ProcessEnv): string {
   return path.resolve(nonEmpty(env.HOME) ?? os.homedir());
 }
@@ -122,6 +209,7 @@ async function prepareManagedOpenCodeHome(
     if (!(await pathExists(source))) continue;
     await ensureSymlink(path.join(targetHome, relativeEntry), source);
   }
+  await ensureManagedOpenCodeConfig({ sourceHome, targetHome, onLog });
 
   await onLog(
     "stdout",
@@ -300,9 +388,12 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     sourceEnv,
     onLog,
   });
-  env.HOME = operatorHome;
-  env.USERPROFILE = process.env.USERPROFILE ?? operatorHome;
+  env.HOME = managedHome;
+  env.USERPROFILE = managedHome;
   env.RUDDER_OPERATOR_HOME = operatorHome;
+  env.XDG_CONFIG_HOME = path.join(managedHome, ".config");
+  env.XDG_DATA_HOME = path.join(managedHome, ".local", "share");
+  env.XDG_CACHE_HOME = path.join(managedHome, ".cache");
   if (!hasExplicitApiKey && authToken) {
     env.RUDDER_API_KEY = authToken;
   }

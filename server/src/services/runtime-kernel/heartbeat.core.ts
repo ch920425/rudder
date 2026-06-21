@@ -538,12 +538,19 @@ export function collectSkillPathsFromText(value: string): string[] {
   return paths;
 }
 
-export function collectStringValues(value: unknown, depth = 0): string[] {
-  if (depth > 4) return [];
+export function collectStringValues(
+  value: unknown,
+  depth = 0,
+  seen: WeakSet<object> = new WeakSet(),
+): string[] {
+  if (depth > 24) return [];
   if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap((entry) => collectStringValues(entry, depth + 1));
+  if (typeof value !== "object" || value === null) return [];
+  if (seen.has(value)) return [];
+  seen.add(value);
+  if (Array.isArray(value)) return value.flatMap((entry) => collectStringValues(entry, depth + 1, seen));
   const record = parseObject(value);
-  return Object.values(record).flatMap((entry) => collectStringValues(entry, depth + 1));
+  return Object.values(record).flatMap((entry) => collectStringValues(entry, depth + 1, seen));
 }
 
 function readStringArray(value: unknown): string[] {
