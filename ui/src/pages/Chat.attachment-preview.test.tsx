@@ -8,7 +8,7 @@ import {
   resolveChatPendingAttachmentScopeKey,
   updateChatPendingAttachmentsForScope,
 } from "@/lib/chat-pending-attachments";
-import type { ChatConversation, ChatMessage, Project } from "@rudderhq/shared";
+import type { ChatConversation, ChatMessage, ChatQueuedMessage, ChatQueueSnapshot, Project } from "@rudderhq/shared";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -28,6 +28,11 @@ const mockState = vi.hoisted(() => ({
   messagesByChatId: {} as Record<string, ChatMessage[]>,
   pendingChatDetailIds: new Set<string>(),
   projects: [] as Project[],
+  queueSnapshot: { activeGenerationId: null, items: [] } as ChatQueueSnapshot,
+  cancelQueuedMessage: vi.fn(),
+  createQueuedMessage: vi.fn(),
+  steerQueuedMessage: vi.fn(),
+  updateQueuedMessage: vi.fn(),
   invalidateQueries: vi.fn(),
   markRead: vi.fn(),
   mutations: [] as unknown[],
@@ -69,6 +74,14 @@ vi.mock("@tanstack/react-query", () => ({
     if (queryKey[0] === "chats" && queryKey[2] === "messages") {
       return {
         data: mockState.messagesByChatId[String(queryKey[3])] ?? [],
+        isPending: false,
+        isLoading: false,
+        error: null,
+      };
+    }
+    if (queryKey[0] === "chats" && queryKey[2] === "queue") {
+      return {
+        data: mockState.queueSnapshot,
         isPending: false,
         isLoading: false,
         error: null,
@@ -167,15 +180,37 @@ vi.mock("@/api/chats", () => ({
     })),
     stopMessageStream: mockState.stopMessageStream,
     sendMessageStream: mockState.sendMessageStream,
+    listQueue: vi.fn(async () => mockState.queueSnapshot),
+    createQueuedMessage: mockState.createQueuedMessage,
+    updateQueuedMessage: mockState.updateQueuedMessage,
+    cancelQueuedMessage: mockState.cancelQueuedMessage,
+    steerQueuedMessage: mockState.steerQueuedMessage,
   },
 }));
 
 vi.mock("@/components/MarkdownEditor", async () => {
   const React = await import("react");
   return {
-    MarkdownEditor: React.forwardRef((_props: unknown, ref) => {
-      React.useImperativeHandle(ref, () => ({ focus: vi.fn() }));
-      return <div data-testid="mock-markdown-editor" />;
+    MarkdownEditor: React.forwardRef((props: { value: string; onChange: (value: string) => void; onSubmit?: () => void; placeholder?: string }, ref) => {
+      React.useImperativeHandle(ref, () => ({
+        focus: vi.fn(),
+        getMarkdown: () => props.value,
+      }));
+      return (
+        <textarea
+          aria-label="Composer draft"
+          data-testid="mock-markdown-editor"
+          placeholder={props.placeholder}
+          value={props.value}
+          onChange={(event) => props.onChange(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              props.onSubmit?.();
+            }
+          }}
+        />
+      );
     }),
   };
 });
@@ -284,6 +319,41 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
     supersededAt: null,
     createdAt: new Date("2026-05-12T09:01:00.000Z"),
     updatedAt: new Date("2026-05-12T09:01:00.000Z"),
+    ...overrides,
+  };
+}
+
+function queuedMessage(overrides: Partial<ChatQueuedMessage> = {}): ChatQueuedMessage {
+  return {
+    id: "queue-1",
+    orgId: "org-1",
+    conversationId: "chat-1",
+    position: 1,
+    status: "queued",
+    version: 1,
+    clientMutationId: "test:queue-1",
+    payload: {
+      body: "Follow up",
+      attachmentIds: [],
+      projectId: null,
+      skillRefs: [],
+      accessMode: null,
+      model: null,
+      effort: null,
+      metadata: null,
+    },
+    expectedGenerationId: null,
+    activeGenerationId: null,
+    deliveryAttempts: 0,
+    lastAttemptAt: null,
+    lastDeliveryReason: null,
+    sourceMessageId: null,
+    deliveredMessageId: null,
+    cancelledAt: null,
+    steeredAt: null,
+    dequeuedAt: null,
+    createdAt: new Date("2026-05-12T09:04:00.000Z"),
+    updatedAt: new Date("2026-05-12T09:04:00.000Z"),
     ...overrides,
   };
 }
@@ -545,6 +615,19 @@ beforeEach(() => {
     "chat-1": [imageMessage(), pendingIssueProposal()],
     "chat-2": [message({ id: "other-message-1", conversationId: "chat-2", body: "Other chat" })],
   };
+  mockState.queueSnapshot = { activeGenerationId: null, items: [] };
+  mockState.cancelQueuedMessage.mockReset();
+  mockState.cancelQueuedMessage.mockResolvedValue(queuedMessage({ status: "cancelled" }));
+  mockState.createQueuedMessage.mockReset();
+  mockState.createQueuedMessage.mockImplementation(async (_chatId: string, data: { payload: { body: string } }) =>
+    queuedMessage({ payload: { body: data.payload.body, attachmentIds: [], projectId: null, skillRefs: [], accessMode: null, model: null, effort: null, metadata: null } })
+  );
+  mockState.steerQueuedMessage.mockReset();
+  mockState.steerQueuedMessage.mockResolvedValue({ result: "queued_fallback", item: queuedMessage(), queueVersion: 1 });
+  mockState.updateQueuedMessage.mockReset();
+  mockState.updateQueuedMessage.mockImplementation(async (_chatId: string, itemId: string, data: { payload: ChatQueuedMessage["payload"] }) =>
+    queuedMessage({ id: itemId, payload: data.payload })
+  );
   mockState.pendingChatDetailIds = new Set();
   mockState.invalidateQueries.mockReset();
   mockState.markRead.mockReset();
@@ -799,6 +882,87 @@ describe("Chat streaming controls", () => {
       body: "Rudder interrupted the current reply.",
       tone: "info",
     });
+  });
+
+  it("keeps stop available when only the server reports an active generation", async () => {
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "user-message-1", body: "Please draft a plan." })],
+    };
+    mockState.queueSnapshot = {
+      activeGenerationId: "generation-1",
+      items: [],
+    };
+
+    const { container } = renderChat();
+
+    await clickEnabledButtonByAriaLabel(container, "Stop streaming");
+
+    expect(mockState.stopMessageStream).toHaveBeenCalledWith("chat-1");
+  });
+
+  it("queues a composer follow-up instead of sending a new stream when the server reports an active generation", async () => {
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "user-message-1", body: "Please draft a plan." })],
+    };
+    mockState.queueSnapshot = {
+      activeGenerationId: "generation-1",
+      items: [],
+    };
+
+    const { container } = renderChat();
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea[aria-label='Composer draft']");
+    expect(textarea).not.toBeNull();
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      valueSetter?.call(textarea, "Add this after the current reply.");
+      textarea!.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await clickEnabledButtonByAriaLabel(container, "Queue follow-up");
+
+    expect(mockState.createQueuedMessage).toHaveBeenCalledTimes(1);
+    expect(mockState.createQueuedMessage).toHaveBeenCalledWith("chat-1", expect.objectContaining({
+      expectedGenerationId: "generation-1",
+      payload: expect.objectContaining({
+        body: "Add this after the current reply.",
+        metadata: { source: "chat_composer" },
+      }),
+    }));
+    expect(mockState.sendMessageStream).not.toHaveBeenCalled();
+  });
+
+  it("renders running queued follow-ups without editable queue actions", () => {
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "user-message-1", body: "Please draft a plan." })],
+    };
+    mockState.queueSnapshot = {
+      activeGenerationId: "generation-1",
+      items: [
+        queuedMessage({
+          status: "running",
+          payload: {
+            body: "Already delivering",
+            attachmentIds: [],
+            projectId: null,
+            skillRefs: [],
+            accessMode: null,
+            model: null,
+            effort: null,
+            metadata: null,
+          },
+        }),
+      ],
+    };
+
+    const { container } = renderChat();
+    const queueItem = container.querySelector("[data-testid='chat-running-queue-item']");
+
+    expect(queueItem?.textContent).toContain("Running");
+    expect(queueItem?.textContent).toContain("Already delivering");
+    expect(queueItem?.querySelector("button[aria-label='Edit queued message']")).toBeNull();
+    expect(queueItem?.querySelector("button[aria-label='Delete queued message']")).toBeNull();
+    expect(queueItem?.textContent).not.toContain("Steer");
   });
 });
 

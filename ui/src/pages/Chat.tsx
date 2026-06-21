@@ -107,6 +107,7 @@ import { ASK_USER_ANSWER_PREFIX, ApprovalAction, AttachmentPreviewState, ChatBra
 export * from "./Chat.attachments";
 export * from "./Chat.messages";
 export * from "./Chat.parts";
+type SendButtonMode = "send" | "stop" | "sending" | "queue";
 export function Chat() { const { selectedOrganizationId } = useOrganization();
   if (!selectedOrganizationId) {
     return <div className="text-sm text-muted-foreground">Select a organization first.</div>; }
@@ -508,7 +509,50 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         body: error instanceof Error ? error.message : "Try again.", tone: "error", }); }); abortChatStream(chatId); setStreamDraftForChat(chatId, (current) => (current ? { ...current, state: "stopped" } : current)); }, [abortChatStream, pushToast, setStreamDraftForChat]); const readComposerDraft = useCallback(
     () => composerEditorRef.current?.getMarkdown?.() ?? draft,
     [draft],
-  ); const sendMessage = async (
+  );
+  const queueComposerFollowUp = async (
+    conversation: ChatConversation,
+    bodyOverride?: string,
+    options?: { files?: File[]; clearComposerOnSuccess?: boolean },
+  ) => {
+    if (!selectedOrganizationId) { pushToast({ title: "Select a organization first", tone: "error" });
+      return false; } const body = (bodyOverride ?? readComposerDraft()).trim();
+    if (!body) { pushToast({ title: "Message cannot be empty", tone: "error" });
+      return false; } const filesToUpload = [...(options?.files ?? pendingFiles)];
+    if (filesToUpload.length > 0) {
+      pushToast({ title: "Queued follow-ups do not support new files yet", tone: "error" });
+      return false;
+    }
+    const serverActiveGenerationId = queueQuery.data?.activeGenerationId ?? null;
+    const queued = await chatsApi.createQueuedMessage(conversation.id, {
+      clientMutationId: `ui:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      expectedGenerationId: serverActiveGenerationId,
+      payload: {
+        body,
+        attachmentIds: [],
+        skillRefs: [],
+        projectId: activeProjectId === NO_PROJECT_ID ? null : activeProjectId,
+        accessMode: null,
+        model: null,
+        effort: null,
+        metadata: { source: "chat_composer" },
+      },
+    });
+    queryClient.setQueryData(
+      queryKeys.chats.queue(selectedOrganizationId, conversation.id),
+      (current: Awaited<ReturnType<typeof chatsApi.listQueue>> | undefined) => ({
+        activeGenerationId: current?.activeGenerationId ?? serverActiveGenerationId,
+        items: [...(current?.items ?? []), queued],
+      }),
+    );
+    if (options?.clearComposerOnSuccess ?? true) {
+      setBranchPreview(null); setDraft(""); clearPendingFilesForCurrentScope();
+    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.chats.queue(selectedOrganizationId, conversation.id) });
+    pushToast({ title: "Queued follow-up", body: "It will run after the current reply finishes.", tone: "info" });
+    return true;
+  };
+  const sendMessage = async (
     options?: { bodyOverride?: string; filesOverride?: File[]; conversationOverride?: ChatConversation;
       editUserMessageIdOverride?: string | null; clearPendingFilesOnSuccess?: boolean; onUserMessageAcknowledged?: () => void; queuedMessageId?: string | null; },
   ) => {
@@ -535,40 +579,12 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
             draftProjectId === NO_PROJECT_ID ? null : draftProjectId, draftIssueContextId, ), }); const startedAt = new Date(); conversation = upsertOptimisticConversation(createdConversation, body, startedAt); rememberChatAgentId(selectedOrganizationId, selectedDraftAgentId); rememberChatProjectIdForAgent(selectedOrganizationId, selectedDraftAgentId, draftProjectId === NO_PROJECT_ID ? null : draftProjectId);
         if (usesComposerState) { setDraft(""); clearPendingFilesForCurrentScope();
           setBranchPreview(null); }
-        navigate(chatConversationPath(conversation.id)); } const chatId = conversation.id; if (!acquireChatSendLock(chatId)) return; chatSendLockAcquired = true; activeChatId = chatId; const selectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
-      const activeDraftForChat = readChatScopedState(streamDrafts, chatId);
+        navigate(chatConversationPath(conversation.id)); } const chatId = conversation.id; const activeDraftForChat = readChatScopedState(streamDrafts, chatId);
       const serverActiveGenerationId = queueQuery.data?.activeGenerationId ?? null;
       if (!options?.queuedMessageId && (activeDraftForChat || serverActiveGenerationId)) {
-        if (filesToUpload.length > 0) {
-          pushToast({ title: "Queued follow-ups do not support new files yet", tone: "error" });
-          return;
-        }
-        const queued = await chatsApi.createQueuedMessage(chatId, {
-          clientMutationId: `ui:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-          expectedGenerationId: serverActiveGenerationId,
-          payload: {
-            body,
-            attachmentIds: [],
-            skillRefs: [],
-            projectId: activeProjectId === NO_PROJECT_ID ? null : activeProjectId,
-            accessMode: null,
-            model: null,
-            effort: null,
-            metadata: { source: "chat_composer" },
-          },
-        });
-        queryClient.setQueryData(
-          queryKeys.chats.queue(selectedOrganizationId, chatId),
-          (current: Awaited<ReturnType<typeof chatsApi.listQueue>> | undefined) => ({
-            activeGenerationId: current?.activeGenerationId ?? serverActiveGenerationId,
-            items: [...(current?.items ?? []), queued],
-          }),
-        );
-        if (usesComposerState) { setBranchPreview(null); setDraft(""); clearPendingFilesForCurrentScope(); }
-        await queryClient.invalidateQueries({ queryKey: queryKeys.chats.queue(selectedOrganizationId, chatId) });
-        pushToast({ title: "Queued follow-up", body: "It will run after the current reply finishes.", tone: "info" });
+        await queueComposerFollowUp(conversation, body, { files: filesToUpload, clearComposerOnSuccess: usesComposerState });
         return;
-      }
+      } if (!acquireChatSendLock(chatId)) return; chatSendLockAcquired = true; activeChatId = chatId; const selectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId;
       if (!conversation.preferredAgentId && selectedAgentId) { conversation = await chatsApi.update(conversation.id, { preferredAgentId: selectedAgentId }); setDraftPreferredAgentId(selectedAgentId); rememberChatAgentId(selectedOrganizationId, selectedAgentId); upsertConversation(conversation);
         upsertMessengerThreadSummary(conversation); }
       if (newConversationLockAcquired || newConversationSendLockRef.current) { releaseNewConversationSendLock();
@@ -961,8 +977,11 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     activeProjectName: emptyStateProjectName, userNickname, t, }); const emptyStateHeadingKey = emptyStateProjectName ? `project:${activeProject?.id}:${emptyStateProjectName}` : "no-project"; const composerPlaceholder = activePlanMode ? t("chat.composer.planModePlaceholder") : draftIssueContext ? t("chat.composer.issuePlaceholder", { issue: draftIssueContextLabel(draftIssueContext) }) : t("chat.composer.placeholder"); const expandedPromptGroup = EMPTY_STATE_PROMPT_GROUPS.find((group) => group.label === expandedEmptyStatePrompt) ?? null; const emptyStatePromptOptionsId = "chat-empty-state-prompt-options"; const emptyStatePromptOriginX = expandedEmptyStatePrompt === "Scope a new feature" ? "22%" : expandedEmptyStatePrompt === "Clarify a vague request" ? "50%" : expandedEmptyStatePrompt === "Turn a chat into an issue" ? "78%" : "50%";
   const showEmptyStateSupplementalContent = draft.trim().length === 0 && pendingFiles.length === 0;
   const hasRecentProjectConversations = allRecentProjectConversations.length > 0;
-  const sendButtonMode = newConversationSendInFlight || (activeSendInFlight && (!activeStream || !activeStream.userMessageId)) ? "sending" : activeSendInFlight ? "stop" : "send";
-  const sendButtonDisabled = composerUnavailable || sendButtonMode === "sending" || (sendButtonMode === "send" && draft.trim().length === 0);
+  const selectedConversationHasActiveReply = Boolean(selectedConversation && (activeStream || activeSendInFlight || queueQuery.data?.activeGenerationId));
+  const canQueueDraft = Boolean(selectedConversationHasActiveReply && draft.trim().length > 0 && !newConversationSendInFlight);
+  const sendButtonMode: SendButtonMode = newConversationSendInFlight || (activeSendInFlight && !activeStream) ? "sending" : canQueueDraft ? "queue" : activeSendInFlight ? "stop" : "send";
+  const sendButtonDisabled = composerUnavailable || sendButtonMode === "sending" || ((sendButtonMode === "send" || sendButtonMode === "queue") && draft.trim().length === 0);
+  const canStopSelectedConversationReply = Boolean(selectedConversation && (activeSendInFlight || queueQuery.data?.activeGenerationId));
   const composerStreaming = Boolean(activeStream) || activeSendInFlight || newConversationSendInFlight;
   useEffect(() => {
     if (!expandedEmptyStatePrompt) { setEmptyStatePromptPanelEntered(false);
@@ -1134,28 +1153,38 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
             <span>{activeQueueItems.length} queued</span>
           </div>
           <div className="space-y-1.5">
-            {activeQueueItems.map((item, index) => (
-              <div key={item.id} data-testid="chat-running-queue-item" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-md)] border border-border/60 bg-background/70 px-2.5 py-2 text-sm">
-                <span className="shrink-0 text-xs font-semibold text-muted-foreground">{index === 0 ? "Up next" : `#${index + 1}`}</span>
-                {editingQueuedItem?.itemId === item.id ? (
-                  <>
-                    <Textarea aria-label="Edit queued message text" data-testid="chat-running-queue-edit" className="min-h-9 flex-1 resize-none rounded-[var(--radius-sm)] border-border/70 bg-background px-2 py-1.5 text-sm" value={editingQueuedItem.value} onChange={(event) => setEditingQueuedItem((current) => current?.itemId === item.id ? { ...current, value: event.target.value } : current)} />
-                    <button type="button" className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted" onClick={() => saveQueuedMessage(item)}>Save</button>
-                    <button type="button" className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted" onClick={() => setEditingQueuedItem(null)}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <span className="min-w-0 flex-1 truncate text-foreground">{item.payload.body}</span>
-                    {item.lastDeliveryReason ? (
-                      <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Still queued</span>
-                    ) : null}
-                    <button type="button" disabled={!queueQuery.data?.activeGenerationId} className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-45 dark:text-emerald-300" onClick={() => steerQueuedMessage(item.id)}>Steer</button>
-                    <button type="button" aria-label="Edit queued message" className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => editQueuedMessage(item.id, item.payload.body)}><Pencil className="h-3.5 w-3.5" /></button>
-                    <button type="button" aria-label="Delete queued message" className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => deleteQueuedMessage(item.id)}><Trash2 className="h-3.5 w-3.5" /></button>
-                  </>
-                )}
-              </div>
-            ))}
+            {activeQueueItems.map((item, index) => {
+              const itemEditable = item.status === "queued" || item.status === "steer_pending";
+              const itemRunning = item.status === "dequeue_claimed" || item.status === "running";
+              return (
+                <div key={item.id} data-testid="chat-running-queue-item" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-md)] border border-border/60 bg-background/70 px-2.5 py-2 text-sm">
+                  <span className="shrink-0 text-xs font-semibold text-muted-foreground">{index === 0 ? (itemRunning ? "Running" : "Up next") : `#${index + 1}`}</span>
+                  {editingQueuedItem?.itemId === item.id && itemEditable ? (
+                    <>
+                      <Textarea aria-label="Edit queued message text" data-testid="chat-running-queue-edit" className="min-h-9 flex-1 resize-none rounded-[var(--radius-sm)] border-border/70 bg-background px-2 py-1.5 text-sm" value={editingQueuedItem.value} onChange={(event) => setEditingQueuedItem((current) => current?.itemId === item.id ? { ...current, value: event.target.value } : current)} />
+                      <button type="button" className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted" onClick={() => saveQueuedMessage(item)}>Save</button>
+                      <button type="button" className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted" onClick={() => setEditingQueuedItem(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1 truncate text-foreground">{item.payload.body}</span>
+                      {itemRunning ? (
+                        <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Running</span>
+                      ) : item.lastDeliveryReason ? (
+                        <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Still queued</span>
+                      ) : null}
+                      {itemEditable ? (
+                        <>
+                          <button type="button" disabled={!queueQuery.data?.activeGenerationId} className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-45 dark:text-emerald-300" onClick={() => steerQueuedMessage(item.id)}>Steer</button>
+                          <button type="button" aria-label="Edit queued message" className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => editQueuedMessage(item.id, item.payload.body)}><Pencil className="h-3.5 w-3.5" /></button>
+                          <button type="button" aria-label="Delete queued message" className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => deleteQueuedMessage(item.id)}><Trash2 className="h-3.5 w-3.5" /></button>
+                        </>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -1170,7 +1199,12 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
           plainText className="rounded-[var(--radius-md)] bg-transparent"
           contentClassName="min-h-[88px] bg-transparent text-[15px] leading-7 text-foreground"
           bordered={false} placeholder={composerPlaceholder} onSubmit={() => {
-            if (!controlsDisabled && !composerUnavailable) {
+            if (composerUnavailable || newConversationSendInFlight) return;
+            if (selectedConversationHasActiveReply && selectedConversation) {
+              void queueComposerFollowUp(selectedConversation);
+              return;
+            }
+            if (!controlsDisabled) {
               void sendMessage(); }
           }} /> </div>
       {composerUnavailable ? (
@@ -1258,13 +1292,24 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
               }} >
               <span className="min-w-0 truncate">Skills</span>
               <ChevronDown className="h-3 w-3 shrink-0 opacity-70" /> </button> ) : null} </div>
+        {canStopSelectedConversationReply && selectedConversation && sendButtonMode !== "stop" && sendButtonMode !== "sending" ? (
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Stop streaming" onClick={() => stopStreaming(selectedConversation.id)} className={cn(
+            "shrink-0 rounded-full border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-active)_52%,transparent)] text-foreground",
+            "hover:bg-[color:var(--surface-active)]",
+            "focus-visible:ring-2 focus-visible:ring-ring/40",
+          )} >
+            <Square className="h-3.5 w-3.5 fill-current" /> </Button>
+        ) : null}
         <Button type="button" variant="ghost" size="icon-sm" onClick={() => {
             if (sendButtonMode === "stop" && selectedConversation) { stopStreaming(selectedConversation.id);
+              return; }
+            if (sendButtonMode === "queue" && selectedConversation) {
+              void queueComposerFollowUp(selectedConversation);
               return; }
             if (sendButtonMode === "send") {
               void sendMessage(); }
           }} disabled={sendButtonDisabled} aria-busy={sendButtonMode === "sending" ? true : undefined} aria-label={
-            sendButtonMode === "sending" ? "Sending" : sendButtonMode === "stop" ? "Stop streaming" : "Send"
+            sendButtonMode === "sending" ? "Sending" : sendButtonMode === "stop" ? "Stop streaming" : sendButtonMode === "queue" ? "Queue follow-up" : "Send"
           } className={cn(
             "shrink-0 rounded-full border-0 bg-white text-black shadow-sm",
             "hover:bg-zinc-100 dark:bg-white dark:text-black dark:hover:bg-zinc-100",

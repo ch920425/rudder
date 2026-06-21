@@ -593,7 +593,7 @@ export function chatService(db: Db) {
       .where(
         and(
           eq(chatQueuedMessages.conversationId, conversationId),
-          inArray(chatQueuedMessages.status, ["queued", "steer_pending"]),
+          inArray(chatQueuedMessages.status, ["queued", "steer_pending", "dequeue_claimed", "running"]),
         ),
       )
       .orderBy(asc(chatQueuedMessages.position), asc(chatQueuedMessages.createdAt));
