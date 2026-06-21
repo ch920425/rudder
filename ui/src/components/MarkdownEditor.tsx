@@ -25,7 +25,7 @@ import {
   type RealmPlugin,
   type Translation,
 } from "@mdxeditor/editor";
-import { buildAgentMentionHref, buildChatMentionHref, buildIssueMentionHref, buildLibraryDirectoryMentionHref, buildLibraryDocMentionHref, buildLibraryEntryMentionHref, buildLibraryFileMentionHref, buildProjectMentionHref, type AgentRole } from "@rudderhq/shared";
+import { buildAgentMentionHref, buildAutomationMentionHref, buildChatMentionHref, buildIssueMentionHref, buildLibraryDirectoryMentionHref, buildLibraryDocMentionHref, buildLibraryEntryMentionHref, buildLibraryFileMentionHref, buildProjectMentionHref, type AgentRole } from "@rudderhq/shared";
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -100,7 +100,7 @@ export {
 export interface MentionOption {
   id: string;
   name: string;
-  kind?: "agent" | "project" | "issue" | "chat" | "library_doc" | "library_entry" | "library_file" | "library_directory" | "skill";
+  kind?: "agent" | "project" | "issue" | "automation" | "chat" | "library_doc" | "library_entry" | "library_file" | "library_directory" | "skill";
   searchText?: string;
   agentId?: string;
   agentIcon?: string | null;
@@ -117,6 +117,9 @@ export interface MentionOption {
   issueAssigneeName?: string | null;
   issueAssigneeIcon?: string | null;
   issueAssigneeRole?: AgentRole | null;
+  automationId?: string;
+  automationTitle?: string | null;
+  automationStatus?: string | null;
   chatConversationId?: string;
   chatTitle?: string | null;
   chatStatus?: string | null;
@@ -931,6 +934,13 @@ function mentionTokenDetails(option: MentionOption, agentMentionIntent?: "refere
       label: option.name,
     };
   }
+  if (option.kind === "automation" && option.automationId) {
+    return {
+      href: buildAutomationMentionHref(option.automationId, option.automationTitle ?? option.name),
+      isSkill: false,
+      label: option.automationTitle ?? option.name,
+    };
+  }
   if (option.kind === "chat" && option.chatConversationId) {
     return {
       href: buildChatMentionHref(option.chatConversationId, option.chatTitle ?? option.name),
@@ -1199,6 +1209,9 @@ const LegacyMarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       }
       if (mention.kind === "issue" && mention.issueId) {
         map.set(`issue:${mention.issueId}`, mention);
+      }
+      if (mention.kind === "automation" && mention.automationId) {
+        map.set(`automation:${mention.automationId}`, mention);
       }
       if (mention.kind === "chat" && mention.chatConversationId) {
         map.set(`chat:${mention.chatConversationId}`, mention);
@@ -1612,7 +1625,16 @@ const LegacyMarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
           continue;
         }
 
-        if (parsed.kind === "automation" || parsed.kind === "chat") {
+        if (parsed.kind === "automation") {
+          const option = mentionOptionByKey.get(`automation:${parsed.automationId}`);
+          applyMentionChipDecoration(link, {
+            ...parsed,
+            title: option?.automationTitle ?? option?.name ?? parsed.title ?? null,
+          });
+          continue;
+        }
+
+        if (parsed.kind === "chat") {
           applyMentionChipDecoration(link, parsed);
           continue;
         }
@@ -1837,20 +1859,22 @@ const LegacyMarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
                   ? buildProjectMentionHref(option.projectId, option.projectColor ?? null, option.projectIcon ?? null)
                   : option.kind === "issue" && option.issueId
                     ? buildIssueMentionHref(option.issueId, option.issueIdentifier ?? null, null, option.issueStatus ?? null)
-                    : option.kind === "chat" && option.chatConversationId
-                      ? buildChatMentionHref(option.chatConversationId, option.chatTitle ?? option.name)
-                      : option.kind === "library_doc" && option.libraryDocumentId
-                        ? buildLibraryDocMentionHref(option.libraryDocumentId, option.libraryDocumentTitle ?? option.name)
-                        : option.kind === "library_file" && option.libraryFilePath
-                          ? option.libraryEntryId
-                            ? buildLibraryEntryMentionHref(option.libraryEntryId, option.name, option.libraryFilePath)
-                            : buildLibraryFileMentionHref(option.libraryFilePath, option.name)
-                          : option.kind === "library_directory" && option.libraryDirectoryPath
-                            ? buildLibraryDirectoryMentionHref(option.libraryDirectoryPath, option.name)
-                          : buildAgentMentionHref(
-                              option.agentId ?? option.id.replace(/^agent:/, ""),
-                              option.agentIcon ?? null,
-                            );
+                    : option.kind === "automation" && option.automationId
+                      ? buildAutomationMentionHref(option.automationId, option.automationTitle ?? option.name)
+                      : option.kind === "chat" && option.chatConversationId
+                        ? buildChatMentionHref(option.chatConversationId, option.chatTitle ?? option.name)
+                        : option.kind === "library_doc" && option.libraryDocumentId
+                          ? buildLibraryDocMentionHref(option.libraryDocumentId, option.libraryDocumentTitle ?? option.name)
+                          : option.kind === "library_file" && option.libraryFilePath
+                            ? option.libraryEntryId
+                              ? buildLibraryEntryMentionHref(option.libraryEntryId, option.name, option.libraryFilePath)
+                              : buildLibraryFileMentionHref(option.libraryFilePath, option.name)
+                            : option.kind === "library_directory" && option.libraryDirectoryPath
+                              ? buildLibraryDirectoryMentionHref(option.libraryDirectoryPath, option.name)
+                            : buildAgentMentionHref(
+                                option.agentId ?? option.id.replace(/^agent:/, ""),
+                                option.agentIcon ?? null,
+                              );
                 return Array.from(editableRoot.querySelectorAll("a, [data-mention-href]"))
                   .filter((node): node is HTMLElement => node instanceof HTMLElement)
                   .filter((link) => {

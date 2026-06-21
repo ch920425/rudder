@@ -42,6 +42,16 @@ describe("index.css motion rules", () => {
     expect(indexCss).not.toContain('.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after {\n  content: none;');
   });
 
+  it("uses a dedicated automation icon for rendered and editor mention chips", () => {
+    const automationIconBlock =
+      indexCss.match(/\n\.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="automation"]::before,[\s\S]*?\n\}/)?.[0] ?? "";
+
+    expect(automationIconBlock).toContain('.rudder-milkdown-content .rudder-mention-chip[data-mention-kind="automation"]::before');
+    expect(automationIconBlock).toContain('a.rudder-mention-chip[data-mention-kind="automation"]::before');
+    expect(automationIconBlock).toContain("M3 11V9a4 4 0 0 1 4-4h14");
+    expect(automationIconBlock).toContain("M21 13v2a4 4 0 0 1-4 4H3");
+  });
+
   it("keeps command palette visible and avoids duplicate centering transforms", () => {
     const commandPaletteContent = cssBlock(".command-palette-content");
     const commandPaletteOpen = cssBlock('.command-palette-content[data-state="open"]');

@@ -4192,6 +4192,15 @@ a.rudder-mention-chip[data-mention-kind="issue"]::before {
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
+.rudder-mdxeditor-content .rudder-mention-chip[data-mention-kind="automation"]::before,
+.rudder-milkdown-content .rudder-mention-chip[data-mention-kind="automation"]::before,
+a.rudder-mention-chip[data-mention-kind="automation"]::before {
+  width: 1.2em;
+  height: 1.2em;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 .rudder-mdxeditor-content .rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before,
 .rudder-milkdown-content .rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before,
 a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before {

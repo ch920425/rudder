@@ -137,9 +137,11 @@ export function parseAgentMentionHref(href: string): ParsedAgentMention | null {
 }
 
 export function buildAutomationMentionHref(automationId: string, title?: string | null): string {
-  void title;
   const trimmedAutomationId = automationId.trim();
-  return `${AUTOMATION_MENTION_SCHEME}${trimmedAutomationId}`;
+  const trimmedTitle = title?.trim();
+  if (!trimmedTitle) return `${AUTOMATION_MENTION_SCHEME}${trimmedAutomationId}`;
+  const params = new URLSearchParams({ t: trimmedTitle });
+  return `${AUTOMATION_MENTION_SCHEME}${trimmedAutomationId}?${params.toString()}`;
 }
 
 export function parseAutomationMentionHref(href: string): ParsedAutomationMention | null {
@@ -159,16 +161,17 @@ export function parseAutomationMentionHref(href: string): ParsedAutomationMentio
 
   return {
     automationId,
-    title: null,
+    title: url.searchParams.get("t") ?? url.searchParams.get("title"),
   };
 }
 
 export function buildIssueMentionHref(issueId: string, ref?: string | null, commentId?: string | null, status?: string | null): string {
-  void ref;
   void status;
   const trimmedIssueId = issueId.trim();
+  const trimmedRef = ref?.trim();
   const trimmedCommentId = commentId?.trim();
   const params = new URLSearchParams();
+  if (trimmedRef) params.set("r", trimmedRef);
   if (trimmedCommentId) params.set("c", trimmedCommentId);
   const query = params.toString();
   return query ? `${ISSUE_MENTION_SCHEME}${trimmedIssueId}?${query}` : `${ISSUE_MENTION_SCHEME}${trimmedIssueId}`;
@@ -190,10 +193,11 @@ export function parseIssueMentionHref(href: string): ParsedIssueMention | null {
   if (!issueId) return null;
 
   const commentId = (url.searchParams.get("c") ?? url.searchParams.get("commentId") ?? "").trim() || null;
+  const ref = (url.searchParams.get("r") ?? url.searchParams.get("ref") ?? "").trim() || null;
 
   return {
     issueId,
-    ref: null,
+    ref,
     commentId,
     status: null,
   };

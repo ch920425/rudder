@@ -1,4 +1,4 @@
-import type { Agent, ChatConversation, Issue, LibraryDocumentSummary, OrganizationWorkspaceFileEntry, Project } from "@rudderhq/shared";
+import type { Agent, AutomationListItem, ChatConversation, Issue, LibraryDocumentSummary, OrganizationWorkspaceFileEntry, Project } from "@rudderhq/shared";
 import type { MentionOption } from "../components/MarkdownEditor";
 import { formatChatAgentLabel } from "./agent-labels";
 import { formatAssigneeUserLabel } from "./assignees";
@@ -28,6 +28,7 @@ function issueAssigneeLabel(
 
 export function buildMarkdownMentionOptions(params: {
   agents?: MentionAgent[] | null;
+  automations?: AutomationListItem[] | null;
   projects?: MentionProject[] | null;
   issues?: MentionIssue[] | null;
   chats?: ChatConversation[] | null;
@@ -96,6 +97,27 @@ export function buildMarkdownMentionOptions(params: {
       issueAssigneeName: assigneeName,
       issueAssigneeIcon: assigneeAgent?.icon ?? null,
       issueAssigneeRole: assigneeAgent?.role ?? null,
+    });
+  }
+
+  for (const automation of params.automations ?? []) {
+    const activeIssueLabel = automation.activeIssue
+      ? automation.activeIssue.identifier ?? automation.activeIssue.title
+      : null;
+    options.push({
+      id: `automation:${automation.id}`,
+      name: automation.title,
+      kind: "automation",
+      searchText: [
+        automation.title,
+        automation.description,
+        automation.status,
+        automation.outputMode,
+        activeIssueLabel,
+      ].filter(Boolean).join(" "),
+      automationId: automation.id,
+      automationTitle: automation.title,
+      automationStatus: automation.status,
     });
   }
 

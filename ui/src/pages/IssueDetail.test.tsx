@@ -650,7 +650,7 @@ describe("IssueDetail", () => {
     expect(html).toContain("issue-pa");
   });
 
-  it("keeps the description in the markdown editor surface before focus", () => {
+  it("keeps the description display-first before focus", () => {
     renderToStaticMarkup(<IssueDetail />);
 
     const descriptionEditorProps = capturedInlineEditorProps.find(
@@ -658,9 +658,9 @@ describe("IssueDetail", () => {
     );
     expect(descriptionEditorProps).toMatchObject({
       multiline: true,
-      alwaysEdit: true,
       editorEngine: "milkdown",
     });
+    expect(descriptionEditorProps?.alwaysEdit).toBeUndefined();
   });
 
   it("renders linked Library files with a stable icon affordance", () => {

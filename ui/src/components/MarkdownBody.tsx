@@ -749,6 +749,11 @@ export function MarkdownBody({
       .map((mention) => [mention.issueId!, mention] as const),
   );
   const issueMentions = mentions.filter((mention) => mention.kind === "issue" && mention.issueId);
+  const automationMentionById = new Map(
+    mentions
+      .filter((mention) => mention.kind === "automation" && mention.automationId)
+      .map((mention) => [mention.automationId!, mention] as const),
+  );
   const chatMentionById = new Map(
     mentions
       .filter((mention) => mention.kind === "chat" && mention.chatConversationId)
@@ -917,9 +922,14 @@ export function MarkdownBody({
             };
           }
           if (parsed.kind === "issue") {
-            const current = issueMentionById.get(parsed.issueId);
+            const current = issueMentionById.get(parsed.issueId)
+              ?? matchingIssueMentionFromRouteRef(parsed.issueId, issueMentions)
+              ?? matchingIssueMentionFromRouteRef(parsed.ref, issueMentions)
+              ?? matchingIssueMentionFromRouteRef(issueRouteRefFromHref(href), issueMentions);
             return {
               ...parsed,
+              issueId: parsed.issueId,
+              ref: current?.issueIdentifier ?? parsed.ref,
               status: current?.issueStatus ?? parsed.status,
             };
           }
@@ -929,9 +939,12 @@ export function MarkdownBody({
           if (mention.kind === "agent") return agentMentionById.get(mention.agentId)?.name ?? fallbackMentionLabel;
           if (mention.kind === "project") return projectMentionById.get(mention.projectId)?.name ?? fallbackMentionLabel;
           if (mention.kind === "issue") {
-            const currentIssueName = issueMentionById.get(mention.issueId)?.name ?? fallbackMentionLabel;
-            return mention.commentId ? fallbackMentionLabel || currentIssueName : currentIssueName;
+            const currentIssue = issueMentionById.get(mention.issueId)
+              ?? matchingIssueMentionFromRouteRef(mention.issueId, issueMentions)
+              ?? matchingIssueMentionFromRouteRef(mention.ref, issueMentions);
+            return (currentIssue?.name ?? fallbackMentionLabel ?? mention.ref?.trim() ?? "") || mention.ref?.trim() || mentionFallbackLabel(mention);
           }
+          if (mention.kind === "automation") return automationMentionById.get(mention.automationId)?.name ?? mention.title?.trim() ?? fallbackMentionLabel;
           if (mention.kind === "chat") return chatMentionById.get(mention.conversationId)?.name ?? fallbackMentionLabel;
           if (mention.kind === "library_doc") return libraryDocMentionById.get(mention.documentId)?.name ?? fallbackMentionLabel;
           if (mention.kind === "library_entry") return libraryEntryMentionById.get(mention.entryId)?.name ?? fallbackMentionLabel;
@@ -993,7 +1006,7 @@ export function MarkdownBody({
           commentId: null,
           status: internalIssueMention.issueStatus ?? null,
         };
-        const mentionLabel = linkLabel.trim() || internalIssueMention.name || mentionFallbackLabel(mention);
+        const mentionLabel = internalIssueMention.name || linkLabel.trim() || mentionFallbackLabel(mention);
         const mentionLink = (
           <a
             href={internalHref}

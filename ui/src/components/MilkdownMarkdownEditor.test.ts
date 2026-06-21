@@ -2,6 +2,7 @@
 
 import {
   buildAgentMentionHref,
+  buildAutomationMentionHref,
   buildChatMentionHref,
   buildIssueMentionHref,
   buildLibraryDirectoryMentionHref,
@@ -21,6 +22,7 @@ import {
   insertTextAfterRudderTokenBoundary,
   isMilkdownEditableUnexpectedlyBlank,
   isRudderTokenHref,
+  getMilkdownProseMirrorView,
   mentionMarkdown,
   milkdownMentionDecorationAttrs,
   moveSelectionAfterRudderTokenBoundary,
@@ -54,6 +56,18 @@ describe("isMilkdownEditableUnexpectedlyBlank", () => {
     const mediaEditable = document.createElement("div");
     mediaEditable.append(document.createElement("img"));
     expect(isMilkdownEditableUnexpectedlyBlank(mediaEditable, "![diagram](diagram.png)")).toBe(false);
+  });
+});
+
+describe("getMilkdownProseMirrorView", () => {
+  it("does not throw while Milkdown has not injected editorView yet", () => {
+    const ctx = {
+      get: () => {
+        throw new Error("Context editorView not found");
+      },
+    };
+
+    expect(getMilkdownProseMirrorView(ctx)).toBeNull();
   });
 });
 
@@ -104,6 +118,16 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
           projectColor: "#4f46e5",
         },
         expected: `[Editor Migration](${buildProjectMentionHref("project-1", "#4f46e5")}) `,
+      },
+      {
+        option: {
+          id: "automation:automation-1",
+          name: "Daily automation review",
+          kind: "automation",
+          automationId: "automation-1",
+          automationTitle: "Daily automation review",
+        },
+        expected: `[Daily automation review](${buildAutomationMentionHref("automation-1", "Daily automation review")}) `,
       },
       {
         option: {
@@ -268,6 +292,31 @@ describe("MilkdownMarkdownEditor mention serialization", () => {
     expect(token.dataset.mentionComment).toBe("true");
     expect(token.dataset.mentionStatus).toBe("backlog");
     expect(token.classList.contains("rudder-mention-chip--with-status-icon")).toBe(true);
+  });
+
+  it("refreshes existing automation token labels from title metadata and current mention options", () => {
+    const href = buildAutomationMentionHref("automation-1", "Daily automation review");
+    const root = document.createElement("div");
+    root.innerHTML = [
+      `<a href="${href}"`,
+      ' class="rudder-mention-chip rudder-mention-chip--automation"',
+      ' data-mention-kind="automation"',
+      ` data-mention-href="${href}">0d232c68</a>`,
+    ].join("");
+    const token = root.querySelector("a") as HTMLAnchorElement;
+
+    refreshMilkdownMentionTokenStyles(root, [{
+      id: "automation:automation-1",
+      name: "Current daily automation review",
+      kind: "automation",
+      automationId: "automation-1",
+      automationTitle: "Current daily automation review",
+      automationStatus: "active",
+    }]);
+
+    expect(token.dataset.mentionKind).toBe("automation");
+    expect(token.textContent).toBe("Current daily automation review");
+    expect(token.classList.contains("rudder-mention-chip--automation")).toBe(true);
   });
 
   it("removes stale issue status semantics when refreshed options no longer include status", () => {

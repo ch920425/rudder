@@ -2120,7 +2120,6 @@ export function IssueDetail() {
           className="text-[15px] leading-7 text-foreground"
           placeholder="Add a description..."
           multiline
-          alwaysEdit
           editorEngine="milkdown"
           mentions={mentionOptions}
           onMentionQueryChange={setLibraryFileMentionQuery}
