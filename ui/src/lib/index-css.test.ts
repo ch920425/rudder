@@ -266,7 +266,7 @@ describe("index.css motion rules", () => {
     expect(summary).not.toContain("-webkit-line-clamp");
   });
 
-  it("caps long non-agent inline reference tokens inside chat composers", () => {
+  it("only caps non-agent inline reference tokens at the available composer line width", () => {
     const composerMentionTokenBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-project-mention-chip \{[\s\S]*?\n\}/)?.[0] ?? "";
     const composerSkillTokenBlock =
@@ -275,7 +275,7 @@ describe("index.css motion rules", () => {
     for (const tokenBlock of [composerMentionTokenBlock, composerSkillTokenBlock]) {
       expect(tokenBlock).toContain("display: inline-block");
       expect(tokenBlock).toContain("min-width: 0");
-      expect(tokenBlock).toContain("max-width: min(15ch, calc(100% - 1rem))");
+      expect(tokenBlock).toContain("max-width: calc(100% - 1rem)");
       expect(tokenBlock).toContain("overflow: hidden");
       expect(tokenBlock).toContain("text-overflow: ellipsis");
       expect(tokenBlock).toContain("white-space: nowrap");
