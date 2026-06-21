@@ -1267,7 +1267,7 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       includeAutomationExecutions: true,
       reviewerAgentId: req.actor.agentId,
       status: "in_review,blocked",
-      excludeReviewerConfirmedBlockedHandoff: true,
+      excludeReviewerRecordedBlockedDecision: true,
     });
 
     const rowsByIssueId = new Map<string, {

@@ -37,7 +37,7 @@ Behavior:
   agent before calling heartbeat wakeup.
 - Timer preflight admits runs when the agent has actionable assignee issues
   (`todo`, `in_progress`, `blocked`) or reviewer issues (`in_review`,
-  `blocked`) that are not confirmed blocked reviewer handoffs.
+  `blocked`) that do not already have a recorded blocked reviewer decision.
 - Timer preflight skips when no actionable work exists, and it records
   diagnostics when pending wakeups already exist.
 

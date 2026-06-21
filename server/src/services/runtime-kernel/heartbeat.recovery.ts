@@ -337,7 +337,7 @@ export function createHeartbeatRecoveryHandlers(context: any) {
       reviewerAgentId: agent.id,
       includeAutomationExecutions: true,
       status: "in_review,blocked",
-      excludeReviewerConfirmedBlockedHandoff: true,
+      excludeReviewerRecordedBlockedDecision: true,
     });
     if (reviewerIssues.length > 0) {
       return { shouldRun: true, reason: "reviewer_issue" };
@@ -462,7 +462,7 @@ export function createHeartbeatRecoveryHandlers(context: any) {
     return Boolean(existingReview);
   }
 
-  async function issueHasConfirmedBlockedReviewerHandoff(tx: any, issue: PassiveFollowupIssueRow, reviewerAgentId: string) {
+  async function issueHasRecordedBlockedReviewerDecision(tx: any, issue: PassiveFollowupIssueRow, reviewerAgentId: string) {
     if (issue.status !== "blocked") return false;
     const existingHandoff = await tx
       .select({ id: activityLog.id })
@@ -523,8 +523,8 @@ export function createHeartbeatRecoveryHandlers(context: any) {
       if (await runHasIssueReviewDecision(tx, run, issue.id)) {
         return { kind: "none", reason: "review_decision_recorded" };
       }
-      if (await issueHasConfirmedBlockedReviewerHandoff(tx, issue, run.agentId)) {
-        return { kind: "none", reason: "blocked_reviewer_handoff_confirmed" };
+      if (await issueHasRecordedBlockedReviewerDecision(tx, issue, run.agentId)) {
+        return { kind: "none", reason: "blocked_review_decision_recorded" };
       }
       if (await issueHasDeferredWake(tx, issue.orgId, issue.id)) {
         return { kind: "none", reason: "deferred_issue_wake_exists" };
@@ -697,5 +697,5 @@ export function createHeartbeatRecoveryHandlers(context: any) {
     };
   }
 
-  return { enqueueRecoveryRun, enqueueProcessLossRetry, parseHeartbeatPolicy, markAgentHeartbeatChecked, evaluateTimerPreflight, runHasIssueClosureComment, runHasIssueReviewDecision, issueHasDeferredWake, passiveFollowupAlreadyRecorded, reviewerCloseoutAlreadyRecorded, issueHasConfirmedBlockedReviewerHandoff, evaluatePassiveIssueClosureForLockedIssue };
+  return { enqueueRecoveryRun, enqueueProcessLossRetry, parseHeartbeatPolicy, markAgentHeartbeatChecked, evaluateTimerPreflight, runHasIssueClosureComment, runHasIssueReviewDecision, issueHasDeferredWake, passiveFollowupAlreadyRecorded, reviewerCloseoutAlreadyRecorded, issueHasRecordedBlockedReviewerDecision, evaluatePassiveIssueClosureForLockedIssue };
 }

@@ -141,7 +141,7 @@ describe("agent inbox reviewer rows", () => {
       includeAutomationExecutions: true,
       reviewerAgentId: "agent-1",
       status: "in_review,blocked",
-      excludeReviewerConfirmedBlockedHandoff: true,
+      excludeReviewerRecordedBlockedDecision: true,
     });
     expect(res.body).toMatchObject([
       {

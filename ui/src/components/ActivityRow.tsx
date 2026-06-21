@@ -22,7 +22,6 @@ const ACTION_VERBS: Record<string, string> = {
   "issue.document_updated": "updated document on",
   "issue.document_deleted": "deleted document from",
   "issue.commented": "commented on",
-  "issue.human_intervention_required": "requested human intervention on",
   "issue.deleted": "deleted",
   "agent.created": "created",
   "agent.updated": "updated",

@@ -949,7 +949,7 @@ describe("IssueDetail", () => {
         entityId: "issue-parent",
         agentId: "agent-1",
         runId: null,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-04-20T01:20:00.000Z"),
       },
       {
@@ -965,19 +965,6 @@ describe("IssueDetail", () => {
         details: { shortSha: "abc1234", subject: "fix: report code commit" },
         createdAt: new Date("2026-04-20T01:22:00.000Z"),
       },
-      {
-        id: "activity-human-intervention",
-        orgId: "org-2",
-        actorType: "agent",
-        actorId: "agent-1",
-        action: "issue.human_intervention_required",
-        entityType: "issue",
-        entityId: "issue-parent",
-        agentId: "agent-1",
-        runId: null,
-        details: { decision: "blocked", nextAction: "Owner must grant GitHub Actions publish access." },
-        createdAt: new Date("2026-04-20T01:25:00.000Z"),
-      },
     ]);
 
     const html = renderToStaticMarkup(<IssueDetail />);
@@ -989,9 +976,10 @@ describe("IssueDetail", () => {
     expect(html).toContain("href=\"/issues/ZST-442\"");
     expect(html).toContain("ZST-442");
     expect(html).toContain("moved from Todo to In Progress");
-    expect(html).toContain("confirmed blocker; operator handoff needed");
+    expect(html).toContain("recorded reviewer decision: blocked");
     expect(html).toContain("committed abc1234: fix: report code commit");
-    expect(html).toContain("requested human intervention");
+    expect(html).not.toContain("operator handoff");
+    expect(html).not.toContain("requested human intervention");
     expect(html).toContain("data-testid=\"issue-activity-row\"");
     expect(html).toContain("grid-cols-[16px_minmax(0,1fr)]");
     expect(html).toContain("data-testid=\"issue-activity-summary\"");

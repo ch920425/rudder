@@ -77,17 +77,17 @@ describe("buildLangfuseRunScores", () => {
     const diagnosis = diagnoseRun(detail, "error");
     const scores = buildLangfuseRunScores(detail, diagnosis);
 
-    expect(scores.map((score) => score.name)).toEqual([
+    const scoreNames = scores.map((score) => score.name);
+    expect(scoreNames).toEqual([
       "run_health",
       "failure_taxonomy",
       "task_outcome",
       "budget_guardrail",
       "cost_efficiency",
-      "human_intervention_required",
     ]);
     expect(scores.find((score) => score.name === "run_health")?.value).toBe(false);
     expect(scores.find((score) => score.name === "budget_guardrail")?.value).toBe(true);
-    expect(scores.find((score) => score.name === "human_intervention_required")?.value).toBe(true);
+    expect((scoreNames as string[]).includes("human_intervention_required")).toBe(false);
   });
 
   it("includes recovery_success when a recovery run is present", () => {

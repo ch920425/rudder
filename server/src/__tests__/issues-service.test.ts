@@ -1022,14 +1022,14 @@ describe("issueService.list participantAgentId", () => {
     expect((await svc.list(orgId, { reviewerUserId })).map((issue) => issue.id)).toEqual([userReviewed.id]);
   });
 
-  it("can exclude blocked reviewer rows after the reviewer confirms operator handoff", async () => {
+  it("can exclude blocked reviewer rows after the reviewer records a blocked decision", async () => {
     const orgId = randomUUID();
     const reviewerAgentId = randomUUID();
 
     await db.insert(organizations).values({
       id: orgId,
-      name: "Reviewer Handoff Org",
-      urlKey: deriveOrganizationUrlKey("Reviewer Handoff Org"),
+      name: "Reviewer Blocked Decision Org",
+      urlKey: deriveOrganizationUrlKey("Reviewer Blocked Decision Org"),
       issuePrefix: `H${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       requireBoardApprovalForNewAgents: false,
     });
@@ -1122,7 +1122,7 @@ describe("issueService.list participantAgentId", () => {
         entityType: "issue",
         entityId: confirmedIssueId,
         agentId: reviewerAgentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:01:00.000Z"),
       },
       {
@@ -1133,7 +1133,7 @@ describe("issueService.list participantAgentId", () => {
         entityType: "issue",
         entityId: reblockedIssueId,
         agentId: reviewerAgentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:02:00.000Z"),
       },
       {
@@ -1155,7 +1155,7 @@ describe("issueService.list participantAgentId", () => {
         entityType: "issue",
         entityId: resumedByCommentIssueId,
         agentId: reviewerAgentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:04:00.000Z"),
       },
       {
@@ -1176,7 +1176,7 @@ describe("issueService.list participantAgentId", () => {
         entityType: "issue",
         entityId: resumedByPriorityIssueId,
         agentId: reviewerAgentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:06:00.000Z"),
       },
       {
@@ -1197,7 +1197,7 @@ describe("issueService.list participantAgentId", () => {
         entityType: "issue",
         entityId: reviewerCommentIssueId,
         agentId: reviewerAgentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:08:00.000Z"),
       },
       {
@@ -1216,7 +1216,7 @@ describe("issueService.list participantAgentId", () => {
     const rows = await svc.list(orgId, {
       reviewerAgentId,
       status: "in_review,blocked",
-      excludeReviewerConfirmedBlockedHandoff: true,
+      excludeReviewerRecordedBlockedDecision: true,
     });
     const rowIds = new Set(rows.map((issue) => issue.id));
 

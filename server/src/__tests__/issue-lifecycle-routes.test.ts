@@ -1577,7 +1577,7 @@ describe("issue lifecycle routes", () => {
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
   });
 
-  it("records a blocked reviewer decision as a human handoff outcome", async () => {
+  it("records a blocked reviewer decision without creating a human-intervention workflow", async () => {
     mockIssueService.getById.mockResolvedValue(
       makeIssue({
         status: "blocked",
@@ -1611,24 +1611,14 @@ describe("issue lifecycle routes", () => {
         action: "issue.review_decision_recorded",
         details: expect.objectContaining({
           decision: "blocked",
-          outcome: "human_handoff",
-          operatorActionRequired: true,
+          outcome: "review_closed",
           status: "blocked",
         }),
       }),
     );
-    expect(mockLogActivity).toHaveBeenCalledWith(
+    expect(mockLogActivity).not.toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
-        action: "issue.human_intervention_required",
-        details: expect.objectContaining({
-          decision: "blocked",
-          status: "blocked",
-          commentId: "comment-1",
-          previousReviewerAgentId: REVIEWER_AGENT_ID,
-          nextAction: "Human/operator intervention is required before agent review can continue.",
-        }),
-      }),
+      expect.objectContaining({ action: "issue.human_intervention_required" }),
     );
     await flushAsyncWork();
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();

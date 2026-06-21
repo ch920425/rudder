@@ -176,7 +176,6 @@ const ACTION_LABELS: Record<string, string> = {
   "issue.passive_followup_queued": "queued passive follow-up",
   "issue.closure_needs_operator_review": "needs operator review for close-out",
   "issue.review_decision_recorded": "recorded a reviewer decision",
-  "issue.human_intervention_required": "requested human intervention",
   "issue.attachment_added": "added an attachment",
   "issue.attachment_removed": "removed an attachment",
   "issue.approval_linked": "linked an approval",
@@ -682,9 +681,6 @@ function formatAction(
   }
   if (action === "issue.review_decision_recorded" && details) {
     const decision = typeof details.decision === "string" ? humanizeValue(details.decision) : "unknown";
-    if (details.outcome === "human_handoff" || details.operatorActionRequired === true) {
-      return "confirmed blocker; operator handoff needed";
-    }
     return `recorded reviewer decision: ${decision}`;
   }
   return ACTION_LABELS[action] ?? action.replace(/[._]/g, " ");

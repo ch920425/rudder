@@ -198,7 +198,6 @@ export function registerIssueMutationRoutes(ctx: IssueMutationRouteContext) {
     canAgentCompleteIssue,
     statusForReviewDecision,
     statusAcceptsReviewerDecision,
-    reviewerDecisionRequiresHumanHandoff,
     commitSubject,
   } = ctx;
   router.post("/orgs/:orgId/issues", validate(createIssueSchema), async (req, res) => {
@@ -477,7 +476,6 @@ export function registerIssueMutationRoutes(ctx: IssueMutationRouteContext) {
 
     }
     if (reviewDecision !== undefined) {
-      const reviewOutcome = reviewDecision === "blocked" ? "human_handoff" : "review_closed";
       await logActivity(db, {
         orgId: issue.orgId,
         actorType: actor.actorType,
@@ -489,35 +487,12 @@ export function registerIssueMutationRoutes(ctx: IssueMutationRouteContext) {
         entityId: issue.id,
         details: {
           decision: reviewDecision,
-          outcome: reviewOutcome,
-          operatorActionRequired: reviewOutcome === "human_handoff",
+          outcome: "review_closed",
           status: issue.status,
           identifier: issue.identifier,
           commentId: comment?.id ?? null,
         },
       });
-      if (reviewerDecisionRequiresHumanHandoff(reviewDecision)) {
-        await logActivity(db, {
-          orgId: issue.orgId,
-          actorType: actor.actorType,
-          actorId: actor.actorId,
-          agentId: actor.agentId,
-          runId: actor.runId,
-          action: "issue.human_intervention_required",
-          entityType: "issue",
-          entityId: issue.id,
-          details: {
-            decision: reviewDecision,
-            status: issue.status,
-            identifier: issue.identifier,
-            issueTitle: issue.title,
-            commentId: comment?.id ?? null,
-            previousReviewerAgentId: existing.reviewerAgentId,
-            previousReviewerUserId: existing.reviewerUserId,
-            nextAction: "Human/operator intervention is required before agent review can continue.",
-          },
-        });
-      }
     }
 
     const assigneeChanged = assigneeWillChange;

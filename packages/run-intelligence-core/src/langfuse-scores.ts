@@ -8,7 +8,6 @@ export interface LangfuseScoreDraft {
     | "task_outcome"
     | "budget_guardrail"
     | "cost_efficiency"
-    | "human_intervention_required"
     | "recovery_success";
   value: boolean | number | string;
   comment?: string;
@@ -26,11 +25,6 @@ function collectErrorText(detail: ObservedRunDetail) {
 
 function isBudgetGuardrail(detail: ObservedRunDetail) {
   return /budget|hard[-\s]?limit|token burn|auto-pause/i.test(collectErrorText(detail));
-}
-
-function requiresHumanIntervention(detail: ObservedRunDetail, diagnosis: RunDiagnosis) {
-  if (detail.run.status === "failed" || detail.run.status === "timed_out") return true;
-  return diagnosis.findings.some((finding) => finding.severity === "error");
 }
 
 function resolveTaskOutcome(detail: ObservedRunDetail) {
@@ -91,13 +85,6 @@ export function buildLangfuseRunScores(detail: ObservedRunDetail, diagnosis: Run
       name: "cost_efficiency",
       value: resolveCostEfficiency(detail, diagnosis),
       comment: `costUsd=${Number(diagnosis.metrics.costUsd ?? detail.run.usageJson?.costUsd ?? 0).toFixed(2)}`,
-    },
-    {
-      name: "human_intervention_required",
-      value: requiresHumanIntervention(detail, diagnosis),
-      comment: requiresHumanIntervention(detail, diagnosis)
-        ? "Manual review or follow-up is recommended."
-        : "No immediate human intervention signal detected.",
     },
   ];
 

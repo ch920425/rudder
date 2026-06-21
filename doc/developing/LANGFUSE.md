@@ -49,7 +49,6 @@ Heartbeat run live eval emits Langfuse scores from Rudder's `run-intelligence-co
 - `task_outcome`
 - `budget_guardrail`
 - `cost_efficiency`
-- `human_intervention_required`
 - `recovery_success` when the run is a recovery run
 
 Create-agent benchmark runs add a workflow-specific layer on top of the same trace pipeline:
