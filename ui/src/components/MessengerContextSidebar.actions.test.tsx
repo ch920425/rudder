@@ -801,11 +801,18 @@ describe("MessengerContextSidebar chat actions", () => {
       .filter((label): label is string => Boolean(label?.endsWith(" group icon")));
     const emojiButton = Array.from(editor?.querySelectorAll("button") ?? [])
       .find((button) => button.getAttribute("aria-label") === "Use 🚀 group emoji") as HTMLButtonElement | undefined;
+    const emojiPicker = editor?.querySelector('[aria-label="Group emoji picker"]');
+    const emojiButtonLabels = Array.from(emojiPicker?.querySelectorAll("button") ?? [])
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label): label is string => Boolean(label?.endsWith(" group emoji")));
     const submitButton = Array.from(editor?.querySelectorAll("button") ?? [])
       .find((button) => button.textContent === "Create") as HTMLButtonElement | undefined;
 
     expect(nameInput).toBeTruthy();
     expect(iconButtonLabels).toEqual(["Use folder group icon"]);
+    expect(emojiButtonLabels.length).toBeGreaterThan(24);
+    expect(emojiButtonLabels).toContain("Use 🧪 group emoji");
+    expect(emojiButtonLabels).toContain("Use 🔐 group emoji");
     expect(emojiButton).toBeTruthy();
     expect(submitButton).toBeTruthy();
     await act(async () => {
@@ -907,11 +914,18 @@ describe("MessengerContextSidebar chat actions", () => {
       .find((button) => button.textContent?.trim() === "Change icon") as HTMLButtonElement | undefined;
     const emojiButton = Array.from(document.querySelectorAll("button"))
       .find((button) => button.getAttribute("aria-label") === "Use 🔥 group emoji") as HTMLButtonElement | undefined;
+    const emojiPicker = document.querySelector('[aria-label="Group emoji picker"]');
+    const emojiButtonLabels = Array.from(emojiPicker?.querySelectorAll("button") ?? [])
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label): label is string => Boolean(label?.endsWith(" group emoji")));
     const duplicatedEmojiMenuItem = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "🔥🔥") as HTMLButtonElement | undefined;
 
     expect(changeIconTrigger).toBeTruthy();
     expect(emojiButton).toBeTruthy();
+    expect(emojiButtonLabels.length).toBeGreaterThan(24);
+    expect(emojiButtonLabels).toContain("Use 🧪 group emoji");
+    expect(emojiButtonLabels).toContain("Use 🔐 group emoji");
     expect(duplicatedEmojiMenuItem).toBeUndefined();
     await act(async () => {
       emojiButton?.click();

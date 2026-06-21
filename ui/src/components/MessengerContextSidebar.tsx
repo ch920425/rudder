@@ -125,7 +125,13 @@ const MANAGED_GROUP_INITIAL_VISIBLE_COUNT = 6;
 const MANAGED_GROUP_VISIBLE_INCREMENT = 10;
 const DELETE_AFTER_STOP_RETRY_DELAYS_MS = [120, 300, 700] as const;
 const CUSTOM_GROUP_ICON_OPTIONS = ["folder"] as const;
-const CUSTOM_GROUP_EMOJI_OPTIONS = ["😀", "🚀", "💡", "🧠", "📌", "✨", "🛠️", "🔥"] as const;
+const CUSTOM_GROUP_EMOJI_SECTIONS = [
+  { label: "Work", emoji: ["😀", "🚀", "💡", "🧠", "📌", "✨", "🛠️", "🔥"] },
+  { label: "Status", emoji: ["✅", "⚡", "🎯", "⏳", "🧪", "🔍", "🚧", "📣"] },
+  { label: "Teams", emoji: ["👥", "🤝", "🧭", "🧑‍💻", "🧑‍🎨", "🧑‍🔬", "🧑‍🏫", "🧑‍⚖️"] },
+  { label: "Objects", emoji: ["📁", "📄", "🗂️", "📚", "🧰", "🔧", "🧲", "🔐"] },
+] as const;
+const CUSTOM_GROUP_EMOJI_OPTIONS = CUSTOM_GROUP_EMOJI_SECTIONS.flatMap((section) => section.emoji);
 const CUSTOM_GROUP_COLOR_OPTIONS = ["slate", "teal", "sky", "indigo", "amber", "rose", "red", "orange"] as const;
 type CustomGroupColor = (typeof CUSTOM_GROUP_COLOR_OPTIONS)[number];
 const CUSTOM_GROUP_ICON_SEPARATOR = "::";
@@ -565,6 +571,78 @@ function CustomGroupIcon({ icon }: { icon?: string | null }) {
   );
 }
 
+function CustomGroupEmojiGrid({
+  selectedGlyph,
+  onSelect,
+}: {
+  selectedGlyph: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5" aria-label="Group emoji picker">
+      {CUSTOM_GROUP_EMOJI_SECTIONS.map((section) => (
+        <div key={section.label}>
+          <div className="px-0.5 text-[10px] font-semibold text-muted-foreground">{section.label}</div>
+          <div className="mt-1 grid grid-cols-8 gap-1" aria-label={`${section.label} group emoji`}>
+            {section.emoji.map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-label={`Use ${option} group emoji`}
+                aria-pressed={selectedGlyph === option}
+                className={cn(
+                  "inline-flex h-7 w-7 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border text-[14px] leading-none transition-[background-color,border-color,transform]",
+                  selectedGlyph === option
+                    ? "border-[color:var(--border-strong)] bg-[color:var(--surface-active)]"
+                    : "border-transparent hover:bg-[color:var(--surface-active)] hover:scale-[1.04]",
+                )}
+                onClick={() => onSelect(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CustomGroupEmojiMenuGrid({
+  selectedGlyph,
+  onSelect,
+}: {
+  selectedGlyph: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="w-[260px] space-y-1.5 px-1 py-1" aria-label="Group emoji picker">
+      {CUSTOM_GROUP_EMOJI_SECTIONS.map((section) => (
+        <div key={section.label}>
+          <div className="px-1 text-[10px] font-semibold text-muted-foreground">{section.label}</div>
+          <div className="mt-1 grid grid-cols-8 gap-1" aria-label={`${section.label} group emoji`}>
+            {section.emoji.map((option) => (
+              <DropdownMenuItem
+                key={option}
+                aria-label={`Use ${option} group emoji`}
+                className={cn(
+                  "flex h-7 w-7 cursor-default items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border p-0 text-[15px] leading-none transition-[background-color,border-color,transform]",
+                  selectedGlyph === option
+                    ? "border-[color:var(--border-strong)] bg-[color:var(--surface-active)]"
+                    : "border-transparent hover:bg-[color:var(--surface-active)] hover:scale-[1.04]",
+                )}
+                onSelect={() => onSelect(option)}
+              >
+                {option}
+              </DropdownMenuItem>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CustomGroupEditor({
   name,
   icon,
@@ -625,24 +703,8 @@ function CustomGroupEditor({
           </button>
         ))}
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5" aria-label="Group emoji">
-        {CUSTOM_GROUP_EMOJI_OPTIONS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-label={`Use ${option} group emoji`}
-            aria-pressed={icon === option}
-            className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border text-[14px] leading-none transition-[background-color,border-color,transform]",
-              icon === option
-                ? "border-[color:var(--border-strong)] bg-[color:var(--surface-active)]"
-                : "border-transparent hover:bg-[color:var(--surface-active)] hover:scale-[1.04]",
-            )}
-            onClick={() => onIconChange(option)}
-          >
-            {option}
-          </button>
-        ))}
+      <div className="mt-1.5 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_74%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-page)_72%,transparent)] p-1.5">
+        <CustomGroupEmojiGrid selectedGlyph={icon} onSelect={onIconChange} />
       </div>
       <div className="mt-2 flex items-center gap-1.5" aria-label="Group color">
         {CUSTOM_GROUP_COLOR_OPTIONS.map((option) => {
@@ -3312,27 +3374,10 @@ export function MessengerContextSidebar() {
                       </DropdownMenuItem>
                     ))}
                     <DropdownMenuSeparator />
-                    <div className="grid grid-cols-4 gap-1 px-1 py-1" aria-label="Group emoji">
-                      {CUSTOM_GROUP_EMOJI_OPTIONS.map((option) => {
-                        const currentIcon = pendingCustomGroupIcons[customGroup.id] ?? customGroup.icon;
-                        const selected = splitCustomGroupIconValue(currentIcon).glyph === option;
-                        return (
-                          <DropdownMenuItem
-                            key={option}
-                            aria-label={`Use ${option} group emoji`}
-                            className={cn(
-                              "flex h-8 w-8 cursor-default items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border p-0 text-[16px] leading-none transition-[background-color,border-color,transform]",
-                              selected
-                                ? "border-[color:var(--border-strong)] bg-[color:var(--surface-active)]"
-                                : "border-transparent hover:bg-[color:var(--surface-active)] hover:scale-[1.04]",
-                            )}
-                            onSelect={() => updateCustomGroupIcon(customGroup, option)}
-                          >
-                            {option}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </div>
+                    <CustomGroupEmojiMenuGrid
+                      selectedGlyph={splitCustomGroupIconValue(pendingCustomGroupIcons[customGroup.id] ?? customGroup.icon).glyph}
+                      onSelect={(option) => updateCustomGroupIcon(customGroup, option)}
+                    />
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 <DropdownMenuSub>
