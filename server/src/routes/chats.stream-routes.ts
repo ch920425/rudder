@@ -16,6 +16,7 @@ import {
 } from "@rudderhq/shared";
 import { Router, type Request } from "express";
 import multer from "multer";
+import { randomUUID } from "node:crypto";
 import type { AgentRuntimeInvocationMeta } from "../agent-runtimes/index.js";
 import { isAllowedContentType, MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
 import { emitExecutionTranscriptTree } from "../langfuse-transcript.js";
@@ -30,7 +31,12 @@ import {
   ChatAssistantStreamError,
   userVisiblePartialBodyFromError
 } from "../services/chat-assistant.js";
-import { cancelActiveChatGeneration, claimChatGeneration } from "../services/chat-generation-locks.js";
+import {
+  cancelActiveChatGeneration,
+  claimChatGeneration,
+  getActiveChatGeneration,
+  setActiveChatGenerationId,
+} from "../services/chat-generation-locks.js";
 import {
   logActivity
 } from "../services/index.js";
@@ -138,6 +144,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
       return;
     }
 
+    const queuedMessageId = parsedBody.data.queuedMessageId ?? null;
     const assistantAvailability = await assistantSvc.getChatAssistantAvailability(conversation as ChatConversation);
     if (!assistantAvailability.available) {
       res.status(503).json({ error: assistantAvailability.error });
@@ -145,10 +152,63 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
     }
 
     const abortController = new AbortController();
-    const releaseGeneration = claimChatGeneration(conversation.id, abortController);
+    const releaseGeneration = claimChatGeneration(conversation.id, abortController, null);
     if (!releaseGeneration) {
-      res.status(409).json({ error: "A chat reply is already being generated for this conversation" });
+      if (queuedMessageId) {
+        res.status(409).json({ error: "A chat reply is already being generated for this conversation" });
+        return;
+      }
+      if (messageFiles.length > 0) {
+        res.status(422).json({ error: "Queued follow-ups do not support new files yet" });
+        return;
+      }
+      const item = await svc.createQueuedMessage({
+        orgId: conversation.orgId,
+        conversationId: conversation.id,
+        clientMutationId: `stream:${randomUUID()}`,
+        expectedGenerationId: getActiveChatGeneration(conversation.id)?.generationId ?? null,
+        payload: {
+          body: parsedBody.data.body,
+          attachmentIds: [],
+          skillRefs: [],
+          projectId: null,
+          accessMode: null,
+          model: null,
+          effort: null,
+          metadata: {
+            source: "stream_endpoint_during_active_generation",
+          },
+        },
+      });
+      res.status(202);
+      res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.write(`${JSON.stringify({ type: "queued", item })}\n`);
+      res.end();
       return;
+    }
+    if (queuedMessageId) {
+      try {
+        await svc.assertQueuedMessageClaimedForDelivery({
+          conversationId: conversation.id,
+          itemId: queuedMessageId,
+          body: parsedBody.data.body,
+        });
+      } catch (error) {
+        releaseGeneration();
+        throw error;
+      }
+    }
+
+    let generation: { id: string } | null = null;
+    try {
+      const createdGeneration = await svc.createGeneration(conversation.orgId, conversation.id);
+      generation = createdGeneration;
+      setActiveChatGenerationId(conversation.id, createdGeneration.id);
+    } catch (error) {
+      releaseGeneration();
+      throw error;
     }
 
     let assistantConversationForPartial: ChatConversation | null = null;
@@ -160,6 +220,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
     let assistantProgressMessage: ChatMessage | null = null;
     let assistantProgressMessageId: string | null = null;
     let activeChatRunId: string | null = null;
+    let generationTerminalStatus: "completed" | "failed" | "stopped" | "aborted" = "failed";
     let assistantDraftBody = "";
     const persistStreamProgress = async (
       progressConversation: ChatConversation,
@@ -218,6 +279,13 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
         actor,
         parsedBody.data.editUserMessageId ?? null,
       );
+      if (queuedMessageId) {
+        await svc.markQueuedMessageRunning({
+          conversationId: conversation.id,
+          itemId: queuedMessageId,
+          sourceMessageId: userMessage.id,
+        });
+      }
       if (!parsedBody.data.editUserMessageId) {
         startChatTitleGeneration(conversation as ChatConversation, parsedBody.data.body);
       }
@@ -328,6 +396,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
 
             if (streamed.outcome === "stopped") {
               finalChatStatus = "stopped";
+              generationTerminalStatus = "stopped";
               finalChatOutput = streamed.partialBody;
               const stoppedMessage = await persistPartialAssistantMessage(
                 assistantInput.conversation,
@@ -379,6 +448,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
             );
             await linkChatRunMessages(assistantInput.conversation, activeChatRunId, createdMessages);
             finalChatOutput = streamed.reply.body;
+            generationTerminalStatus = "completed";
             await logChatMessagesAdded(assistantInput.conversation, createdMessages, {
               actorType: "system",
               actorId: "chat-assistant",
@@ -401,6 +471,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
             }
           } catch (error) {
             finalChatStatus = "failed";
+            generationTerminalStatus = "failed";
             if (error instanceof ChatAssistantStreamError) {
               const failurePayload = recoverableFailurePayload(error, activeChatRunId);
               finalChatOutput =
@@ -527,6 +598,20 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
     } finally {
       req.off("aborted", handleClosed);
       res.off("close", handleClosed);
+      if (generation) {
+        await svc.markGenerationTerminal(generation.id, generationTerminalStatus).catch((error: unknown) => {
+          logger.warn({ err: error, generationId: generation?.id }, "failed to mark chat generation terminal");
+        });
+      }
+      if (queuedMessageId) {
+        await svc.markQueuedMessageDeliveryTerminal({
+          conversationId: conversation.id,
+          itemId: queuedMessageId,
+          status: generationTerminalStatus,
+        }).catch((error: unknown) => {
+          logger.warn({ err: error, queuedMessageId }, "failed to mark queued chat message terminal");
+        });
+      }
       releaseGeneration();
     }
   });

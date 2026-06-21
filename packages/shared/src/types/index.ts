@@ -53,13 +53,14 @@ export type {
   ChatAskUserQuestion,
   ChatAskUserRequest, ChatAttachment,
   ChatContextLink, ChatConversation, ChatLinkedEntity, ChatMessage, ChatOperationProposalDecision,
+  ChatQueuedMessage, ChatQueuedMessagePayload, ChatQueuedMessageStatus, ChatQueueClaimResponse, ChatQueueSnapshot,
   ChatOperationProposalDecisionAction,
   ChatOperationProposalDecisionStatus, ChatPrimaryIssueSummary, ChatRichReference,
   ChatRichReferenceDisplay,
-  ChatRuntimeDescriptor, ChatStreamAckEvent,
+  ChatRuntimeDescriptor, ChatSteerResponse, ChatSteerResult, ChatStreamAckEvent,
   ChatStreamAssistantDeltaEvent,
   ChatStreamAssistantStateEvent, ChatStreamErrorEvent,
-  ChatStreamEvent,
+  ChatStreamEvent, ChatStreamQueuedEvent,
   ChatStreamFinalEvent, ChatStreamTranscriptEntry, ChatStreamTranscriptEntryEvent, ChatStreamTranscriptTodoItem,
   ChatStreamTranscriptTodoItemStatus, ChatTranscriptSummary
 } from "./chat.js";
