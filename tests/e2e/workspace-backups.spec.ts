@@ -51,6 +51,12 @@ test("browses, restores, and deletes workspace backup versions", async ({ page }
   await expect(page.getByTestId("workspace-main-card").getByText("Versions")).toBeVisible();
   await expect(page.getByText("1 backup")).toBeVisible();
 
+  await page.getByRole("link", { name: "Back to library" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${organization.issuePrefix}/library(?:\\?|$)`));
+  await expect(page.getByRole("button", { name: "Hide Library sidebar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No file selected" })).toBeVisible();
+  await page.goto(`/${organization.issuePrefix}/workspaces/backups`);
+
   await page.getByRole("button", { name: "plans" }).click();
   await page.getByRole("button", { name: "roadmap.md" }).click();
   await expect(page.getByText("# Roadmap")).toBeVisible();

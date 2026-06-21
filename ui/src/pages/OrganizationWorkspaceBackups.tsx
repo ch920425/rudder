@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ArrowLeft,
   HardDrive,
   Loader2,
   Plus,
@@ -21,8 +22,9 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useDialog } from "../context/DialogContext";
 import { useToast } from "../context/ToastContext";
 import { useViewedOrganization } from "../hooks/useViewedOrganization";
+import { applyOrganizationPrefix } from "../lib/organization-routes";
 import { queryKeys } from "../lib/queryKeys";
-import { useSearchParams } from "../lib/router";
+import { Link, useSearchParams } from "../lib/router";
 
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
@@ -276,6 +278,7 @@ export function OrganizationWorkspaceBackups() {
       restoreBackup.variables !== selectedBackup.id,
   );
   const canDelete = Boolean(selectedBackup && selectedBackup.status !== "running" && deleteBackup.variables !== selectedBackup.id);
+  const libraryHref = applyOrganizationPrefix("/library", viewedOrganization.issuePrefix);
 
   async function handleRestore() {
     if (!selectedBackup) return;
@@ -314,10 +317,18 @@ export function OrganizationWorkspaceBackups() {
     <div className="grid h-[calc(100vh-7.75rem)] min-h-[560px] min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_292px]">
       <section className="flex min-h-0 min-w-0 flex-col">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-4 py-3">
-          <div className="min-w-0">
-            <div className="text-sm font-medium">Content</div>
-            <div className="truncate text-xs text-muted-foreground">
-              {selectedFilePath ?? "Select a file"}
+          <div className="flex min-w-0 items-start gap-3">
+            <Button asChild size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-muted-foreground">
+              <Link to={libraryHref}>
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                Back to library
+              </Link>
+            </Button>
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Content</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {selectedFilePath ?? "Select a file"}
+              </div>
             </div>
           </div>
           {selectedFilePath ? (
