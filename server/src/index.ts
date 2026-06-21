@@ -843,6 +843,51 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       "skipped workspace backup artifact path migration",
     );
   }
+  const workspaceBackupRepairService = workspaceBackupService(db);
+  for (const orgId of liveOrganizationIds) {
+    try {
+      const recovery = await workspaceBackupRepairService.recoverSparseWorkspaceFromLatestBackup(orgId);
+      if (!recovery.recovered) continue;
+      logger.warn(
+        {
+          orgId: recovery.orgId,
+          backupId: recovery.backupId,
+          currentFileCount: recovery.currentFileCount,
+          backupFileCount: recovery.backupFileCount,
+          restoredFileCount: recovery.restoredFileCount,
+          skippedConflictingFiles: recovery.skippedConflictingFiles,
+        },
+        "repaired sparse organization workspace from latest backup",
+      );
+      try {
+        await logActivity(db as any, {
+          orgId,
+          actorType: "system",
+          actorId: "workspace-backup-repair",
+          action: "organization.workspace_backup.sparse_repair",
+          entityType: "workspace_backup",
+          entityId: recovery.backupId ?? orgId,
+          details: {
+            triggerSource: "startup",
+            currentFileCount: recovery.currentFileCount,
+            backupFileCount: recovery.backupFileCount,
+            restoredFileCount: recovery.restoredFileCount,
+            skippedConflictingFiles: recovery.skippedConflictingFiles,
+          },
+        });
+      } catch (error) {
+        logger.warn(
+          { orgId, err: error instanceof Error ? error.message : String(error) },
+          "failed to log sparse organization workspace startup repair activity",
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        { orgId, err: error instanceof Error ? error.message : String(error) },
+        "sparse organization workspace repair failed during startup",
+      );
+    }
+  }
 
   if (config.deploymentMode === "local_trusted" && !isLoopbackHost(config.host)) {
     throw new Error(
@@ -1115,6 +1160,34 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       workspaceBackupInFlight = true;
       try {
         const result = await workspaceBackups.runScheduledBackups();
+        for (const recovery of result.sparseRecoveries) {
+          try {
+            await logActivity(db as any, {
+              orgId: recovery.orgId,
+              actorType: "system",
+              actorId: "workspace-backup-scheduler",
+              action: recovery.recovered
+                ? "organization.workspace_backup.sparse_repair"
+                : "organization.workspace_backup.sparse_repair_failed",
+              entityType: "workspace_backup",
+              entityId: recovery.backupId ?? recovery.orgId,
+              details: {
+                triggerSource: "scheduled",
+                currentFileCount: recovery.currentFileCount,
+                backupFileCount: recovery.backupFileCount,
+                restoredFileCount: recovery.restoredFileCount,
+                skippedConflictingFiles: recovery.skippedConflictingFiles,
+                reason: recovery.reason,
+                error: recovery.error,
+              },
+            });
+          } catch (error) {
+            logger.warn(
+              { orgId: recovery.orgId, err: error instanceof Error ? error.message : String(error) },
+              "failed to log scheduled sparse organization workspace repair activity",
+            );
+          }
+        }
         for (const backup of [...result.created, ...result.failed]) {
           await logActivity(db as any, {
             orgId: backup.orgId,

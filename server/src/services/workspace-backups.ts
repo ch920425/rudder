@@ -56,6 +56,9 @@ const WORKSPACE_BACKUP_RUNNING_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const MAX_BACKUP_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_BACKUP_TOTAL_BYTES = 100 * 1024 * 1024;
 const MAX_WARNING_COUNT = 200;
+const SPARSE_WORKSPACE_RECOVERY_MAX_CURRENT_FILES = 25;
+const SPARSE_WORKSPACE_RECOVERY_MAX_RATIO = 0.25;
+const SPARSE_WORKSPACE_RECOVERY_MIN_BACKUP_FILES = 10;
 
 type WorkspaceBackupArtifactEntry = {
   path: string;
@@ -107,6 +110,18 @@ export type WorkspaceBackupDownload = {
   byteSize: number;
   archiveSha256: string | null;
   content: Buffer;
+};
+
+export type SparseWorkspaceRecoveryResult = {
+  orgId: string;
+  recovered: boolean;
+  backupId: string | null;
+  currentFileCount: number;
+  backupFileCount: number;
+  restoredFileCount: number;
+  skippedConflictingFiles: string[];
+  reason: string | null;
+  error: string | null;
 };
 
 function timestamp(date = new Date()) {
@@ -418,6 +433,17 @@ async function fileExists(filePath: string) {
   }
 }
 
+async function pathExists(targetPath: string) {
+  try {
+    return await fs.lstat(targetPath);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function walkWorkspace(
   rootPath: string,
   currentPath: string,
@@ -507,6 +533,55 @@ function buildManifest(input: {
   };
 }
 
+async function restoreMissingArtifactFiles(input: {
+  artifact: WorkspaceBackupArtifact;
+  workspaceRoot: string;
+}): Promise<{ restoredFileCount: number; skippedConflictingFiles: string[] }> {
+  let restoredFileCount = 0;
+  const skippedConflictingFiles: string[] = [];
+  const blockedDirectoryPrefixes: string[] = [];
+  const directories = input.artifact.entries.filter((entry) => entry.kind === "directory");
+  const files = input.artifact.entries.filter((entry) => entry.kind === "file");
+
+  for (const entry of directories) {
+    const { resolvedTarget } = resolveWithinRoot(input.workspaceRoot, entry.path);
+    const existing = await pathExists(resolvedTarget);
+    if (existing && !existing.isDirectory()) {
+      skippedConflictingFiles.push(entry.path);
+      blockedDirectoryPrefixes.push(`${entry.path}/`);
+      continue;
+    }
+    await fs.mkdir(resolvedTarget, { recursive: true });
+  }
+
+  for (const entry of files) {
+    if (blockedDirectoryPrefixes.some((prefix) => entry.path.startsWith(prefix))) {
+      skippedConflictingFiles.push(entry.path);
+      continue;
+    }
+    const { resolvedTarget } = resolveWithinRoot(input.workspaceRoot, entry.path);
+    const existing = await pathExists(resolvedTarget);
+    if (existing) {
+      if (!existing.isFile()) {
+        skippedConflictingFiles.push(entry.path);
+        continue;
+      }
+      if (entry.sha256) {
+        const current = await fs.readFile(resolvedTarget);
+        if (sha256Buffer(current) !== entry.sha256) {
+          skippedConflictingFiles.push(entry.path);
+        }
+      }
+      continue;
+    }
+    await fs.mkdir(path.dirname(resolvedTarget), { recursive: true });
+    await fs.writeFile(resolvedTarget, Buffer.from(entry.dataBase64 ?? "", "base64"), { mode: entry.mode ?? 0o600 });
+    restoredFileCount += 1;
+  }
+
+  return { restoredFileCount, skippedConflictingFiles };
+}
+
 export function workspaceBackupService(db: Db) {
   const orgs = organizationService(db);
 
@@ -582,7 +657,89 @@ export function workspaceBackupService(db: Db) {
     return rows.map(mapBackupRow);
   }
 
+  async function recoverSparseWorkspaceFromLatestBackup(orgId: string): Promise<SparseWorkspaceRecoveryResult> {
+    const layout = await ensureOrganizationWorkspaceLayout(orgId);
+    const warnings: string[] = [];
+    const currentEntries = await walkWorkspace(layout.root, layout.root, warnings);
+    const currentFileCount = currentEntries.filter((entry) => entry.kind === "file").length;
+    if (currentFileCount > SPARSE_WORKSPACE_RECOVERY_MAX_CURRENT_FILES) {
+      return {
+        orgId,
+        recovered: false,
+        backupId: null,
+        currentFileCount,
+        backupFileCount: 0,
+        restoredFileCount: 0,
+        skippedConflictingFiles: [],
+        reason: "workspace is not sparse",
+        error: null,
+      };
+    }
+
+    const rows = await db
+      .select()
+      .from(workspaceBackups)
+      .where(and(
+        eq(workspaceBackups.orgId, orgId),
+        or(eq(workspaceBackups.status, "succeeded"), eq(workspaceBackups.status, "restored")),
+      ))
+      .orderBy(desc(workspaceBackups.fileCount), desc(workspaceBackups.createdAt));
+    const candidates = rows.filter((backup) =>
+      backup.fileCount >= SPARSE_WORKSPACE_RECOVERY_MIN_BACKUP_FILES
+      && currentFileCount <= Math.floor(backup.fileCount * SPARSE_WORKSPACE_RECOVERY_MAX_RATIO)
+    );
+
+    if (candidates.length === 0) {
+      return {
+        orgId,
+        recovered: false,
+        backupId: null,
+        currentFileCount,
+        backupFileCount: 0,
+        restoredFileCount: 0,
+        skippedConflictingFiles: [],
+        reason: "no richer backup candidate",
+        error: null,
+      };
+    }
+
+    let lastError: string | null = null;
+    for (const candidate of candidates) {
+      try {
+        const artifact = await readArtifact(candidate);
+        const restored = await restoreMissingArtifactFiles({ artifact, workspaceRoot: layout.root });
+        return {
+          orgId,
+          recovered: restored.restoredFileCount > 0,
+          backupId: candidate.id,
+          currentFileCount,
+          backupFileCount: candidate.fileCount,
+          restoredFileCount: restored.restoredFileCount,
+          skippedConflictingFiles: restored.skippedConflictingFiles,
+          reason: restored.restoredFileCount > 0 ? null : "no missing files restored",
+          error: null,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    return {
+      orgId,
+      recovered: false,
+      backupId: candidates[0]?.id ?? null,
+      currentFileCount,
+      backupFileCount: candidates[0]?.fileCount ?? 0,
+      restoredFileCount: 0,
+      skippedConflictingFiles: [],
+      reason: "richer backup recovery failed",
+      error: lastError,
+    };
+  }
+
   const service = {
+    recoverSparseWorkspaceFromLatestBackup,
+
     async list(orgId: string): Promise<WorkspaceBackupSummary[]> {
       const organization = await orgs.getById(orgId);
       if (!organization) throw notFound("Organization not found");
@@ -805,6 +962,7 @@ export function workspaceBackupService(db: Db) {
       created: WorkspaceBackupSummary[];
       failed: WorkspaceBackupSummary[];
       deleted: WorkspaceBackupSummary[];
+      sparseRecoveries: SparseWorkspaceRecoveryResult[];
       skipped: number;
       errors: Array<{ orgId: string; message: string }>;
     }> {
@@ -817,6 +975,7 @@ export function workspaceBackupService(db: Db) {
       const created: WorkspaceBackupSummary[] = [];
       const failed: WorkspaceBackupSummary[] = [...staleFailed];
       const errors: Array<{ orgId: string; message: string }> = [];
+      const sparseRecoveries: SparseWorkspaceRecoveryResult[] = [];
       let skipped = 0;
 
       for (const organization of organizations) {
@@ -830,6 +989,18 @@ export function workspaceBackupService(db: Db) {
 
           if (latest?.status === "running" || (latest && latest.createdAt > dueBefore)) {
             skipped += 1;
+            continue;
+          }
+
+          const sparseRecovery = await recoverSparseWorkspaceFromLatestBackup(organization.id);
+          if (sparseRecovery.recovered || sparseRecovery.error) {
+            sparseRecoveries.push(sparseRecovery);
+          }
+          if (sparseRecovery.error) {
+            errors.push({
+              orgId: organization.id,
+              message: `Sparse workspace recovery failed before scheduled backup: ${sparseRecovery.error}`,
+            });
             continue;
           }
 
@@ -848,7 +1019,7 @@ export function workspaceBackupService(db: Db) {
         }
       }
 
-      return { created, failed, deleted, skipped, errors };
+      return { created, failed, deleted, sparseRecoveries, skipped, errors };
     },
 
     async restore(orgId: string, backupId: string, input?: { createdByUserId?: string | null }): Promise<WorkspaceBackupRestoreResult> {
