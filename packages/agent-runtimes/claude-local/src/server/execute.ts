@@ -57,7 +57,7 @@ const SHARED_CLAUDE_HOME_ENTRIES = [
   ".config/anthropic",
   ".anthropic",
 ] as const;
-const CLAUDE_SETTINGS_AUTH_ENV_PREFIXES = ["ANTHROPIC_"] as const;
+const CLAUDE_SETTINGS_AUTH_ENV_PREFIXES = ["ANTHROPIC_", "DEEPSEEK_"] as const;
 
 /**
  * Create a tmpdir with `.claude/skills/` containing symlinks to skills from

@@ -14,6 +14,10 @@ const FALLBACK_MODELS_BY_RUNTIME: Record<string, readonly AgentRuntimeModel[]> =
 
 export const PROVIDER_MODEL_RUNTIME_TYPES = ["opencode_local", "pi_local"] as const;
 
+function isClaudeDeepSeekModel(model: string): boolean {
+  return model.trim().toLowerCase().startsWith("deepseek");
+}
+
 export function requiresExplicitProviderModel(agentRuntimeType: string): boolean {
   return PROVIDER_MODEL_RUNTIME_TYPES.includes(
     agentRuntimeType as (typeof PROVIDER_MODEL_RUNTIME_TYPES)[number],
@@ -72,6 +76,9 @@ export function modelNameFromProviderModelId(model: string): string | null {
 
 export function runtimeProviderSetupHint(agentRuntimeType: string, model: string): string | null {
   const provider = providerFromModelId(model);
+  if (agentRuntimeType === "claude_local" && isClaudeDeepSeekModel(model)) {
+    return "For Claude Code + DeepSeek, use a DeepSeek model such as deepseek-v4-pro[1m]. Paste DEEPSEEK_API_KEY below or reference the existing organization secret, then use Test now as the source of truth.";
+  }
   if (agentRuntimeType === "pi_local") {
     if (provider === "deepseek") {
       return "For Pi + DeepSeek, use provider/model such as deepseek/deepseek-chat. Paste DEEPSEEK_API_KEY below, or use pi /login if DeepSeek is already configured locally. If Pi routes through OpenRouter, use openrouter/deepseek/deepseek-chat and paste OPENROUTER_API_KEY. Test now is the source of truth.";
@@ -92,6 +99,7 @@ export function runtimeProviderSetupHint(agentRuntimeType: string, model: string
 
 export function runtimeProviderCredentialEnvKey(agentRuntimeType: string, model: string): string | null {
   const provider = providerFromModelId(model);
+  if (agentRuntimeType === "claude_local" && isClaudeDeepSeekModel(model)) return "DEEPSEEK_API_KEY";
   if (agentRuntimeType === "pi_local") {
     if (provider === "deepseek") return "DEEPSEEK_API_KEY";
     if (provider === "openrouter") return "OPENROUTER_API_KEY";
@@ -131,6 +139,9 @@ export function runtimeManualProbeCommand(agentRuntimeType: string, command: str
 
 export function runtimeAuthRecoveryHint(agentRuntimeType: string, model: string): string {
   const provider = providerFromModelId(model);
+  if (agentRuntimeType === "claude_local" && isClaudeDeepSeekModel(model)) {
+    return "If auth fails, set DEEPSEEK_API_KEY in the runtime env or organization secret binding, then retry Claude Code Test now.";
+  }
   if (agentRuntimeType === "cursor") return "If auth fails, set CURSOR_API_KEY in env or run cursor-agent login.";
   if (agentRuntimeType === "codex_local") return "If auth fails, run codex login or configure the OpenAI credentials Codex already uses locally.";
   if (agentRuntimeType === "gemini_local") return "If auth fails, set GEMINI_API_KEY in env or run gemini auth.";
