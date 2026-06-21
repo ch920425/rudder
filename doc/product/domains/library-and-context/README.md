@@ -41,5 +41,7 @@ edit_policy: user_confirmed_only
   to project and issue runs.
 - `WORKSPACE.RUN.001`: execution workspaces preserve run isolation and cleanup
   semantics.
+- `WORKSPACE.BACKUP.001`: organization workspace backup versions are browseable,
+  restorable, deletable, and downloadable by the board operator.
 - `DOCUMENT.WORKPRODUCT.001`: documents and work products preserve reviewable
   output artifacts and revision history.

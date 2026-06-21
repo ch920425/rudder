@@ -100,6 +100,15 @@ type WorkspaceBackupArtifactMigrationSkip = {
   reason: string;
 };
 
+export type WorkspaceBackupDownload = {
+  artifactRef: string;
+  filename: string;
+  contentType: "application/json";
+  byteSize: number;
+  archiveSha256: string | null;
+  content: Buffer;
+};
+
 function timestamp(date = new Date()) {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
@@ -519,23 +528,28 @@ export function workspaceBackupService(db: Db) {
     }
   }
 
-  async function readArtifact(row: WorkspaceBackupRow): Promise<WorkspaceBackupArtifact> {
+  async function readArtifactPayload(row: WorkspaceBackupRow): Promise<{ raw: Buffer; artifact: WorkspaceBackupArtifact }> {
     assertReadableBackup(row);
     if (!(await fileExists(row.artifactRef))) {
       throw notFound("Workspace backup artifact not found");
     }
-    const raw = await fs.readFile(row.artifactRef, "utf8");
+    const raw = await fs.readFile(row.artifactRef);
     if (row.archiveSha256 && sha256Buffer(raw) !== row.archiveSha256) {
       throw unprocessable("Workspace backup artifact checksum does not match the recorded backup metadata");
     }
-    const parsed = JSON.parse(raw) as WorkspaceBackupArtifact;
+    const parsed = JSON.parse(raw.toString("utf8")) as WorkspaceBackupArtifact;
     if (parsed.version !== ARTIFACT_VERSION || parsed.orgId !== row.orgId || !Array.isArray(parsed.entries)) {
       throw unprocessable("Workspace backup artifact is invalid");
     }
     for (const entry of parsed.entries) {
       assertSafeRelativePath(entry.path);
     }
-    return parsed;
+    return { raw, artifact: parsed };
+  }
+
+  async function readArtifact(row: WorkspaceBackupRow): Promise<WorkspaceBackupArtifact> {
+    const payload = await readArtifactPayload(row);
+    return payload.artifact;
   }
 
   async function countActiveRuns(orgId: string) {
@@ -733,6 +747,19 @@ export function workspaceBackupService(db: Db) {
         contentPath: null,
         message: truncated ? "Preview truncated to the first 200 KB." : null,
         truncated,
+      };
+    },
+
+    async getDownload(orgId: string, backupId: string): Promise<WorkspaceBackupDownload> {
+      const row = await getBackupRow(orgId, backupId);
+      const payload = await readArtifactPayload(row);
+      return {
+        artifactRef: row.artifactRef,
+        filename: path.basename(row.artifactRef),
+        contentType: "application/json",
+        byteSize: payload.raw.byteLength,
+        archiveSha256: row.archiveSha256,
+        content: payload.raw,
       };
     },
 

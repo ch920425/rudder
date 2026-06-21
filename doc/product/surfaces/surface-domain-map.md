@@ -78,6 +78,8 @@ owning domain contract.
 - Organization/project resources: `CONTEXT.RESOURCES.001`.
 - Project and execution workspace policy: `WORKSPACE.PROJECT.001`,
   `WORKSPACE.RUN.001`.
+- Workspace backup versions, browsing, restore/delete, and download:
+  `WORKSPACE.BACKUP.001`.
 
 ## Messenger And Chat
 

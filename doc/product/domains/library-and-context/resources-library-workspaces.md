@@ -8,6 +8,7 @@ contract_ids:
   - LIBRARY.FILES.001
   - WORKSPACE.PROJECT.001
   - WORKSPACE.RUN.001
+  - WORKSPACE.BACKUP.001
 related_code:
   - packages/db/src/schema/organization_resources.ts
   - packages/db/src/schema/library_entries.ts
@@ -19,9 +20,12 @@ related_code:
   - server/src/services/organization-workspace-browser.ts
   - server/src/services/execution-workspace-policy.ts
   - server/src/services/execution-workspaces.ts
+  - server/src/services/workspace-backups.ts
+  - server/src/routes/orgs.ts
   - server/src/services/agent-run-context.ts
   - ui/src/pages/OrganizationResources.tsx
   - ui/src/pages/OrganizationWorkspaces.tsx
+  - ui/src/pages/OrganizationWorkspaceBackups.tsx
   - ui/src/components/ProjectResourcesPanel.tsx
 related_tests:
   - server/src/__tests__/library-path-markdown.test.ts
@@ -29,8 +33,11 @@ related_tests:
   - server/src/__tests__/execution-workspace-policy.test.ts
   - server/src/__tests__/run-workspace-routes.test.ts
   - server/src/__tests__/agent-run-context.test.ts
+  - server/src/__tests__/workspace-backups.test.ts
+  - server/src/__tests__/workspace-backups-routes.test.ts
   - tests/e2e/organization-workspaces-launcher.spec.ts
   - tests/e2e/workspace-shell.spec.ts
+  - tests/e2e/workspace-backups.spec.ts
 edit_policy: user_confirmed_only
 ---
 
@@ -181,3 +188,54 @@ Evidence:
 
 - Execution workspace policy tests cover strategy resolution.
 - Run workspace routes tests cover lifecycle and archive constraints.
+
+## WORKSPACE.BACKUP.001
+
+Why:
+
+- Organization workspace backups are the operator's safety rail for local-first
+  agent work. They need to be inspectable in Rudder and exportable to local
+  disk so a specific version can be retained outside the rolling retention
+  window.
+
+Product model:
+
+- Workspace backups are organization-scoped versions with status, trigger
+  source, file count, byte size, checksum metadata, expiration, and a local
+  artifact reference.
+- The board operator can create a manual version, browse and preview files from
+  a succeeded/restored version, restore that version after Rudder creates a
+  pre-restore safety backup, delete non-running versions from visible history,
+  and download a selected succeeded/restored version to local disk.
+- Download returns the selected backup artifact as an attachment only after the
+  server verifies that the artifact exists, belongs to the requested
+  organization, is not failed/running/deleted, and matches the recorded archive
+  checksum when one is present.
+
+Flow:
+
+1. Operator opens Workspace backups and selects a concrete version.
+2. Rudder keeps file browsing scoped to the selected version instead of the
+   live workspace.
+3. Operator downloads the selected version from the version details action.
+4. Server streams the exact backup artifact for that organization/version as a
+   local file download.
+5. Restore and delete remain separate explicit actions with their existing
+   safety and retention semantics.
+
+Invariants:
+
+- Backup download must never bypass organization access checks.
+- Failed, running, deleted, missing, invalid, or checksum-mismatched backup
+  artifacts must not be downloaded.
+- Downloading a backup is read-only; it must not mutate backup status,
+  retention, workspace files, or activity history.
+
+Evidence:
+
+- Workspace backup service tests cover version creation, browsing, restore,
+  delete, download metadata, and checksum failure.
+- Workspace backup route tests cover attachment headers, board-only download,
+  and artifact validation errors.
+- Workspace backups E2E covers selecting a version, previewing a file,
+  downloading the selected artifact, restore safety backup creation, and delete.

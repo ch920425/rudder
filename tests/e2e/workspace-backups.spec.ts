@@ -51,15 +51,24 @@ test("browses, restores, and deletes workspace backup versions", async ({ page }
   await expect(page.getByTestId("workspace-main-card").getByText("Versions")).toBeVisible();
   await expect(page.getByText("1 backup")).toBeVisible();
 
-  await page.getByRole("link", { name: "Back to library" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${organization.issuePrefix}/library(?:\\?|$)`));
-  await expect(page.getByRole("button", { name: "Hide Library sidebar" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "No file selected" })).toBeVisible();
-  await page.goto(`/${organization.issuePrefix}/workspaces/backups`);
-
   await page.getByRole("button", { name: "plans" }).click();
   await page.getByRole("button", { name: "roadmap.md" }).click();
   await expect(page.getByText("# Roadmap")).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download" }).click();
+  const downloadedBackup = await download;
+  expect(downloadedBackup.suggestedFilename()).toMatch(/^workspace-.*\.json$/);
+  const downloadedPath = await downloadedBackup.path();
+  expect(downloadedPath).toBeTruthy();
+  const downloadedArtifact = JSON.parse(await fs.readFile(downloadedPath!, "utf8")) as {
+    orgId: string;
+    entries: Array<{ path: string; kind: string; dataBase64?: string }>;
+  };
+  expect(downloadedArtifact.orgId).toBe(organization.id);
+  expect(downloadedArtifact.entries).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: "plans/roadmap.md", kind: "file" }),
+  ]));
 
   await page.getByRole("button", { name: "Restore" }).click();
   const restoreDialog = page.getByRole("dialog", { name: "Restore workspace backup" });

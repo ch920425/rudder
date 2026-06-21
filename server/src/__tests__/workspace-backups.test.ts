@@ -169,6 +169,15 @@ describe("workspace backup service", () => {
 
     const file = await service.readFile(orgId, backup.id, "projects/roadmap/roadmap.md");
     expect(file.content).toBe("# Roadmap\n");
+
+    const download = await service.getDownload(orgId, backup.id);
+    expect(download).toEqual(expect.objectContaining({
+      artifactRef: backup.artifactRef,
+      filename: path.basename(backup.artifactRef),
+      contentType: "application/json",
+      archiveSha256: backup.archiveSha256,
+    }));
+    expect(download.byteSize).toBeGreaterThan(0);
   });
 
   it("migrates legacy full UUID backup artifact paths and metadata to the short storage key", async () => {
@@ -310,6 +319,21 @@ describe("workspace backup service", () => {
 
     expect(deleted.status).toBe("deleted");
     await expect(service.list(orgId)).resolves.toEqual([]);
+  });
+
+  it("blocks downloads when the artifact checksum no longer matches metadata", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(workspaceRoot, { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "scratch.txt"), "backup\n", "utf8");
+
+    const backup = await service.create({ orgId });
+    await fs.writeFile(backup.artifactRef, "{\"tampered\":true}\n", "utf8");
+
+    await expect(service.getDownload(orgId, backup.id)).rejects.toMatchObject({
+      status: 422,
+      message: "Workspace backup artifact checksum does not match the recorded backup metadata",
+    });
   });
 
   it("creates scheduled backups and prunes expired versions", async () => {
