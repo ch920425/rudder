@@ -54,6 +54,15 @@ function regionLabel(region: AgentIntegrationSummary["providerRegion"]) {
   return region;
 }
 
+function setupProviderName(providerRegion: AgentIntegrationProviderRegion) {
+  return providerRegion === "lark_global" ? "Lark" : "Feishu";
+}
+
+function suggestedFeishuBotName(agentName: string) {
+  const trimmed = agentName.trim();
+  return `${trimmed || "Rudder Agent"} - Rudder`;
+}
+
 interface AgentIntegrationsTabProps {
   agent: AgentDetail;
   orgId?: string;
@@ -88,7 +97,7 @@ export function AgentIntegrationsTab({ agent, orgId }: AgentIntegrationsTabProps
         });
         return;
       }
-      pushToast({ title: "Opened Feishu / Lark setup", tone: "success" });
+      pushToast({ title: `Opened setup for ${result.suggestedBotName}`, tone: "success" });
     },
     onError: (error) => {
       pushToast({
@@ -162,6 +171,7 @@ export function AgentIntegrationsTab({ agent, orgId }: AgentIntegrationsTabProps
                   </dl>
                 ) : (
                   <FeishuSetupPrompt
+                    suggestedBotName={suggestedFeishuBotName(agent.name)}
                     providerRegion={providerRegion}
                     onProviderRegionChange={setProviderRegion}
                     disabled={openSetup.isPending}
@@ -204,16 +214,25 @@ export function AgentIntegrationsTab({ agent, orgId }: AgentIntegrationsTabProps
 }
 
 interface FeishuSetupPromptProps {
+  suggestedBotName: string;
   providerRegion: AgentIntegrationProviderRegion;
   onProviderRegionChange: (value: AgentIntegrationProviderRegion) => void;
   disabled: boolean;
 }
 
-function FeishuSetupPrompt({ providerRegion, onProviderRegionChange, disabled }: FeishuSetupPromptProps) {
+function FeishuSetupPrompt({
+  suggestedBotName,
+  providerRegion,
+  onProviderRegionChange,
+  disabled,
+}: FeishuSetupPromptProps) {
+  const providerName = setupProviderName(providerRegion);
+
   return (
     <div className="space-y-3">
       <p className="max-w-2xl text-sm text-muted-foreground">
-        Open the provider setup page to configure the app and callback for this agent.
+        Create a {providerName} bot named <span className="font-medium text-foreground">{suggestedBotName}</span>. Connect
+        opens {providerName} with the bot name prefilled, so the remaining step is confirming creation there.
       </p>
       <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5">
         <button

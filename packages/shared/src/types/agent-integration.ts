@@ -36,6 +36,7 @@ export interface AgentIntegrationSetupUrl {
   provider: AgentIntegrationProvider;
   providerRegion: AgentIntegrationProviderRegion;
   setupUrl: string;
+  suggestedBotName: string;
   expiresAt: Date | null;
 }
 

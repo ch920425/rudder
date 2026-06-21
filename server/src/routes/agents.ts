@@ -74,8 +74,9 @@ const AGENT_AVATAR_WEBP_QUALITY = 82;
 const AGENT_AVATAR_ASSET_RE =
   /^asset:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\?bg=[a-z0-9-]+)?$/i;
 const FEISHU_INTEGRATION_SETUP_BASE_URL = process.env.RUDDER_FEISHU_INTEGRATION_SETUP_URL?.trim() || null;
-const FEISHU_OPEN_PLATFORM_HOME_URL = "https://open.feishu.cn/app";
-const LARK_OPEN_PLATFORM_HOME_URL = "https://open.larksuite.com/app";
+const FEISHU_OPEN_PLATFORM_LAUNCHER_URL = "https://open.feishu.cn/page/launcher";
+const LARK_OPEN_PLATFORM_LAUNCHER_URL = "https://open.larksuite.com/page/launcher";
+const FEISHU_SETUP_SOURCE = "rudder/agent-integrations";
 
 type UploadedMemoryFile = {
   mimetype: string;
@@ -133,10 +134,16 @@ function normalizeFeishuProviderRegion(value: unknown): AgentIntegrationProvider
   return value === "lark_global" ? "lark_global" : "feishu_cn";
 }
 
+function suggestedFeishuBotName(agentName: string) {
+  const trimmed = agentName.trim();
+  return `${trimmed || "Rudder Agent"} - Rudder`;
+}
+
 function buildFeishuIntegrationSetupUrl(input: {
   req: Request;
   orgId: string;
   agentId: string;
+  agentName: string;
   providerRegion: AgentIntegrationProviderRegion;
 }) {
   const callbackUrl = new URL(
@@ -145,8 +152,16 @@ function buildFeishuIntegrationSetupUrl(input: {
   ).toString();
 
   const baseUrl = FEISHU_INTEGRATION_SETUP_BASE_URL
-    || (input.providerRegion === "lark_global" ? LARK_OPEN_PLATFORM_HOME_URL : FEISHU_OPEN_PLATFORM_HOME_URL);
+    || (
+      input.providerRegion === "lark_global"
+        ? LARK_OPEN_PLATFORM_LAUNCHER_URL
+        : FEISHU_OPEN_PLATFORM_LAUNCHER_URL
+    );
   const setupUrl = new URL(baseUrl);
+  setupUrl.searchParams.set("from", "sdk");
+  setupUrl.searchParams.set("name", suggestedFeishuBotName(input.agentName));
+  setupUrl.searchParams.set("source", FEISHU_SETUP_SOURCE);
+  setupUrl.searchParams.set("tp", "sdk");
   setupUrl.searchParams.set("provider", "feishu");
   setupUrl.searchParams.set("region", input.providerRegion);
   setupUrl.searchParams.set("orgId", input.orgId);
@@ -1358,10 +1373,12 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     res.json({
       provider: "feishu",
       providerRegion,
+      suggestedBotName: suggestedFeishuBotName(agent.name),
       setupUrl: buildFeishuIntegrationSetupUrl({
         req,
         orgId: agent.orgId,
         agentId: agent.id,
+        agentName: agent.name,
         providerRegion,
       }),
       expiresAt: null,

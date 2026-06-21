@@ -86,7 +86,7 @@ describe("agent integration setup URL routes", () => {
     mockAgentService.getById.mockResolvedValue(makeAgent());
   });
 
-  it("returns a browser-openable Feishu setup URL for board users", async () => {
+  it("returns a browser-openable Feishu launcher URL with a prefilled bot name for board users", async () => {
     const res = await request(createApp({
       type: "board",
       userId: "user-1",
@@ -101,11 +101,17 @@ describe("agent integration setup URL routes", () => {
     expect(res.body).toMatchObject({
       provider: "feishu",
       providerRegion: "lark_global",
+      suggestedBotName: "Builder - Rudder",
       expiresAt: null,
     });
 
     const setupUrl = new URL(res.body.setupUrl);
     expect(setupUrl.origin).toBe("https://open.larksuite.com");
+    expect(setupUrl.pathname).toBe("/page/launcher");
+    expect(setupUrl.searchParams.get("from")).toBe("sdk");
+    expect(setupUrl.searchParams.get("name")).toBe("Builder - Rudder");
+    expect(setupUrl.searchParams.get("source")).toBe("rudder/agent-integrations");
+    expect(setupUrl.searchParams.get("tp")).toBe("sdk");
     expect(setupUrl.searchParams.get("agentId")).toBe(agentId);
     expect(setupUrl.searchParams.get("orgId")).toBe(orgId);
     expect(setupUrl.searchParams.get("region")).toBe("lark_global");

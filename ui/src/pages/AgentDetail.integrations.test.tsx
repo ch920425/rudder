@@ -38,7 +38,8 @@ vi.mock("../api/agents", () => ({
     integrationSetupUrl: vi.fn().mockResolvedValue({
       provider: "feishu",
       providerRegion: "feishu_cn",
-      setupUrl: "https://open.feishu.cn/app?agentId=agent-1",
+      setupUrl: "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
+      suggestedBotName: "Wesley - Rudder",
       expiresAt: null,
     }),
     listIntegrations: vi.fn(),
@@ -143,7 +144,8 @@ describe("AgentIntegrationsTab", () => {
     expect(container.textContent).toContain("Feishu / Lark");
     expect(container.textContent).toContain("Not configured");
     expect(container.textContent).toContain("Connect");
-    expect(container.textContent).toContain("Open the provider setup page");
+    expect(container.textContent).toContain("Create a Feishu bot named Wesley - Rudder");
+    expect(container.textContent).toContain("opens Feishu with the bot name prefilled");
     expect(container.textContent).toContain("Feishu CN");
     expect(container.textContent).toContain("Lark Global");
   });
@@ -167,10 +169,24 @@ describe("AgentIntegrationsTab", () => {
       providerRegion: "feishu_cn",
     }, "org-1");
     expect(mockWindowOpen).toHaveBeenCalledWith(
-      "https://open.feishu.cn/app?agentId=agent-1",
+      "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
       "_blank",
       "noopener,noreferrer",
     );
+  });
+
+  it("updates setup copy when Lark Global is selected", () => {
+    const container = render(<AgentIntegrationsTab agent={agent()} orgId="org-1" />);
+    const larkButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Lark Global"));
+
+    expect(larkButton).toBeTruthy();
+    act(() => {
+      larkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Create a Lark bot named Wesley - Rudder");
+    expect(container.textContent).toContain("opens Lark with the bot name prefilled");
   });
 
   it("renders configured Feishu integration metadata and actions", () => {
