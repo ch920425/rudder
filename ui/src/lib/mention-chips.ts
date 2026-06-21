@@ -223,6 +223,9 @@ export function applyMentionChipDecoration(element: HTMLElement, mention: Parsed
     element.textContent = normalizedLabel;
   }
   element.dataset.mentionKind = mention.kind;
+  if (mention.kind === "issue" && mention.commentId) {
+    element.dataset.mentionComment = "true";
+  }
   element.setAttribute("contenteditable", "false");
   element.classList.add("rudder-mention-chip", `rudder-mention-chip--${mention.kind}`);
   if (mention.kind === "issue" && mention.status) {
@@ -248,6 +251,7 @@ export function applyMentionChipDecoration(element: HTMLElement, mention: Parsed
 
 export function clearMentionChipDecoration(element: HTMLElement) {
   delete element.dataset.mentionKind;
+  delete element.dataset.mentionComment;
   delete element.dataset.mentionHref;
   delete element.dataset.mentionStatus;
   element.classList.remove(

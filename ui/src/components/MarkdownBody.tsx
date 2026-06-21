@@ -907,9 +907,11 @@ export function MarkdownBody({
             className={cn(
               "rudder-mention-chip",
               `rudder-mention-chip--${mention.kind}`,
+              mention.kind === "issue" && mention.commentId && mention.status && "rudder-mention-chip--with-status-icon",
               mention.kind === "project" && "rudder-project-mention-chip",
             )}
             data-mention-kind={mention.kind}
+            data-mention-comment={mention.kind === "issue" && mention.commentId ? "true" : undefined}
             data-mention-status={mention.kind === "issue" && mention.status ? mention.status : undefined}
             style={mentionChipInlineStyle(mention)}
             {...markdownSourceAttributes(node)}

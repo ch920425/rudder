@@ -329,7 +329,66 @@ describe("messengerService and issue follows", () => {
     expect(customGroups.groups[1]?.id).toBe(firstGroup!.id);
   });
 
-  it("creates a custom group with multiple chat entries atomically", async () => {
+  it("hydrates split issue custom group entries outside the current Messenger thread summary page", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-custom-group-split-issues";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Split Issue Custom Groups Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Split Issue Custom Groups Org"),
+      issuePrefix: `SI${orgId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const baseTime = Date.parse("2026-05-04T12:00:00.000Z");
+    const issueIds = Array.from({ length: 120 }, () => randomUUID());
+    await db.insert(issues).values(
+      issueIds.map((issueId, index) => {
+        const activityAt = new Date(baseTime - index * 60_000);
+        return {
+          id: issueId,
+          orgId,
+          title: `Grouped split issue ${index + 1}`,
+          status: "todo",
+          priority: "medium",
+          assigneeUserId: userId,
+          createdAt: activityAt,
+          updatedAt: activityAt,
+        };
+      }),
+    );
+
+    const oldIssueId = issueIds[119]!;
+    const splitPage = await messengerSvc.listThreadSummaryPage(orgId, userId, {
+      limit: 40,
+      splitIssues: true,
+    });
+    expect(splitPage.items.map((item) => item.threadKey)).not.toContain(`issue:${oldIssueId}`);
+
+    const group = await messengerSvc.createCustomGroup(orgId, userId, "Issue deep work");
+    await db.insert(messengerCustomGroupEntries).values({
+      id: randomUUID(),
+      orgId,
+      userId,
+      groupId: group!.id,
+      threadKey: `issue:${oldIssueId}`,
+      sortOrder: 0,
+    });
+
+    const customGroups = await messengerSvc.listCustomGroups(orgId, userId);
+    expect(customGroups.groups).toHaveLength(1);
+    expect(customGroups.groups[0]?.entries.map((entry) => entry.thread.threadKey)).toEqual([
+      `issue:${oldIssueId}`,
+    ]);
+    expect(customGroups.groups[0]?.entries[0]?.thread.title).toBe("Grouped split issue 120");
+    expect(customGroups.groups[0]?.entries[0]?.thread.metadata).toMatchObject({
+      splitIssue: true,
+      issueId: oldIssueId,
+    });
+  });
+
+  it("creates a custom group with multiple Messenger thread entries atomically", async () => {
     const orgId = randomUUID();
     const userId = "board-user-custom-group-merge";
 
@@ -342,31 +401,73 @@ describe("messengerService and issue follows", () => {
     });
 
     const conversationIds = [randomUUID(), randomUUID()];
+    const fillerConversationIds = Array.from({ length: 120 }, () => randomUUID());
+    const issueId = randomUUID();
     await db.insert(chatConversations).values(
-      conversationIds.map((conversationId, index) => ({
+      [...conversationIds, ...fillerConversationIds].map((conversationId, index) => ({
         id: conversationId,
         orgId,
-        title: `Merged chat ${index + 1}`,
+        title: index < conversationIds.length ? `Merged chat ${index + 1}` : `Newer filler chat ${index + 1}`,
         summary: `Summary ${index + 1}`,
         issueCreationMode: "manual_approval" as const,
         planMode: false,
         createdByUserId: userId,
+        createdAt: new Date(Date.parse("2026-05-04T10:00:00.000Z") + index * 60_000),
+        updatedAt: new Date(Date.parse("2026-05-04T10:00:00.000Z") + index * 60_000),
       })),
     );
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      title: "Merged issue",
+      status: "todo",
+      priority: "medium",
+      createdByUserId: userId,
+    });
+    await db.insert(approvals).values({
+      id: randomUUID(),
+      orgId,
+      type: "chat_issue_creation",
+      status: "pending",
+      requestedByUserId: userId,
+      createdAt: new Date("2026-05-04T09:00:00.000Z"),
+      updatedAt: new Date("2026-05-04T09:00:00.000Z"),
+      payload: {
+        chatConversationId: conversationIds[0],
+        proposedIssue: {
+          title: "Grouped approval",
+          description: "Synthetic approval thread should be groupable.",
+          priority: "medium",
+        },
+      },
+    });
+    const firstPage = await messengerSvc.listThreadSummaryPage(orgId, userId, { limit: 100 });
+    expect(firstPage.items.map((item) => item.threadKey)).not.toContain("approvals");
 
     const customGroups = await messengerSvc.createCustomGroupWithEntries(
       orgId,
       userId,
       "Merged group",
       "folder::amber",
-      conversationIds.map((conversationId) => `chat:${conversationId}`),
+      [`chat:${conversationIds[0]}`, `issue:${issueId}`, `chat:${conversationIds[1]}`, "issues", "approvals"],
     );
 
     expect(customGroups.groups).toHaveLength(1);
     expect(customGroups.groups[0]?.name).toBe("Merged group");
-    expect(customGroups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual(
-      conversationIds.map((conversationId) => `chat:${conversationId}`),
-    );
+    expect(customGroups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual([
+      `chat:${conversationIds[0]}`,
+      `issue:${issueId}`,
+      `chat:${conversationIds[1]}`,
+      "issues",
+      "approvals",
+    ]);
+    expect(customGroups.groups[0]?.entries.map((entry) => entry.thread.threadKey)).toEqual([
+      `chat:${conversationIds[0]}`,
+      `issue:${issueId}`,
+      `chat:${conversationIds[1]}`,
+      "issues",
+      "approvals",
+    ]);
   });
 
   it("rolls back custom group merge when any thread cannot be grouped", async () => {
@@ -397,8 +498,8 @@ describe("messengerService and issue follows", () => {
       userId,
       "Should rollback",
       "folder::amber",
-      [`chat:${conversationId}`, "issues"],
-    )).rejects.toThrow(/Only chat threads can be added/i);
+      [`chat:${conversationId}`, `unknown:${randomUUID()}`],
+    )).rejects.toThrow(/Messenger thread not found/i);
 
     const customGroups = await messengerSvc.listCustomGroups(orgId, userId);
     expect(customGroups.groups).toEqual([]);
@@ -433,6 +534,77 @@ describe("messengerService and issue follows", () => {
 
     expect(customGroups.groups[0]?.entries).toEqual([]);
     expect(remainingEntries).toHaveLength(0);
+  });
+
+  it("keeps dormant synthetic custom group entries when the row is temporarily empty", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-custom-group-dormant-synthetic";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Dormant Synthetic Group Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Dormant Synthetic Group Org"),
+      issuePrefix: `DS${orgId.replace(/-/g, "").slice(0, 5).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const firstApprovalId = randomUUID();
+    await db.insert(approvals).values({
+      id: firstApprovalId,
+      orgId,
+      type: "chat_issue_creation",
+      status: "pending",
+      requestedByUserId: userId,
+      payload: {
+        proposedIssue: {
+          title: "Dormant approval",
+          description: "The approvals row should keep its group membership after clearing.",
+          priority: "medium",
+        },
+      },
+    });
+
+    const customGroups = await messengerSvc.createCustomGroupWithEntries(
+      orgId,
+      userId,
+      "Approval review",
+      "folder::teal",
+      ["approvals"],
+    );
+    expect(customGroups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual(["approvals"]);
+
+    await db
+      .update(approvals)
+      .set({ status: "approved", updatedAt: new Date("2026-05-04T12:00:00.000Z") })
+      .where(eq(approvals.id, firstApprovalId));
+
+    const dormantGroups = await messengerSvc.listCustomGroups(orgId, userId);
+    const dormantEntries = await db
+      .select()
+      .from(messengerCustomGroupEntries)
+      .where(eq(messengerCustomGroupEntries.orgId, orgId));
+
+    expect(dormantGroups.groups[0]?.entries).toEqual([]);
+    expect(dormantEntries.map((entry) => entry.threadKey)).toEqual(["approvals"]);
+
+    await db.insert(approvals).values({
+      id: randomUUID(),
+      orgId,
+      type: "chat_issue_creation",
+      status: "pending",
+      requestedByUserId: userId,
+      payload: {
+        proposedIssue: {
+          title: "Restored approval",
+          description: "The approvals row should reappear in the same group.",
+          priority: "medium",
+        },
+      },
+    });
+
+    const restoredGroups = await messengerSvc.listCustomGroups(orgId, userId);
+    expect(restoredGroups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual(["approvals"]);
+    expect(restoredGroups.groups[0]?.entries[0]?.thread.title).toBe("Approvals");
   });
 
   it("persists follows and includes followed plus assigned issues in the Messenger issues thread", async () => {
@@ -2603,7 +2775,7 @@ describe("messengerService and issue follows", () => {
 
     expect(thread.detail.items.map((item) => item.id)).toEqual([olderApprovalId, newerApprovalId]);
     expect(thread.summary.latestActivityAt?.toISOString()).toBe(newerActivityAt.toISOString());
-    expect(approvalsSummary?.latestActivityAt?.toISOString()).toBe(newerActivityAt.toISOString());
+    expect(approvalsSummary).toBeUndefined();
   });
 
   it("summarizes approvals from latest comments without hydrating the detail thread", async () => {
@@ -2703,7 +2875,7 @@ describe("messengerService and issue follows", () => {
     expect(thread.summary.latestActivityAt?.toISOString()).toBe(latestCommentAt.toISOString());
     expect(thread.summary.preview).toBe("Latest approval comment drives the summary preview.");
     expect(thread.summary.unreadCount).toBe(1);
-    expect(approvalsSummary?.subtitle).toBe("2 approvals");
+    expect(approvalsSummary?.subtitle).toBe("1 approval");
     expect(approvalsSummary?.latestActivityAt?.toISOString()).toBe(latestCommentAt.toISOString());
     expect(approvalsSummary?.preview).toBe("Latest approval comment drives the summary preview.");
     expect(approvalsSummary?.unreadCount).toBe(1);

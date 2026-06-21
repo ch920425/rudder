@@ -163,7 +163,12 @@ describe("mention chips", () => {
     });
 
     expect(element.dataset.mentionKind).toBe("issue");
+    expect(element.dataset.mentionComment).toBe("true");
     expect(element.classList.contains("rudder-mention-chip--issue")).toBe(true);
+
+    clearMentionChipDecoration(element);
+
+    expect(element.dataset.mentionComment).toBeUndefined();
   });
 
   it("parses issue mention status metadata for rendered chips", () => {

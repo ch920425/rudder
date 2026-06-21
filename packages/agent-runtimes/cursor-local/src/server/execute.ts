@@ -131,6 +131,7 @@ async function ensureSymlink(target: string, source: string) {
   const resolvedLinkedPath = linkedPath ? path.resolve(path.dirname(target), linkedPath) : null;
   if (resolvedLinkedPath === source) return;
   await fs.unlink(target);
+  await ensureParentDir(target);
   await fs.symlink(source, target);
 }
 
@@ -582,6 +583,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         commandArgs: args,
         env: redactEnvForLogs(env),
         prompt,
+        agentInstructionStack: prompt,
         promptMetrics,
         loadedSkills,
         realizedSkills: loadedSkills,

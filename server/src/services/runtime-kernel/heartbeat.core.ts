@@ -326,11 +326,19 @@ export function buildHeartbeatAdapterInvokePayload(input: {
     loadedSkills: loadedSkillEvidence,
   });
   const persistentPrompt = sanitizeStartupContextPromptForPersistence(input.meta.prompt);
+  const persistentAgentInstructionStack = sanitizeStartupContextPromptForPersistence(
+    typeof input.meta.agentInstructionStack === "string" ? input.meta.agentInstructionStack : null,
+  );
   const persistentMeta = {
     ...input.meta,
     prompt: persistentPrompt,
+    ...(typeof input.meta.agentInstructionStack === "string"
+      ? { agentInstructionStack: persistentAgentInstructionStack }
+      : {}),
     context: sanitizeStartupContextContextForPersistence(input.meta.context),
-    ...(input.meta.prompt && input.meta.prompt !== persistentPrompt
+    ...((input.meta.prompt && input.meta.prompt !== persistentPrompt)
+      || (typeof input.meta.agentInstructionStack === "string"
+        && input.meta.agentInstructionStack !== persistentAgentInstructionStack)
       ? { promptSanitizedForPersistence: true }
       : {}),
   };

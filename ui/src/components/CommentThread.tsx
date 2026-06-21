@@ -12,7 +12,7 @@ import { PluginSlotOutlet } from "@/plugins/slots";
 import type { Agent, IssueComment } from "@rudderhq/shared";
 import { buildIssueMentionHref } from "@rudderhq/shared";
 import { Check, ChevronDown, Copy, Link2, MoreHorizontal, Paperclip, Pencil, TerminalSquare, Trash2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { TranscriptEntry } from "../agent-runtimes";
 import type { LiveRunForIssue } from "../api/heartbeats";
@@ -1000,7 +1000,12 @@ const TimelineList = memo(function TimelineList({
         );
       })}
       {reserveHashScrollEndSpace ? (
-        <div aria-hidden="true" className="h-[min(18rem,35vh)]" data-testid="comment-hash-scroll-end-space" />
+        <div
+          aria-hidden="true"
+          className="h-[var(--comment-hash-scroll-end-space)]"
+          style={{ "--comment-hash-scroll-end-space": "min(6rem, 12vh)" } as CSSProperties}
+          data-testid="comment-hash-scroll-end-space"
+        />
       ) : null}
     </div>
   );

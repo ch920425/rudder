@@ -95,7 +95,7 @@ async function startTempDatabase() {
 }
 
 describe("agent startup context prompt", () => {
-  it("renders daily memory, recent issues, recent chats, and metadata in the compact startup format", () => {
+  it("renders daily memory, recent issues, and recent chats without debug metadata in the compact startup format", () => {
     const prompt = buildAgentStartupContextPrompt({
       todayMemory: {
         dateKey: "2026-06-19",
@@ -173,9 +173,11 @@ describe("agent startup context prompt", () => {
     expect(prompt).toContain(
       "| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z | Agent run \\| startup memory | 我现在想的是所有的 agent run 把每次启动的时候默认装载今天和昨天的 memory md 进来 |",
     );
-    expect(prompt).toContain("#### startup context metadata");
-    expect(prompt).toContain("version |||| `agent-startup-context/v1`");
-    expect(prompt).toContain("omitted |||| 6 older issues |||| 7 older chats");
+    expect(prompt).not.toContain("#### startup context metadata");
+    expect(prompt).not.toContain("version |||| `agent-startup-context/v1`");
+    expect(prompt).not.toContain("date_basis |||| UTC");
+    expect(prompt).not.toContain("limits ||||");
+    expect(prompt).not.toContain("omitted |||| 6 older issues |||| 7 older chats");
     expect(prompt).not.toContain("recent runs");
     expect(prompt).not.toContain("Read today's and yesterday's memory files");
   });
@@ -230,7 +232,8 @@ describe("agent startup context prompt", () => {
 
     expect(prompt.length).toBeLessThanOrEqual(420);
     expect(prompt).toContain("...");
-    expect(prompt).toContain("limits ||||");
+    expect(prompt).toContain("[Recent Rudder Context truncated by char limit]");
+    expect(prompt).not.toContain("limits ||||");
   });
 });
 

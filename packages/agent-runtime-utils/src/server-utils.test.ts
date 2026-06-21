@@ -521,6 +521,49 @@ describe("loadAgentInstructionsPrefix", () => {
     }
   });
 
+  it("renders visible file boundaries when SOUL.md is the entry instructions file", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-load-agent-instructions-soul-entry-boundaries-"));
+    const instructionsPath = path.join(root, "instructions", "SOUL.md");
+    await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
+    await fs.writeFile(instructionsPath, "# Persona\n\nYou are QA.\n", "utf8");
+    await fs.writeFile(path.join(root, "instructions", "TOOLS.md"), "# Tool Notes\n\n- Use rudder.\n", "utf8");
+    await fs.writeFile(path.join(root, "instructions", "MEMORY.md"), "# Memory Notes\n\n- Prefer concise updates.\n", "utf8");
+
+    try {
+      const loaded = await loadAgentInstructionsPrefix({
+        instructionsFilePath: instructionsPath,
+        includeHeartbeatInstructions: true,
+        contextSectionsBeforeCurrentTime: ["## Recent Rudder Context\n\n#### today memory/2026-06-21.md\n- Calibrate prompt stack"],
+        currentTime: new Date("2026-06-21T05:50:43.024Z"),
+        onLog: async () => {},
+      });
+
+      const operatingContractIndex = loaded.prefix.indexOf("# Rudder Agent Operating Contract");
+      const soulBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: SOUL.md");
+      const toolsBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: TOOLS.md");
+      const memoryBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: MEMORY.md");
+      const recentContextIndex = loaded.prefix.indexOf("## Recent Rudder Context");
+      const currentTimeIndex = loaded.prefix.indexOf("## Current Time");
+      const heartbeatIndex = loaded.prefix.indexOf("# Rudder Heartbeat Instruction");
+
+      expect(operatingContractIndex).toBeGreaterThanOrEqual(0);
+      expect(soulBoundaryIndex).toBeGreaterThan(operatingContractIndex);
+      expect(toolsBoundaryIndex).toBeGreaterThan(soulBoundaryIndex);
+      expect(memoryBoundaryIndex).toBeGreaterThan(toolsBoundaryIndex);
+      expect(recentContextIndex).toBeGreaterThan(memoryBoundaryIndex);
+      expect(currentTimeIndex).toBeGreaterThan(recentContextIndex);
+      expect(heartbeatIndex).toBeGreaterThan(currentTimeIndex);
+      expect(loaded.prefix).toContain("# Persona");
+      expect(loaded.prefix).toContain("# Tool Notes");
+      expect(loaded.prefix).toContain("# Memory Notes");
+      expect(loaded.prefix).toContain("The above Agent Instruction: SOUL.md was loaded from $AGENT_HOME/instructions/SOUL.md.");
+      expect(loaded.prefix).toContain("The above Agent Instruction: TOOLS.md was loaded from $AGENT_HOME/instructions/TOOLS.md.");
+      expect(loaded.prefix).toContain("The above Agent Instruction: MEMORY.md was loaded from $AGENT_HOME/instructions/MEMORY.md.");
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("ignores sibling HEARTBEAT.md even when heartbeat instructions are requested", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-load-agent-instructions-heartbeat-"));
     const instructionsPath = path.join(root, "instructions", "SOUL.md");

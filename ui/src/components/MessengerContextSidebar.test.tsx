@@ -357,13 +357,15 @@ describe("MessengerContextSidebar", () => {
     expect(messengerModelOptions).toContainEqual({ splitIssues: false });
   });
 
-  it("keeps the aggregate Issues row free of thread pin actions when split issue notifications are off", () => {
+  it("keeps the aggregate Issues row free of thread pin actions while preserving group actions", () => {
     localStorageValues["rudder.messengerSplitIssueNotificationsByOrg"] = JSON.stringify({ "org-1": false });
 
     const html = renderToStaticMarkup(<MessengerContextSidebar />);
 
     expect(html).toContain("Issues");
-    expect(html).not.toContain('aria-label="Thread actions"');
+    expect(html).toContain('aria-label="Thread actions"');
+    expect(html).not.toContain("Pin thread");
+    expect(html).not.toContain("Unpin thread");
   });
 
   it("restores the split issue notifications preference for the current organization", () => {

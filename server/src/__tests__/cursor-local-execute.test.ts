@@ -106,6 +106,8 @@ async function createSkillDir(root: string, name: string) {
 }
 
 describe("cursor execute", { timeout: 20_000 }, () => {
+  const itDarwin = process.platform === "darwin" ? it : it.skip;
+
   it("injects rudder env vars and prompt note by default", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-"));
     const workspace = path.join(root, "workspace");
@@ -323,7 +325,7 @@ describe("cursor execute", { timeout: 20_000 }, () => {
     }
   });
 
-  it("bridges operator keychain into the managed Cursor home for subscription auth", async () => {
+  itDarwin("bridges operator keychain into the managed Cursor home for subscription auth", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-keychain-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "agent");
@@ -395,7 +397,7 @@ describe("cursor execute", { timeout: 20_000 }, () => {
     }
   });
 
-  it("uses RUDDER_OPERATOR_HOME for the keychain bridge when the server HOME is isolated", async () => {
+  itDarwin("uses RUDDER_OPERATOR_HOME for the keychain bridge when the server HOME is isolated", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-operator-home-"));
     const operatorHome = path.join(root, "operator-home");
     const serverHome = path.join(root, "server-home");

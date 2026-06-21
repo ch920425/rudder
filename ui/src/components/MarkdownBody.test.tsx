@@ -881,6 +881,32 @@ describe("MarkdownBody", () => {
     expect(html).toContain("继续检查后续正文排版");
   });
 
+  it("renders issue comment mentions with the same status affordance as editor tokens", () => {
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-789",
+      name: "PAP-123 auth flow",
+      kind: "issue",
+      issueId: "issue-789",
+      issueIdentifier: "PAP-123",
+      issueStatus: "backlog",
+    }];
+
+    const html = renderToStaticMarkup(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`[Issue comment c7fe865f](${buildIssueMentionHref("issue-789", "PAP-123", "comment-123", "backlog")})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    expect(html).toContain('href="/issues/issue-789#comment-comment-123"');
+    expect(html).toContain('data-mention-kind="issue"');
+    expect(html).toContain('data-mention-comment="true"');
+    expect(html).toContain('data-mention-status="backlog"');
+    expect(html).toContain("rudder-mention-chip--with-status-icon");
+    expect(html).toContain(">Issue comment c7fe865f</a>");
+  });
+
   it("loads an issue preview from the rendered mention chip on focus", async () => {
     window.localStorage.setItem("rudder.selectedOrganizationId", "org-1");
     markdownMentionsMock.mentions = [{

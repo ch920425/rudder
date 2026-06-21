@@ -338,10 +338,6 @@ describe("agentRunContextService buildSceneContext", () => {
         "| Chat | Last active | Title | Summary |",
         "| --- | --- | --- | --- |",
         "| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z | Agent run startup memory | 默认装载今天和昨天的 memory md |",
-        "",
-        "#### startup context metadata",
-        "version |||| `agent-startup-context/v1`",
-        "limits |||| 924 / 12000 chars",
       ].join("\n"),
       version: "agent-startup-context/v1",
       sections: ["daily_memory", "recent_issues", "recent_chats"],
@@ -395,6 +391,7 @@ describe("agentRunContextService buildSceneContext", () => {
     expect(context.rudderWorkspace.resourcesPrompt).toContain("#### today memory/2026-06-19.md");
     expect(context.rudderWorkspace.resourcesPrompt).toContain("| `RD-421` | `in_review` | assignee | agent:agent-1 | empty");
     expect(context.rudderWorkspace.resourcesPrompt).toContain("| `chat_01JY9M2V8Q6Z` | 2026-06-19T00:33:00.000Z");
+    expect(context.rudderWorkspace.resourcesPrompt).not.toContain("#### startup context metadata");
     expect(context.rudderWorkspace.resourcesPrompt).not.toContain("recent runs");
     expect(context.rudderWorkspace.orgResourcesPrompt).toBe(context.rudderWorkspace.resourcesPrompt);
     expect(context.rudderStartupContext).toMatchObject({ version: "agent-startup-context/v1" });

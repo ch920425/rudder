@@ -1,13 +1,25 @@
 // @vitest-environment jsdom
 
 import type { TranscriptEntry } from "@/agent-runtimes";
+import type { MentionOption } from "@/components/MarkdownEditor";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { buildAgentMentionHref, type ChatMessage } from "@rudderhq/shared";
+import { buildAgentMentionHref, buildIssueMentionHref, type ChatMessage } from "@rudderhq/shared";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMessageItem, ChatMessagesLoadingState, LazyStreamTranscriptItem, StreamTranscriptItem } from "./Chat.messages";
+
+const markdownMentionsMock = vi.hoisted(() => ({
+  mentions: [] as MentionOption[],
+}));
+
+vi.mock("@/context/MarkdownMentionsContext", () => ({
+  useMarkdownMentions: () => ({
+    mentions: markdownMentionsMock.mentions,
+    onMentionQueryChange: () => undefined,
+  }),
+}));
 
 vi.mock("@/lib/router", () => ({
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
@@ -48,6 +60,7 @@ let cleanupFn: (() => void) | null = null;
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
+  markdownMentionsMock.mentions = [];
   document.body.innerHTML = "";
 });
 
@@ -179,15 +192,12 @@ describe("LazyStreamTranscriptItem", () => {
 });
 
 describe("ChatMessagesLoadingState", () => {
-  it("uses the wandering eyes loading animation instead of message skeletons", () => {
+  it("uses message skeletons for the chat loading state", () => {
     const container = render(<ChatMessagesLoadingState />);
 
-    expect(container.querySelector("[data-testid='chat-messages-loading-eyes']")).not.toBeNull();
-    expect(container.querySelector(".wandering-eyes")).not.toBeNull();
-    expect(container.querySelectorAll(".wandering-eyes__eye")).toHaveLength(2);
-    expect(container.querySelector("[role='status']")?.textContent).toContain("Loading");
-    expect(container.querySelector(".chat-message-user")).toBeNull();
-    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
+    expect(container.querySelector("[role='status']")?.getAttribute("aria-label")).toBe("Chat messages loading");
+    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(5);
+    expect(container.querySelector(".chat-message-user")).not.toBeNull();
   });
 });
 
@@ -228,6 +238,56 @@ describe("user chat message rendering", () => {
     expect(bubble?.querySelector('a[href^="javascript:"]')).toBeNull();
     expect(bubble?.querySelector('a[href="/MARAAA/issues/ZST-1"]')?.textContent).toBe("issue");
     expect(bubble?.querySelector('a[href="/docs/install"]')?.textContent).toBe("docs");
+  });
+
+  it("marks issue comment mentions with the same semantic attributes as rendered markdown", () => {
+    window.history.pushState({}, "", "/MARAAA/messenger/chat/chat-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-1",
+      name: "RUD-8 Markdown consistency",
+      kind: "issue",
+      issueId: "issue-1",
+      issueIdentifier: "RUD-8",
+      issueStatus: "backlog",
+    }];
+
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: `Check [Issue comment c7fe865f](${buildIssueMentionHref("issue-1", "RUD-8", "comment-1", "backlog")})`,
+    }));
+    const bubble = container.querySelector('[data-testid="chat-user-message-bubble"]');
+    const mention = bubble?.querySelector('[data-mention-kind="issue"]');
+
+    expect(mention?.textContent).toBe("Issue comment c7fe865f");
+    expect(mention?.getAttribute("href")).toBe("/MARAAA/issues/issue-1#comment-comment-1");
+    expect(mention?.getAttribute("data-mention-comment")).toBe("true");
+    expect(mention?.getAttribute("data-mention-status")).toBe("backlog");
+    expect(mention?.classList.contains("rudder-mention-chip--with-status-icon")).toBe(true);
+  });
+
+  it("keeps ordinary issue mentions lightweight even when status metadata is available", () => {
+    window.history.pushState({}, "", "/MARAAA/messenger/chat/chat-1");
+    markdownMentionsMock.mentions = [{
+      id: "issue:issue-1",
+      name: "RUD-8 Markdown consistency",
+      kind: "issue",
+      issueId: "issue-1",
+      issueIdentifier: "RUD-8",
+      issueStatus: "done",
+    }];
+
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: `Check [RUD-8 Markdown consistency](${buildIssueMentionHref("issue-1", "RUD-8", null, "done")})`,
+    }));
+    const mention = container.querySelector('[data-mention-kind="issue"]');
+
+    expect(mention?.getAttribute("data-mention-status")).toBe("done");
+    expect(mention?.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
   });
 });
 

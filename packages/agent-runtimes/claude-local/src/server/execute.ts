@@ -680,6 +680,10 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     sessionHandoffNote,
     renderedPrompt,
   ]);
+  const agentInstructionStack = joinPromptSections([
+    loadedInstructions.prefix,
+    prompt,
+  ]);
   const promptMetrics = {
     promptChars: prompt.length,
     ...loadedInstructions.metrics,
@@ -734,6 +738,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         commandNotes,
         env: redactEnvForLogs(env),
         prompt,
+        agentInstructionStack,
         promptMetrics,
         loadedSkills,
         realizedSkills: loadedSkills,
