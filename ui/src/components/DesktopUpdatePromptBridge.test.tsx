@@ -83,6 +83,37 @@ describe("DesktopUpdatePromptBridge", () => {
     expect(document.body.querySelector('[role="dialog"]')).toBeTruthy();
   });
 
+  it("keeps long update actions inside a responsive footer", () => {
+    const harness = renderHarness();
+    harness.emit({
+      ...prompt,
+      message: "There are 2 active agent runs.",
+      detail:
+        "Rudder can download the installer now, keep active work running, then apply the update after the runs finish. "
+        + "The desktop app may close and reopen automatically when it is safe to replace. "
+        + "Choose Stop Runs and Update Now to cancel active runs, quit Rudder, and apply the update immediately.\n\n"
+        + "Z Studio: 2 running",
+      totalRuns: 2,
+    });
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    const footer = document.body.querySelector('[data-slot="dialog-footer"]');
+    const waitAction = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "Download and Update When Idle");
+    const forceAction = Array.from(document.body.querySelectorAll("button"))
+      .find((button) => button.textContent === "Stop Runs and Update Now");
+
+    expect(dialog?.className).toContain("sm:max-w-[34rem]");
+    expect(footer?.className).toContain("sm:grid-cols-2");
+    expect(waitAction?.className).toContain("h-auto");
+    expect(waitAction?.className).toContain("min-h-10");
+    expect(waitAction?.className).toContain("whitespace-normal");
+    expect(waitAction?.className).toContain("sm:col-span-2");
+    expect(forceAction?.className).toContain("h-auto");
+    expect(forceAction?.className).toContain("min-h-10");
+    expect(forceAction?.className).toContain("whitespace-normal");
+  });
+
   it("returns wait when the primary action is selected", async () => {
     const harness = renderHarness();
     harness.emit(prompt);
