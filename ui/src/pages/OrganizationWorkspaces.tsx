@@ -2012,15 +2012,15 @@ function SkillLibraryAddDialog({
       if (!nextOpen && !importSkills.isPending && !scanLocalSkills.isPending) onOpenChange(false);
       else if (nextOpen) onOpenChange(true);
     }}>
-      <DialogContent className="!w-[min(34rem,calc(100vw-2rem))] !max-w-[calc(100vw-2rem)] gap-5 p-5 sm:!max-w-[34rem]">
+      <DialogContent className="!w-[min(40rem,calc(100vw-2rem))] !max-w-[calc(100vw-2rem)] gap-6 p-6 sm:!max-w-[40rem]">
         <DialogHeader>
           <DialogTitle>Add skill to Library</DialogTitle>
-          <DialogDescription className="max-w-[30rem]">
+          <DialogDescription className="max-w-[34rem]">
             Import or move a skill into this organization. Workspace-backed skills become editable Library files;
             bundled or remote skills appear here as read-only references.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-5">
           <label className="space-y-1.5">
             <span className="text-xs text-muted-foreground">Skill source, one per line</span>
             <Textarea
@@ -2032,7 +2032,9 @@ function SkillLibraryAddDialog({
               autoFocus
             />
           </label>
-          <div className="flex flex-wrap items-center gap-2">
+        </div>
+        <DialogFooter className="flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-1">
             <Button
               type="button"
               onClick={() => importSkills.mutate({ sources })}
@@ -2060,11 +2062,10 @@ function SkillLibraryAddDialog({
               Ask Agent to install
             </Button>
           </div>
-        </div>
-        <DialogFooter>
           <Button
             type="button"
             variant="ghost"
+            className="w-full sm:w-auto"
             onClick={() => onOpenChange(false)}
             disabled={importSkills.isPending || scanLocalSkills.isPending}
           >

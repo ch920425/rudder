@@ -1007,7 +1007,17 @@ describe("OrganizationWorkspaces scroll regions", () => {
     expect(document.querySelector("[data-testid='org-workspaces-skills-add-button']")?.className).toContain("opacity-0");
 
     const dialog = document.querySelector("[data-slot='dialog-content']");
-    expect(dialog?.className).toContain("!w-[min(34rem,calc(100vw-2rem))]");
+    expect(dialog?.className).toContain("!w-[min(40rem,calc(100vw-2rem))]");
+    const footer = document.querySelector("[data-slot='dialog-footer']");
+    expect(footer?.className).toContain("sm:justify-between");
+    expect(footer?.className).toContain("flex-col");
+    expect(footer?.className).not.toContain("flex-col-reverse");
+    expect(footer?.textContent).toContain("Import skill");
+    expect(footer?.textContent).toContain("Scan local skills");
+    expect(footer?.textContent).toContain("Ask Agent to install");
+    expect(footer?.textContent).toContain("Close");
+    expect(footer?.querySelectorAll("button")).toHaveLength(4);
+    expect(Array.from(footer?.querySelectorAll("button") ?? []).at(-1)?.className).toContain("w-full sm:w-auto");
     const sourceTextarea = document.querySelector("textarea");
     expect(sourceTextarea?.className).toContain("field-sizing-fixed");
     expect(sourceTextarea?.className).toContain("min-w-0");
