@@ -385,8 +385,8 @@ describe("heartbeat observability surface", () => {
 
     expect(payload.prompt).toContain("[startup context omitted from persisted prompt]");
     expect(payload.agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
-    expect(payload.agentInstructionStack).toContain("- private startup detail");
-    expect(payload.agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
+    expect(payload.agentInstructionStack).toContain("[startup context omitted from persisted prompt]");
+    expect(payload.agentInstructionStack).not.toContain("- private startup detail");
   });
 
   it("preserves explicit runtime-reported used skills as strongest evidence", () => {
