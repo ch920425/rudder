@@ -449,7 +449,7 @@ describe("MessengerContextSidebar chat actions", () => {
       icon: "folder",
       sortOrder: 0,
       collapsed: false,
-      pinnedAt: null,
+      pinnedAt: "2026-04-11T09:40:00.000Z",
       createdAt: "2026-04-11T09:40:00.000Z",
       updatedAt: "2026-04-11T09:40:00.000Z",
     });
@@ -1571,7 +1571,7 @@ describe("MessengerContextSidebar chat actions", () => {
     });
   });
 
-  it("pins custom groups from the group actions menu", async () => {
+  it("unpins custom groups from the group actions menu", async () => {
     customGroupList = [
       {
         id: "group-1",
@@ -1581,7 +1581,7 @@ describe("MessengerContextSidebar chat actions", () => {
         icon: "😀::amber",
         sortOrder: 0,
         collapsed: false,
-        pinnedAt: null,
+        pinnedAt: "2026-04-11T09:40:00.000Z",
         createdAt: "2026-04-11T09:40:00.000Z",
         updatedAt: "2026-04-11T09:40:00.000Z",
         entries: [],
@@ -1593,7 +1593,7 @@ describe("MessengerContextSidebar chat actions", () => {
 
     expect(document.body.textContent).toContain("Deep work");
     const pinButton = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "Pin") as HTMLButtonElement | undefined;
+      .find((button) => button.textContent?.trim() === "Unpin") as HTMLButtonElement | undefined;
 
     expect(pinButton).toBeTruthy();
     await act(async () => {
@@ -1601,7 +1601,7 @@ describe("MessengerContextSidebar chat actions", () => {
       await Promise.resolve();
     });
 
-    expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", { pinned: true });
+    expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", { pinned: false });
   });
 
   it("renders pinned custom groups before unpinned custom groups", () => {

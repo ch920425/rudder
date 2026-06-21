@@ -305,7 +305,7 @@ describe("messengerService and issue follows", () => {
     expect(customGroups.groups[0]?.entries[0]?.thread.title).toBe("Grouped chat 8");
   });
 
-  it("persists pinned custom groups and lists them before unpinned groups", async () => {
+  it("creates custom groups pinned by default and lists them before unpinned groups", async () => {
     const orgId = randomUUID();
     const userId = "board-user-custom-group-pins";
 
@@ -320,10 +320,12 @@ describe("messengerService and issue follows", () => {
     const firstGroup = await messengerSvc.createCustomGroup(orgId, userId, "Later group");
     const pinnedGroup = await messengerSvc.createCustomGroup(orgId, userId, "Pinned group");
 
-    const updated = await messengerSvc.updateCustomGroup(orgId, userId, pinnedGroup!.id, { pinned: true });
+    const updated = await messengerSvc.updateCustomGroup(orgId, userId, firstGroup!.id, { pinned: false });
     const customGroups = await messengerSvc.listCustomGroups(orgId, userId);
 
-    expect(updated.pinnedAt).toBeInstanceOf(Date);
+    expect(firstGroup?.pinnedAt).toBeInstanceOf(Date);
+    expect(pinnedGroup?.pinnedAt).toBeInstanceOf(Date);
+    expect(updated.pinnedAt).toBeNull();
     expect(customGroups.groups.map((group) => group.name)).toEqual(["Pinned group", "Later group"]);
     expect(customGroups.groups[0]?.pinnedAt).toBeInstanceOf(Date);
     expect(customGroups.groups[1]?.id).toBe(firstGroup!.id);

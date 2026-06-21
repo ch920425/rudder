@@ -1197,6 +1197,7 @@ export function messengerService(db: Db) {
         name,
         icon,
         sortOrder: (lastGroup?.sortOrder ?? -1) + 1,
+        pinnedAt: now,
         updatedAt: now,
       })
       .returning();

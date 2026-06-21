@@ -1195,7 +1195,7 @@ test.describe("Messenger unified threads contract", () => {
     expect(payload.groups.find((candidate) => candidate.id === group.id)?.icon).toBe("🔥::amber");
   });
 
-  test("pins custom groups from group actions and keeps pinned groups first after reload", async ({ page }) => {
+  test("creates custom groups pinned by default and keeps pinned groups first after reload", async ({ page }) => {
     const organization = await createOrganization(page, `Messenger-Custom-Group-Pin-${Date.now()}`);
 
     async function createChat(title: string) {
@@ -1237,6 +1237,10 @@ test.describe("Messenger unified threads contract", () => {
       "folder::slate",
       `chat:${regularChat.id}`,
     );
+    const regularUnpinRes = await page.request.patch(`/api/orgs/${organization.id}/messenger/groups/${regularGroup.id}`, {
+      data: { pinned: false },
+    });
+    expect(regularUnpinRes.ok()).toBe(true);
 
     await page.goto("/");
     await page.evaluate((orgId) => {
@@ -1251,21 +1255,18 @@ test.describe("Messenger unified threads contract", () => {
     await expect(pinCandidateSection).toContainText("Pin candidate", { timeout: 15_000 });
     await expect(page.getByTestId(regularSectionId)).toContainText("Regular group");
 
-    const pinResponse = page.waitForResponse((response) =>
-      response.url().endsWith(`/api/orgs/${organization.id}/messenger/groups/${pinCandidateGroup.id}`) &&
-      response.request().method() === "PATCH",
-    );
-    await pinCandidateSection.hover();
-    await pinCandidateSection.getByRole("button", { name: "Group actions" }).click();
-    await page.getByRole("menuitem", { name: "Pin" }).click();
-    expect((await pinResponse).ok()).toBe(true);
-
     await expect.poll(async () => {
       const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
       expect(groupsRes.ok()).toBe(true);
       const payload = await groupsRes.json() as { groups: Array<{ id: string; pinnedAt: string | null }> };
-      return payload.groups.find((group) => group.id === pinCandidateGroup.id)?.pinnedAt ?? null;
-    }).not.toBeNull();
+      return {
+        pinCandidatePinnedAt: payload.groups.find((group) => group.id === pinCandidateGroup.id)?.pinnedAt ?? null,
+        regularPinnedAt: payload.groups.find((group) => group.id === regularGroup.id)?.pinnedAt ?? null,
+      };
+    }).toEqual({
+      pinCandidatePinnedAt: expect.any(String),
+      regularPinnedAt: null,
+    });
 
     await expectTestIdsInDomOrder(page, [pinCandidateSectionId, regularSectionId]);
 
