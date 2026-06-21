@@ -177,6 +177,8 @@ New plan docs should start with the standard YAML frontmatter described in `doc/
 
 When changing product logic, state the affected contract IDs before implementation when practical, keep code/tests aligned with those contracts, and run `pnpm product-logic:check` before hand-off. If a behavior change needs a product doc update but the agent lacks authorization, stop with a proposed product logic delta instead of silently editing the registry or claiming the change is complete.
 
+After finishing a workflow or product-behavior change, proactively ask whether the completed iteration should be written back into `doc/product/**` as a Product Logic Contract update. This question does not grant edit permission by itself; only update the registry after the user explicitly approves the product doc delta.
+
 1. Require end-to-end coverage for feature work.
 
 Any shipped feature or user-visible workflow change must add or update automated E2E coverage for the path being introduced or changed.
