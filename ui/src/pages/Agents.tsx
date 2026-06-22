@@ -21,7 +21,7 @@ import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
 import { agentRouteRef, agentUrl, cn, relativeTime } from "../lib/utils";
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude",
+  claude_local: "Claude Code",
   codex_local: "Codex",
   gemini_local: "Gemini",
   opencode_local: "OpenCode",

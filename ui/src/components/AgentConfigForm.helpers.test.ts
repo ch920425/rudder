@@ -14,6 +14,9 @@ import {
   runtimeProviderSetupHint,
 } from "../lib/runtime-models";
 import {
+  adapterLabels,
+} from "./agent-config-primitives";
+import {
   applyRuntimeChainOrder,
   createValuesForRuntime,
   defaultCommandForRuntime,
@@ -24,6 +27,10 @@ import {
 } from "./AgentConfigForm.helpers";
 
 describe("AgentConfigForm runtime defaults", () => {
+  it("labels the local Claude runtime as Claude Code for operator-facing runtime selectors", () => {
+    expect(adapterLabels.claude_local).toBe("Claude Code (local)");
+  });
+
   it("uses cursor-agent for new Cursor agents", () => {
     expect(defaultCommandForRuntime("cursor")).toBe("cursor-agent");
     expect(defaultConfigForRuntime("cursor")).toMatchObject({

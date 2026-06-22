@@ -6,6 +6,7 @@ import { agentsApi } from "../api/agents";
 import { useOrganization } from "../context/OrganizationContext";
 import { queryKeys } from "../lib/queryKeys";
 import { agentUrl, formatDate } from "../lib/utils";
+import { adapterLabels } from "./agent-config-primitives";
 import { AgentIdentity } from "./AgentAvatar";
 import { StatusBadge } from "./StatusBadge";
 
@@ -13,17 +14,6 @@ interface AgentPropertiesProps {
   agent: Agent;
   runtimeState?: AgentRuntimeState;
 }
-
-const adapterLabels: Record<string, string> = {
-  claude_local: "Claude (local)",
-  codex_local: "Codex (local)",
-  gemini_local: "Gemini CLI (local)",
-  opencode_local: "OpenCode (local)",
-  openclaw_gateway: "OpenClaw Gateway",
-  cursor: "Cursor (local)",
-  process: "Process",
-  http: "HTTP",
-};
 
 const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
