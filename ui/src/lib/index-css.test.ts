@@ -290,6 +290,17 @@ describe("index.css motion rules", () => {
     expect(composerSkillIconBlock).toContain("margin-right: 0.28em");
   });
 
+  it("keeps chat composer drafts aligned with the toolbar axis", () => {
+    const composerEditorScrollBlock = cssBlock(".chat-composer-editor-scroll");
+    const composerContentBlock = cssBlock(".chat-composer .rudder-mdxeditor-content");
+    const firstLineBlock = cssBlock(".chat-composer .rudder-mdxeditor-content p:first-child");
+
+    expect(composerEditorScrollBlock).toContain("padding-inline: 0.75rem");
+    expect(composerEditorScrollBlock).toContain("padding-block: 0.25rem 0");
+    expect(composerContentBlock).toContain("display: flow-root");
+    expect(firstLineBlock).toContain("min-height: 1.75rem");
+  });
+
   it("shows full agent mention labels inside chat composers", () => {
     const composerAgentMentionTokenBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="agent"],[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-mention-chip\[data-mention-kind="agent"] \{[\s\S]*?\n\}/)?.[0] ?? "";

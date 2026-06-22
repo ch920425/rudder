@@ -16,7 +16,6 @@ import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "@/co
 import { ProjectIcon } from "@/components/ProjectIdentity";
 import type { MarkdownSkillReferencePreview } from "@/components/SkillReferenceToken";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useChatGenerations } from "@/context/ChatGenerationContext";
 import { useDialog } from "@/context/DialogContext";
@@ -76,8 +76,8 @@ import { cn } from "@/lib/utils";
 import {
   type ChatConversation,
   type ChatMessage,
-  type ChatQueuedMessage,
-  type ChatOperationProposalDecisionAction
+  type ChatOperationProposalDecisionAction,
+  type ChatQueuedMessage
 } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1188,7 +1188,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
           </div>
         </div>
       ) : null}
-      <div ref={composerEditorScrollRef} data-testid="chat-composer-editor-scroll" className="chat-composer-editor-scroll scrollbar-auto-hide overflow-y-auto overscroll-contain pr-1" onPasteCapture={handlePendingAttachmentPasteCapture} >
+      <div ref={composerEditorScrollRef} data-testid="chat-composer-editor-scroll" className="chat-composer-editor-scroll scrollbar-auto-hide overflow-y-auto overscroll-contain" onPasteCapture={handlePendingAttachmentPasteCapture} >
         <MarkdownEditor ref={composerEditorRef} value={draft} onChange={setDraft}
           mentions={mentionOptions}
           onMentionQueryChange={setLibraryFileMentionQuery}
