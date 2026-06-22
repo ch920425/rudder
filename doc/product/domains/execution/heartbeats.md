@@ -27,7 +27,8 @@ Behavior:
   comment, and resume context are available to the run.
 - Terminated and pending-approval agents are not invokable.
 - Paused agents receive deferred wakeup requests instead of immediate runs.
-- Timer wakes respect heartbeat enablement and timer preflight.
+- Timer wakes respect heartbeat enablement and timer preflight
+  (`RUN.PREFLIGHT.001`).
 - Non-timer wakes respect demand wake policy.
 - Same-scope queued/running wakes coalesce when safe; comment mention follow-up
   wakes may queue behind a running same-scope run instead of being swallowed.

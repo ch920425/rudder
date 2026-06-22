@@ -38,4 +38,5 @@ edit_policy: user_confirmed_only
   avoids self-waking the same run.
 - `ROUTING.REVIEWER.001`: reviewable issue states route to reviewer agents.
 - `ROUTING.ATTENTION.001`: mentions and timer preflight route attention without
-  duplicate or hidden work.
+  duplicate or hidden work. Timer preflight's detailed admission flow is owned
+  by `RUN.PREFLIGHT.001`.

@@ -53,6 +53,39 @@ contracts:
       - server/src/__tests__/heartbeat-run-concurrency.test.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.PREFLIGHT.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/preflight.md
+    related_code:
+      - server/src/services/runtime-kernel/heartbeat.wakeup.ts
+      - server/src/services/runtime-kernel/heartbeat.recovery.ts
+      - ui/src/components/AgentConfigForm.tsx
+      - ui/src/components/agent-config-defaults.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-run-concurrency.test.ts
+      - tests/e2e/agent-config-advanced-options.spec.ts
+    related_plans:
+      - doc/plans/2026-05-30-heartbeat-inbox-admission.md
+      - doc/plans/2026-06-21-product-logic-registry.md
+  RUN.WORKSPACE.PREFLIGHT.001:
+    owner: product
+    domain: execution
+    docs:
+      - doc/product/domains/execution/preflight.md
+    related_code:
+      - server/src/services/managed-workspace-preflight.ts
+      - server/src/services/runtime-kernel/heartbeat.execute.ts
+      - server/src/services/chat-assistant.ts
+      - ui/src/lib/run-detail-display.ts
+    related_tests:
+      - server/src/__tests__/heartbeat-workspace-preflight.test.ts
+      - server/src/__tests__/managed-workspace-preflight.test.ts
+      - server/src/__tests__/chat-assistant.test.ts
+      - ui/src/lib/run-detail-display.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
   RUN.EXECUTION.001:
     owner: product
     domain: execution

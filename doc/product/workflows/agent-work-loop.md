@@ -32,8 +32,8 @@ Path:
    `ROUTING.ASSIGNMENT.001`, `ROUTING.CHECKOUT.001`,
    `ROUTING.REVIEWER.001`, `ROUTING.ATTENTION.001`,
    `ROUTING.COMMENT.WAKE.001`.
-4. Wakeup admission and issue execution serialization: `RUN.WAKEUP.001`,
-   `RUN.ADMISSION.001`.
+4. Wakeup admission, timer preflight, and issue execution serialization:
+   `RUN.WAKEUP.001`, `RUN.PREFLIGHT.001`, `RUN.ADMISSION.001`.
 5. Agent identity, inbox, skills, adapter, instruction/context loading:
    `AGENT.IDENTITY.CONFIG.001`, `AGENT.INBOX.001`,
    `AGENT.SKILLS.001`, `AGENT.RUNTIME.ADAPTERS.001`,
@@ -41,8 +41,9 @@ Path:
 6. Project resources and workspace context:
    `CONTEXT.RESOURCES.001`, `WORKSPACE.PROJECT.001`,
    `WORKSPACE.RUN.001`.
-7. Unified Agent Run execution and result persistence:
-   `RUN.AGENT.UNIFICATION.001`, `RUN.EXECUTION.001`,
+7. Unified Agent Run execution, managed workspace preflight, and result
+   persistence: `RUN.AGENT.UNIFICATION.001`,
+   `RUN.WORKSPACE.PREFLIGHT.001`, `RUN.EXECUTION.001`,
    `RUN.RESULT.001`.
 8. Review, close-out, feedback, and learning:
    `REVIEW.DECISION.001`, `REVIEW.CLOSEOUT.001`,

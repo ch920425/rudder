@@ -36,9 +36,10 @@ Behavior:
   assignee comment wake so the directed attention is not duplicated.
 - Comment wakeups from the same comment are merged into one enqueue per target
   agent before calling heartbeat wakeup.
-- Timer preflight admits runs when the agent has actionable assignee issues
-  (`todo`, `in_progress`, `blocked`) or reviewer issues (`in_review`,
-  `blocked`) that do not already have a recorded blocked reviewer decision.
+- Timer preflight (`RUN.PREFLIGHT.001`) admits timer runs when the agent has
+  actionable assignee issues (`todo`, `in_progress`, `blocked`) or reviewer
+  issues (`in_review`, `blocked`) that do not already have a recorded blocked
+  reviewer decision.
 - Timer preflight skips when no actionable work exists, and it records
   diagnostics when pending wakeups already exist.
 
@@ -46,7 +47,8 @@ Invariant:
 
 - Attention wakes should expose why the agent woke.
 - Timer heartbeats should not wake an agent that will immediately see no
-  actionable work.
+  actionable work. The detailed admission mechanism is owned by
+  `RUN.PREFLIGHT.001`.
 
 Rationale:
 
