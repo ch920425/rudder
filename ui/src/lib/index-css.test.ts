@@ -441,6 +441,18 @@ describe("index.css motion rules", () => {
     expect(previewHeadings).toContain("letter-spacing: 0");
   });
 
+  it("lets website links keep their rendered treatment outside markdown bodies", () => {
+    const websiteLink = cssBlock("a.rudder-website-link");
+    const websiteLinkHover = cssBlock("a.rudder-website-link:hover");
+
+    expect(websiteLink).toContain("display: inline");
+    expect(websiteLink).toContain("color: var(--rudder-doc-link)");
+    expect(websiteLink).toContain("overflow-wrap: anywhere");
+    expect(websiteLinkHover).toContain("color: var(--rudder-doc-link-hover)");
+    expect(indexCss).not.toContain(".rudder-markdown a.rudder-website-link {");
+    expect(indexCss).not.toContain(".rudder-markdown a.rudder-website-link:hover {");
+  });
+
   it("scopes Library file-tab window dragging to the macOS desktop shell", () => {
     const tabStripSpacer = cssBlock("html.desktop-shell-macos .rudder-doc-editor-tab-drag-spacer");
     const fileTab = cssBlock("html.desktop-shell-macos .rudder-doc-editor-tab--desktop-no-drag");

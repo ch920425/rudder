@@ -3298,7 +3298,7 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
   color: color-mix(in oklab, var(--foreground) 64%, #58a6ff 36%);
 }
 
-.rudder-markdown a.rudder-website-link {
+a.rudder-website-link {
   display: inline;
   padding: 0;
   border: 0;
@@ -3312,7 +3312,7 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
   vertical-align: baseline;
 }
 
-.rudder-markdown a.rudder-website-link:hover {
+a.rudder-website-link:hover {
   background: transparent;
   color: var(--rudder-doc-link-hover);
   text-decoration: none;
@@ -3338,7 +3338,7 @@ a.rudder-mention-chip[data-mention-kind="chat"]::before {
   overflow-wrap: anywhere;
 }
 
-.rudder-markdown a.rudder-website-link:hover .rudder-website-link-label {
+a.rudder-website-link:hover .rudder-website-link-label {
   text-decoration: underline;
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.18em;

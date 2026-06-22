@@ -223,6 +223,25 @@ describe("user chat message rendering", () => {
     expect(bubble?.querySelector('[data-mention-kind="agent"]')?.getAttribute("href")).toBe("/MARAAA/agents/agent-1");
   });
 
+  it("renders X status URLs as website links before following CJK text in user messages", () => {
+    const url = "https://x.com/my_knn_totoro/status/2068910037238772102";
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: `${url} 你觉得这个我怎么回复比较好?`,
+    }));
+    const bubble = container.querySelector('[data-testid="chat-user-message-bubble"]');
+    const link = bubble?.querySelector("a");
+
+    expect(link?.getAttribute("href")).toBe(url);
+    expect(link?.textContent).toBe(url);
+    expect(link?.getAttribute("target")).toBe("_blank");
+    expect(link?.classList.contains("rudder-website-link")).toBe(true);
+    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
+    expect(bubble?.textContent).toContain("你觉得这个我怎么回复比较好?");
+  });
+
   it("keeps unsafe schemes literal while preserving organization routing for internal links", () => {
     window.history.pushState({}, "", "/MARAAA/messenger/chat/chat-1");
 

@@ -4,7 +4,7 @@ import { AgentMenuLabel, AssigneeLabel } from "@/components/AssigneeLabel";
 import { ChatRichReferences } from "@/components/chat-renderables/ChatRichReferences";
 import { HoverTimestampLabel } from "@/components/HoverTimestamp";
 import { InlineEntitySelector, type InlineEntityOption } from "@/components/InlineEntitySelector";
-import { MarkdownBody, type MarkdownLinkClickHandler } from "@/components/MarkdownBody";
+import { MarkdownBody, WebsiteLinkIcon, websiteUrlFromMarkdownHref, type MarkdownLinkClickHandler } from "@/components/MarkdownBody";
 import { MarkdownEditor, type MarkdownEditorProps, type MarkdownEditorRef, type MentionOption } from "@/components/MarkdownEditor";
 import { PriorityIcon } from "@/components/PriorityIcon";
 import { RudderEntityPreview } from "@/components/RudderEntityPreview";
@@ -1203,6 +1203,23 @@ export function ChatUserPlainTextBody({
         if (part.kind === "link") {
           const href = renderedPlainLinkHref(part.href, organizationPrefix);
           const isExternal = /^(?:https?:\/\/|mailto:|\/\/)/iu.test(href);
+          const websiteUrl = websiteUrlFromMarkdownHref(href);
+          if (websiteUrl) {
+            return (
+              <a
+                key={`${part.href}-${index}`}
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                title={part.label}
+                className="rudder-website-link"
+                onClick={(event) => handlePlainTextLinkClick(event, href, part.label)}
+              >
+                <WebsiteLinkIcon url={websiteUrl} />
+                <span className="rudder-website-link-label">{part.label}</span>
+              </a>
+            );
+          }
           return (
             <a
               key={`${part.href}-${index}`}

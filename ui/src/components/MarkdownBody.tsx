@@ -251,7 +251,7 @@ function isExternalMarkdownHref(value: string | null | undefined) {
   }
 }
 
-function websiteUrlFromMarkdownHref(value: string | null | undefined) {
+export function websiteUrlFromMarkdownHref(value: string | null | undefined) {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) return null;
   const candidate = trimmed.startsWith("//")
@@ -418,7 +418,7 @@ function websiteIconKindForUrl(url: URL) {
   return "generic";
 }
 
-function WebsiteLinkIcon({ url }: { url: URL }) {
+export function WebsiteLinkIcon({ url }: { url: URL }) {
   const logo = websiteLogoForUrl(url);
   if (logo) {
     return (
