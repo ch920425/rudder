@@ -143,6 +143,9 @@ export interface ChatConversation {
   preferredAgentId: string | null;
   routedAgentId: string | null;
   primaryIssueId: string | null;
+  forkedFromConversationId: string | null;
+  forkedFromMessageId: string | null;
+  forkRootConversationId: string | null;
   primaryIssue: ChatPrimaryIssueSummary | null;
   issueCreationMode: "manual_approval" | "auto_create";
   planMode: boolean;

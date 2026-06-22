@@ -87,6 +87,7 @@ import {
   Boxes,
   ChevronDown,
   Folder,
+  GitFork,
   ListChecks,
   Loader2,
   MoreHorizontal,
@@ -414,7 +415,26 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       pushToast({
         title: "Failed to delete conversation",
         body: error instanceof Error ? error.message : "Try again.",
-        tone: "error", }); }, }); const updateProjectContextMutation = useMutation({
+        tone: "error", }); }, }); const forkConversationMutation = useMutation({
+    mutationFn: ({ chatId, sourceMessageId }: { chatId: string; sourceMessageId?: string | null }) =>
+      chatsApi.fork(chatId, { sourceMessageId: sourceMessageId ?? null }),
+    onSuccess: async (conversation) => {
+      upsertConversation(conversation);
+      upsertMessengerThreadSummary(conversation);
+      await Promise.all([
+        refreshChat(conversation.id),
+        queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(conversation.orgId) }),
+      ]);
+      navigate(chatConversationPath(conversation.id));
+    },
+    onError: (error) => {
+      pushToast({
+        title: "Could not fork chat",
+        body: error instanceof Error ? error.message : "Try again after the current reply finishes.",
+        tone: "error",
+      });
+    },
+  }); const updateProjectContextMutation = useMutation({
     mutationFn: ({ chatId, projectId }: { chatId: string; projectId: string | null; previousProjectId?: string | null;
     }) =>
       chatsApi.setProjectContext(chatId, projectId),
@@ -1401,6 +1421,13 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      disabled={selectedConversationGenerating || forkConversationMutation.isPending}
+                      onClick={() => forkConversationMutation.mutate({ chatId: selectedConversation.id })}
+                    >
+                      <GitFork className="h-4 w-4" />
+                      Fork latest
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       variant="destructive"
                       disabled={selectedConversationGenerating}
                       onClick={async () => {
@@ -1508,7 +1535,10 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                                     void sendMessage({
                                       bodyOverride: INTERRUPTED_CHAT_CONTINUATION_PROMPT,
                                       filesOverride: [], conversationOverride: selectedConversation, });
-                                  }} onRetryFailedMessage={retryFailedMessage} onOpenImage={setAttachmentPreview} onOpenFile={openLocalFile} onMarkdownLinkClick={handleChatMarkdownLinkClick}
+                                  }} onRetryFailedMessage={retryFailedMessage} onForkMessage={(messageToFork) => forkConversationMutation.mutate({
+                                    chatId: selectedConversation.id,
+                                    sourceMessageId: messageToFork.id,
+                                  })} onOpenImage={setAttachmentPreview} onOpenFile={openLocalFile} onMarkdownLinkClick={handleChatMarkdownLinkClick}
                                   turnBranchControls={turnBranchControlsFor(message)}
                                   skillReferences={chatSkillReferences}
                                   issueCreatedMessage={issueCreatedMessage}

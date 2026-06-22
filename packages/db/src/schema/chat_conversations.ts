@@ -1,5 +1,6 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
+import { chatMessages } from "./chat_messages.js";
 import { issues } from "./issues.js";
 import { organizations } from "./organizations.js";
 
@@ -14,6 +15,9 @@ export const chatConversations = pgTable(
     preferredAgentId: uuid("preferred_agent_id").references(() => agents.id, { onDelete: "set null" }),
     routedAgentId: uuid("routed_agent_id").references(() => agents.id, { onDelete: "set null" }),
     primaryIssueId: uuid("primary_issue_id").references(() => issues.id, { onDelete: "set null" }),
+    forkedFromConversationId: uuid("forked_from_conversation_id").references((): AnyPgColumn => chatConversations.id, { onDelete: "set null" }),
+    forkedFromMessageId: uuid("forked_from_message_id").references((): AnyPgColumn => chatMessages.id, { onDelete: "set null" }),
+    forkRootConversationId: uuid("fork_root_conversation_id").references((): AnyPgColumn => chatConversations.id, { onDelete: "set null" }),
     issueCreationMode: text("issue_creation_mode").notNull().default("manual_approval"),
     planMode: boolean("plan_mode").notNull().default(false),
     createdByUserId: text("created_by_user_id"),
@@ -30,5 +34,7 @@ export const chatConversations = pgTable(
       table.updatedAt,
     ),
     primaryIssueIdx: index("chat_conversations_primary_issue_idx").on(table.primaryIssueId),
+    forkedFromConversationIdx: index("chat_conversations_forked_from_conversation_idx").on(table.forkedFromConversationId),
+    forkRootIdx: index("chat_conversations_fork_root_idx").on(table.forkRootConversationId),
   }),
 );

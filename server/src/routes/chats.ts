@@ -7,6 +7,7 @@ import {
   chatAutomationCreateFromStructuredPayload,
   createChatConversationSchema,
   createChatQueuedMessageSchema,
+  forkChatConversationSchema,
   formatMessengerTitle,
   steerChatQueuedMessageSchema,
   updateChatConversationSchema,
@@ -1420,6 +1421,47 @@ export function chatRoutes(db: Db, storage: StorageService) {
     });
 
     res.json(updated ? await assistantSvc.enrichConversation(updated as ChatConversation) : null);
+  });
+
+  router.post("/chats/:id/fork", validate(forkChatConversationSchema), async (req, res) => {
+    assertBoard(req);
+    const existing = await assertConversationAccess(req, req.params.id as string);
+    if (!existing) {
+      res.status(404).json({ error: "Chat conversation not found" });
+      return;
+    }
+    if (hasActiveChatGeneration(existing.id)) {
+      throw conflict("Cannot fork a chat while a reply is in progress");
+    }
+
+    const actor = getActorInfo(req);
+    const userId = boardUserId(req);
+    const forked = await svc.forkConversation({
+      sourceConversationId: existing.id,
+      orgId: existing.orgId,
+      userId,
+      sourceMessageId: req.body.sourceMessageId ?? null,
+      title: req.body.title,
+      createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+    });
+
+    await logActivity(db, {
+      orgId: existing.orgId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "chat.forked",
+      entityType: "chat",
+      entityId: forked?.id ?? "unknown",
+      details: {
+        sourceConversationId: existing.id,
+        sourceMessageId: req.body.sourceMessageId ?? null,
+        forkRootConversationId: forked?.forkRootConversationId ?? existing.id,
+      },
+    });
+
+    res.status(201).json(await assistantSvc.enrichConversation(forked as ChatConversation));
   });
 
   router.delete("/chats/:id", async (req, res) => {

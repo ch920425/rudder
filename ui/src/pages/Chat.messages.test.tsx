@@ -105,6 +105,7 @@ function message(overrides: Partial<ChatMessage>): ChatMessage {
 }
 
 function renderChatMessageItem(messageToRender: ChatMessage) {
+  const onForkMessage = vi.fn();
   return render(
     <ThemeProvider>
       <ChatMessageItem
@@ -117,6 +118,9 @@ function renderChatMessageItem(messageToRender: ChatMessage) {
           preferredAgentId: null,
           routedAgentId: null,
           primaryIssueId: null,
+          forkedFromConversationId: null,
+          forkedFromMessageId: null,
+          forkRootConversationId: null,
           primaryIssue: null,
           issueCreationMode: "manual_approval",
           planMode: false,
@@ -156,6 +160,7 @@ function renderChatMessageItem(messageToRender: ChatMessage) {
         onConvertToIssue={vi.fn()}
         actionPending={false}
         onCopyMessageText={vi.fn()}
+        onForkMessage={onForkMessage}
         onEditUserMessage={vi.fn()}
         onContinueInterruptedMessage={vi.fn()}
         onRetryFailedMessage={vi.fn()}
@@ -202,6 +207,17 @@ describe("ChatMessagesLoadingState", () => {
 });
 
 describe("user chat message rendering", () => {
+  it("exposes a fork action on persisted chat messages", () => {
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: "Try this angle",
+    }));
+
+    expect(container.querySelector('button[aria-label="Fork from here"]')).not.toBeNull();
+  });
+
   it("keeps user-authored markdown syntax literal while preserving links and Rudder references", () => {
     window.history.pushState({}, "", "/MARAAA/messenger/chat/chat-1");
 
@@ -436,6 +452,9 @@ describe("failed chat transcript rendering", () => {
             preferredAgentId: null,
             routedAgentId: null,
             primaryIssueId: null,
+            forkedFromConversationId: null,
+            forkedFromMessageId: null,
+            forkRootConversationId: null,
             primaryIssue: null,
             issueCreationMode: "manual_approval",
             planMode: false,

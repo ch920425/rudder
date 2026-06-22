@@ -743,6 +743,9 @@ const fixtureChatConversation: ChatConversation = {
   preferredAgentId: fixtureAgent.id,
   routedAgentId: fixtureAgent.id,
   primaryIssueId: fixtureIssue.id,
+  forkedFromConversationId: null,
+  forkedFromMessageId: null,
+  forkRootConversationId: null,
   primaryIssue: {
     id: fixtureIssue.id,
     identifier: fixtureIssue.identifier,

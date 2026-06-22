@@ -10,6 +10,8 @@ import {
   chatGenerations,
   chatMessages,
   chatQueuedMessages,
+  messengerCustomGroupEntries,
+  messengerCustomGroups,
   organizations
 } from "@rudderhq/db";
 import { sanitizeChatStructuredPayload, type ChatQueuedMessagePayload, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
@@ -1169,6 +1171,255 @@ export function chatService(db: Db) {
         return conversation;
       });
       return getById(created.id);
+  }
+
+  function forkSystemEventBody(sourceConversation: ConversationRow, sourceMessageId: string | null) {
+    const messageSuffix = sourceMessageId ? ` at message ${sourceMessageId}` : "";
+    return `Forked from [${sourceConversation.title}](chat://${sourceConversation.id})${messageSuffix}.`;
+  }
+
+  async function findForkFamilyGroup(
+    client: Pick<Db, "select">,
+    orgId: string,
+    userId: string,
+    rootConversationId: string,
+  ) {
+    const rootThreadKey = `chat:${rootConversationId}`;
+    return client
+      .select({ id: messengerCustomGroups.id })
+      .from(messengerCustomGroups)
+      .innerJoin(messengerCustomGroupEntries, eq(messengerCustomGroupEntries.groupId, messengerCustomGroups.id))
+      .where(and(
+        eq(messengerCustomGroups.orgId, orgId),
+        eq(messengerCustomGroups.userId, userId),
+        eq(messengerCustomGroupEntries.orgId, orgId),
+        eq(messengerCustomGroupEntries.userId, userId),
+        eq(messengerCustomGroupEntries.threadKey, rootThreadKey),
+      ))
+      .orderBy(asc(messengerCustomGroups.sortOrder), asc(messengerCustomGroups.createdAt))
+      .limit(1)
+      .then((rows) => rows[0] ?? null);
+  }
+
+  async function createForkFamilyGroup(
+    client: Pick<Db, "insert" | "select">,
+    orgId: string,
+    userId: string,
+    name: string,
+  ) {
+    const [lastGroup] = await client
+      .select({ sortOrder: messengerCustomGroups.sortOrder })
+      .from(messengerCustomGroups)
+      .where(and(eq(messengerCustomGroups.orgId, orgId), eq(messengerCustomGroups.userId, userId)))
+      .orderBy(desc(messengerCustomGroups.sortOrder))
+      .limit(1);
+    const now = new Date();
+    const [group] = await client
+      .insert(messengerCustomGroups)
+      .values({
+        orgId,
+        userId,
+        name: name.trim() || "Forked conversation",
+        icon: "git-branch::blue",
+        sortOrder: (lastGroup?.sortOrder ?? -1) + 1,
+        updatedAt: now,
+      })
+      .returning();
+    if (!group) throw new Error("Failed to create Messenger fork group");
+    return group;
+  }
+
+  async function assignForkThreadToGroup(
+    client: Pick<Db, "insert" | "select">,
+    orgId: string,
+    userId: string,
+    groupId: string,
+    threadKey: string,
+  ) {
+    const [lastEntry] = await client
+      .select({ sortOrder: messengerCustomGroupEntries.sortOrder })
+      .from(messengerCustomGroupEntries)
+      .where(and(
+        eq(messengerCustomGroupEntries.orgId, orgId),
+        eq(messengerCustomGroupEntries.userId, userId),
+        eq(messengerCustomGroupEntries.groupId, groupId),
+      ))
+      .orderBy(desc(messengerCustomGroupEntries.sortOrder))
+      .limit(1);
+    const now = new Date();
+    await client
+      .insert(messengerCustomGroupEntries)
+      .values({
+        orgId,
+        userId,
+        groupId,
+        threadKey,
+        sortOrder: (lastEntry?.sortOrder ?? -1) + 1,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+  }
+
+  async function ensureForkFamilyGroup(
+    client: Pick<Db, "insert" | "select">,
+    orgId: string,
+    userId: string,
+    rootConversationId: string,
+    sourceConversationId: string,
+    childConversationId: string,
+    groupName: string,
+  ) {
+    const existing = await findForkFamilyGroup(client, orgId, userId, rootConversationId);
+    const group = existing ?? await createForkFamilyGroup(client, orgId, userId, groupName);
+    for (const threadKey of [
+      `chat:${rootConversationId}`,
+      `chat:${sourceConversationId}`,
+      `chat:${childConversationId}`,
+    ]) {
+      await assignForkThreadToGroup(client, orgId, userId, group.id, threadKey);
+    }
+  }
+
+  async function forkConversation(input: {
+    sourceConversationId: string;
+    orgId: string;
+    userId: string;
+    sourceMessageId?: string | null;
+    title?: string | null;
+    createdByUserId: string | null;
+  }) {
+    const created = await db.transaction(async (tx) => {
+      const source = await tx
+        .select()
+        .from(chatConversations)
+        .where(and(eq(chatConversations.id, input.sourceConversationId), eq(chatConversations.orgId, input.orgId)))
+        .then((rows) => rows[0] ?? null);
+      if (!source) throw notFound("Chat conversation not found");
+
+      const rootConversationId = source.forkRootConversationId ?? source.id;
+      const messageConditions = [
+        eq(chatMessages.conversationId, source.id),
+        eq(chatMessages.orgId, input.orgId),
+        isNull(chatMessages.supersededAt),
+      ];
+      if (input.sourceMessageId) {
+        const sourceMessage = await tx
+          .select({ id: chatMessages.id })
+          .from(chatMessages)
+          .where(and(...messageConditions, eq(chatMessages.id, input.sourceMessageId)))
+          .then((rows) => rows[0] ?? null);
+        if (!sourceMessage) throw unprocessable("Fork source message must belong to the source conversation");
+      }
+
+      const now = new Date();
+      const [child] = await tx
+        .insert(chatConversations)
+        .values({
+          orgId: input.orgId,
+          status: "active",
+          title: input.title?.trim() || source.title,
+          summary: source.summary,
+          preferredAgentId: source.preferredAgentId,
+          routedAgentId: source.routedAgentId,
+          primaryIssueId: source.primaryIssueId,
+          forkedFromConversationId: source.id,
+          forkedFromMessageId: input.sourceMessageId ?? null,
+          forkRootConversationId: rootConversationId,
+          issueCreationMode: source.issueCreationMode,
+          planMode: source.planMode,
+          createdByUserId: input.createdByUserId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      if (!child) throw new Error("Failed to create forked chat conversation");
+
+      const contextLinks = await tx
+        .select()
+        .from(chatContextLinks)
+        .where(eq(chatContextLinks.conversationId, source.id))
+        .orderBy(chatContextLinks.createdAt);
+      if (contextLinks.length > 0) {
+        await tx
+          .insert(chatContextLinks)
+          .values(contextLinks.map((link) => ({
+            orgId: input.orgId,
+            conversationId: child.id,
+            entityType: link.entityType,
+            entityId: link.entityId,
+            metadata: link.metadata,
+          })))
+          .onConflictDoNothing();
+      }
+
+      const messagesToCopy = await tx
+        .select()
+        .from(chatMessages)
+        .where(and(...messageConditions))
+        .orderBy(chatMessages.createdAt, chatMessages.id);
+      const forkMessages = input.sourceMessageId
+        ? messagesToCopy.slice(0, messagesToCopy.findIndex((message) => message.id === input.sourceMessageId) + 1)
+        : messagesToCopy;
+      if (forkMessages.length > 0) {
+        await tx.insert(chatMessages).values(forkMessages.map((message) => ({
+          orgId: input.orgId,
+          conversationId: child.id,
+          role: message.role,
+          kind: message.kind,
+          status: message.status === "streaming" ? "interrupted" : message.status,
+          body: message.body,
+          structuredPayload: null,
+          approvalId: null,
+          runId: null,
+          replyingAgentId: null,
+          chatTurnId: null,
+          turnVariant: 0,
+          createdAt: message.createdAt,
+          updatedAt: message.updatedAt,
+        })));
+      }
+
+      const [systemEvent] = await tx
+        .insert(chatMessages)
+        .values({
+          orgId: input.orgId,
+          conversationId: child.id,
+          role: "system",
+          kind: "system_event",
+          status: "completed",
+          body: forkSystemEventBody(source, input.sourceMessageId ?? null),
+          structuredPayload: {
+            type: "chat_fork",
+            sourceConversationId: source.id,
+            sourceMessageId: input.sourceMessageId ?? null,
+            forkRootConversationId: rootConversationId,
+          },
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      await tx
+        .update(chatConversations)
+        .set({
+          lastMessageAt: systemEvent?.createdAt ?? now,
+          updatedAt: now,
+        })
+        .where(eq(chatConversations.id, child.id));
+
+      await ensureForkFamilyGroup(
+        tx,
+        input.orgId,
+        input.userId,
+        rootConversationId,
+        source.id,
+        child.id,
+        source.title,
+      );
+
+      return child;
+    });
+
+    return getById(created.id, input.userId);
   }
 
   async function update(id: string, patch: Partial<typeof chatConversations.$inferInsert>) {
@@ -2350,6 +2601,7 @@ export function chatService(db: Db) {
     replaceSystemGeneratedTitle,
     listAttachmentsForConversation,
     remove,
+    forkConversation,
     resolve,
     markRead,
     markUnread,

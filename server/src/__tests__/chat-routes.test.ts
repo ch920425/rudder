@@ -29,6 +29,7 @@ const mockChatService = vi.hoisted(() => ({
   list: vi.fn(),
   getById: vi.fn(),
   create: vi.fn(),
+  forkConversation: vi.fn(),
   update: vi.fn(),
   listAttachmentsForConversation: vi.fn(),
   remove: vi.fn(),
@@ -211,6 +212,9 @@ function createConversation(overrides: Partial<Record<string, unknown>> = {}) {
     unreadCount: 0,
     needsAttention: false,
     resolvedAt: null,
+    forkedFromConversationId: null,
+    forkedFromMessageId: null,
+    forkRootConversationId: null,
     chatRuntime: {
       sourceType: "agent",
       sourceLabel: "Chat Specialist",
@@ -557,6 +561,87 @@ describe("chat routes", () => {
       expect(res.body.error).toBe("Cannot delete a chat while a reply is in progress");
       expect(mockChatService.listAttachmentsForConversation).not.toHaveBeenCalled();
       expect(mockChatService.remove).not.toHaveBeenCalled();
+    } finally {
+      release?.();
+    }
+  });
+
+  it("forks a chat conversation from a selected message and logs the activity", async () => {
+    const sourceMessageId = "10000000-0000-4000-8000-000000000010";
+    const sourceConversation = createConversation({
+      id: "chat-source",
+      title: "Original topic",
+    });
+    const childConversation = createConversation({
+      id: "chat-child",
+      title: "Alternative angle",
+      forkedFromConversationId: "chat-source",
+      forkedFromMessageId: sourceMessageId,
+      forkRootConversationId: "chat-source",
+    });
+    mockChatService.getById.mockResolvedValue(sourceConversation);
+    mockChatService.forkConversation.mockResolvedValue(childConversation);
+
+    const res = await request(createApp())
+      .post("/api/chats/chat-source/fork")
+      .send({ sourceMessageId, title: "Alternative angle" });
+
+    expect(res.status).toBe(201);
+    expect(mockChatService.forkConversation).toHaveBeenCalledWith({
+      sourceConversationId: "chat-source",
+      orgId: "organization-1",
+      userId: "user-1",
+      sourceMessageId,
+      title: "Alternative angle",
+      createdByUserId: "user-1",
+    });
+    expect(mockLogActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      orgId: "organization-1",
+      action: "chat.forked",
+      entityType: "chat",
+      entityId: "chat-child",
+      details: {
+        sourceConversationId: "chat-source",
+        sourceMessageId,
+        forkRootConversationId: "chat-source",
+      },
+    }));
+    expect(res.body).toEqual(expect.objectContaining({
+      id: "chat-child",
+      forkedFromConversationId: "chat-source",
+      forkedFromMessageId: sourceMessageId,
+      forkRootConversationId: "chat-source",
+    }));
+  });
+
+  it("requires board access to fork a chat conversation", async () => {
+    const res = await request(createApp({
+      type: "agent",
+      agentId: "agent-1",
+      orgId: "organization-1",
+      runId: null,
+    }))
+      .post("/api/chats/chat-1/fork")
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(mockChatService.getById).not.toHaveBeenCalled();
+    expect(mockChatService.forkConversation).not.toHaveBeenCalled();
+  });
+
+  it("rejects forking a chat while a reply is in progress", async () => {
+    const conversation = createConversation({ title: "Generating chat" });
+    mockChatService.getById.mockResolvedValue(conversation);
+    const release = claimChatGeneration(conversation.id);
+
+    try {
+      const res = await request(createApp())
+        .post("/api/chats/chat-1/fork")
+        .send({});
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("Cannot fork a chat while a reply is in progress");
+      expect(mockChatService.forkConversation).not.toHaveBeenCalled();
     } finally {
       release?.();
     }

@@ -3354,6 +3354,110 @@ describe("messengerService and issue follows", () => {
     expect(summaries.find((item) => item.threadKey === `chat:${unpinnedConversation.id}`)?.isPinned).toBe(false);
   });
 
+  it("forks a chat from a middle message and keeps the fork family in one custom group", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-fork";
+    const projectId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Fork Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Fork Org"),
+      issuePrefix: `F${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(projects).values({
+      id: projectId,
+      orgId,
+      name: "Forked context project",
+      status: "planned",
+    });
+
+    const source = await chatSvc.create(orgId, {
+      title: "Original fork topic",
+      summary: "Try several angles without polluting context.",
+      issueCreationMode: "manual_approval",
+      planMode: true,
+      createdByUserId: userId,
+      contextLinks: [{ entityType: "project", entityId: projectId }],
+    });
+    const first = await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "user",
+      kind: "message",
+      body: "First question",
+    });
+    await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "assistant",
+      kind: "message",
+      body: "First answer",
+    });
+    await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "user",
+      kind: "message",
+      body: "Later source-only turn",
+    });
+
+    const manualGroup = await messengerSvc.createCustomGroup(orgId, userId, "Manual research group");
+    await db.insert(messengerCustomGroupEntries).values({
+      id: randomUUID(),
+      orgId,
+      userId,
+      groupId: manualGroup!.id,
+      threadKey: `chat:${source.id}`,
+      sortOrder: 0,
+    });
+
+    const child = await chatSvc.forkConversation({
+      sourceConversationId: source.id,
+      orgId,
+      userId,
+      sourceMessageId: first.id,
+      title: "Alternative angle",
+      createdByUserId: userId,
+    });
+
+    const childMessages = await chatSvc.listMessages(child.id, { includeTranscript: false });
+    expect(child).toMatchObject({
+      title: "Alternative angle",
+      forkedFromConversationId: source.id,
+      forkedFromMessageId: first.id,
+      forkRootConversationId: source.id,
+      planMode: true,
+    });
+    expect(child.lastMessageAt?.getTime()).toBeGreaterThan(first.createdAt.getTime());
+    expect(child.contextLinks.map((link) => [link.entityType, link.entityId])).toEqual([["project", projectId]]);
+    expect(childMessages.map((message) => message.body)).toEqual([
+      "First question",
+      expect.stringContaining("Forked from"),
+    ]);
+    expect(childMessages.map((message) => message.body).join("\n")).not.toContain("Later source-only turn");
+
+    const grandchild = await chatSvc.forkConversation({
+      sourceConversationId: child.id,
+      orgId,
+      userId,
+      sourceMessageId: null,
+      title: "Third angle",
+      createdByUserId: userId,
+    });
+
+    const groups = await messengerSvc.listCustomGroups(orgId, userId);
+    expect(groups.groups).toHaveLength(1);
+    expect(groups.groups[0]?.name).toBe("Manual research group");
+    expect(groups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual([
+      `chat:${source.id}`,
+      `chat:${child.id}`,
+      `chat:${grandchild.id}`,
+    ]);
+    expect(grandchild.forkRootConversationId).toBe(source.id);
+    const summaries = await messengerSvc.listThreadSummaries(orgId, userId, { limit: 10, splitIssues: true });
+    expect(summaries[0]?.threadKey).toBe(`chat:${grandchild.id}`);
+    expect(summaries[1]?.threadKey).toBe(`chat:${child.id}`);
+  });
+
   it("persists Messenger synthetic thread read state", async () => {
     const orgId = randomUUID();
     const userId = "board-user-2";

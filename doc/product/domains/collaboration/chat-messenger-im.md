@@ -5,6 +5,7 @@ status: active
 coverage: detailed
 contract_ids:
   - CHAT.LIFECYCLE.001
+  - CHAT.FORK.001
   - CHAT.RICH.REFERENCE.RENDERING.001
   - MESSENGER.ATTENTION.001
   - IM.FEISHU.001
@@ -42,6 +43,7 @@ related_tests:
   - ui/src/components/MilkdownMarkdownEditor.test.ts
   - ui/src/components/MarkdownBody.test.tsx
   - tests/e2e/messenger-contract.spec.ts
+  - tests/e2e/chat-fork.spec.ts
   - tests/e2e/chat-rich-references.spec.ts
   - tests/e2e/agent-detail-feishu-integration.spec.ts
 edit_policy: user_confirmed_only
@@ -90,6 +92,64 @@ Evidence:
 - Chat E2E covers rich references, skill picker, attachments, draft
   persistence, and attribution navigation.
 - Chat assistant tests cover runtime-backed turns.
+
+## CHAT.FORK.001
+
+Why:
+
+- Operators often need to explore the same topic from multiple angles without
+  contaminating the active thread's runtime context.
+- A fork must remain visibly related to the source conversation so the operator
+  can compare branches and return to the shared topic family.
+
+Product model:
+
+- A chat conversation may be forked from another conversation, optionally from
+  a specific source message.
+- The fork records direct lineage with `forkedFromConversationId` and optional
+  `forkedFromMessageId`.
+- The fork records family lineage with `forkRootConversationId`; nested forks
+  reuse the original root conversation.
+- Forking automatically ensures one Messenger custom group for the fork family.
+  The group contains the root/source family and its forks. Nested forks reuse
+  the same group instead of creating a new group per child. Because Messenger
+  custom group membership is unique per thread, if the root conversation is
+  already in a custom group for the operator, Rudder reuses that group as the
+  fork-family group and appends the forked conversations to it.
+
+Flow:
+
+1. The operator chooses `Fork` from a chat or `Fork from here` on a persisted
+   message.
+2. Rudder creates a new active conversation in the same organization.
+3. Rudder copies context links and messages up to the requested fork point. If
+   no source message is supplied, it copies through the latest eligible message.
+4. Rudder writes a system message in the child conversation naming the fork
+   source.
+5. Rudder ensures the fork-family Messenger custom group contains the root and
+   forked conversations, then navigates the operator to the child conversation.
+
+Invariants:
+
+- Forking is board-operator only and organization-scoped.
+- Forking is rejected while the source conversation has an active generation.
+- Forked conversations must not share mutable runtime context with the source
+  conversation.
+- A message-level fork must not copy messages after the selected message.
+- Attachments are not copied by the initial fork contract; their original
+  source messages remain available in the source conversation.
+- Nested forks must not produce duplicate fork-family custom groups.
+- Forking must not attempt to put the root conversation in multiple custom
+  groups; preexisting root group membership is the fork-family grouping anchor.
+
+Evidence:
+
+- Chat route tests cover authorization, active-generation rejection, and
+  activity logging.
+- Messenger service tests cover message-level copy bounds and nested fork group
+  reuse.
+- Chat message/UI tests cover the message-level fork action.
+- Chat fork E2E covers the visible fork workflow and copied-message boundary.
 
 ## CHAT.RICH.REFERENCE.RENDERING.001
 

@@ -12,6 +12,7 @@ import type {
   ChatSteerResponse,
   ChatStreamEvent,
   ChatStreamTranscriptEntry,
+  ForkChatConversation,
 } from "@rudderhq/shared";
 import { ApiError, api } from "./client";
 
@@ -40,6 +41,8 @@ export const chatsApi = {
     },
   ) => api.post<ChatConversation>(`/orgs/${orgId}/chats`, data),
   get: (chatId: string) => api.get<ChatConversation>(`/chats/${chatId}`),
+  fork: (chatId: string, data: ForkChatConversation = {}) =>
+    api.post<ChatConversation>(`/chats/${chatId}/fork`, data),
   update: (
     chatId: string,
     data: Partial<{

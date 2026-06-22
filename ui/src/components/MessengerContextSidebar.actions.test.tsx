@@ -21,6 +21,7 @@ const mockReorderCustomGroups = vi.hoisted(() => vi.fn());
 const mockReorderCustomGroupEntries = vi.hoisted(() => vi.fn());
 const mockRemoveCustomGroupEntry = vi.hoisted(() => vi.fn());
 const mockUpdateConversation = vi.hoisted(() => vi.fn());
+const mockForkConversation = vi.hoisted(() => vi.fn());
 const mockRegenerateTitle = vi.hoisted(() => vi.fn());
 const mockRemove = vi.hoisted(() => vi.fn());
 const mockStopMessageStream = vi.hoisted(() => vi.fn());
@@ -116,6 +117,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/api/chats", () => ({
   chatsApi: {
     update: mockUpdateConversation,
+    fork: mockForkConversation,
     regenerateTitle: mockRegenerateTitle,
     remove: mockRemove,
     stopMessageStream: mockStopMessageStream,
@@ -434,6 +436,14 @@ describe("MessengerContextSidebar chat actions", () => {
       ...baseConversation({ title: "Regenerated title" }),
       id: chatId,
     }));
+    mockForkConversation.mockImplementation(async (chatId: string) => ({
+      ...baseConversation({
+        id: "chat-fork",
+        title: "Forked chat",
+        forkedFromConversationId: chatId,
+        forkRootConversationId: chatId,
+      }),
+    }));
     mockRemove.mockImplementation(async (chatId: string) => ({
       ...baseConversation(),
       id: chatId,
@@ -499,6 +509,7 @@ describe("MessengerContextSidebar chat actions", () => {
     mockReorderCustomGroups.mockClear();
     mockReorderCustomGroupEntries.mockClear();
     mockUpdateConversation.mockClear();
+    mockForkConversation.mockClear();
     cancelQueries.mockClear();
     invalidateQueries.mockClear();
     setQueryData.mockClear();
@@ -522,6 +533,22 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));
     expect(setQueryData.mock.invocationCallOrder[0]).toBeLessThan(mockUpdateUserState.mock.invocationCallOrder[0]);
     expect(mockUpdateUserState).toHaveBeenCalledWith("chat-1", { pinned: true, unread: undefined });
+  });
+
+  it("forks a chat thread from the Messenger action menu", async () => {
+    renderSidebar();
+
+    const fork = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Fork") as HTMLButtonElement | undefined;
+
+    expect(fork).toBeTruthy();
+    await act(async () => {
+      fork?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockForkConversation).toHaveBeenCalledWith("chat-1", {});
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "groups"] });
   });
 
   it("unpins a pinned chat from the aligned hover pin control", async () => {

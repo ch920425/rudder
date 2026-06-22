@@ -84,6 +84,7 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
+  GitFork,
   ListFilter,
   Loader2,
   Mail,
@@ -1195,6 +1196,7 @@ function ChatThreadRow({
   onCommitRename,
   onStartRename,
   onRegenerateTitle,
+  onFork,
   onArchive,
   onDelete,
   onTogglePin,
@@ -1223,6 +1225,7 @@ function ChatThreadRow({
   onCommitRename: () => void;
   onStartRename: () => void;
   onRegenerateTitle?: () => void;
+  onFork: () => void;
   onArchive: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
@@ -1423,6 +1426,10 @@ function ChatThreadRow({
               <DropdownMenuItem onClick={onCopyConversationLink}>
                 <Copy className="h-4 w-4" />
                 Copy Chat Link
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={generating} onClick={onFork}>
+                <GitFork className="h-4 w-4" />
+                Fork
               </DropdownMenuItem>
               {customGroups && !customGroupPending ? (
                 <>
@@ -1889,6 +1896,9 @@ function chatConversationForThreadSummary(
     preferredAgentId,
     routedAgentId,
     primaryIssueId: null,
+    forkedFromConversationId: null,
+    forkedFromMessageId: null,
+    forkRootConversationId: null,
     primaryIssue: null,
     issueCreationMode: "manual_approval",
     planMode: false,
@@ -3262,6 +3272,7 @@ export function MessengerContextSidebar() {
             setRenameDraft(conversation.title);
           }}
           onRegenerateTitle={canRegenerateChatTitles ? () => regenerateTitleMutation.mutate(conversation.id) : undefined}
+          onFork={() => forkConversationMutation.mutate(conversation.id)}
           onArchive={() => {
             if (model.selectedOrganizationId) {
               archiveMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id);
@@ -3778,6 +3789,22 @@ export function MessengerContextSidebar() {
         renameMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id, conversation.title);
       }
       await refreshChatViews(conversation.id);
+    },
+    onError: async (_error, chatId) => {
+      await refreshChatViews(chatId);
+    },
+  });
+
+  const forkConversationMutation = useMutation({
+    mutationFn: (chatId: string) => chatsApi.fork(chatId, {}),
+    onSuccess: async (conversation) => {
+      await Promise.all([
+        refreshChatViews(conversation.id),
+        model.selectedOrganizationId
+          ? queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(model.selectedOrganizationId) })
+          : Promise.resolve(),
+      ]);
+      navigate(`/messenger/chat/${conversation.id}`);
     },
     onError: async (_error, chatId) => {
       await refreshChatViews(chatId);

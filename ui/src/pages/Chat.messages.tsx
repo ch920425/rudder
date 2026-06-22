@@ -63,6 +63,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  GitFork,
   Loader2,
   Paperclip,
   Pencil,
@@ -1972,6 +1973,7 @@ export function ChatMessageItem({
   onConvertToIssue,
   actionPending,
   onCopyMessageText,
+  onForkMessage,
   onEditUserMessage,
   onContinueInterruptedMessage,
   onRetryFailedMessage,
@@ -2002,6 +2004,7 @@ export function ChatMessageItem({
   onConvertToIssue: (message: ChatMessage) => void;
   actionPending: boolean;
   onCopyMessageText: (text: string) => void | Promise<void>;
+  onForkMessage?: (message: ChatMessage) => void;
   onEditUserMessage: (message: ChatMessage) => void;
   onContinueInterruptedMessage: (message: ChatMessage) => void;
   onRetryFailedMessage: (message: ChatMessage) => void;
@@ -2101,7 +2104,7 @@ export function ChatMessageItem({
 
   if (!isUser) {
     return (
-      <div data-testid="chat-assistant-message" className="flex justify-start transition-all duration-200">
+      <div data-testid="chat-assistant-message" data-message-id={message.id} className="flex justify-start transition-all duration-200">
         <div className="group w-full max-w-3xl px-1 py-1">
           <ChatAssistantAttributionRow
             replyingAgentId={message.replyingAgentId ?? null}
@@ -2184,6 +2187,17 @@ export function ChatMessageItem({
                 className="text-[11px] tracking-normal"
               />
               <CopyMessageButton onClick={() => void onCopyMessageText(message.body)} />
+              {onForkMessage ? (
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
+                  aria-label="Fork from here"
+                  title="Fork from here"
+                  onClick={() => onForkMessage(message)}
+                >
+                  <GitFork className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -2192,7 +2206,7 @@ export function ChatMessageItem({
   }
 
   return (
-    <div className="flex justify-end transition-all duration-200">
+    <div data-testid="chat-user-message" data-message-id={message.id} className="flex justify-end transition-all duration-200">
       <div className={cn("group flex flex-col items-end text-left", isInlineEditing ? "w-full max-w-full" : "max-w-[82%]")}>
         {isInlineEditing && inlineEdit ? (
           <div
@@ -2282,6 +2296,17 @@ export function ChatMessageItem({
           )}
         >
           <CopyMessageButton onClick={() => void onCopyMessageText(message.body)} />
+          {onForkMessage ? (
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
+              aria-label="Fork from here"
+              title="Fork from here"
+              onClick={() => onForkMessage(message)}
+            >
+              <GitFork className="h-4 w-4" />
+            </button>
+          ) : null}
           <button
             type="button"
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
