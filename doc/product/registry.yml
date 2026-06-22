@@ -583,16 +583,21 @@ contracts:
       - packages/db/src/schema/agent_integrations.ts
       - server/src/routes/integrations.ts
       - server/src/services/integrations/agent-integrations.ts
+      - server/src/services/integrations/feishu/app-registration.ts
       - server/src/services/integrations/feishu/inbound-dispatcher.ts
       - server/src/services/integrations/feishu/inbound-dispatcher-db.ts
       - server/src/services/integrations/feishu/inbound-normalizer.ts
       - server/src/services/integrations/feishu/event-verifier.ts
+      - server/src/services/integrations/feishu/runtime.ts
+      - server/src/services/integrations/feishu/runtime-registry.ts
+      - server/src/services/integrations/feishu/user-bindings.ts
       - ui/src/pages/AgentDetail.integrations.tsx
     related_tests:
       - server/src/__tests__/agent-integration-routes.test.ts
       - server/src/__tests__/agent-integration-inbound-dispatcher.test.ts
       - server/src/__tests__/agent-integration-feishu-db-dispatcher.test.ts
       - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
+      - server/src/__tests__/agent-integration-setup-url-routes.test.ts
       - tests/e2e/agent-detail-feishu-integration.spec.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md

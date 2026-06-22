@@ -191,10 +191,37 @@ Product model:
 
 - Agent integration belongs to one organization and one agent.
 - Provider state includes Feishu app identity, region, bot open id,
-  credentials/status, setup URL metadata, binding tokens, chat bindings, user
-  bindings, inbound audit/dedup, and outbound messages.
+  credentials/status, setup session metadata, binding tokens, chat bindings,
+  user bindings, inbound audit/dedup, and outbound messages.
+- Feishu setup starts from Agent Detail as a setup session. Rudder opens the
+  Feishu/Lark SDK app launcher with a safe suggested bot name, waits for
+  Feishu authorization, stores the resulting app credentials as an organization
+  secret, creates or reactivates the agent integration, and refreshes the chat
+  runtime.
+- The setup session registry is process-local in V1. If Rudder restarts while
+  authorization is pending, the operator must start a new setup session.
+- When a board user completes setup and the Feishu installer identity maps to
+  an active Rudder organization member, Rudder may automatically bind that
+  Feishu identity to the Rudder user for the new integration.
+- Active Feishu integrations use long-connection chat by default. Operators may
+  disable that runtime only with an explicit environment override.
 - Group messages require explicit bot addressing unless provider policy says
   otherwise.
+
+Setup flow:
+
+1. Operator opens Agent Detail Integrations and starts a Feishu setup session.
+2. Rudder creates a provider-region-specific setup URL with a suggested bot
+   name that fits Feishu launcher limits.
+3. Feishu/Lark authorization returns app credentials and installer identity.
+4. Rudder stores credentials as an organization secret and creates or
+   reactivates the agent integration for that agent/provider pair.
+5. Rudder auto-binds the installer Feishu identity when the installer is an
+   active org member.
+6. Rudder refreshes the long-connection runtime before reporting the setup
+   session completed.
+7. Agent Detail polls the setup session and refreshes integration state when
+   completion is observed.
 
 Inbound flow:
 
@@ -229,4 +256,13 @@ Evidence:
 - Feishu route tests cover org scoping and callback verification.
 - Inbound dispatcher tests cover dedup, binding, issue/run enqueue, and
   outbound response.
-- Agent Detail Feishu E2E covers setup launcher surface.
+- Feishu DB/runtime dispatcher tests cover setup-session completion,
+  credential secrecy, revoked integration reactivation, installer auto-binding,
+  SDK normalized long-connection events, hydrated chat message attachments, and
+  per-event runtime failure containment.
+- Agent Detail Feishu E2E covers setup-session launcher flow, polling,
+  persisted integration state, and credential redaction with a mocked Feishu
+  app-registration provider.
+- Manual live Feishu validation for ZST-613 covered Feishu app creation, real
+  user message intake, Rudder run success, persisted assistant chat message,
+  outbound final status, and visible Feishu bot reply.
