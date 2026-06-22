@@ -3388,7 +3388,7 @@ a.rudder-skill-token {
   max-width: calc(100% - 1rem);
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: -0.28em;
+  vertical-align: -0.14em;
   white-space: nowrap;
 }
 
@@ -4398,7 +4398,7 @@ a.rudder-mention-chip[data-mention-kind="library_directory"]::before {
   max-width: calc(100% - 1rem);
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: -0.28em;
+  vertical-align: -0.14em;
   white-space: nowrap;
 }
 

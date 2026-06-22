@@ -278,6 +278,7 @@ describe("index.css motion rules", () => {
       expect(tokenBlock).toContain("max-width: calc(100% - 1rem)");
       expect(tokenBlock).toContain("overflow: hidden");
       expect(tokenBlock).toContain("text-overflow: ellipsis");
+      expect(tokenBlock).toContain("vertical-align: -0.14em");
       expect(tokenBlock).toContain("white-space: nowrap");
     }
 
