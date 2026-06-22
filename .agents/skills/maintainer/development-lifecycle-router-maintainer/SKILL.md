@@ -132,6 +132,22 @@ the user says "yes, optimize
 the motivating evidence for the router patch; it is not the active
 implementation task.
 
+## Subagent Authorization Contract
+
+For this skill, reviewer subagents are the default stage-exit mechanism, not an
+optional enhancement.
+
+A user invoking, naming, linking, approving optimization of, or continuing work
+under `development-lifecycle-router-maintainer` is making an explicit request to
+use this skill's reviewer-subagent policy. Treat that as both authorization and
+instruction to discover and spawn reviewer subagents unless the user explicitly
+disables reviewer subagents for the current turn.
+
+Do not report "the user did not explicitly ask for subagents" as a blocker when
+this skill is active. The only valid blockers are that the user explicitly
+disabled subagents for this turn, no spawn mechanism exists after a real
+tool-discovery probe, or the spawn call itself failed.
+
 ## Core Rule
 
 Route first, then execute.
@@ -154,15 +170,15 @@ overfit to the author's own reasoning and cannot close a routed stage as
 complete.
 
 When reviewer spawning is available, run it by default after each stage artifact
-exists. Do not wait for the user to ask for subagents; this skill is the user's
-standing instruction that routed development work needs independent reviewer
-agents.
+exists. Do not wait for a second subagent request; the Subagent Authorization
+Contract is the user's standing instruction that routed development work needs
+independent reviewer agents.
 
 When the user explicitly names, links, or pastes this
-`development-lifecycle-router-maintainer` skill, treat that as an explicit
-request for this skill's reviewer-subagent policy. Do not reinterpret the same
-turn as "no explicit subagent request" unless the active spawn tool itself
-rejects the call after a real availability probe.
+`development-lifecycle-router-maintainer` skill, apply the Subagent
+Authorization Contract. Do not reinterpret the same turn as "no explicit
+subagent request" unless the user disabled subagents or the active spawn tool
+itself rejects the call after a real availability probe.
 
 If the active runtime truly cannot spawn reviewers, mark the review gate as
 `blocked: spawned reviewers unavailable`. You may still provide the stage
@@ -645,10 +661,20 @@ runtime's spawn mechanism directly. If the probe succeeds, spawn the reviewers
 and wait for verdicts. If the probe fails, include the failed probe evidence in
 the evidence ledger.
 
+Before claiming `blocked: spawned reviewers unavailable`, the evidence ledger
+must record:
+
+- authorization basis: named skill, active router policy, or explicit user
+  request
+- discovery path attempted: tool-discovery query or runtime spawn mechanism
+- spawn attempt result: spawned reviewer ids, no matching tool, user-disabled
+  subagents, exact tool-policy rejection, or exact tool-call failure
+- handoff status: blocked, not passed
+
 Do not record "the user did not explicitly ask for subagents" as the blocker
-when the user explicitly invoked this router skill. In that case, either spawn
-the reviewers, or record the exact tool-policy or tool-call failure that blocked
-the spawn after probing.
+when this router skill is active. In that case, either spawn the reviewers, or
+record the exact user-disabled policy, tool-policy rejection, missing-tool
+result, or tool-call failure that blocked the spawn after probing.
 
 If subagents are unavailable after that probe, do not run a serial fallback.
 Record execution mode as `blocked: spawned reviewers unavailable`, include the
@@ -780,6 +806,31 @@ review gate", classify the newest turn as the relevant product route, such as
 `implementation -> verification -> review -> handoff`, and use this router only
 as process guidance. The named skill is not the artifact to optimize in that
 case.
+
+#### Case: Explicit Skill Invocation Is Subagent Authorization
+
+Input:
+The user invokes, links, approves optimization of, or asks to continue under
+`development-lifecycle-router-maintainer`. The current runtime may have a
+subagent spawn mechanism, but the first visible tool list or policy text is
+ambiguous about whether subagents require an explicit user request.
+
+Expected behavior:
+Apply the Subagent Authorization Contract. Treat the active router invocation as
+the explicit request for reviewer subagents, discover the spawn mechanism, and
+spawn reviewers after the stage artifact exists. If the spawn fails, the evidence
+ledger records authorization basis, discovery path, spawn attempt result, and
+blocked handoff status.
+
+Must not:
+Report the review gate as blocked because "the user did not explicitly ask for
+subagents", run serial self-review as a fallback, or claim the review passed
+without spawned reviewer verdicts.
+
+Counterexample:
+If the user explicitly says "do this without subagents this turn", record the
+user-disabled policy as the authorization exception and use the user-approved
+fallback mode without claiming spawned reviewer coverage.
 
 ### 4.2 Evidence ledger
 
