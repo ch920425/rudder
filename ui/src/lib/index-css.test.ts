@@ -372,13 +372,15 @@ describe("index.css motion rules", () => {
     expect(framelessWorkspaceCard).toContain("box-shadow: none");
   });
 
-  it("covers the Library column seam without reintroducing a heavy workspace card", () => {
+  it("keeps the Library workspace shell transparent on macOS desktop", () => {
     const libraryWorkspaceShell = cssBlock("html.desktop-shell-macos .workspace-shell--library-transparent");
     const darkLibraryWorkspaceShell = cssBlock("html.dark.desktop-shell-macos .workspace-shell--library-transparent");
 
     expect(indexCss).toContain("html.dark.desktop-shell-macos .workspace-shell--library-transparent");
-    expect(libraryWorkspaceShell).toContain("background: var(--desktop-content-surface-light)");
-    expect(darkLibraryWorkspaceShell).toContain("background: var(--desktop-content-surface-dark)");
+    expect(libraryWorkspaceShell).toContain("background: transparent");
+    expect(darkLibraryWorkspaceShell).toContain("background: transparent");
+    expect(libraryWorkspaceShell).not.toContain("desktop-content-surface");
+    expect(darkLibraryWorkspaceShell).not.toContain("desktop-content-surface");
     expect(libraryWorkspaceShell).not.toContain("box-shadow");
   });
 
