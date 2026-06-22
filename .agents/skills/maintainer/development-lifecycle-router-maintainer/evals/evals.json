@@ -271,6 +271,19 @@
       ]
     },
     {
+      "id": 31,
+      "prompt": "刚才 Messenger pinned custom group 的需求已经确认了。是的，继续把这个 Messenger fix 做掉，按 development-lifecycle-router-maintainer 的 review gate 走完整实现、验证和 review。",
+      "expected_output": "Does not classify the turn as skill_optimization merely because development-lifecycle-router-maintainer is named. It treats the router as workflow/review policy for the active Messenger product task, routes to implementation -> verification -> review -> handoff or the appropriate narrow UI/product workflow, and does not edit SKILL.md or eval files.",
+      "files": [],
+      "expectations": [
+        "The result recognizes the user is continuing the Messenger product fix rather than optimizing a skill.",
+        "The result uses development-lifecycle-router-maintainer only as lifecycle and reviewer-gate process guidance.",
+        "The result does not route to skill-optimizer or treat the router skill as the target artifact.",
+        "The result names product implementation, verification, and spawned review evidence required for handoff.",
+        "The result does not edit SKILL.md or eval files for this prompt."
+      ]
+    },
+    {
       "id": 7,
       "prompt": "organization-portability 这个文件太大了，一口气做完架构优化，但可以分批 commit，不要一下子来一个很大的 commit。",
       "expected_output": "Routes the long refactor through phased implementation, creates a visible phase checklist, commits coherent phases separately when safe, keeps checkpoint evidence after each phase, and requires spawned reviewers before each phase handoff or final completion.",
