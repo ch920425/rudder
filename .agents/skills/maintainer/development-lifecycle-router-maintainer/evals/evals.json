@@ -255,6 +255,22 @@
       ]
     },
     {
+      "id": 30,
+      "prompt": "先确认一下 Messenger 里 pinned custom group 的排序需求：group pin 应该放在 Messenger 顶部 Pinned 下面，并且优先级高于散的 issue/chat item。 assistant 已经重述完。现在用户说：是的，优化一下 [$development-lifecycle-router-maintainer](/Users/zeeland/projects/rudder-oss/.agents/skills/maintainer/development-lifecycle-router-maintainer/SKILL.md)。",
+      "expected_output": "Classifies the newest turn as skill_optimization and routes to skill-optimizer with development-lifecycle-router-maintainer as the target artifact. It treats the prior Messenger pinned-group requirement as failure evidence for the router patch, not as authorization to implement Messenger sorting or route to UI polish. It also distinguishes this from cases where the user invokes the router only as workflow policy for continuing a product task.",
+      "files": [
+        ".agents/skills/maintainer/development-lifecycle-router-maintainer/SKILL.md",
+        ".agents/skills/maintainer/development-lifecycle-router-maintainer/evals/evals.json"
+      ],
+      "expectations": [
+        "The result uses the newest user instruction as the routing source of truth.",
+        "The result names skill-optimizer as the primary workflow and the router skill as the target artifact.",
+        "The result separates the latest skill-optimization request from the prior Messenger product requirement in its evidence packet.",
+        "The result does not start implementing Messenger pinned-group sorting or route to rudder-ui-polish-maintainer.",
+        "The result preserves the inverse boundary: if the user asks to continue the product fix using this router's review gate, the route remains a product implementation/review route rather than skill optimization."
+      ]
+    },
+    {
       "id": 7,
       "prompt": "organization-portability 这个文件太大了，一口气做完架构优化，但可以分批 commit，不要一下子来一个很大的 commit。",
       "expected_output": "Routes the long refactor through phased implementation, creates a visible phase checklist, commits coherent phases separately when safe, keeps checkpoint evidence after each phase, and requires spawned reviewers before each phase handoff or final completion.",

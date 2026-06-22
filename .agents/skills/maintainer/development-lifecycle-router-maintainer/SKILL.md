@@ -101,6 +101,10 @@ screenshot-backed bug description, and the newest turn asks to optimize,
 harden, or edit a named skill, stop the prior product workflow and classify the
 new turn as `skill_optimization`. The prior requirement is evidence for the
 skill failure class, not an authorization to implement the product fix.
+Only classify this way when the named skill is the artifact to modify; if the
+user invokes the skill as the workflow or review policy for continuing a
+product task, keep the product route and use the skill only as process
+guidance.
 
 When the user says a skill "needs optimization", "should be hardened", "always
 does the wrong thing", "I have to ask this every time", or explicitly asks to
@@ -769,6 +773,13 @@ separates the latest meta-request from the prior product requirement.
 Must not:
 Start implementing Messenger pinned-group sorting, route to UI polish, or treat
 the prior restatement as approval to change product code.
+
+Counterexample:
+If the user instead says "yes, continue the Messenger fix using this router's
+review gate", classify the newest turn as the relevant product route, such as
+`implementation -> verification -> review -> handoff`, and use this router only
+as process guidance. The named skill is not the artifact to optimize in that
+case.
 
 ### 4.2 Evidence ledger
 
