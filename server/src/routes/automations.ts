@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Automation REST routes for definitions, triggers, manual runs,
+ * trigger secret rotation, and output-mode access control.
+ *
+ * @see doc/product/domains/automations/definition-triggers-runs.md - automation API behavior
+ * @see doc/product/domains/automations/output-routing.md - output routing contract
+ * @see doc/product/workflows/automation-to-output.md - automation execution workflow
+ */
 import type { Db } from "@rudderhq/db";
 import {
   createAutomationSchema,

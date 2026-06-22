@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Agent instruction bundle service for managed and external
+ * instruction roots, entry files, legacy prompt migration, and file editing.
+ *
+ * @see doc/product/domains/agents/instruction-loading.md - AGENT.INSTRUCTIONS.001 ordering and ownership
+ * @see doc/product/domains/agents/identity-config.md - durable agent runtime configuration
+ * @see doc/engineering/DEVELOPING.md - contributor expectations for local runtime work
+ */
 import fs from "node:fs/promises";
 import path from "node:path";
 import { notFound, unprocessable } from "../errors.js";

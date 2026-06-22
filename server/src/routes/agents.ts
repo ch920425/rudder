@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Agent REST routes for identity, runtime configuration,
+ * instructions, skills, integrations, sessions, and runtime diagnostics.
+ *
+ * @see doc/product/domains/agents/identity-config.md - durable agent identity and runtime config
+ * @see doc/product/domains/agents/instruction-loading.md - instruction bundle management
+ * @see doc/engineering/CLI.md - agent-facing CLI and runtime surfaces
+ */
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_MODEL,

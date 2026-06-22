@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Issue table schema for Rudder's durable work surface,
+ * ownership fields, review gates, execution locks, and origin traceability.
+ *
+ * @see doc/product/domains/issues/state-machines.md - ISSUE.STATE.001 status contract
+ * @see doc/product/domains/issues/hierarchy-and-comments.md - hierarchy and comment-driven reopen behavior
+ * @see doc/product/domains/work-routing/atomic-checkout.md - checkout and execution lock semantics
+ */
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Shared agent request validators for identity, runtime config,
+ * permissions, instruction bundles, icons, and runtime diagnostics.
+ *
+ * @see doc/product/domains/agents/identity-config.md - agent config and status model
+ * @see doc/product/domains/agents/instruction-loading.md - instruction bundle payloads
+ * @see doc/product/domains/agents/skills-and-inbox.md - skill and inbox-facing agent surfaces
+ */
 import { z } from "zod";
 import {
   AGENT_AVATAR_BACKGROUND_PRESET_IDS,

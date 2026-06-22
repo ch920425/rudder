@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Heartbeat run table schema for queued/running/completed agent
+ * work, transcript storage pointers, process metadata, and recovery linkage.
+ *
+ * @see doc/product/domains/execution/agent-runs.md - durable run lifecycle
+ * @see doc/product/domains/execution/transcripts-and-results.md - transcript and result persistence
+ * @see doc/product/domains/execution/run-admission-and-recovery.md - retry and process-loss recovery
+ */
 import { sql } from "drizzle-orm";
 import { type AnyPgColumn, bigint, boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { agentWakeupRequests } from "./agent_wakeup_requests.js";

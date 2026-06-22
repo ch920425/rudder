@@ -1,4 +1,12 @@
 // @ts-nocheck
+/**
+ * @fileoverview Executes claimed heartbeat runs through runtime adapters,
+ * workspace realization, transcript persistence, and close-out release.
+ *
+ * @see doc/product/domains/execution/agent-runs.md - run execution state and evidence
+ * @see doc/product/domains/execution/run-admission-and-recovery.md - retry and recovery behavior
+ * @see doc/product/domains/agents/instruction-loading.md - AGENT.INSTRUCTIONS.001 runtime instruction frame
+ */
 import type { TranscriptEntry } from "@rudderhq/agent-runtime-utils";
 import {
   agents,

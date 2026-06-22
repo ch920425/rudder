@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Automation definition, trigger, run, output routing, and
+ * chat-native execution service.
+ *
+ * @see doc/product/domains/automations/definition-triggers-runs.md - automation definitions and run records
+ * @see doc/product/domains/automations/output-routing.md - track-issue and send-to-chat output modes
+ * @see doc/product/workflows/automation-to-output.md - composed automation workflow
+ */
 import type { TranscriptEntry } from "@rudderhq/agent-runtime-utils";
 import type { Db } from "@rudderhq/db";
 import {

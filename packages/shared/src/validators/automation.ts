@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Shared automation request validators for definitions,
+ * triggers, concurrency, catch-up policy, and output routing.
+ *
+ * @see doc/product/domains/automations/definition-triggers-runs.md - trigger and run contract
+ * @see doc/product/domains/automations/output-routing.md - track-issue and chat-output rules
+ * @see doc/product/workflows/automation-to-output.md - composed automation workflow
+ */
 import { z } from "zod";
 import {
   AUTOMATION_CATCH_UP_POLICIES,

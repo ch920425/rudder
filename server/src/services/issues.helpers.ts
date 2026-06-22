@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Shared issue query, state, visibility, and activity helpers
+ * used by the issue service and route layer.
+ *
+ * @see doc/product/domains/issues/state-machines.md - ISSUE.STATE.001 status and review gates
+ * @see doc/product/domains/issues/traceability.md - issue evidence and activity traceability
+ * @see doc/product/domains/work-routing/attention-and-wakeup-eligibility.md - attention and unread filters
+ */
 import {
   activityLog,
   heartbeatRuns,

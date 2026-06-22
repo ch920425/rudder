@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Shared issue request validators for creation, labels,
+ * work products, reviewer gates, and run workspace settings.
+ *
+ * @see doc/product/domains/issues/state-machines.md - status and review constraints
+ * @see doc/product/domains/issues/surfaces.md - issue API payload surface
+ * @see doc/product/domains/execution/agent-runs.md - run workspace settings used by execution
+ */
 import { z } from "zod";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "../constants.js";
 

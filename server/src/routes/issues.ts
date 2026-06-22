@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Issue REST routes for board and agent access to issue lists,
+ * details, comments, labels, attachments, work products, and mutations.
+ *
+ * @see doc/product/domains/issues/surfaces.md - issue UI and API surfaces
+ * @see doc/product/workflows/issue-intake-to-completion.md - issue lifecycle workflow
+ * @see doc/product/domains/work-routing/ownership-and-assignment.md - assignee and reviewer routing
+ */
 import type { Db } from "@rudderhq/db";
 import {
   createIssueLabelSchema,

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Shared heartbeat kernel primitives for run admission,
+ * transcript capture, runtime metadata, and billing evidence.
+ *
+ * @see doc/product/domains/execution/heartbeats.md - RUN.WAKEUP.001 central wakeup contract
+ * @see doc/product/domains/execution/agent-runs.md - durable run records and lifecycle
+ * @see doc/product/domains/execution/transcripts-and-results.md - transcript and result evidence
+ */
 import type { TranscriptEntry } from "@rudderhq/agent-runtime-utils";
 import type { Db } from "@rudderhq/db";
 import {

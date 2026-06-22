@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Library entry service for workspace-backed files and durable
+ * organization context references.
+ *
+ * @see doc/product/domains/library-and-context/resources-library-workspaces.md - Library files and workspace resource links
+ * @see doc/product/domains/library-and-context/documents-and-work-products.md - durable work products and documents
+ * @see doc/product/domains/agents/instruction-loading.md - runtime context eligibility
+ */
 import { libraryEntries, type Db } from "@rudderhq/db";
 import { and, eq, like, or } from "drizzle-orm";
 

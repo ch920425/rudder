@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Organization goal hierarchy and project-to-goal dependency
+ * service.
+ *
+ * @see doc/product/domains/organizations-and-goals/goals-and-projects.md - organization goals and project grouping
+ * @see doc/product/workflows/agent-work-loop.md - goal-to-issue-to-run loop
+ * @see doc/product/PRODUCT.md - organization is the unit of operation
+ */
 import type { Db } from "@rudderhq/db";
 import { agents, automations, costEvents, financeEvents, goals, issues, projectGoals, projects } from "@rudderhq/db";
 import type { GoalDependencies, GoalDependencyPreview } from "@rudderhq/shared";

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Messenger thread aggregation service for chat, issue,
+ * approval, budget, failed-run, join-request, and custom grouped threads.
+ *
+ * @see doc/product/domains/collaboration/chat-messenger-im.md - Messenger and chat thread behavior
+ * @see doc/product/surfaces/surface-domain-map.md - surface-to-domain routing map
+ * @see doc/product/domains/control-plane/dashboard-calendar-inbox.md - operator inbox signals
+ */
 import type { Db } from "@rudderhq/db";
 import {
   activityLog,

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Durable agent identity, runtime configuration, API keys,
+ * task sessions, and configuration revision service.
+ *
+ * @see doc/product/domains/agents/identity-config.md - agent identity, runtime config, and status model
+ * @see doc/product/domains/agents/skills-and-inbox.md - agent skills and inbox-facing surfaces
+ * @see doc/product/domains/work-routing/ownership-and-assignment.md - agent ownership constraints
+ */
 import type { Db } from "@rudderhq/db";
 import {
   agentApiKeys,

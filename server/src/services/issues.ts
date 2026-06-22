@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Issue work-surface service for creation, search, assignment,
+ * review, and lifecycle mutations.
+ *
+ * @see doc/product/domains/issues/state-machines.md - ISSUE.STATE.001 reviewer-gated status transitions
+ * @see doc/product/domains/issues/hierarchy-and-comments.md - issue hierarchy, comments, and reopen behavior
+ * @see doc/product/domains/work-routing/ownership-and-assignment.md - single-owner assignment rules
+ */
 import type { Db } from "@rudderhq/db";
 import {
   agents,

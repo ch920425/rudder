@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Budget policy, spend observation, incident, and hard-stop
+ * enforcement service.
+ *
+ * @see doc/product/domains/control-plane/approvals-budgets-activity.md - budget visibility and hard-stop behavior
+ * @see doc/product/domains/execution/run-admission-and-recovery.md - budget-blocked run admission
+ * @see doc/product/domains/agents/identity-config.md - agent pause state from budget enforcement
+ */
 import type { Db } from "@rudderhq/db";
 import {
   agents,
