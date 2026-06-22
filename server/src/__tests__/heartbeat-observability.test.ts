@@ -369,7 +369,7 @@ describe("heartbeat observability surface", () => {
         agentInstructionStack: [
           "# Rudder Agent Operating Contract",
           "",
-          "## Agent Instruction: SOUL.md",
+          "# SOUL.md",
           "",
           "## Recent Rudder Context",
           "",
@@ -384,7 +384,8 @@ describe("heartbeat observability surface", () => {
     });
 
     expect(payload.prompt).toContain("[startup context omitted from persisted prompt]");
-    expect(payload.agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
+    expect(payload.agentInstructionStack).toContain("# SOUL.md");
+    expect(payload.agentInstructionStack).not.toContain("## Agent Instruction:");
     expect(payload.agentInstructionStack).toContain("[startup context omitted from persisted prompt]");
     expect(payload.agentInstructionStack).not.toContain("- private startup detail");
   });

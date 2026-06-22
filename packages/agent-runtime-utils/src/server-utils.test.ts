@@ -521,7 +521,7 @@ describe("loadAgentInstructionsPrefix", () => {
     }
   });
 
-  it("renders visible file boundaries when SOUL.md is the entry instructions file", async () => {
+  it("loads instruction file contents without synthetic Agent Instruction headings", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-load-agent-instructions-soul-entry-boundaries-"));
     const instructionsPath = path.join(root, "instructions", "SOUL.md");
     await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
@@ -539,26 +539,28 @@ describe("loadAgentInstructionsPrefix", () => {
       });
 
       const operatingContractIndex = loaded.prefix.indexOf("# Rudder Agent Operating Contract");
-      const soulBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: SOUL.md");
-      const toolsBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: TOOLS.md");
-      const memoryBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: MEMORY.md");
+      const soulIndex = loaded.prefix.indexOf("# Persona");
+      const toolsIndex = loaded.prefix.indexOf("# Tool Notes");
+      const memoryIndex = loaded.prefix.indexOf("# Memory Notes");
       const recentContextIndex = loaded.prefix.indexOf("## Recent Rudder Context");
       const currentTimeIndex = loaded.prefix.indexOf("## Current Time");
       const heartbeatIndex = loaded.prefix.indexOf("# Rudder Heartbeat Instruction");
 
       expect(operatingContractIndex).toBeGreaterThanOrEqual(0);
-      expect(soulBoundaryIndex).toBeGreaterThan(operatingContractIndex);
-      expect(toolsBoundaryIndex).toBeGreaterThan(soulBoundaryIndex);
-      expect(memoryBoundaryIndex).toBeGreaterThan(toolsBoundaryIndex);
-      expect(recentContextIndex).toBeGreaterThan(memoryBoundaryIndex);
+      expect(soulIndex).toBeGreaterThan(operatingContractIndex);
+      expect(toolsIndex).toBeGreaterThan(soulIndex);
+      expect(memoryIndex).toBeGreaterThan(toolsIndex);
+      expect(recentContextIndex).toBeGreaterThan(memoryIndex);
       expect(currentTimeIndex).toBeGreaterThan(recentContextIndex);
       expect(heartbeatIndex).toBeGreaterThan(currentTimeIndex);
       expect(loaded.prefix).toContain("# Persona");
       expect(loaded.prefix).toContain("# Tool Notes");
       expect(loaded.prefix).toContain("# Memory Notes");
-      expect(loaded.prefix).toContain("The above Agent Instruction: SOUL.md was loaded from $AGENT_HOME/instructions/SOUL.md.");
-      expect(loaded.prefix).toContain("The above Agent Instruction: TOOLS.md was loaded from $AGENT_HOME/instructions/TOOLS.md.");
-      expect(loaded.prefix).toContain("The above Agent Instruction: MEMORY.md was loaded from $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix).not.toContain("## Agent Instruction:");
+      expect(loaded.prefix).not.toContain("Agent Instruction: SOUL.md");
+      expect(loaded.prefix).toContain("The above SOUL.md content was loaded from $AGENT_HOME/instructions/SOUL.md.");
+      expect(loaded.prefix).toContain("The above TOOLS.md content was loaded from $AGENT_HOME/instructions/TOOLS.md.");
+      expect(loaded.prefix).toContain("The above MEMORY.md content was loaded from $AGENT_HOME/instructions/MEMORY.md.");
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

@@ -109,11 +109,9 @@ function instructionFileSection(input: {
   displayFileDir: string;
 }) {
   return [
-    `## Agent Instruction: ${input.title}`,
-    "",
     input.contents.trimEnd(),
     "",
-    `The above Agent Instruction: ${input.title} was loaded from ${input.displayFilePath}.`,
+    `The above ${input.title} content was loaded from ${input.displayFilePath}.`,
     `Resolve any relative file references from ${input.displayFileDir}.`,
   ].join("\n");
 }
