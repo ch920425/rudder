@@ -991,7 +991,10 @@ function ThreadAvatar({
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : needsAttention ? (
-        <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500" />
+        <span
+          data-testid={testId}
+          className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500"
+        />
       ) : null}
     </span>
   );
@@ -1049,7 +1052,10 @@ function ChatAgentThreadAvatar({
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : needsAttention ? (
-        <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500" />
+        <span
+          data-testid={`${testId}-unread-badge`}
+          className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500"
+        />
       ) : null}
     </span>
   );
@@ -1086,7 +1092,10 @@ function IssueStatusThreadAvatar({
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : needsAttention ? (
-        <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500" />
+        <span
+          data-testid={testId}
+          className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[color:var(--surface-elevated)] bg-red-500"
+        />
       ) : null}
     </span>
   );
@@ -2121,6 +2130,21 @@ function sectionAttentionCount(section: OrganizedThreadSection) {
   return section.entries.filter((entry) => entry.thread.unreadCount > 0 || entry.thread.needsAttention).length;
 }
 
+function locallyReadThreadSummary(
+  thread: MessengerThreadSummaryItem,
+  locallyReadThreadWatermarks: ReadonlyMap<string, string>,
+): MessengerThreadSummaryItem {
+  const locallyReadWatermark = locallyReadThreadWatermarks.get(thread.threadKey);
+  if (!locallyReadWatermark) return thread;
+  if (locallyReadWatermark !== (thread.latestActivityAt ?? "none")) return thread;
+  if (thread.unreadCount === 0 && !thread.needsAttention) return thread;
+  return {
+    ...thread,
+    unreadCount: 0,
+    needsAttention: false,
+  };
+}
+
 export function MessengerContextSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -2160,6 +2184,7 @@ export function MessengerContextSidebar() {
   const [pendingCustomGroupMerges, setPendingCustomGroupMerges] = useState<Record<string, PendingCustomGroupMerge>>({});
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [locallyReadThreadWatermarks, setLocallyReadThreadWatermarks] = useState<ReadonlyMap<string, string>>(() => new Map());
   const draggingThreadIdRef = useRef<string | null>(null);
   const dragOverIdRef = useRef<string | null>(null);
   const [unreadScrollRequestId, setUnreadScrollRequestId] = useState(0);
@@ -2241,6 +2266,7 @@ export function MessengerContextSidebar() {
     setCollapsedThreadGroupKeys(readCollapsedThreadGroups(model.selectedOrganizationId, rule));
     setVisibleThreadGroupEntryLimits({});
     setPendingChatRenameTitles({});
+    setLocallyReadThreadWatermarks(new Map());
   }, [model.selectedOrganizationId]);
 
   useEffect(() => {
@@ -2404,8 +2430,37 @@ export function MessengerContextSidebar() {
       if (!watermark) return true;
       return hiddenIssueThreadWatermarks[thread.threadKey] !== watermark;
     });
-    return dedupeThreadSummariesByKey(unhiddenThreads);
-  }, [hiddenIssueThreadWatermarks, model.threadSummaries]);
+    return dedupeThreadSummariesByKey(unhiddenThreads)
+      .map((thread) => locallyReadThreadSummary(thread, locallyReadThreadWatermarks));
+  }, [hiddenIssueThreadWatermarks, locallyReadThreadWatermarks, model.threadSummaries]);
+
+  useEffect(() => {
+    if (locallyReadThreadWatermarks.size === 0) return;
+    setLocallyReadThreadWatermarks((current) => {
+      const next = new Map(current);
+      const sourceThreadsByKey = new Map<string, MessengerThreadSummaryItem[]>();
+      for (const thread of model.threadSummaries) {
+        sourceThreadsByKey.set(thread.threadKey, [...sourceThreadsByKey.get(thread.threadKey) ?? [], thread]);
+      }
+      for (const group of customGroups) {
+        for (const entry of group.entries) {
+          sourceThreadsByKey.set(entry.threadKey, [...sourceThreadsByKey.get(entry.threadKey) ?? [], entry.thread]);
+        }
+      }
+      for (const [threadKey, watermark] of current) {
+        const sourceThreads = sourceThreadsByKey.get(threadKey) ?? [];
+        if (sourceThreads.length === 0) continue;
+        const matchingSources = sourceThreads.filter((thread) => (thread.latestActivityAt ?? "none") === watermark);
+        if (matchingSources.length === 0) {
+          next.delete(threadKey);
+          continue;
+        }
+        if (matchingSources.some((thread) => thread.unreadCount > 0 || thread.needsAttention)) continue;
+        next.delete(threadKey);
+      }
+      return next.size === current.size ? current : next;
+    });
+  }, [customGroups, locallyReadThreadWatermarks.size, model.threadSummaries]);
 
   const customGroupedThreadKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -2433,7 +2488,8 @@ export function MessengerContextSidebar() {
         const entries = group.entries.map((entry) => {
           const conversationId = threadConversationId(entry.threadKey);
           const pendingTitle = conversationId ? pendingChatRenameTitles[conversationId] : undefined;
-          const displayThread = pendingTitle ? { ...entry.thread, title: pendingTitle } : entry.thread;
+          const readThread = locallyReadThreadSummary(entry.thread, locallyReadThreadWatermarks);
+          const displayThread = pendingTitle ? { ...readThread, title: pendingTitle } : readThread;
           const organizedEntry = {
             thread: displayThread,
             conversation: model.selectedOrganizationId
@@ -2534,7 +2590,7 @@ export function MessengerContextSidebar() {
     return isManagedThreadGroupRule(effectiveThreadOrganizationRule)
       ? sortManagedThreadSections(sections, effectiveThreadOrganizationRule, projectOrderIds, threadSectionOrderIds)
       : sections;
-  }, [agentsById, conversationsById, customGroupedThreadKeys, customGroups, defaultThreadOrderKeys, effectiveThreadOrganizationRule, model.selectedOrganizationId, pendingChatRenameTitles, pendingCustomGroupList, projectOrderIds, threadSectionOrderIds, splitIssueNotifications, visibleThreadSummaries]);
+  }, [agentsById, conversationsById, customGroupedThreadKeys, customGroups, defaultThreadOrderKeys, effectiveThreadOrganizationRule, locallyReadThreadWatermarks, model.selectedOrganizationId, pendingChatRenameTitles, pendingCustomGroupList, projectOrderIds, threadSectionOrderIds, splitIssueNotifications, visibleThreadSummaries]);
   const customEntryGroupByThreadKey = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const group of customGroups) {
@@ -2658,13 +2714,20 @@ export function MessengerContextSidebar() {
   const handleMessengerThreadSelect = (thread: MessengerThreadSummaryItem) => {
     const orgId = model.selectedOrganizationId;
     handleMessengerEntrySelect(thread.href);
-    if (!orgId || thread.unreadCount === 0) return;
+    if (!orgId || (thread.unreadCount === 0 && !thread.needsAttention)) return;
 
     const readAt = thread.latestActivityAt ?? null;
     const marker = `${orgId}:${thread.threadKey}:${readAt ?? "none"}`;
     if (markedThreadRef.current === marker) return;
     markedThreadRef.current = marker;
 
+    setLocallyReadThreadWatermarks((current) => {
+      const nextWatermark = readAt instanceof Date ? readAt.toISOString() : readAt ?? "none";
+      if (current.get(thread.threadKey) === nextWatermark) return current;
+      const next = new Map(current);
+      next.set(thread.threadKey, nextWatermark);
+      return next;
+    });
     markMessengerThreadReadInCache(queryClient, orgId, thread.threadKey, readAt);
 
     void messengerApi.markThreadRead(
@@ -2687,6 +2750,12 @@ export function MessengerContextSidebar() {
       }
     }).catch(() => {
       markedThreadRef.current = null;
+      setLocallyReadThreadWatermarks((current) => {
+        if (!current.has(thread.threadKey)) return current;
+        const next = new Map(current);
+        next.delete(thread.threadKey);
+        return next;
+      });
       void invalidateMessengerThreadSummaryQueries(queryClient, orgId);
     });
   };
@@ -3759,7 +3828,7 @@ export function MessengerContextSidebar() {
     if (!model.selectedOrganizationId) return;
     if (!activeThreadKey) return;
     if (route.kind === "chat") return;
-    if (!activeThread || activeThread.unreadCount === 0) return;
+    if (!activeThread || (activeThread.unreadCount === 0 && !activeThread.needsAttention)) return;
     if (!activeThreadDetailReady) return;
 
     const orgId = model.selectedOrganizationId;
@@ -3768,6 +3837,15 @@ export function MessengerContextSidebar() {
     if (markedThreadRef.current === marker) return;
     markedThreadRef.current = marker;
 
+    setLocallyReadThreadWatermarks((current) => {
+      const nextWatermark = activeThread.latestActivityAt instanceof Date
+        ? activeThread.latestActivityAt.toISOString()
+        : activeThread.latestActivityAt ?? "none";
+      if (current.get(activeThreadKey) === nextWatermark) return current;
+      const next = new Map(current);
+      next.set(activeThreadKey, nextWatermark);
+      return next;
+    });
     markMessengerThreadReadInCache(queryClient, orgId, activeThreadKey, activeThreadReadAt);
 
     void messengerApi.markThreadRead(
@@ -3790,6 +3868,12 @@ export function MessengerContextSidebar() {
       }
     }).catch(() => {
       markedThreadRef.current = null;
+      setLocallyReadThreadWatermarks((current) => {
+        if (!current.has(activeThreadKey)) return current;
+        const next = new Map(current);
+        next.delete(activeThreadKey);
+        return next;
+      });
     });
   }, [activeThread, activeThreadDetailReady, activeThreadKey, activeThreadReadAt, model.selectedOrganizationId, queryClient, route]);
 

@@ -724,7 +724,8 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(mockUpdateThreadUserState).toHaveBeenCalledWith("org-1", "issue:issue-1", { pinned: true });
   });
 
-  it("marks an unread grouped split issue read when the row is selected", async () => {
+  it("clears an unread grouped split issue badge immediately when the row is selected", async () => {
+    mockMarkThreadRead.mockReturnValue(new Promise(() => undefined));
     chatList = [];
     customGroupList = [
       {
@@ -780,16 +781,177 @@ describe("MessengerContextSidebar chat actions", () => {
 
     const row = document.querySelector('[data-testid="messenger-thread-issue-issue-1"]') as HTMLElement | null;
     const link = row?.querySelector<HTMLAnchorElement>("a");
+    expect(row?.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeTruthy();
     expect(link).toBeTruthy();
     await act(async () => {
       link?.click();
       await Promise.resolve();
     });
 
+    expect(row?.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeNull();
     expect(setQueryData).toHaveBeenCalledWith(["messenger", "org-1", "threads"], expect.any(Function));
     expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));
     expect(setQueryData.mock.invocationCallOrder[0]).toBeLessThan(mockMarkThreadRead.mock.invocationCallOrder[0]);
     expect(mockMarkThreadRead).toHaveBeenCalledWith("org-1", "issue:issue-1", "2026-04-11T09:41:00.000Z");
+  });
+
+  it("clears a dot-only grouped split issue attention marker immediately when selected", async () => {
+    mockMarkThreadRead.mockReturnValue(new Promise(() => undefined));
+    chatList = [];
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Onboarding",
+        icon: "folder::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [
+          {
+            id: "entry-1",
+            orgId: "org-1",
+            userId: "local-board",
+            groupId: "group-1",
+            threadKey: "issue:issue-1",
+            sortOrder: 0,
+            createdAt: "2026-04-11T09:40:00.000Z",
+            updatedAt: "2026-04-11T09:40:00.000Z",
+            thread: {
+              threadKey: "issue:issue-1",
+              kind: "issues",
+              title: "ISS-1 · Needs attention",
+              preview: "Attention-only issue update",
+              subtitle: null,
+              href: "/messenger/issues/ISS-1",
+              latestActivityAt: "2026-04-11T09:41:00.000Z",
+              lastReadAt: null,
+              unreadCount: 0,
+              needsAttention: true,
+              isPinned: false,
+              metadata: {
+                splitIssue: true,
+                issueId: "issue-1",
+                issueIdentifier: "ISS-1",
+                status: "todo",
+              },
+            },
+          },
+        ],
+      },
+    ];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [],
+    };
+
+    renderSidebar();
+
+    const row = document.querySelector('[data-testid="messenger-thread-issue-issue-1"]') as HTMLElement | null;
+    const link = row?.querySelector<HTMLAnchorElement>("a");
+    expect(row?.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeTruthy();
+    expect(link).toBeTruthy();
+    await act(async () => {
+      link?.click();
+      await Promise.resolve();
+    });
+
+    expect(row?.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeNull();
+    expect(mockMarkThreadRead).toHaveBeenCalledWith("org-1", "issue:issue-1", "2026-04-11T09:41:00.000Z");
+  });
+
+  it("does not mask newer unread activity for the same grouped split issue while read ack is pending", async () => {
+    mockMarkThreadRead.mockReturnValue(new Promise(() => undefined));
+    chatList = [];
+    const groupedThread = {
+      threadKey: "issue:issue-1",
+      kind: "issues",
+      title: "ISS-1 · Needs a read ack",
+      preview: "Unread issue update",
+      subtitle: null,
+      href: "/messenger/issues/ISS-1",
+      latestActivityAt: "2026-04-11T09:41:00.000Z",
+      lastReadAt: null,
+      unreadCount: 1,
+      needsAttention: true,
+      isPinned: false,
+      metadata: {
+        splitIssue: true,
+        issueId: "issue-1",
+        issueIdentifier: "ISS-1",
+        status: "todo",
+      },
+    };
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Onboarding",
+        icon: "folder::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [
+          {
+            id: "entry-1",
+            orgId: "org-1",
+            userId: "local-board",
+            groupId: "group-1",
+            threadKey: "issue:issue-1",
+            sortOrder: 0,
+            createdAt: "2026-04-11T09:40:00.000Z",
+            updatedAt: "2026-04-11T09:40:00.000Z",
+            thread: groupedThread,
+          },
+        ],
+      },
+    ];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [],
+    };
+
+    const { root } = renderSidebar();
+
+    const row = document.querySelector('[data-testid="messenger-thread-issue-issue-1"]') as HTMLElement | null;
+    const link = row?.querySelector<HTMLAnchorElement>("a");
+    expect(link).toBeTruthy();
+    await act(async () => {
+      link?.click();
+      await Promise.resolve();
+    });
+    expect(row?.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeNull();
+
+    customGroupList = [
+      {
+        ...customGroupList[0],
+        entries: [
+          {
+            ...customGroupList[0].entries[0],
+            thread: {
+              ...groupedThread,
+              preview: "Newer unread issue update",
+              latestActivityAt: "2026-04-11T09:42:00.000Z",
+              unreadCount: 1,
+              needsAttention: true,
+            },
+          },
+        ],
+      },
+    ];
+
+    await act(async () => {
+      root.render(<MessengerContextSidebar />);
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-testid="issue-issue-1-unread-badge"]')).toBeTruthy();
   });
 
   it("refetches custom groups when a grouped split issue read ack fails", async () => {
