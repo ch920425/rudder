@@ -39,6 +39,9 @@ edit_policy: user_confirmed_only
   membership and invocation eligibility.
 - `AGENT.RUNTIME.ADAPTERS.001`: runtime adapter capabilities define what Rudder
   may test, inject, execute, parse, and report.
+- `AGENT.RUNTIME.PERMISSIONS.001`: local runtime platform permissions define
+  how managed homes, operator-home bridges, skills, credentials, and
+  filesystem substitutions behave across macOS, Linux, and Windows.
 - `AGENT.SKILLS.001`: skills have source, desired, enabled, materialized, and
   always-enabled semantics.
 - `AGENT.SKILL.TELEMETRY.001`: skill analytics preserve evidence level.

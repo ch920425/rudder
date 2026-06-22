@@ -327,6 +327,34 @@ contracts:
       - server/src/__tests__/heartbeat-process-recovery.test.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
+  AGENT.RUNTIME.PERMISSIONS.001:
+    owner: product
+    domain: agents
+    spec_depth: logic_contract
+    docs:
+      - doc/product/domains/agents/runtime-platform-permissions.md
+    related_code:
+      - packages/agent-runtime-utils/src/server-utils.cli.ts
+      - packages/agent-runtimes/claude-local/src/server/execute.ts
+      - packages/agent-runtimes/codex-local/src/server/codex-home.ts
+      - packages/agent-runtimes/codex-local/src/server/execute.ts
+      - packages/agent-runtimes/cursor-local/src/server/execute.ts
+      - packages/agent-runtimes/gemini-local/src/server/execute.ts
+      - packages/agent-runtimes/opencode-local/src/server/execute.ts
+      - packages/agent-runtimes/pi-local/src/server/execute.ts
+      - server/src/services/managed-workspace-preflight.ts
+      - desktop/scripts/after-pack.mjs
+    related_tests:
+      - packages/agent-runtime-utils/src/server-utils.test.ts
+      - server/src/__tests__/codex-local-execute.test.ts
+      - server/src/__tests__/claude-local-execute.test.ts
+      - server/src/__tests__/cursor-local-execute.test.ts
+      - server/src/__tests__/gemini-local-execute.test.ts
+      - server/src/__tests__/opencode-local-execute.test.ts
+      - server/src/__tests__/pi-local-execute.test.ts
+      - server/src/__tests__/managed-workspace-preflight.test.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
   AGENT.SKILLS.001:
     owner: product
     domain: agents
