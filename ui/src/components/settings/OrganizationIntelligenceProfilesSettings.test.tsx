@@ -317,7 +317,7 @@ describe("OrganizationIntelligenceProfilesSettings", () => {
     });
     expect(fastProfile?.textContent).toContain("Runtime chain environment");
     expect(fastProfile?.textContent).toContain("Primary · Codex (local) · gpt-5.4-mini: Passed");
-    expect(fastProfile?.textContent).toContain("Fallback 1 · Claude (local) · claude-sonnet-4-5: Passed");
+    expect(fastProfile?.textContent).toContain("Fallback 1 · Claude Code (local) · claude-sonnet-4-5: Passed");
 
     rendered.cleanup();
   });

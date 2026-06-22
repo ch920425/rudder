@@ -45,6 +45,10 @@ function commandLooksLike(command: string, expected: string): boolean {
   return base === expected || base === `${expected}.cmd` || base === `${expected}.exe`;
 }
 
+function isDeepSeekClaudeModel(model: string): boolean {
+  return model.trim().toLowerCase().startsWith("deepseek");
+}
+
 function summarizeProbeDetail(stdout: string, stderr: string): string | null {
   const raw = firstNonEmptyLine(stderr) || firstNonEmptyLine(stdout);
   if (!raw) return null;
@@ -169,6 +173,10 @@ export async function testEnvironment(
 
   const configApiKey = env.ANTHROPIC_API_KEY;
   const hostApiKey = process.env.ANTHROPIC_API_KEY;
+  const model = asString(config.model, "").trim();
+  const usesDeepSeekModel = isDeepSeekClaudeModel(model);
+  const configDeepSeekApiKey = env.DEEPSEEK_API_KEY;
+  const hostDeepSeekApiKey = process.env.DEEPSEEK_API_KEY;
   if (isNonEmpty(configApiKey) || isNonEmpty(hostApiKey)) {
     const source = isNonEmpty(configApiKey) ? "adapter config env" : "server environment";
     checks.push({
@@ -178,6 +186,21 @@ export async function testEnvironment(
         "ANTHROPIC_API_KEY is set. Claude will use API-key auth instead of subscription credentials.",
       detail: `Detected in ${source}.`,
       hint: "Unset ANTHROPIC_API_KEY if you want subscription-based Claude login behavior.",
+    });
+  } else if (usesDeepSeekModel && (isNonEmpty(configDeepSeekApiKey) || isNonEmpty(hostDeepSeekApiKey))) {
+    const source = isNonEmpty(configDeepSeekApiKey) ? "adapter config env" : "server environment";
+    checks.push({
+      code: "claude_deepseek_api_key_configured",
+      level: "info",
+      message: "DEEPSEEK_API_KEY is set for the configured Claude Code DeepSeek model.",
+      detail: `Detected in ${source}.`,
+    });
+  } else if (usesDeepSeekModel) {
+    checks.push({
+      code: "claude_deepseek_api_key_missing",
+      level: "warn",
+      message: "DEEPSEEK_API_KEY is not set for the configured Claude Code DeepSeek model.",
+      hint: "Paste DEEPSEEK_API_KEY into the runtime env or configure the organization secret binding, then run Test now again.",
     });
   } else {
     checks.push({
@@ -199,7 +222,6 @@ export async function testEnvironment(
         hint: "Use the `claude` CLI command to run the automatic login and installation probe.",
       });
     } else {
-      const model = asString(config.model, "").trim();
       const effort = asString(config.effort, "").trim();
       const chrome = asBoolean(config.chrome, false);
       const maxTurns = asNumber(config.maxTurnsPerRun, 0);

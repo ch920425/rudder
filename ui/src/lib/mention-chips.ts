@@ -63,6 +63,9 @@ export function stripMentionChipLabelPrefix(label: string): string {
 }
 
 export function parseMentionChipHref(href: string): ParsedMentionChip | null {
+  const internalRouteMention = parseInternalMentionRouteHref(href);
+  if (internalRouteMention) return internalRouteMention;
+
   const agent = parseAgentMentionHref(href);
   if (agent) {
     return {
@@ -151,11 +154,62 @@ export function parseMentionChipHref(href: string): ParsedMentionChip | null {
   return null;
 }
 
+function parseInternalMentionRouteHref(href: string): ParsedMentionChip | null {
+  let url: URL;
+  try {
+    url = new URL(href, "http://rudder.local");
+  } catch {
+    return null;
+  }
+  if (url.origin !== "http://rudder.local") return null;
+
+  const segments = url.pathname.split("/").filter(Boolean).map((segment) => {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+  });
+  const isIssueRoute =
+    (segments.length === 2 && segments[0] === "issues")
+    || (segments.length === 3 && segments[1] === "issues")
+    || (segments.length === 4 && segments[1] === "messenger" && segments[2] === "issues");
+  if (isIssueRoute) {
+    const issueId = segments.at(-1)?.trim();
+    if (!issueId) return null;
+    const hashCommentId = url.hash.startsWith("#comment-")
+      ? decodeURIComponent(url.hash.slice("#comment-".length))
+      : null;
+    return {
+      kind: "issue",
+      issueId,
+      ref: (url.searchParams.get("r") ?? url.searchParams.get("ref") ?? "").trim() || null,
+      commentId: (url.searchParams.get("c") ?? url.searchParams.get("commentId") ?? "").trim() || hashCommentId || null,
+      status: null,
+    };
+  }
+
+  const isAutomationRoute =
+    (segments.length === 2 && segments[0] === "automations")
+    || (segments.length === 3 && segments[1] === "automations");
+  if (isAutomationRoute) {
+    const automationId = segments.at(-1)?.trim();
+    if (!automationId) return null;
+    return {
+      kind: "automation",
+      automationId,
+      title: (url.searchParams.get("t") ?? url.searchParams.get("title") ?? "").trim() || null,
+    };
+  }
+
+  return null;
+}
+
 export function mentionChipNavigationPath(mention: ParsedMentionChip): string {
   if (mention.kind === "project") return `/projects/${mention.projectId}`;
   if (mention.kind === "automation") return `/automations/${mention.automationId}`;
   if (mention.kind === "issue") {
-    const basePath = `/issues/${mention.ref ?? mention.issueId}`;
+    const basePath = `/issues/${mention.issueId}`;
     return mention.commentId ? `${basePath}#comment-${encodeURIComponent(mention.commentId)}` : basePath;
   }
   if (mention.kind === "chat") return `/messenger/chat/${mention.conversationId}`;
@@ -218,7 +272,12 @@ export function mentionChipInlineStyle(mention: ParsedMentionChip): CSSPropertie
 export function applyMentionChipDecoration(element: HTMLElement, mention: ParsedMentionChip) {
   clearMentionChipDecoration(element);
   const visibleLabel = element.textContent ?? "";
-  const normalizedLabel = stripMentionChipLabelPrefix(visibleLabel);
+  const resolvedTitle = mention.kind === "automation"
+    ? mention.title?.trim()
+    : mention.kind === "issue"
+      ? mention.ref?.trim()
+      : "";
+  const normalizedLabel = resolvedTitle || stripMentionChipLabelPrefix(visibleLabel);
   if (normalizedLabel !== visibleLabel) {
     element.textContent = normalizedLabel;
   }

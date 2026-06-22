@@ -442,6 +442,46 @@ describe("MarkdownBody", () => {
     expect(html).not.toContain("rudder-entity-preview-wrap");
   });
 
+  it("uses current automation titles for rendered automation mention chips", () => {
+    markdownMentionsMock.mentions = [{
+      id: "automation:0d232c68-1111-4111-8111-111111111111",
+      name: "每日 Rudder 产品与搜索数据分析报告",
+      kind: "automation",
+      automationId: "0d232c68-1111-4111-8111-111111111111",
+      automationTitle: "每日 Rudder 产品与搜索数据分析报告",
+      automationStatus: "active",
+    }];
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"完成 chat [0d232c68](automation://0d232c68-1111-4111-8111-111111111111)。"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    const mention = container.querySelector('[data-mention-kind="automation"]');
+
+    expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
+    expect(mention?.getAttribute("href")).toBe("/automations/0d232c68-1111-4111-8111-111111111111");
+    expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
+    expect(container.textContent).not.toContain("0d232c68");
+  });
+
+  it("uses automation title metadata when the mention catalog has not loaded", () => {
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`完成 chat [0d232c68](${buildAutomationMentionHref("0d232c68-1111-4111-8111-111111111111", "每日 Rudder 产品与搜索数据分析报告")})。`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+    const mention = container.querySelector('[data-mention-kind="automation"]');
+
+    expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
+    expect(mention?.getAttribute("href")).toBe("/automations/0d232c68-1111-4111-8111-111111111111");
+    expect(container.textContent).not.toContain("0d232c68");
+  });
+
   it("resolves relative image paths when a resolver is provided", () => {
     const html = renderToStaticMarkup(
       <ThemeProvider>
@@ -904,7 +944,8 @@ describe("MarkdownBody", () => {
     expect(html).toContain('data-mention-comment="true"');
     expect(html).toContain('data-mention-status="backlog"');
     expect(html).toContain("rudder-mention-chip--with-status-icon");
-    expect(html).toContain(">Issue comment c7fe865f</a>");
+    expect(html).toContain(">PAP-123 auth flow</a>");
+    expect(html).not.toContain("Issue comment c7fe865f");
   });
 
   it("loads an issue preview from the rendered mention chip on focus", async () => {
@@ -1194,7 +1235,6 @@ describe("MarkdownBody", () => {
     expect(entityPreviewApiMocks.getIssue).toHaveBeenCalledWith("issue-789");
     expect(entityPreviewApiMocks.getComment).toHaveBeenCalledWith("issue-789", "comment-123");
     const card = document.body.querySelector(".rudder-entity-preview-card");
-    expect(card?.textContent).toContain("Issue comment");
     expect(card?.textContent).toContain("Auth flow polish");
     expect(card?.textContent).toContain("Reviewer said render the comment body instead of issue metadata.");
     expect(card?.textContent).toContain("Follow-up text stays visible.");
@@ -1484,8 +1524,8 @@ describe("MarkdownBody", () => {
     expect(html).toContain('href="/issues/issue-789#comment-comment-123"');
     expect(html).toContain('data-mention-kind="issue"');
     expect(html).toContain('data-mention-status="in_review"');
-    expect(html).toContain(">Issue comment abc12345</a>");
-    expect(html).not.toContain(">PAP-123 auth flow</a>");
+    expect(html).toContain(">PAP-123 auth flow</a>");
+    expect(html).not.toContain("Issue comment abc12345");
   });
 
   it("renders skill references as non-interactive tokens instead of links", () => {
@@ -1809,11 +1849,34 @@ describe("MarkdownBody", () => {
     );
     const mention = container.querySelector('[data-mention-kind="issue"]');
 
-    expect(mention?.textContent).toBe("1664b23e");
+    expect(mention?.textContent).toBe("ZST-747 Rudder SEO / GSC Daily Check");
     expect(mention?.getAttribute("href")).toBe("/ZST/issues/1664b23e");
     expect(mention?.getAttribute("data-mention-status")).toBe("done");
     expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
     expect(mention?.classList.contains("rudder-mention-chip--with-status-icon")).toBe(false);
+  });
+
+  it("uses canonical issue identity for resolved internal issue links with opaque labels", () => {
+    window.history.pushState({}, "", "/ZST/messenger/issues/ZST-752");
+    markdownMentionsMock.mentions = [{
+      id: "issue:1664b23e-1111-4111-8111-111111111111",
+      name: "ZST-747 Rudder SEO / GSC Daily Check",
+      kind: "issue",
+      issueId: "1664b23e-1111-4111-8111-111111111111",
+      issueIdentifier: "ZST-747",
+      issueStatus: "done",
+    }];
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>{"Open [the issue](/issues/ZST-747) for the automation result."}</MarkdownBody>
+      </ThemeProvider>,
+    );
+    const mention = container.querySelector('[data-mention-kind="issue"]');
+
+    expect(mention?.textContent).toBe("ZST-747 Rudder SEO / GSC Daily Check");
+    expect(mention?.getAttribute("href")).toBe("/ZST/issues/ZST-747");
+    expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
   });
 
   it("renders relaxed Library markdown link and list syntax", () => {

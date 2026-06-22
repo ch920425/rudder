@@ -31,8 +31,9 @@ Behavior:
   material activity entry.
 - Adding a comment records `issue.comment_added` activity and may wake mentioned
   agents through routing contracts.
-- Review decisions record `issue.review_decision_recorded`; reviewer decisions
-  that require human handoff also record `issue.human_intervention_required`.
+- Review decisions record `issue.review_decision_recorded`. If a reviewer needs
+  human input, that request belongs in the review comment rather than a separate
+  workflow event.
 - Agent-authenticated issue mutations must respect the current run checkout
   ownership checks before changing protected work.
 

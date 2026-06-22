@@ -338,10 +338,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
     return status === "in_review" || status === "blocked";
   }
 
-  function reviewerDecisionRequiresHumanHandoff(decision: string) {
-    return decision === "blocked";
-  }
-
   function commitSubject(message: string) {
     return message.split(/\r?\n/, 1)[0]?.trim() || message.trim();
   }
@@ -1003,7 +999,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
     canAgentCompleteIssue,
     statusForReviewDecision,
     statusAcceptsReviewerDecision,
-    reviewerDecisionRequiresHumanHandoff,
     commitSubject,
   });
 

@@ -613,9 +613,7 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
       return;
     }
     await assertCanReadAgent(req, existing);
-    const result = await instructions.reconcileBundle(existing);
-    await persistReconciledInstructionsBundle(existing, result);
-    res.json(result.bundle);
+    res.json(await instructions.getBundle(existing));
   });
 
   router.patch("/agents/:id/instructions-bundle", validate(updateAgentInstructionsBundleSchema), async (req, res) => {
@@ -680,9 +678,7 @@ export function registerAgentManagementRoutes(ctx: AgentManagementRouteContext) 
       res.status(422).json({ error: "Query parameter 'path' is required" });
       return;
     }
-    const result = await instructions.reconcileBundle(existing);
-    const effectiveAgent = await persistReconciledInstructionsBundle(existing, result);
-    res.json(await instructions.readFile(effectiveAgent, relativePath));
+    res.json(await instructions.readFile(existing, relativePath));
   });
 
   router.put("/agents/:id/instructions-bundle/file", validate(upsertAgentInstructionsFileSchema), async (req, res) => {

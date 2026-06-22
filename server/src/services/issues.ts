@@ -521,7 +521,7 @@ export function issueService(db: Db) {
       if (filters?.reviewerAgentId) {
         conditions.push(eq(issues.reviewerAgentId, filters.reviewerAgentId));
       }
-      if (filters?.excludeReviewerConfirmedBlockedHandoff && filters?.reviewerAgentId) {
+      if (filters?.excludeReviewerRecordedBlockedDecision && filters?.reviewerAgentId) {
         conditions.push(sql<boolean>`
           NOT (
             ${issues.status} = 'blocked'

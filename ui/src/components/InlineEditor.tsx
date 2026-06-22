@@ -154,7 +154,7 @@ export function InlineEditor({
     };
   }, [autosaveState, commit, draft, markDirty, multiline, multilineFocused, reset, runSave, value]);
 
-  if (multiline && (editing || alwaysEdit)) {
+  if (multiline && editing) {
     return (
       <div
         className={cn(

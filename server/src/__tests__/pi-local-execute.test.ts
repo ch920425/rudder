@@ -89,6 +89,23 @@ if (process.env.RUDDER_TEST_PI_REALISTIC_OUTPUT === "1") {
   });
   process.exit(0);
 }
+if (process.env.RUDDER_TEST_PI_SEMANTIC_ERROR === "1") {
+  emitJson({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() });
+  emitJson({ type: "agent_start" });
+  emitJson({ type: "turn_start" });
+  emitJson({
+    type: "turn_end",
+    message: {
+      role: "assistant",
+      stopReason: "error",
+      errorMessage: "402 membership benefits unavailable",
+      text: "",
+      usage: { input: 0, output: 0, cacheRead: 0, cost: { total: 0 } }
+    }
+  });
+  emitJson({ type: "agent_end", messageCount: 2 });
+  process.exit(0);
+}
 console.log(JSON.stringify({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() }));
 console.log(JSON.stringify({ type: "agent_start" }));
 console.log(JSON.stringify({ type: "turn_start" }));
@@ -267,10 +284,11 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(systemPrompt.indexOf("## Current Time")).toBeLessThan(systemPrompt.indexOf("# Rudder Heartbeat Instruction"));
       expect(agentInstructionStack).toContain(systemPrompt);
       expect(agentInstructionStack).toContain("Follow the rudder heartbeat.");
-      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("# Agent Instructions");
+      expect(agentInstructionStack).toContain("# Agent Soul");
+      expect(agentInstructionStack).toContain("# Agent Tools");
+      expect(agentInstructionStack).toContain("# Tacit Memory");
+      expect(agentInstructionStack).not.toContain("## Agent Instruction:");
       expect(agentInstructionStack).toContain("## Your Current Automations");
       expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(capture.rudderEnvKeys).toEqual(expect.arrayContaining([
@@ -364,6 +382,60 @@ describe("pi execute", { timeout: 20_000 }, () => {
       expect(JSON.stringify(result.resultJson)).not.toContain("sig_sig_sig_sig_sig_sig_sig_sig_sig_sig_");
       expect(logs.join("")).not.toContain("internal reasoning should not be persisted");
       expect(logs.join("")).toContain("\"type\":\"agent_end\"");
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousOperatorHome === undefined) delete process.env.RUDDER_OPERATOR_HOME;
+      else process.env.RUDDER_OPERATOR_HOME = previousOperatorHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns an adapter error when Pi reports a semantic turn error with exit zero", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-pi-execute-semantic-error-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "pi");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakePiCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_OPERATOR_HOME = root;
+    try {
+      const result = await execute({
+        runId: "run-pi-semantic-error",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Pi Agent",
+          agentRuntimeType: "pi",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "openai/gpt-test",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_PI_SEMANTIC_ERROR: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBe("402 membership benefits unavailable");
+      expect(result.summary).toBe("");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;

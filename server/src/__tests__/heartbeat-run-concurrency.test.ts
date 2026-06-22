@@ -926,7 +926,7 @@ describe("heartbeat run concurrency", () => {
     });
   });
 
-  it("skips timer heartbeats when only confirmed blocked reviewer handoff work exists", async () => {
+  it("skips timer heartbeats when only recorded blocked reviewer decision work exists", async () => {
     await disableExistingTimerAgents();
     const createdAt = new Date("2026-04-27T09:00:00.000Z");
     const tickAt = new Date("2026-04-27T09:05:00.000Z");
@@ -955,7 +955,7 @@ describe("heartbeat run concurrency", () => {
         entityType: "issue",
         entityId: issueId,
         agentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-04-27T09:02:00.000Z"),
       },
     ]);

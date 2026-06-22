@@ -25,8 +25,12 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
   async function resolveChatInvocation(input: {
     conversation: Pick<ChatConversation, "id" | "orgId" | "preferredAgentId" | "primaryIssueId" | "contextLinks" | "planMode">;
     contextLinks: ChatContextLink[];
+    materializeManagedInstructions?: boolean;
   }) {
-    const runtimeSource = await resolveConversationRuntime(input.conversation);
+    const runtimeSource = await resolveConversationRuntime(
+      input.conversation,
+      { materializeManagedInstructions: input.materializeManagedInstructions },
+    );
     if (!runtimeSource.descriptor.available) {
       return {
         runtimeSource,
@@ -106,8 +110,9 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
   async function resolveAgentRuntime(
     orgId: string,
     agentId: string,
+    options?: { materializeManagedInstructions?: boolean },
   ): Promise<ResolvedChatRuntimeSource | null> {
-    const agent = await agentsSvc.getById(agentId);
+    const agent = await agentsSvc.getInternalById(agentId);
     if (!agent || agent.orgId !== orgId || agent.status === "terminated") {
       return {
         descriptor: unavailableAgentDescriptor({
@@ -149,15 +154,30 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
       };
     }
 
+    const preparedAgentRuntimeConfig = options?.materializeManagedInstructions
+      ? await runContextSvc.materializeManagedInstructionsForRun({
+        id: agent.id,
+        orgId: agent.orgId,
+        name: agent.name,
+        role: agent.role,
+        workspaceKey: agent.workspaceKey,
+        status: agent.status,
+        agentRuntimeType: agentAdapterType,
+        agentRuntimeConfig: agentAdapterConfig,
+        metadata: agent.metadata ?? null,
+      })
+      : agentAdapterConfig;
     const { runtimeConfig, runtimeSkillEntries } = await runContextSvc.prepareRuntimeConfig({
       scene: "chat",
       agent: {
         id: agent.id,
         orgId: agent.orgId,
         name: agent.name,
+        role: agent.role,
+        workspaceKey: agent.workspaceKey,
         status: agent.status,
         agentRuntimeType: agentAdapterType,
-        agentRuntimeConfig: agentAdapterConfig,
+        agentRuntimeConfig: preparedAgentRuntimeConfig,
         metadata: agent.metadata ?? null,
       },
     });
@@ -186,9 +206,14 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
 
   async function resolveConversationRuntime(
     conversation: Pick<ChatConversation, "orgId" | "preferredAgentId">,
+    options?: { materializeManagedInstructions?: boolean },
   ) {
     if (conversation.preferredAgentId) {
-      const agentRuntime = await resolveAgentRuntime(conversation.orgId, conversation.preferredAgentId);
+      const agentRuntime = await resolveAgentRuntime(
+        conversation.orgId,
+        conversation.preferredAgentId,
+        options,
+      );
       if (agentRuntime) return agentRuntime;
     }
 
@@ -219,6 +244,7 @@ export function chatAssistantService(db: Db, storage?: StorageService) {
     const resolvedInvocation = await resolveChatInvocation({
       conversation: input.conversation,
       contextLinks: input.contextLinks,
+      materializeManagedInstructions: true,
     });
     if (resolvedInvocation.availabilityError) {
       throw new Error(resolvedInvocation.availabilityError);

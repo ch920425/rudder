@@ -55,6 +55,21 @@ test("browses, restores, and deletes workspace backup versions", async ({ page }
   await page.getByRole("button", { name: "roadmap.md" }).click();
   await expect(page.getByText("# Roadmap")).toBeVisible();
 
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download" }).click();
+  const downloadedBackup = await download;
+  expect(downloadedBackup.suggestedFilename()).toMatch(/^workspace-.*\.json$/);
+  const downloadedPath = await downloadedBackup.path();
+  expect(downloadedPath).toBeTruthy();
+  const downloadedArtifact = JSON.parse(await fs.readFile(downloadedPath!, "utf8")) as {
+    orgId: string;
+    entries: Array<{ path: string; kind: string; dataBase64?: string }>;
+  };
+  expect(downloadedArtifact.orgId).toBe(organization.id);
+  expect(downloadedArtifact.entries).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: "plans/roadmap.md", kind: "file" }),
+  ]));
+
   await page.getByRole("button", { name: "Restore" }).click();
   const restoreDialog = page.getByRole("dialog", { name: "Restore workspace backup" });
   await expect(restoreDialog).toBeVisible();

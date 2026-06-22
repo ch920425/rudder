@@ -14,6 +14,9 @@ import {
   runtimeProviderSetupHint,
 } from "../lib/runtime-models";
 import {
+  adapterLabels,
+} from "./agent-config-primitives";
+import {
   applyRuntimeChainOrder,
   createValuesForRuntime,
   defaultCommandForRuntime,
@@ -24,6 +27,10 @@ import {
 } from "./AgentConfigForm.helpers";
 
 describe("AgentConfigForm runtime defaults", () => {
+  it("labels the local Claude runtime as Claude Code for operator-facing runtime selectors", () => {
+    expect(adapterLabels.claude_local).toBe("Claude Code (local)");
+  });
+
   it("uses cursor-agent for new Cursor agents", () => {
     expect(defaultCommandForRuntime("cursor")).toBe("cursor-agent");
     expect(defaultConfigForRuntime("cursor")).toMatchObject({
@@ -41,10 +48,12 @@ describe("AgentConfigForm runtime defaults", () => {
 
   it("uses non-dangerous Claude auto permission mode by default", () => {
     expect(createValuesForRuntime("claude_local")).toMatchObject({
+      model: "deepseek-v4-pro[1m]",
       dangerouslySkipPermissions: false,
       permissionMode: "auto",
     });
     expect(defaultConfigForRuntime("claude_local")).toMatchObject({
+      model: "deepseek-v4-pro[1m]",
       dangerouslySkipPermissions: false,
       permissionMode: "auto",
     });
@@ -86,6 +95,9 @@ describe("AgentConfigForm runtime defaults", () => {
     expect(runtimeManualProbeCommand("pi_local", "pi", "deepseek/deepseek-chat"))
       .toBe('pi -p "Respond with hello." --mode json --provider deepseek --model deepseek-chat --tools read');
     expect(runtimeProviderCredentialEnvKey("pi_local", "openrouter/deepseek/deepseek-chat")).toBe("OPENROUTER_API_KEY");
+    expect(runtimeProviderSetupHint("claude_local", "deepseek-v4-pro[1m]")).toContain("DEEPSEEK_API_KEY");
+    expect(runtimeProviderCredentialEnvKey("claude_local", "deepseek-v4-pro[1m]")).toBe("DEEPSEEK_API_KEY");
+    expect(runtimeProviderCredentialLabel("claude_local", "deepseek-v4-pro[1m]")).toContain("DEEPSEEK_API_KEY");
     expect(runtimeManualProbeCommand("pi_local", "pi", "openrouter/deepseek/deepseek-chat"))
       .toBe('pi -p "Respond with hello." --mode json --provider openrouter --model deepseek/deepseek-chat --tools read');
     expect(runtimeProviderCredentialEnvKey("opencode_local", "opencode/deepseek-v4-flash-free")).toBeNull();
@@ -104,6 +116,7 @@ describe("AgentConfigForm runtime defaults", () => {
       .toContain("--permission-mode auto");
     expect(runtimeManualProbeCommand("claude_local", "claude", "claude-sonnet-4-6"))
       .not.toContain("bypassPermissions");
+    expect(runtimeAuthRecoveryHint("claude_local", "deepseek-v4-pro[1m]")).toContain("DEEPSEEK_API_KEY");
   });
 
   it("blocks onboarding when the runtime hello probe fails or needs provider auth", () => {

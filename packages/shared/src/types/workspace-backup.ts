@@ -50,5 +50,12 @@ export interface WorkspaceBackupRestoreResult {
   preRestoreBackup: WorkspaceBackupSummary;
 }
 
+export interface WorkspaceBackupDownloadInfo {
+  filename: string;
+  contentType: "application/json";
+  byteSize: number;
+  archiveSha256: string | null;
+}
+
 export type WorkspaceBackupFileList = OrganizationWorkspaceFileList;
 export type WorkspaceBackupFileDetail = OrganizationWorkspaceFileDetail;

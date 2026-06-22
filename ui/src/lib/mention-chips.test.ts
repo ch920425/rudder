@@ -117,7 +117,7 @@ describe("mention chips", () => {
     expect(mention).toEqual({
       kind: "automation",
       automationId: "automation-123",
-      title: null,
+      title: "Morning review",
     });
 
     expect(mention ? mentionChipNavigationPath(mention) : null).toBe("/automations/automation-123");
@@ -145,7 +145,7 @@ describe("mention chips", () => {
     expect(mention).toEqual({
       kind: "issue",
       issueId: "issue-123",
-      ref: null,
+      ref: "RUD-123",
       commentId: "comment-456",
       status: null,
     });
@@ -157,11 +157,12 @@ describe("mention chips", () => {
     applyMentionChipDecoration(element, {
       kind: "issue",
       issueId: "issue-123",
-      ref: null,
+      ref: "RUD-123 Fix editor tokens",
       commentId: "comment-456",
       status: null,
     });
 
+    expect(element.textContent).toBe("RUD-123 Fix editor tokens");
     expect(element.dataset.mentionKind).toBe("issue");
     expect(element.dataset.mentionComment).toBe("true");
     expect(element.classList.contains("rudder-mention-chip--issue")).toBe(true);
@@ -171,11 +172,42 @@ describe("mention chips", () => {
     expect(element.dataset.mentionComment).toBeUndefined();
   });
 
+  it("parses internal issue comment routes as mention chips", () => {
+    expect(parseMentionChipHref("/MAR/issues/issue-123?r=MAR-1#comment-comment-456")).toEqual({
+      kind: "issue",
+      issueId: "issue-123",
+      ref: "MAR-1",
+      commentId: "comment-456",
+      status: null,
+    });
+    expect(parseMentionChipHref("/MAR/messenger/issues/issue-123?r=MAR-1")).toEqual({
+      kind: "issue",
+      issueId: "issue-123",
+      ref: "MAR-1",
+      commentId: null,
+      status: null,
+    });
+  });
+
+  it("parses internal automation routes as mention chips", () => {
+    expect(parseMentionChipHref("/MAR/automations/automation-123?t=Morning%20review")).toEqual({
+      kind: "automation",
+      automationId: "automation-123",
+      title: "Morning review",
+    });
+  });
+
+  it("does not parse unrelated local routes that merely contain entity segment names", () => {
+    expect(parseMentionChipHref("/MAR/library?path=docs/issues/triage.md")).toBeNull();
+    expect(parseMentionChipHref("/MAR/library/issues/triage")).toBeNull();
+    expect(parseMentionChipHref("/MAR/automations/automation-123/runs/run-1")).toBeNull();
+  });
+
   it("parses issue mention status metadata for rendered chips", () => {
     expect(parseMentionChipHref("issue://issue-123?r=RUD-123&s=in_review")).toEqual({
       kind: "issue",
       issueId: "issue-123",
-      ref: null,
+      ref: "RUD-123",
       commentId: null,
       status: null,
     });

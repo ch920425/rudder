@@ -5,8 +5,8 @@ import { AGENT_ROLE_LABELS, type Agent } from "@rudderhq/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, GitBranch, List, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { agentsApi, type OrgNode } from "../api/agents";
 import { AGENT_RUN_LIST_COMPACT_LIMIT, agentRunsApi } from "../api/agent-runs";
+import { agentsApi, type OrgNode } from "../api/agents";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { PageTabBar } from "../components/PageTabBar";
@@ -21,7 +21,7 @@ import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
 import { agentRouteRef, agentUrl, cn, relativeTime } from "../lib/utils";
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude",
+  claude_local: "Claude Code",
   codex_local: "Codex",
   gemini_local: "Gemini",
   opencode_local: "OpenCode",

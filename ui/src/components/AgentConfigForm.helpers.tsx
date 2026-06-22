@@ -1,5 +1,8 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import { models as CLAUDE_LOCAL_MODELS } from "@rudderhq/agent-runtime-claude-local";
+import {
+  models as CLAUDE_LOCAL_MODELS,
+  DEFAULT_CLAUDE_LOCAL_MODEL,
+} from "@rudderhq/agent-runtime-claude-local";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_COUNT_SUBSCRIPTION_USAGE_AS_COST,
@@ -147,7 +150,8 @@ export const LOCAL_MODEL_RUNTIME_TYPES = [
 
 export function defaultModelForRuntime(agentRuntimeType: string) {
   if (agentRuntimeType === "claude_local") {
-    return CLAUDE_LOCAL_MODELS.find((model) => model.id.includes("sonnet"))?.id
+    return CLAUDE_LOCAL_MODELS.find((model) => model.id === DEFAULT_CLAUDE_LOCAL_MODEL)?.id
+      ?? CLAUDE_LOCAL_MODELS.find((model) => model.id.startsWith("deepseek"))?.id
       ?? CLAUDE_LOCAL_MODELS[0]?.id
       ?? "";
   }

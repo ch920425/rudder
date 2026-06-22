@@ -111,13 +111,21 @@ export function createFeishuInboundDispatcherDbDeps(
     },
 
     resolveUserBinding: async (integration, event) => {
+      const identityCondition = event.senderUnionId
+        ? or(
+          eq(agentIntegrationUserBindings.externalOpenId, event.senderOpenId),
+          eq(agentIntegrationUserBindings.externalUnionId, event.senderUnionId),
+        )
+        : eq(agentIntegrationUserBindings.externalOpenId, event.senderOpenId);
+      if (!identityCondition) return null;
+
       const row = await db
         .select()
         .from(agentIntegrationUserBindings)
         .where(
           and(
             eq(agentIntegrationUserBindings.integrationId, integration.id),
-            eq(agentIntegrationUserBindings.externalOpenId, event.senderOpenId),
+            identityCondition,
             isNull(agentIntegrationUserBindings.revokedAt),
           ),
         )

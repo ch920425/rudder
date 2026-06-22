@@ -202,6 +202,8 @@ export const organizationsApi = {
   },
   restoreWorkspaceBackup: (orgId: string, backupId: string, data: WorkspaceBackupRestoreRequest) =>
     api.post<WorkspaceBackupRestoreResult>(`/orgs/${orgId}/workspace/backups/${backupId}/restore`, data),
+  workspaceBackupDownloadUrl: (orgId: string, backupId: string) =>
+    `/api/orgs/${orgId}/workspace/backups/${backupId}/download`,
   deleteWorkspaceBackup: (orgId: string, backupId: string) =>
     api.delete<WorkspaceBackupSummary>(`/orgs/${orgId}/workspace/backups/${backupId}`),
   archive: (orgId: string) => api.post<Organization>(`/orgs/${orgId}/archive`, {}),

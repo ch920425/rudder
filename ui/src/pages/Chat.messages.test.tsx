@@ -3,7 +3,7 @@
 import type { TranscriptEntry } from "@/agent-runtimes";
 import type { MentionOption } from "@/components/MarkdownEditor";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { buildAgentMentionHref, buildIssueMentionHref, type ChatMessage } from "@rudderhq/shared";
+import { buildAgentMentionHref, buildAutomationMentionHref, buildIssueMentionHref, type ChatMessage } from "@rudderhq/shared";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -260,7 +260,7 @@ describe("user chat message rendering", () => {
     const bubble = container.querySelector('[data-testid="chat-user-message-bubble"]');
     const mention = bubble?.querySelector('[data-mention-kind="issue"]');
 
-    expect(mention?.textContent).toBe("Issue comment c7fe865f");
+    expect(mention?.textContent).toBe("RUD-8 Markdown consistency");
     expect(mention?.getAttribute("href")).toBe("/MARAAA/issues/issue-1#comment-comment-1");
     expect(mention?.getAttribute("data-mention-comment")).toBe("true");
     expect(mention?.getAttribute("data-mention-status")).toBe("backlog");
@@ -309,9 +309,68 @@ describe("user chat message rendering", () => {
     }));
     const mention = container.querySelector('[data-mention-kind="issue"]');
 
-    expect(mention?.textContent).toBe("1664b23e");
+    expect(mention?.textContent).toBe("MARAAA-747 Rudder SEO / GSC Daily Check");
     expect(mention?.getAttribute("href")).toBe("/MARAAA/issues/1664b23e");
     expect(mention?.classList.contains("rudder-mention-chip")).toBe(true);
+  });
+
+  it("renders automation mentions in assistant messages with automation titles", () => {
+    markdownMentionsMock.mentions = [{
+      id: "automation:0d232c68-1111-4111-8111-111111111111",
+      name: "每日 Rudder 产品与搜索数据分析报告",
+      kind: "automation",
+      automationId: "0d232c68-1111-4111-8111-111111111111",
+      automationTitle: "每日 Rudder 产品与搜索数据分析报告",
+      automationStatus: "active",
+    }];
+
+    const container = renderChatMessageItem(message({
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: `完成 chat [0d232c68](${buildAutomationMentionHref("0d232c68-1111-4111-8111-111111111111", "每日 Rudder 产品与搜索数据分析报告")})。`,
+    }));
+    const mention = container.querySelector('[data-mention-kind="automation"]');
+
+    expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
+    expect(mention?.getAttribute("href")).toBe("/MARAAA/automations/0d232c68-1111-4111-8111-111111111111");
+    expect(container.textContent).not.toContain("0d232c68");
+  });
+
+  it("renders automation mentions in user plain-text messages with automation titles", () => {
+    markdownMentionsMock.mentions = [{
+      id: "automation:0d232c68-1111-4111-8111-111111111111",
+      name: "每日 Rudder 产品与搜索数据分析报告",
+      kind: "automation",
+      automationId: "0d232c68-1111-4111-8111-111111111111",
+      automationTitle: "每日 Rudder 产品与搜索数据分析报告",
+      automationStatus: "active",
+    }];
+
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: `看这个 automation [0d232c68](${buildAutomationMentionHref("0d232c68-1111-4111-8111-111111111111", "每日 Rudder 产品与搜索数据分析报告")})。`,
+    }));
+    const mention = container.querySelector('[data-mention-kind="automation"]');
+
+    expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
+    expect(mention?.getAttribute("href")).toBe("/MARAAA/automations/0d232c68-1111-4111-8111-111111111111");
+    expect(container.textContent).not.toContain("0d232c68");
+  });
+
+  it("uses automation title metadata in user plain-text messages before catalog load", () => {
+    const container = renderChatMessageItem(message({
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: `看这个 automation [0d232c68](${buildAutomationMentionHref("0d232c68-1111-4111-8111-111111111111", "每日 Rudder 产品与搜索数据分析报告")})。`,
+    }));
+    const mention = container.querySelector('[data-mention-kind="automation"]');
+
+    expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
+    expect(container.textContent).not.toContain("0d232c68");
   });
 });
 

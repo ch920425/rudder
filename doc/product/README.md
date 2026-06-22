@@ -20,6 +20,17 @@ This registry is not:
 - a database schema reference
 - a copy of the code
 
+Scope note:
+
+- This registry documents the current implemented product behavior that
+  contributors must preserve when changing Rudder.
+- `doc/SPEC-implementation.md` remains the dated V1 implementation contract.
+  When this registry covers implemented surfaces that were out of scope in that
+  dated V1 document, the registry records implementation reality and guardrails;
+  it does not silently expand the V1 promise or roadmap.
+- Experimental or extension surfaces should say so in their owning domain
+  contract instead of pretending to be core V1 behavior.
+
 Use `doc/plans/` for decision history and proposals. Use source and tests for
 implementation. Use this registry for the current product behavior contract.
 
@@ -52,14 +63,28 @@ history or line-by-line code copies.
 
 ## Seeded Domains
 
-- `domains/issues/`: issue identity, state, local issue flows, and issue-visible
-  slots.
+- `domains/issues/`: issue identity, hierarchy, state, local issue flows, and
+  issue-visible slots.
 - `domains/execution/`: agent runs, heartbeats, run admission, transcripts,
-  results, and close-out execution release.
+  results, workspaces, and close-out execution release.
 - `domains/work-routing/`: assignee, reviewer, checkout, wake eligibility, and
   who should act next.
-- `domains/agents/`: durable agent identity, runtime config, and instruction
-  loading.
+- `domains/agents/`: durable agent identity, runtime config, skills, inbox,
+  runtime adapters, and instruction loading.
+- `domains/organizations-and-goals/`: organization mission, goal hierarchy,
+  project grouping, and project-to-work context.
+- `domains/library-and-context/`: Library files, resources, project context,
+  workspace selection, and runtime context eligibility.
+- `domains/automations/`: automation definitions, triggers, run records,
+  concurrency, and output routing.
+- `domains/collaboration/`: Chat, Messenger, issue threads, readable
+  references, unread state, and IM/agent-integration bridges.
+- `domains/control-plane/`: approvals, budgets, costs, activity, dashboard
+  rollups, and operator-observability signals.
+- `domains/review-feedback-learning/`: review decisions, feedback capture,
+  close-out governance, and learning-promotion paths.
+- `domains/plugins/`: installed plugin lifecycle, worker boundaries,
+  capabilities, jobs, webhooks, UI slots, and plugin state.
 
 ## Required Workflow
 

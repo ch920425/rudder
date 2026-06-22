@@ -42,6 +42,16 @@ describe("index.css motion rules", () => {
     expect(indexCss).not.toContain('.rudder-markdown a.rudder-mention-chip--with-status-icon[data-mention-kind="issue"][data-mention-status="done"]::after {\n  content: none;');
   });
 
+  it("uses a dedicated automation icon for rendered and editor mention chips", () => {
+    const automationIconBlock =
+      indexCss.match(/\n\.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="automation"]::before,[\s\S]*?\n\}/)?.[0] ?? "";
+
+    expect(automationIconBlock).toContain('.rudder-milkdown-content .rudder-mention-chip[data-mention-kind="automation"]::before');
+    expect(automationIconBlock).toContain('a.rudder-mention-chip[data-mention-kind="automation"]::before');
+    expect(automationIconBlock).toContain("M3 11V9a4 4 0 0 1 4-4h14");
+    expect(automationIconBlock).toContain("M21 13v2a4 4 0 0 1-4 4H3");
+  });
+
   it("keeps command palette visible and avoids duplicate centering transforms", () => {
     const commandPaletteContent = cssBlock(".command-palette-content");
     const commandPaletteOpen = cssBlock('.command-palette-content[data-state="open"]');
@@ -256,7 +266,7 @@ describe("index.css motion rules", () => {
     expect(summary).not.toContain("-webkit-line-clamp");
   });
 
-  it("caps long non-agent inline reference tokens inside chat composers", () => {
+  it("only caps non-agent inline reference tokens at the available composer line width", () => {
     const composerMentionTokenBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-project-mention-chip \{[\s\S]*?\n\}/)?.[0] ?? "";
     const composerSkillTokenBlock =
@@ -265,9 +275,10 @@ describe("index.css motion rules", () => {
     for (const tokenBlock of [composerMentionTokenBlock, composerSkillTokenBlock]) {
       expect(tokenBlock).toContain("display: inline-block");
       expect(tokenBlock).toContain("min-width: 0");
-      expect(tokenBlock).toContain("max-width: min(15ch, calc(100% - 1rem))");
+      expect(tokenBlock).toContain("max-width: calc(100% - 1rem)");
       expect(tokenBlock).toContain("overflow: hidden");
       expect(tokenBlock).toContain("text-overflow: ellipsis");
+      expect(tokenBlock).toContain("vertical-align: -0.14em");
       expect(tokenBlock).toContain("white-space: nowrap");
     }
 
@@ -275,9 +286,26 @@ describe("index.css motion rules", () => {
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-project-mention-chip::before \{[\s\S]*?\n\}/)?.[0] ?? "";
     const composerSkillIconBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-skill-token::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-skill-token::before \{[\s\S]*?\n\}/)?.[0] ?? "";
+    const composerAutomationIconBlock =
+      indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="automation"]::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-mention-chip\[data-mention-kind="automation"]::before \{[\s\S]*?\n\}/)?.[0] ?? "";
 
     expect(composerMentionIconBlock).toContain("margin-right: 0.28em");
+    expect(composerMentionIconBlock).toContain("transform: translateY(0.1em)");
     expect(composerSkillIconBlock).toContain("margin-right: 0.28em");
+    expect(composerSkillIconBlock).toContain("transform: translateY(0.1em)");
+    expect(composerAutomationIconBlock).toContain("transform: translateY(0.18em)");
+    expect(composerAutomationIconBlock).not.toContain("a.rudder-mention-chip");
+  });
+
+  it("keeps chat composer drafts aligned with the toolbar axis", () => {
+    const composerEditorScrollBlock = cssBlock(".chat-composer-editor-scroll");
+    const composerContentBlock = cssBlock(".chat-composer .rudder-mdxeditor-content");
+    const firstLineBlock = cssBlock(".chat-composer .rudder-mdxeditor-content p:first-child");
+
+    expect(composerEditorScrollBlock).toContain("padding-inline: 0.75rem");
+    expect(composerEditorScrollBlock).toContain("padding-block: 0.25rem 0");
+    expect(composerContentBlock).toContain("display: flow-root");
+    expect(firstLineBlock).toContain("min-height: 1.75rem");
   });
 
   it("shows full agent mention labels inside chat composers", () => {
@@ -362,13 +390,15 @@ describe("index.css motion rules", () => {
     expect(framelessWorkspaceCard).toContain("box-shadow: none");
   });
 
-  it("covers the Library column seam without reintroducing a heavy workspace card", () => {
+  it("keeps the Library workspace shell transparent on macOS desktop", () => {
     const libraryWorkspaceShell = cssBlock("html.desktop-shell-macos .workspace-shell--library-transparent");
     const darkLibraryWorkspaceShell = cssBlock("html.dark.desktop-shell-macos .workspace-shell--library-transparent");
 
     expect(indexCss).toContain("html.dark.desktop-shell-macos .workspace-shell--library-transparent");
-    expect(libraryWorkspaceShell).toContain("background: var(--desktop-content-surface-light)");
-    expect(darkLibraryWorkspaceShell).toContain("background: var(--desktop-content-surface-dark)");
+    expect(libraryWorkspaceShell).toContain("background: transparent");
+    expect(darkLibraryWorkspaceShell).toContain("background: transparent");
+    expect(libraryWorkspaceShell).not.toContain("desktop-content-surface");
+    expect(darkLibraryWorkspaceShell).not.toContain("desktop-content-surface");
     expect(libraryWorkspaceShell).not.toContain("box-shadow");
   });
 

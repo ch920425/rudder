@@ -852,6 +852,23 @@ export function organizationRoutes(db: Db, storage?: StorageService) {
     res.json(result);
   });
 
+  router.get("/:orgId/workspace/backups/:backupId/download", async (req, res) => {
+    const orgId = req.params.orgId as string;
+    const backupId = req.params.backupId as string;
+    assertCompanyAccess(req, orgId);
+    assertBoard(req);
+    const result = await workspaceBackups.getDownload(orgId, backupId);
+    res.setHeader("Content-Type", result.contentType);
+    res.setHeader("Content-Length", String(result.byteSize));
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (result.archiveSha256) {
+      res.setHeader("X-Rudder-Archive-Sha256", result.archiveSha256);
+    }
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename.replaceAll("\"", "")}"`);
+    res.end(result.content);
+  });
+
   router.post("/:orgId/workspace/backups/:backupId/restore", validate(restoreWorkspaceBackupSchema), async (req, res) => {
     const orgId = req.params.orgId as string;
     const backupId = req.params.backupId as string;

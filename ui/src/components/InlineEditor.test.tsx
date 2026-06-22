@@ -72,7 +72,7 @@ describe("InlineEditor", () => {
     expect(html).not.toContain("text-foreground");
   });
 
-  it("can keep multiline markdown in the wysiwyg editor before any click", () => {
+  it("keeps always-edit multiline markdown display-first until focused", () => {
     const html = renderToStaticMarkup(
       <InlineEditor
         value="Issue context"
@@ -82,10 +82,39 @@ describe("InlineEditor", () => {
       />,
     );
 
-    expect(html).toContain("data-testid=\"markdown-editor\"");
     expect(html).toContain("Issue context");
-    expect(html).not.toContain("data-testid=\"markdown-body\"");
+    expect(html).toContain("data-testid=\"markdown-body\"");
+    expect(html).not.toContain("data-testid=\"markdown-editor\"");
     expect(html).not.toContain("hover:bg-accent/50");
+  });
+
+  it("opens the multiline markdown editor after click", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <InlineEditor
+          value="Issue context"
+          onSave={() => undefined}
+          multiline
+          alwaysEdit
+        />,
+      );
+    });
+
+    expect(host.querySelector("[data-testid='markdown-body']")).toBeTruthy();
+    expect(host.querySelector("[data-testid='markdown-editor']")).toBeNull();
+    const display = host.querySelector(".rudder-inline-markdown-surface");
+    await act(async () => {
+      display!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(host.querySelector("[data-testid='markdown-editor']")).toBeTruthy();
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
   });
 
   it("keeps hover feedback for compact single-line fields", () => {

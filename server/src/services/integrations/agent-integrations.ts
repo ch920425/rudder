@@ -82,6 +82,28 @@ export function agentIntegrationService(db: Db) {
         throw conflict("Agent already has an active integration for this provider");
       }
 
+      if (existing) {
+        return db
+          .update(agentIntegrations)
+          .set({
+            status: "active",
+            transport: parsed.transport,
+            providerRegion: parsed.providerRegion,
+            appCredentialSecretId: parsed.appCredentialSecretId,
+            externalAppId: parsed.externalAppId,
+            externalBotOpenId: parsed.externalBotOpenId ?? null,
+            externalTenantKey: parsed.externalTenantKey ?? null,
+            installerUserId: parsed.installerUserId ?? null,
+            manageUrl: parsed.manageUrl ?? null,
+            installedAt: new Date(),
+            revokedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(agentIntegrations.id, existing.id))
+          .returning()
+          .then((rows) => rows[0]);
+      }
+
       return db
         .insert(agentIntegrations)
         .values({
@@ -100,6 +122,23 @@ export function agentIntegrationService(db: Db) {
         .returning()
         .then((rows) => rows[0]);
     },
+
+    markErrorForAgent: async (orgId: string, agentId: string, integrationId: string) =>
+      db
+        .update(agentIntegrations)
+        .set({
+          status: "error",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(agentIntegrations.orgId, orgId),
+            eq(agentIntegrations.agentId, agentId),
+            eq(agentIntegrations.id, integrationId),
+          ),
+        )
+        .returning()
+        .then((rows) => rows[0] ?? null),
 
     revoke: async (orgId: string, integrationId: string) =>
       db

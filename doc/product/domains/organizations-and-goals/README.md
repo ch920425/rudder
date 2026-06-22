@@ -1,0 +1,43 @@
+---
+title: Organizations Goals And Projects Domain
+domain: organizations-and-goals
+status: active
+coverage: detailed
+contract_ids: []
+related_code:
+  - server/src/routes/goals.ts
+  - server/src/services/goals.ts
+  - server/src/routes/projects.ts
+  - server/src/services/projects.ts
+related_tests:
+  - tests/e2e/goal-detail-lifecycle.spec.ts
+  - server/src/__tests__/projects-service.test.ts
+edit_policy: user_confirmed_only
+---
+
+# Organizations Goals And Projects Domain
+
+## Owns
+
+- Organization mission and lifecycle as the top-level operating boundary.
+- Goal hierarchy, status, owner, and dependency protection.
+- Project identity, project-goal links, lead agent, status, and grouping of
+  issues/resources/workspaces.
+
+## Does Not Own
+
+- Issue state and execution. See `ISSUE.*` and `RUN.*`.
+- Project resources and workspace file eligibility. See `CONTEXT.*` and
+  `WORKSPACE.*`.
+- Dashboard metric rollups. See `CONTROL.*`.
+
+## Contract Index
+
+- `ORG.GOAL.001`: goals explain why work exists and preserve hierarchy.
+- `ORG.PROJECT.001`: projects group goal-directed issues, resources, and
+  workspaces.
+- `ORG.SETTINGS.001`: settings persist instance/operator/organization behavior
+  without crossing scopes.
+- `ORG.ONBOARDING.001`: onboarding guides a fresh user to a real work surface.
+- `ORG.PORTABILITY.001`: export/import moves organization knowledge with
+  previewable, scoped mutations.

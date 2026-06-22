@@ -7,8 +7,8 @@ import { isLowSignalIssueContentOnlyUpdate, issueUpdatedChangedKeys as sharedIss
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, type ReactNode } from "react";
 import type { RunForIssue } from "../api/activity";
-import { authApi } from "../api/auth";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/agent-runs";
+import { authApi } from "../api/auth";
 import { toOrganizationRelativePath } from "../lib/organization-routes";
 import { queryKeys } from "../lib/queryKeys";
 import { useLocation } from "../lib/router";

@@ -19,6 +19,7 @@ edit_policy: user_confirmed_only
 ## Owns
 
 - Wakeup admission and coalescing.
+- Timer preflight and execution-safety preflight gates.
 - Heartbeat run records and execution lifecycle.
 - Runtime invocation and adapter results.
 - Run logs, transcripts, usage, sessions, and finalization.
@@ -33,6 +34,11 @@ edit_policy: user_confirmed_only
 ## Contract Index
 
 - `RUN.WAKEUP.001`: wakeup queueing, skips, defers, and coalescing.
+- `RUN.PREFLIGHT.001`: timer heartbeats launch only when preflight finds
+  recoverable or visible actionable work, unless preflight is explicitly
+  disabled.
+- `RUN.WORKSPACE.PREFLIGHT.001`: managed workspace paths are created and
+  writability-checked before adapter execution.
 - `RUN.EXECUTION.001`: heartbeat execution invokes the configured adapter and
   records the result.
 - `RUN.ADMISSION.001`: issue-backed runs serialize on issue execution lock and

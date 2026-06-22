@@ -23,6 +23,8 @@ export type {
   AgentIntegrationChatBinding,
   AgentIntegrationInboundAudit,
   AgentIntegrationOutboundMessage,
+  AgentIntegrationSetupSession,
+  AgentIntegrationSetupSessionStatus,
   AgentIntegrationSetupUrl,
   AgentIntegrationSummary,
   AgentIntegrationUserBinding
@@ -52,16 +54,13 @@ export type {
   ChatAskUserOption,
   ChatAskUserQuestion,
   ChatAskUserRequest, ChatAttachment,
-  ChatContextLink, ChatConversation, ChatLinkedEntity, ChatMessage, ChatOperationProposalDecision,
-  ChatQueuedMessage, ChatQueuedMessagePayload, ChatQueuedMessageStatus, ChatQueueClaimResponse, ChatQueueSnapshot,
-  ChatOperationProposalDecisionAction,
-  ChatOperationProposalDecisionStatus, ChatPrimaryIssueSummary, ChatRichReference,
+  ChatContextLink, ChatConversation, ChatLinkedEntity, ChatMessage, ChatOperationProposalDecision, ChatOperationProposalDecisionAction,
+  ChatOperationProposalDecisionStatus, ChatPrimaryIssueSummary, ChatQueueClaimResponse, ChatQueueSnapshot, ChatQueuedMessage, ChatQueuedMessagePayload, ChatQueuedMessageStatus, ChatRichReference,
   ChatRichReferenceDisplay,
   ChatRuntimeDescriptor, ChatSteerResponse, ChatSteerResult, ChatStreamAckEvent,
   ChatStreamAssistantDeltaEvent,
   ChatStreamAssistantStateEvent, ChatStreamErrorEvent,
-  ChatStreamEvent, ChatStreamQueuedEvent,
-  ChatStreamFinalEvent, ChatStreamTranscriptEntry, ChatStreamTranscriptEntryEvent, ChatStreamTranscriptTodoItem,
+  ChatStreamEvent, ChatStreamFinalEvent, ChatStreamQueuedEvent, ChatStreamTranscriptEntry, ChatStreamTranscriptEntryEvent, ChatStreamTranscriptTodoItem,
   ChatStreamTranscriptTodoItemStatus, ChatTranscriptSummary
 } from "./chat.js";
 export type { CostByAgent, CostByAgentModel, CostByBiller, CostByProject, CostByProviderModel, CostEvent, CostSummary, CostTrendPoint, CostWindowSpendRow } from "./cost.js";

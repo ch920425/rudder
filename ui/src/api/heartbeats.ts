@@ -18,7 +18,7 @@ export {
   AGENT_RUN_LIST_HISTORY_LIMIT as HEARTBEAT_RUN_LIST_HISTORY_LIMIT,
   type ActiveRunForIssue,
   type AgentRunListFilters as HeartbeatRunListFilters,
-  type LiveRunForIssue,
+  type LiveRunForIssue
 };
 
 export const schedulerHeartbeatsApi = {

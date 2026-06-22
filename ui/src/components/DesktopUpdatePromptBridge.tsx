@@ -66,7 +66,7 @@ export function DesktopUpdatePromptBridge() {
         if (!open) void settle("cancel");
       }}
     >
-      <DialogContent className="gap-0 p-0 sm:max-w-[27rem]" showCloseButton={false}>
+      <DialogContent className="gap-0 p-0 sm:max-w-[34rem]" showCloseButton={false}>
         <div className="flex items-start gap-3 px-5 pb-4 pt-5">
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-amber-500/30 bg-amber-500/12 text-amber-600 dark:text-amber-300">
             <AlertTriangle className="h-5 w-5" />
@@ -89,10 +89,11 @@ export function DesktopUpdatePromptBridge() {
             </p>
           </div>
         ) : null}
-        <DialogFooter className="gap-2 px-5 pb-5 pt-4 sm:justify-end">
+        <DialogFooter className="grid grid-cols-1 gap-2 px-5 pb-5 pt-4 sm:grid-cols-2 sm:justify-stretch">
           <Button
             type="button"
             variant="outline"
+            className="h-auto min-h-10 min-w-0 whitespace-normal leading-5"
             disabled={responding}
             onClick={() => void settle("cancel")}
           >
@@ -101,6 +102,7 @@ export function DesktopUpdatePromptBridge() {
           <Button
             type="button"
             variant="outline"
+            className="h-auto min-h-10 min-w-0 whitespace-normal leading-5"
             disabled={responding}
             onClick={() => void settle("force")}
           >
@@ -108,6 +110,7 @@ export function DesktopUpdatePromptBridge() {
           </Button>
           <Button
             type="button"
+            className="h-auto min-h-10 min-w-0 whitespace-normal leading-5 sm:col-span-2"
             disabled={responding}
             onClick={() => void settle("wait")}
           >

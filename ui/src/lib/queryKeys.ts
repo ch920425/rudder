@@ -56,6 +56,7 @@ export const queryKeys = {
     follows: (orgId: string) => ["issues", orgId, "follows"] as const,
     search: (orgId: string, q: string, projectId?: string, searchFields: readonly string[] = ["title"]) =>
       ["issues", orgId, "search", q, projectId ?? "__all-projects__", searchFields.join(",")] as const,
+    mentionCatalog: (orgId: string) => ["issues", orgId, "mention-catalog"] as const,
     listAssignedToMe: (orgId: string) => ["issues", orgId, "assigned-to-me"] as const,
     listTouchedByMe: (orgId: string) => ["issues", orgId, "touched-by-me"] as const,
     listUnreadTouchedByMe: (orgId: string) => ["issues", orgId, "unread-touched-by-me"] as const,

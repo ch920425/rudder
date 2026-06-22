@@ -28,9 +28,9 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { agentRunsApi } from "../api/agent-runs";
 import { agentsApi } from "../api/agents";
 import { automationsApi, type AutomationTriggerResponse, type RotateAutomationTriggerResponse } from "../api/automations";
-import { agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { organizationSkillsApi } from "../api/organizationSkills";
 import { projectsApi } from "../api/projects";

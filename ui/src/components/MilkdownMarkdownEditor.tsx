@@ -12,6 +12,7 @@ import { $prose, getMarkdown, insert, replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import {
   buildAgentMentionHref,
+  buildAutomationMentionHref,
   buildChatMentionHref,
   buildIssueMentionHref,
   buildLibraryDirectoryMentionHref,
@@ -20,7 +21,7 @@ import {
   buildLibraryFileMentionHref,
   buildProjectMentionHref,
 } from "@rudderhq/shared";
-import { Boxes, FileText, Folder, MessageSquare } from "lucide-react";
+import { Boxes, FileText, Folder, MessageSquare, Repeat } from "lucide-react";
 import {
   forwardRef,
   useCallback,
@@ -97,6 +98,7 @@ type ProseMirrorTransaction = {
   insertText: (text: string, from?: number, to?: number) => ProseMirrorTransaction;
   replaceWith: (from: number, to: number, content: unknown) => ProseMirrorTransaction;
   setSelection: (selection: unknown) => ProseMirrorTransaction;
+  setMeta?: (key: string, value: unknown) => ProseMirrorTransaction;
   setStoredMarks: (marks: readonly unknown[] | null) => ProseMirrorTransaction;
 };
 
@@ -119,6 +121,10 @@ type ProseMirrorView = {
   posAtDOM?: (node: Node, offset: number) => number;
 };
 
+type MilkdownActionContext = {
+  get: (key: typeof editorViewCtx) => unknown;
+};
+
 type RudderTokenRange = {
   from: number;
   to: number;
@@ -132,6 +138,21 @@ function linkHrefFromTextNode(node: {
   return node.marks?.find((mark) => mark.type?.name === "link" && mark.attrs?.href)?.attrs?.href?.trim() ?? "";
 }
 
+export function getMilkdownProseMirrorView(ctx: MilkdownActionContext) {
+  try {
+    return ctx.get(editorViewCtx) as ProseMirrorView;
+  } catch {
+    return null;
+  }
+}
+
+function runWhenMilkdownViewReady<T>(command: (ctx: never) => T) {
+  return (ctx: MilkdownActionContext) => {
+    if (!getMilkdownProseMirrorView(ctx)) return undefined;
+    return command(ctx as never);
+  };
+}
+
 function mentionTokenDetails(option: MentionOption, agentMentionIntent?: "reference" | "wake"): { href: string; label: string } | null {
   if (option.kind === "skill") {
     if (!option.skillMarkdownTarget || !option.skillRefLabel) return null;
@@ -139,6 +160,9 @@ function mentionTokenDetails(option: MentionOption, agentMentionIntent?: "refere
   }
   if (option.kind === "issue" && option.issueId) {
     return { href: buildIssueMentionHref(option.issueId, option.issueIdentifier ?? null, null, option.issueStatus ?? null), label: option.name };
+  }
+  if (option.kind === "automation" && option.automationId) {
+    return { href: buildAutomationMentionHref(option.automationId, option.automationTitle ?? option.name), label: option.automationTitle ?? option.name };
   }
   if (option.kind === "chat" && option.chatConversationId) {
     return { href: buildChatMentionHref(option.chatConversationId, option.chatTitle ?? option.name), label: option.name };
@@ -331,12 +355,25 @@ export function refreshMilkdownMentionTokenStyles(root: HTMLElement | null, ment
         : parsed.kind === "issue"
           ? {
               ...parsed,
+              ref: optionByKey.get(`issue:${parsed.issueId}`)?.name ?? parsed.ref ?? null,
               status: optionByKey.get(`issue:${parsed.issueId}`)?.issueStatus ?? parsed.status ?? null,
+            }
+        : parsed.kind === "automation"
+          ? {
+              ...parsed,
+              title: optionByKey.get(`automation:${parsed.automationId}`)?.automationTitle
+                ?? optionByKey.get(`automation:${parsed.automationId}`)?.name
+                ?? parsed.title
+                ?? null,
             }
         : parsed;
     if (!element.dataset.mentionHref) {
       applyMentionChipDecoration(element, mention);
       element.dataset.mentionHref = href;
+    } else if (mention.kind === "automation" && mention.title?.trim()) {
+      element.textContent = mention.title.trim();
+    } else if (mention.kind === "issue" && mention.ref?.trim()) {
+      element.textContent = mention.ref.trim();
     }
     applyMentionStatusProperties(element, mention);
     applyMentionStyleProperties(element, mention);
@@ -370,6 +407,9 @@ function mentionOptionMap(mentions: MentionOption[]) {
     if (mention.kind === "issue" && mention.issueId) {
       map.set(`issue:${mention.issueId}`, mention);
     }
+    if (mention.kind === "automation" && mention.automationId) {
+      map.set(`automation:${mention.automationId}`, mention);
+    }
   }
   return map;
 }
@@ -396,7 +436,16 @@ function buildMilkdownTokenDecorations(doc: ProseMirrorDoc, mentions: MentionOpt
           : parsed.kind === "issue"
             ? {
                 ...parsed,
+                ref: optionByKey.get(`issue:${parsed.issueId}`)?.name ?? parsed.ref ?? null,
                 status: optionByKey.get(`issue:${parsed.issueId}`)?.issueStatus ?? parsed.status ?? null,
+              }
+          : parsed.kind === "automation"
+            ? {
+                ...parsed,
+                title: optionByKey.get(`automation:${parsed.automationId}`)?.automationTitle
+                  ?? optionByKey.get(`automation:${parsed.automationId}`)?.name
+                  ?? parsed.title
+                  ?? null,
               }
           : parsed;
       decorations.push(Decoration.inline(pos, pos + node.nodeSize, milkdownMentionDecorationAttrs(mention, label, href)));
@@ -1071,7 +1120,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, editorValue);
         const listenerManager = ctx.get(listenerCtx);
-        listenerManager.markdownUpdated((_ctx, markdown) => {
+        listenerManager.markdownUpdated((listenerCtx, markdown) => {
+          if (!getMilkdownProseMirrorView(listenerCtx)) return;
           latestValueRef.current = markdown;
           onChangeRef.current(markdown);
         });
@@ -1100,15 +1150,17 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     mentionsRef.current = mentions ?? [];
     const editor = loading ? get() : getInstance();
     editor?.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      view.dispatch(view.state.tr.setMeta("rudderMentionOptionsUpdated", true));
+      const view = getMilkdownProseMirrorView(ctx);
+      if (!view) return;
+      const transaction = view.state.tr.setMeta?.("rudderMentionOptionsUpdated", true) ?? view.state.tr;
+      view.dispatch(transaction);
     });
     requestAnimationFrame(() => refreshMilkdownMentionTokenStyles(containerRef.current, mentionsRef.current));
     if (shouldRestoreFocus) {
       requestAnimationFrame(() => {
         const currentEditor = loading ? get() : getInstance();
         currentEditor?.action((ctx) => {
-          ctx.get(editorViewCtx).focus();
+          getMilkdownProseMirrorView(ctx)?.focus?.();
         });
       });
     }
@@ -1121,7 +1173,9 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
   const focus = useCallback(() => {
     const editor = loading ? get() : getInstance();
     editor?.action((ctx) => {
-      focusProseMirrorViewAtEnd(ctx.get(editorViewCtx) as unknown as ProseMirrorView);
+      const view = getMilkdownProseMirrorView(ctx);
+      if (!view) return;
+      focusProseMirrorViewAtEnd(view);
     });
   }, [get, getInstance, loading]);
 
@@ -1129,6 +1183,7 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     let markdown = latestValueRef.current;
     const editor = loading ? get() : getInstance();
     editor?.action((ctx) => {
+      if (!getMilkdownProseMirrorView(ctx)) return;
       markdown = getMarkdown()(ctx);
     });
     return markdown;
@@ -1140,7 +1195,7 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     if (!isMilkdownEditableUnexpectedlyBlank(editable, latestValueRef.current)) return;
 
     const editor = loading ? get() : getInstance();
-    editor?.action(replaceAll(latestValueRef.current, true));
+    editor?.action(runWhenMilkdownViewReady(replaceAll(latestValueRef.current, true)));
     requestAnimationFrame(() => refreshMilkdownMentionTokenStyles(containerRef.current, mentionsRef.current));
   }, [get, getInstance, loading]);
 
@@ -1153,7 +1208,7 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     if (editorValue === latestValueRef.current) return;
     latestValueRef.current = editorValue;
     const editor = loading ? get() : getInstance();
-    editor?.action(replaceAll(editorValue, true));
+    editor?.action(runWhenMilkdownViewReady(replaceAll(editorValue, true)));
   }, [editorValue, get, getInstance, loading]);
 
   useEffect(() => {
@@ -1301,8 +1356,10 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     );
     let insertedInEditor = false;
     editor?.action((ctx) => {
+      const view = getMilkdownProseMirrorView(ctx);
+      if (!view) return;
       insertedInEditor = insertMentionIntoProseMirrorView(
-        ctx.get(editorViewCtx) as unknown as ProseMirrorView,
+        view,
         state,
         option,
         agentMentionIntent,
@@ -1316,17 +1373,19 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       if (next !== latestValueRef.current) {
         latestValueRef.current = next;
         onChangeRef.current(next);
-        editor?.action(replaceAll(next, true));
+        editor?.action(runWhenMilkdownViewReady(replaceAll(next, true)));
       }
     }
     requestAnimationFrame(() => {
       const currentEditor = loading ? get() : getInstance();
       currentEditor?.action((ctx) => {
         if (insertedInEditor) {
-          ctx.get(editorViewCtx).focus();
+          getMilkdownProseMirrorView(ctx)?.focus?.();
           return;
         }
-        focusProseMirrorViewAtEnd(ctx.get(editorViewCtx) as unknown as ProseMirrorView);
+        const view = getMilkdownProseMirrorView(ctx);
+        if (!view) return;
+        focusProseMirrorViewAtEnd(view);
       });
     });
     mentionStateRef.current = null;
@@ -1337,7 +1396,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
     const editor = loading ? get() : getInstance();
     let removed = false;
     editor?.action((ctx) => {
-      const view = ctx.get(editorViewCtx) as unknown as ProseMirrorView;
+      const view = getMilkdownProseMirrorView(ctx);
+      if (!view) return;
       const range = findAdjacentRudderTokenRange(view.state, direction);
       if (!range) return;
       let deleteTo = range.to;
@@ -1361,7 +1421,7 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       setUploadError(null);
       const markdown = `![${file.name}](${src})\n\n`;
       const editor = loading ? get() : getInstance();
-      editor?.action(insert(markdown, false));
+      editor?.action(runWhenMilkdownViewReady(insert(markdown, false)));
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Image upload failed");
     }
@@ -1414,7 +1474,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
           const editor = loading ? get() : getInstance();
           let repairedTokenBoundary = false;
           editor?.action((ctx) => {
-            const view = ctx.get(editorViewCtx) as unknown as ProseMirrorView;
+            const view = getMilkdownProseMirrorView(ctx);
+            if (!view) return;
             repairedTokenBoundary = insertTextAfterRudderTokenBoundary(view, event.key);
           });
           if (repairedTokenBoundary) {
@@ -1451,7 +1512,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
       onInputCapture={() => {
         const editor = loading ? get() : getInstance();
         editor?.action((ctx) => {
-          const view = ctx.get(editorViewCtx) as unknown as ProseMirrorView;
+          const view = getMilkdownProseMirrorView(ctx);
+          if (!view) return;
           insertMissingRudderTokenBoundarySpaces(view);
           const markdown = getMarkdown()(ctx);
           if (markdown !== latestValueRef.current) {
@@ -1491,7 +1553,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
         const editor = loading ? get() : getInstance();
         if (!canonicalMarkdown) {
           editor?.action((ctx) => {
-            const view = ctx.get(editorViewCtx) as unknown as ProseMirrorView;
+            const view = getMilkdownProseMirrorView(ctx);
+            if (!view) return;
             if (view.state.selection.empty) return;
             canonicalMarkdown = getMarkdown({
               from: view.state.selection.from,
@@ -1522,7 +1585,9 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
         if (!shouldActivateMilkdownInlineTokenClick(event, activateInlineTokensOnPlainClick)) {
           const editor = loading ? get() : getInstance();
           editor?.action((ctx) => {
-            placeSelectionAfterRudderTokenAnchor(ctx.get(editorViewCtx) as unknown as ProseMirrorView, anchor);
+            const view = getMilkdownProseMirrorView(ctx);
+            if (!view) return;
+            placeSelectionAfterRudderTokenAnchor(view, anchor);
           });
           return;
         }
@@ -1582,7 +1647,7 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
         if (!markdown || !shouldParsePastedMarkdown(markdown)) return;
         event.preventDefault();
         const editor = loading ? get() : getInstance();
-        editor?.action(insert(markdown, false));
+        editor?.action(runWhenMilkdownViewReady(insert(markdown, false)));
         requestAnimationFrame(checkMention);
       }}
       onDragEnter={(event) => {
@@ -1707,6 +1772,8 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
                         >
                           <StatusIcon status={option.issueStatus ?? "default"} />
                         </span>
+                      ) : option.kind === "automation" ? (
+                        <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" />
                       ) : option.kind === "chat" ? (
                         <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
                       ) : option.kind === "library_file" ? (
@@ -1723,7 +1790,11 @@ const MilkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(f
                         />
                       )}
                       {!(option.kind === "skill" && isContainerMenu) ? (
-                        option.kind === "chat" ? (
+                        option.kind === "automation" ? (
+                          <div className="min-w-0 flex-1 truncate font-medium text-foreground">
+                            {option.automationTitle ?? option.name}
+                          </div>
+                        ) : option.kind === "chat" ? (
                           <div className="min-w-0 flex-1 truncate font-medium text-foreground">
                             {option.name}
                           </div>

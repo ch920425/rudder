@@ -169,6 +169,15 @@ describe("workspace backup service", () => {
 
     const file = await service.readFile(orgId, backup.id, "projects/roadmap/roadmap.md");
     expect(file.content).toBe("# Roadmap\n");
+
+    const download = await service.getDownload(orgId, backup.id);
+    expect(download).toEqual(expect.objectContaining({
+      artifactRef: backup.artifactRef,
+      filename: path.basename(backup.artifactRef),
+      contentType: "application/json",
+      archiveSha256: backup.archiveSha256,
+    }));
+    expect(download.byteSize).toBeGreaterThan(0);
   });
 
   it("migrates legacy full UUID backup artifact paths and metadata to the short storage key", async () => {
@@ -299,6 +308,154 @@ describe("workspace backup service", () => {
     await expect(fs.readFile(path.join(workspaceRoot, "notes.md"), "utf8")).resolves.toBe("before\n");
   });
 
+  it("repairs a sparse workspace from the latest richer backup before creating a scheduled backup", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "approved\n", "utf8");
+    for (let index = 0; index < 10; index += 1) {
+      await fs.writeFile(
+        path.join(workspaceRoot, "projects", "foundria-llc", "tax", `support-${index}.md`),
+        `support ${index}\n`,
+        "utf8",
+      );
+    }
+
+    const richBackup = await service.create({ orgId, triggerSource: "manual" });
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+
+    const scheduled = await service.runScheduledBackups({
+      now: new Date(Date.now() + 25 * 60 * 60 * 1000),
+    });
+
+    expect(scheduled.errors).toEqual([]);
+    expect(scheduled.created).toHaveLength(1);
+    expect(scheduled.created[0]?.fileCount).toBeGreaterThanOrEqual(richBackup.fileCount);
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "utf8"))
+      .resolves.toBe("approved\n");
+  });
+
+  it("preserves conflicting live files while repairing missing sparse workspace files", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Backup README\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "approved\n", "utf8");
+    for (let index = 0; index < 10; index += 1) {
+      await fs.writeFile(
+        path.join(workspaceRoot, "projects", "foundria-llc", "tax", `support-${index}.md`),
+        `support ${index}\n`,
+        "utf8",
+      );
+    }
+
+    const backup = await service.create({ orgId, triggerSource: "manual" });
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Live README\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), "live file where backup has a directory\n", "utf8");
+
+    const recovery = await service.recoverSparseWorkspaceFromLatestBackup(orgId);
+
+    expect(recovery).toEqual(expect.objectContaining({
+      recovered: false,
+      backupId: backup.id,
+      currentFileCount: 2,
+      backupFileCount: backup.fileCount,
+      reason: "no missing files restored",
+    }));
+    expect(recovery.skippedConflictingFiles).toEqual(expect.arrayContaining([
+      "projects/foundria-llc/README.md",
+      "projects/foundria-llc/tax",
+      "projects/foundria-llc/tax/147c-letter.md",
+    ]));
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "utf8"))
+      .resolves.toBe("# Live README\n");
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), "utf8"))
+      .resolves.toBe("live file where backup has a directory\n");
+  });
+
+  it("falls back to an older richer backup when the latest sparse-repair candidate is corrupt", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "approved\n", "utf8");
+    for (let index = 0; index < 10; index += 1) {
+      await fs.writeFile(
+        path.join(workspaceRoot, "projects", "foundria-llc", "tax", `support-${index}.md`),
+        `support ${index}\n`,
+        "utf8",
+      );
+    }
+
+    const goodBackup = await service.create({ orgId, triggerSource: "manual" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const corruptLatestBackup = await service.create({ orgId, triggerSource: "manual" });
+    await fs.writeFile(corruptLatestBackup.artifactRef, "{\"corrupt\":true}\n", "utf8");
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+
+    const scheduled = await service.runScheduledBackups({
+      now: new Date(Date.now() + 25 * 60 * 60 * 1000),
+    });
+
+    expect(scheduled.errors).toEqual([]);
+    expect(scheduled.sparseRecoveries).toEqual([
+      expect.objectContaining({
+        recovered: true,
+        backupId: goodBackup.id,
+      }),
+    ]);
+    expect(scheduled.created).toHaveLength(1);
+    expect(scheduled.created[0]?.fileCount).toBeGreaterThanOrEqual(goodBackup.fileCount);
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "utf8"))
+      .resolves.toBe("approved\n");
+  });
+
+  it("prefers the richest backup over a newer valid sparse backup when repairing a sparse workspace", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc", "tax"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "approved\n", "utf8");
+    for (let index = 0; index < 12; index += 1) {
+      await fs.writeFile(
+        path.join(workspaceRoot, "projects", "foundria-llc", "tax", `support-${index}.md`),
+        `support ${index}\n`,
+        "utf8",
+      );
+    }
+
+    const richestBackup = await service.create({ orgId, triggerSource: "manual" });
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Sparse\n", "utf8");
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "notes.md"), "newer sparse backup\n", "utf8");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const newerSparseBackup = await service.create({ orgId, triggerSource: "manual" });
+    await fs.rm(workspaceRoot, { recursive: true, force: true });
+    await fs.mkdir(path.join(workspaceRoot, "projects", "foundria-llc"), { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "projects", "foundria-llc", "README.md"), "# Foundria\n", "utf8");
+
+    const recovery = await service.recoverSparseWorkspaceFromLatestBackup(orgId);
+
+    expect(newerSparseBackup.fileCount).toBeLessThan(richestBackup.fileCount);
+    expect(recovery).toEqual(expect.objectContaining({
+      recovered: true,
+      backupId: richestBackup.id,
+      backupFileCount: richestBackup.fileCount,
+    }));
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "tax", "147c-letter.md"), "utf8"))
+      .resolves.toBe("approved\n");
+    await expect(fs.readFile(path.join(workspaceRoot, "projects", "foundria-llc", "notes.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("deletes backup artifacts from the visible history", async () => {
     const orgId = await createOrganization();
     const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
@@ -310,6 +467,21 @@ describe("workspace backup service", () => {
 
     expect(deleted.status).toBe("deleted");
     await expect(service.list(orgId)).resolves.toEqual([]);
+  });
+
+  it("blocks downloads when the artifact checksum no longer matches metadata", async () => {
+    const orgId = await createOrganization();
+    const workspaceRoot = resolveOrganizationWorkspaceRoot(orgId);
+    await fs.mkdir(workspaceRoot, { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "scratch.txt"), "backup\n", "utf8");
+
+    const backup = await service.create({ orgId });
+    await fs.writeFile(backup.artifactRef, "{\"tampered\":true}\n", "utf8");
+
+    await expect(service.getDownload(orgId, backup.id)).rejects.toMatchObject({
+      status: 422,
+      message: "Workspace backup artifact checksum does not match the recorded backup metadata",
+    });
   });
 
   it("creates scheduled backups and prunes expired versions", async () => {

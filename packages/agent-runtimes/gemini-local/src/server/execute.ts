@@ -53,6 +53,7 @@ const GEMINI_PROTECTED_ENV_KEYS = new Set([
 ]);
 const GEMINI_SHARED_HOME_ALLOWLIST = new Set([
   "credentials.json",
+  "google_accounts.json",
   "oauth_creds.json",
   "token.json",
   "trustedFolders.json",
@@ -125,6 +126,30 @@ async function ensureSymlink(target: string, source: string) {
   await fs.symlink(source, target);
 }
 
+async function readJsonObject(filePath: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function copyGeminiAuthSettings(sourceHome: string, targetHome: string) {
+  const sourceSettings = await readJsonObject(path.join(sourceHome, ".gemini", "settings.json"));
+  const security = parseObject(sourceSettings?.security);
+  const auth = parseObject(security.auth);
+  if (Object.keys(auth).length === 0) return;
+
+  const targetSettingsPath = path.join(targetHome, ".gemini", "settings.json");
+  await ensureParentDir(targetSettingsPath);
+  await fs.writeFile(targetSettingsPath, `${JSON.stringify({ security: { auth } }, null, 2)}\n`, "utf8");
+}
+
 function resolveSharedGeminiHomeDir(env: NodeJS.ProcessEnv): string {
   return path.resolve(nonEmpty(env.HOME) ?? os.homedir());
 }
@@ -159,6 +184,7 @@ async function prepareManagedGeminiHome(
   await fs.mkdir(resolveManagedGeminiSkillsDir(targetHome), { recursive: true });
   if (await pathExists(path.join(sourceHome, ".gemini"))) {
     await syncGeminiSharedHomeEntries(sourceHome, targetHome);
+    await copyGeminiAuthSettings(sourceHome, targetHome);
   }
 
   await onLog(
@@ -602,9 +628,11 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     const structuredFailure = attempt.parsed.resultEvent
       ? describeGeminiFailure(attempt.parsed.resultEvent)
       : null;
+    const hasSemanticError = Boolean(parsedError || structuredFailure);
     const fallbackErrorMessage =
       parsedError ||
       structuredFailure ||
+      authMeta.message ||
       stderrLine ||
       `Gemini exited with code ${attempt.proc.exitCode ?? -1}`;
 
@@ -612,8 +640,10 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
       timedOut: false,
-      errorMessage: (attempt.proc.exitCode ?? 0) === 0 ? null : fallbackErrorMessage,
-      errorCode: (attempt.proc.exitCode ?? 0) !== 0 && authMeta.requiresAuth ? "gemini_auth_required" : null,
+      errorMessage: (attempt.proc.exitCode ?? 0) === 0 && !hasSemanticError ? null : fallbackErrorMessage,
+      errorCode: ((attempt.proc.exitCode ?? 0) !== 0 || hasSemanticError) && authMeta.requiresAuth
+        ? "gemini_auth_required"
+        : null,
       usage: attempt.parsed.usage,
       sessionId: resolvedSessionId,
       sessionParams: resolvedSessionParams,

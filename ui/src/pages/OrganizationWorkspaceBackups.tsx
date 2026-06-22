@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  Download,
   HardDrive,
   Loader2,
   Plus,
@@ -275,7 +276,11 @@ export function OrganizationWorkspaceBackups() {
       (selectedBackup.status === "succeeded" || selectedBackup.status === "restored") &&
       restoreBackup.variables !== selectedBackup.id,
   );
+  const canDownload = Boolean(selectedBackup && selectedBackupCanBrowse);
   const canDelete = Boolean(selectedBackup && selectedBackup.status !== "running" && deleteBackup.variables !== selectedBackup.id);
+  const downloadUrl = selectedBackup && viewedOrganizationId
+    ? organizationsApi.workspaceBackupDownloadUrl(viewedOrganizationId, selectedBackup.id)
+    : undefined;
 
   async function handleRestore() {
     if (!selectedBackup) return;
@@ -415,6 +420,22 @@ export function OrganizationWorkspaceBackups() {
               <div className="flex justify-between gap-3"><span>Expires</span><span>{formatBackupDate(selectedBackup.expiresAt)}</span></div>
             </div>
           ) : null}
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className={`w-full ${canDownload ? "" : "pointer-events-none opacity-50"}`}
+          >
+            <a
+              href={downloadUrl}
+              download
+              aria-disabled={!canDownload}
+              tabIndex={canDownload ? undefined : -1}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Download
+            </a>
+          </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"

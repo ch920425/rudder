@@ -448,7 +448,7 @@ describe("loadAgentInstructionsPrefix", () => {
 
       expect(loaded.prefix).toContain("# Rudder Agent Operating Contract");
       expect(loaded.prefix).toContain("# Agent Instructions");
-      expect(loaded.prefix).toContain("loaded from $AGENT_HOME/instructions/AGENTS.md");
+      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/AGENTS.md.");
       expect(loaded.prefix).toContain("relative file references from $AGENT_HOME/instructions/");
       expect(loaded.prefix).not.toContain("Tacit Memory");
       expect(loaded.commandNotes).toEqual([
@@ -497,6 +497,8 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).toContain("# Tacit Memory");
       expect(loaded.prefix).not.toContain("# Heartbeat");
       expect(loaded.prefix.indexOf("# Tacit Memory")).toBeLessThan(loaded.prefix.indexOf("## Current Time"));
+      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/AGENTS.md, $AGENT_HOME/instructions/SOUL.md, $AGENT_HOME/instructions/TOOLS.md, and $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix.match(/Resolve any relative file references from \$AGENT_HOME\/instructions\/\./g)).toHaveLength(1);
       expect(loaded.prefix).toMatch(/## Current Time\n\nInstruction load time: 2026-06-15T23:45:00\.000Z\.[\s\S]*fresher timestamp\.$/);
       expect(loaded.commandNotes).toContain("Loaded agent instructions from $AGENT_HOME/instructions/AGENTS.md");
       expect(loaded.commandNotes).toContain("Loaded agent soul instructions from $AGENT_HOME/instructions/SOUL.md");
@@ -521,7 +523,7 @@ describe("loadAgentInstructionsPrefix", () => {
     }
   });
 
-  it("renders visible file boundaries when SOUL.md is the entry instructions file", async () => {
+  it("loads instruction file contents without synthetic Agent Instruction headings", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-load-agent-instructions-soul-entry-boundaries-"));
     const instructionsPath = path.join(root, "instructions", "SOUL.md");
     await fs.mkdir(path.dirname(instructionsPath), { recursive: true });
@@ -539,26 +541,30 @@ describe("loadAgentInstructionsPrefix", () => {
       });
 
       const operatingContractIndex = loaded.prefix.indexOf("# Rudder Agent Operating Contract");
-      const soulBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: SOUL.md");
-      const toolsBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: TOOLS.md");
-      const memoryBoundaryIndex = loaded.prefix.indexOf("## Agent Instruction: MEMORY.md");
+      const soulIndex = loaded.prefix.indexOf("# Persona");
+      const toolsIndex = loaded.prefix.indexOf("# Tool Notes");
+      const memoryIndex = loaded.prefix.indexOf("# Memory Notes");
       const recentContextIndex = loaded.prefix.indexOf("## Recent Rudder Context");
       const currentTimeIndex = loaded.prefix.indexOf("## Current Time");
       const heartbeatIndex = loaded.prefix.indexOf("# Rudder Heartbeat Instruction");
 
       expect(operatingContractIndex).toBeGreaterThanOrEqual(0);
-      expect(soulBoundaryIndex).toBeGreaterThan(operatingContractIndex);
-      expect(toolsBoundaryIndex).toBeGreaterThan(soulBoundaryIndex);
-      expect(memoryBoundaryIndex).toBeGreaterThan(toolsBoundaryIndex);
-      expect(recentContextIndex).toBeGreaterThan(memoryBoundaryIndex);
+      expect(soulIndex).toBeGreaterThan(operatingContractIndex);
+      expect(toolsIndex).toBeGreaterThan(soulIndex);
+      expect(memoryIndex).toBeGreaterThan(toolsIndex);
+      expect(recentContextIndex).toBeGreaterThan(memoryIndex);
       expect(currentTimeIndex).toBeGreaterThan(recentContextIndex);
       expect(heartbeatIndex).toBeGreaterThan(currentTimeIndex);
       expect(loaded.prefix).toContain("# Persona");
       expect(loaded.prefix).toContain("# Tool Notes");
       expect(loaded.prefix).toContain("# Memory Notes");
-      expect(loaded.prefix).toContain("The above Agent Instruction: SOUL.md was loaded from $AGENT_HOME/instructions/SOUL.md.");
-      expect(loaded.prefix).toContain("The above Agent Instruction: TOOLS.md was loaded from $AGENT_HOME/instructions/TOOLS.md.");
-      expect(loaded.prefix).toContain("The above Agent Instruction: MEMORY.md was loaded from $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix).not.toContain("## Agent Instruction:");
+      expect(loaded.prefix).not.toContain("Agent Instruction: SOUL.md");
+      expect(loaded.prefix).not.toContain("The above SOUL.md content was loaded");
+      expect(loaded.prefix).not.toContain("The above TOOLS.md content was loaded");
+      expect(loaded.prefix).not.toContain("The above MEMORY.md content was loaded");
+      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/SOUL.md, $AGENT_HOME/instructions/TOOLS.md, and $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix.match(/Resolve any relative file references from \$AGENT_HOME\/instructions\/\./g)).toHaveLength(1);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

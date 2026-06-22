@@ -59,6 +59,7 @@ export function sanitizePrimaryRailPath(section: PrimaryRailSection, path: strin
   if (!path?.startsWith("/")) return null;
   const { pathname, search, hash } = splitPath(path);
   if (resolvePrimaryRailSection(pathname) !== section) return null;
+  if (section === "library" && /^\/workspaces\/backups(?:\/|$)/.test(pathname)) return null;
   return `${pathname}${search}${hash}`;
 }
 

@@ -106,7 +106,7 @@ ownership. Questions should get answers, corrections should get acknowledgment
 or explanation, and narrow requests should not become permission to finish the
 whole issue.
 
-If an issue has a reviewer, moving it to `blocked` is also a reviewer handoff: the reviewer should confirm the blocker, request changes, approve, or keep explicit follow-up open with `rudder issue review`.
+If an issue has a reviewer, moving it to `blocked` also routes reviewer work: the reviewer should confirm the blocker, request changes, approve, or keep explicit follow-up open with `rudder issue review`.
 
 Issue comment and close-out commands accept comment bodies only from files or stdin. For any multiline Markdown, command names, code spans, code blocks, test summaries, or screenshot evidence, write the comment to a temporary Markdown file and pass `--body-file <path>` or `--comment-file <path>`, or pass `-` to read the body from stdin.
 
@@ -169,7 +169,7 @@ When the inbox row or wake context says `relationship: "reviewer"`, `role: "revi
 - needs follow-up: `rudder issue review <issue> --decision needs_followup --comment-file <path>`
 - blocked or blocker confirmed: `rudder issue review <issue> --decision blocked --comment-file <path>`; use this only for a confirmed human/external blocker and name the next human action.
 
-Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal. A blocked reviewer decision records a human handoff and removes the issue from repeated reviewer pickup until the board changes the issue.
+Do not rely on a free-form reject or accept comment as the review outcome. The structured decision is the durable close-out signal. If a blocked reviewer decision needs human input, name the next human action in the review comment; Rudder records only the reviewer decision and removes the issue from repeated reviewer pickup until the board changes the issue.
 
 ## Compatibility Commands
 

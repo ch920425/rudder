@@ -1,4 +1,5 @@
 import { agentsApi } from "@/api/agents";
+import { automationsApi } from "@/api/automations";
 import { chatsApi } from "@/api/chats";
 import { issuesApi } from "@/api/issues";
 import { organizationSkillsApi } from "@/api/organizationSkills";
@@ -51,8 +52,14 @@ export function MarkdownMentionsProvider({ children }: { children: ReactNode }) 
   });
 
   const { data: issues } = useQuery({
-    queryKey: queryKeys.issues.list(organizationId ?? "__none__"),
-    queryFn: () => issuesApi.list(organizationId!),
+    queryKey: queryKeys.issues.mentionCatalog(organizationId ?? "__none__"),
+    queryFn: () => issuesApi.list(organizationId!, { includeAutomationExecutions: true }),
+    enabled: Boolean(organizationId),
+  });
+
+  const { data: automations } = useQuery({
+    queryKey: queryKeys.automations.list(organizationId ?? "__none__"),
+    queryFn: () => automationsApi.list(organizationId!),
     enabled: Boolean(organizationId),
   });
 
@@ -99,6 +106,7 @@ export function MarkdownMentionsProvider({ children }: { children: ReactNode }) 
   const mentions = useMemo(
     () => buildMarkdownMentionOptions({
       agents,
+      automations,
       projects,
       issues,
       chats,
@@ -108,6 +116,7 @@ export function MarkdownMentionsProvider({ children }: { children: ReactNode }) 
     }),
     [
       agents,
+      automations,
       chats,
       issues,
       libraryDocuments,

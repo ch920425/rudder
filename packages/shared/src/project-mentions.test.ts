@@ -64,12 +64,12 @@ describe("project-mentions", () => {
     expect(extractAgentWakeMentionIds(`[@CodexCoder](${href})`)).toEqual([]);
   });
 
-  it("builds automation mentions with only the stable automation id", () => {
+  it("builds automation mentions with stable id identity and title metadata", () => {
     const href = buildAutomationMentionHref("automation-123", "Morning review");
-    expect(href).toBe("automation://automation-123");
+    expect(href).toBe("automation://automation-123?t=Morning+review");
     expect(parseAutomationMentionHref(href)).toEqual({
       automationId: "automation-123",
-      title: null,
+      title: "Morning review",
     });
     expect(extractAutomationMentionIds(`[@Morning review](${href})`)).toEqual(["automation-123"]);
   });
@@ -100,10 +100,10 @@ describe("project-mentions", () => {
 
   it("builds issue mentions with only the stable issue id", () => {
     const href = buildIssueMentionHref("issue-123", "PAP-123");
-    expect(href).toBe("issue://issue-123");
+    expect(href).toBe("issue://issue-123?r=PAP-123");
     expect(parseIssueMentionHref(href)).toEqual({
       issueId: "issue-123",
-      ref: null,
+      ref: "PAP-123",
       commentId: null,
       status: null,
     });
@@ -112,33 +112,33 @@ describe("project-mentions", () => {
 
   it("round-trips issue mentions with comment anchors", () => {
     const href = buildIssueMentionHref("issue-123", "PAP-123", "comment-456");
-    expect(href).toBe("issue://issue-123?c=comment-456");
+    expect(href).toBe("issue://issue-123?r=PAP-123&c=comment-456");
     expect(parseIssueMentionHref(href)).toEqual({
       issueId: "issue-123",
-      ref: null,
+      ref: "PAP-123",
       commentId: "comment-456",
       status: null,
     });
     expect(parseIssueMentionHref("issue://issue-123?ref=PAP-123&commentId=comment-456")).toEqual({
       issueId: "issue-123",
-      ref: null,
+      ref: "PAP-123",
       commentId: "comment-456",
       status: null,
     });
   });
 
-  it("does not emit or parse issue status display metadata", () => {
+  it("keeps issue ref display metadata while ignoring issue status display metadata", () => {
     const href = buildIssueMentionHref("issue-123", "PAP-123", null, "in_review");
-    expect(href).toBe("issue://issue-123");
+    expect(href).toBe("issue://issue-123?r=PAP-123");
     expect(parseIssueMentionHref(href)).toEqual({
       issueId: "issue-123",
-      ref: null,
+      ref: "PAP-123",
       commentId: null,
       status: null,
     });
     expect(parseIssueMentionHref("issue://issue-123?ref=PAP-123&status=blocked")).toEqual({
       issueId: "issue-123",
-      ref: null,
+      ref: "PAP-123",
       commentId: null,
       status: null,
     });

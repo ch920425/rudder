@@ -393,6 +393,28 @@ Related plans:
 
 - `doc/plans/2026-06-21-product-logic-registry.md`
 
+Loaded sections:
+
+1. Runtime operating contract from shared runtime utilities.
+2. Configured entry instructions for the agent/runtime.
+3. Sibling durable files in order when present: `SOUL.md`, `TOOLS.md`,
+   `MEMORY.md`.
+4. Prepared dynamic context sections: workspace facts, project resources,
+   organization/Rudder resources, assigned automations, startup context, and
+   scene-specific context.
+5. `## Current Time`.
+6. Runtime heartbeat instructions only when the current scene is a heartbeat
+   scene that should receive heartbeat close-out guidance.
+
+Why this order:
+
+- Durable identity and policy must be read before dynamic work context.
+- Dynamic context must be explicit and bounded so Project Context Resources do
+  not become an unreviewed global memory dump.
+- Current time is late because it is runtime fact, not durable instruction.
+- Heartbeat instructions are last only for eligible heartbeat scenes so they can
+  close the final-action loop without overriding chat/comment-specific prompts.
+
 Related code:
 
 - `packages/agent-runtime-utils/src/server-utils.instructions.ts`

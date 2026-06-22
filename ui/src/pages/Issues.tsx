@@ -4,9 +4,9 @@ import type { Agent, IssueSearchField, Project, ReorderIssue } from "@rudderhq/s
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleDot, Clock3, FolderKanban, PencilLine, Trash2, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { agentRunsApi } from "../api/agent-runs";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
-import { agentRunsApi } from "../api/agent-runs";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { EmptyState } from "../components/EmptyState";

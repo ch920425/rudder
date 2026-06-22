@@ -1,0 +1,148 @@
+---
+title: Automation Definition Triggers And Runs
+domain: automations
+status: active
+coverage: detailed
+contract_ids:
+  - AUTOMATION.DEFINITION.001
+  - AUTOMATION.TRIGGER.001
+  - AUTOMATION.RUN.001
+related_code:
+  - packages/db/src/schema/automations.ts
+  - packages/shared/src/validators/automation.ts
+  - server/src/routes/automations.ts
+  - server/src/services/automations.ts
+  - server/src/services/automations.scheduler.ts
+  - ui/src/pages/Automations.tsx
+  - ui/src/pages/AutomationDetail.tsx
+  - ui/src/components/ScheduleEditor.tsx
+related_tests:
+  - server/src/__tests__/automations-service.test.ts
+  - server/src/__tests__/automations-routes.test.ts
+  - server/src/__tests__/automations-e2e.test.ts
+  - tests/e2e/automations-index-layout.spec.ts
+  - tests/e2e/automation-detail-layout.spec.ts
+edit_policy: user_confirmed_only
+---
+
+# Automation Definition Triggers And Runs
+
+## AUTOMATION.DEFINITION.001
+
+Why:
+
+- Automation is a repeatable agent work loop. It is not just a cron row; it
+  binds intent, agent owner, project/goal/parent issue context, output mode,
+  priority, and concurrency policy.
+
+Product model:
+
+- An automation belongs to one organization.
+- It may bind to project, goal, parent issue, and assignee agent.
+- It has status such as active, paused, or archived.
+- Output mode is either tracked issue or chat output.
+- Agent actors can manage only automations they are allowed to own.
+
+Flow:
+
+1. Operator or agent creates automation with prompt, owner, context, trigger,
+   and output mode.
+2. Server validates organization boundary, assignee, project/goal/parent issue,
+   status, and permissions.
+3. Automation detail shows definition, trigger, output, run history, and state.
+4. Pausing stops new dispatch while preserving definition and history.
+
+Invariants:
+
+- Automation context must remain traceable to the org/project/goal/issue that
+  justified the repeated work.
+- Archived automations are historical records, not active dispatch sources.
+
+Evidence:
+
+- `server/src/__tests__/automations-service.test.ts` and
+  `server/src/__tests__/automations-routes.test.ts` are the primary regression
+  evidence for definition validation and permission boundaries.
+- `tests/e2e/automations-index-layout.spec.ts` and
+  `tests/e2e/automation-detail-layout.spec.ts` prove the operator surfaces show
+  definition and run-history affordances.
+- Known gap: this contract records product behavior; it does not replace
+  automation output proof, which belongs to `AUTOMATION.OUTPUT.001`.
+
+## AUTOMATION.TRIGGER.001
+
+Why:
+
+- Trigger semantics decide whether an automation should run now, catch up,
+  skip, coalesce, or reject an external event. That is product behavior, not
+  scheduler plumbing.
+
+Product model:
+
+- Supported trigger sources include schedule, manual/API, and webhook.
+- Schedule triggers carry cron/timezone/next-run semantics.
+- Webhooks carry public id, secret/signature/replay-window semantics when
+  enabled.
+- Dispatch source and idempotency key remain attached to the automation run.
+
+Flow:
+
+1. Trigger is created or edited on automation definition.
+2. Scheduler/API/webhook evaluates source-specific eligibility.
+3. Next run timestamp or webhook validation is computed.
+4. Eligible trigger creates an automation run or records a skip/coalesce result.
+
+Invariants:
+
+- External trigger handling must be replay/idempotency aware.
+- Schedule catch-up must be bounded so missed ticks do not flood agent work.
+
+Evidence:
+
+- `server/src/services/automations.scheduler.ts` owns schedule dispatch and
+  next-run behavior.
+- `server/src/__tests__/automations-service.test.ts` covers trigger and
+  dispatch behavior at service level.
+- Known gap: webhook security details should be expanded when webhook
+  providers beyond the current implementation become first-class surfaces.
+
+## AUTOMATION.RUN.001
+
+Why:
+
+- Automation run records are the durable evidence that a repeated job actually
+  fired, was skipped/coalesced, created work, failed, or completed.
+
+Product model:
+
+- Run status includes received, running, issue-created, completed, failed,
+  coalesced, skipped, or equivalent terminal states.
+- Run records hold source, trigger, scheduled time, idempotency, linked issue,
+  linked chat conversation, linked heartbeat run, and terminal error/result
+  evidence.
+- Concurrency policy decides whether active work causes coalesce, skip, or
+  always-enqueue behavior.
+
+Flow:
+
+1. Dispatch creates an automation run with source and trigger evidence.
+2. Concurrency gate checks active issue, active chat run, or active automation
+   run according to policy.
+3. Output routing creates an issue or chat-native run.
+4. Run status updates as linked work starts and finishes.
+5. Automation detail shows run history and terminal state.
+
+Invariants:
+
+- A skipped/coalesced automation must still leave enough evidence for operators
+  to know why no new work appeared.
+- Linked issue/chat/run ids are source of truth for navigating output.
+
+Evidence:
+
+- `server/src/__tests__/automations-e2e.test.ts` covers end-to-end run
+  lifecycle through service/API behavior.
+- `tests/e2e/automation-detail-layout.spec.ts` covers run-history visibility.
+- Known gap: run-state recovery policy should be tightened if automation runs
+  become distributed across multiple workers instead of the current server
+  process path.

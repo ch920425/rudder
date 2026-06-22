@@ -400,7 +400,7 @@ describe("heartbeat passive issue closeout", () => {
     });
   });
 
-  it("does not re-open reviewer closeout after a blocked review handoff is confirmed", async () => {
+  it("does not re-open reviewer closeout after a blocked review decision is recorded", async () => {
     const { agentId, issueId, orgId } = await seedFixture({
       issueStatus: "blocked",
       reviewerAgent: true,
@@ -413,7 +413,7 @@ describe("heartbeat passive issue closeout", () => {
       entityType: "issue",
       entityId: issueId,
       agentId,
-      details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+      details: { decision: "blocked", outcome: "review_closed" },
     });
 
     const run = await wakeReviewRun({ agentId, issueId, issueStatus: "blocked" });
@@ -437,7 +437,7 @@ describe("heartbeat passive issue closeout", () => {
     expect(closeoutActivities).toHaveLength(0);
   }, 15_000);
 
-  it("re-opens reviewer closeout after operator activity follows a blocked review handoff", async () => {
+  it("re-opens reviewer closeout after operator activity follows a blocked review decision", async () => {
     const { agentId, issueId, orgId } = await seedFixture({
       issueStatus: "blocked",
       reviewerAgent: true,
@@ -451,7 +451,7 @@ describe("heartbeat passive issue closeout", () => {
         entityType: "issue",
         entityId: issueId,
         agentId,
-        details: { decision: "blocked", outcome: "human_handoff", operatorActionRequired: true },
+        details: { decision: "blocked", outcome: "review_closed" },
         createdAt: new Date("2026-05-01T00:00:00.000Z"),
       },
       {

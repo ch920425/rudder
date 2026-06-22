@@ -44,6 +44,9 @@ const payload = {
     HOME: process.env.HOME ?? null,
     USERPROFILE: process.env.USERPROFILE ?? null,
     CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null,
+    ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL ?? null,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY ?? null,
     RUDDER_CLAUDE_HOME: process.env.RUDDER_CLAUDE_HOME ?? null,
     RUDDER_OPERATOR_HOME: process.env.RUDDER_OPERATOR_HOME ?? null,
     RUDDER_RUNTIME_TMPDIR: runtimeTmpDir,
@@ -272,10 +275,11 @@ describe("claude execute", { timeout: 20_000 }, () => {
       expect(systemPrompt.indexOf("## Current Time")).toBeLessThan(systemPrompt.indexOf("# Rudder Heartbeat Instruction"));
       expect(agentInstructionStack).toContain(systemPrompt);
       expect(agentInstructionStack).toContain("Follow the rudder heartbeat.");
-      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("# Agent Instructions");
+      expect(agentInstructionStack).toContain("# Agent Soul");
+      expect(agentInstructionStack).toContain("# Agent Tools");
+      expect(agentInstructionStack).toContain("# Tacit Memory");
+      expect(agentInstructionStack).not.toContain("## Agent Instruction:");
       expect(agentInstructionStack).toContain("## Your Current Automations");
       expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(capture.rudderEnvKeys).toContain("RUDDER_PROJECT_LIBRARY_ROOT");
@@ -566,6 +570,87 @@ describe("claude execute", { timeout: 20_000 }, () => {
       expect(capture.argv).toContain("--add-dir");
       expect(capture.argv).toContain(runtimeTmpDir);
       expect(capture.addDirSkillEntries).not.toContain("user-skill.txt");
+    } finally {
+      restoreEnv();
+      await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps DeepSeek credentials available for Claude Code deepseek models", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-claude-deepseek-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "claude");
+    const capturePath = path.join(root, "capture.json");
+    const sharedClaudeDir = path.join(root, ".claude");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(sharedClaudeDir, { recursive: true });
+    await fs.writeFile(
+      path.join(sharedClaudeDir, "settings.json"),
+      JSON.stringify({
+        env: {
+          DEEPSEEK_API_KEY: "deepseek-settings-key",
+          ENABLE_TOOL_SEARCH: "true",
+        },
+      }),
+      "utf8",
+    );
+    await writeFakeClaudeCommand(commandPath);
+
+    const restoreEnv = setOperatorHomeForTest(root);
+
+    try {
+      const result = await execute({
+        runId: "run-deepseek",
+        agent: {
+          id: "agent-deepseek",
+          orgId: "organization-1",
+          name: "Claude DeepSeek Coder",
+          agentRuntimeType: "claude_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "deepseek-v4-pro[1m]",
+          env: {
+            HOME: root,
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+            DEEPSEEK_API_KEY: "deepseek-config-key",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as {
+        argv: string[];
+        env: {
+          ANTHROPIC_API_KEY: string | null;
+          DEEPSEEK_API_KEY: string | null;
+        };
+        managedClaudeSettings: string | null;
+      };
+      expect(capture.argv).toContain("--model");
+      expect(capture.argv[capture.argv.indexOf("--model") + 1]).toBe("deepseek-v4-pro[1m]");
+      expect(capture.env.DEEPSEEK_API_KEY).toBe("deepseek-config-key");
+      expect(capture.env.ANTHROPIC_API_KEY).toBeNull();
+      const managedSettings = JSON.parse(capture.managedClaudeSettings ?? "{}") as {
+        env?: Record<string, string>;
+      };
+      expect(managedSettings.env).toMatchObject({
+        DEEPSEEK_API_KEY: "deepseek-settings-key",
+      });
+      expect(managedSettings.env).not.toHaveProperty("ENABLE_TOOL_SEARCH");
     } finally {
       restoreEnv();
       await fs.rm(path.join(root, ".rudder"), { recursive: true, force: true });

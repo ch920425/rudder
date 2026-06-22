@@ -225,12 +225,12 @@ describe("agent instructions bundle routes", () => {
       managedRootPath: "/tmp/agent-1",
       entryFile: "SOUL.md",
     });
-    expect(mockAgentInstructionsService.reconcileBundle).toHaveBeenCalled();
+    expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
+    expect(mockAgentInstructionsService.reconcileBundle).not.toHaveBeenCalled();
   });
 
-  it("persists healed managed bundle metadata when bundle metadata is read", async () => {
-    mockAgentInstructionsService.reconcileBundle.mockResolvedValueOnce({
-      bundle: {
+  it("does not persist healed managed bundle metadata when bundle metadata is read", async () => {
+    mockAgentInstructionsService.getBundle.mockResolvedValueOnce({
         agentId: "11111111-1111-4111-8111-111111111111",
         orgId: "organization-1",
         mode: "managed",
@@ -243,31 +243,31 @@ describe("agent instructions bundle routes", () => {
         legacyPromptTemplateActive: false,
         legacyBootstrapPromptTemplateActive: false,
         files: [],
-      },
-      agentRuntimeConfig: {
-        instructionsBundleMode: "managed",
-        instructionsRootPath: "/tmp/agent-1",
-        instructionsEntryFile: "SOUL.md",
-        instructionsFilePath: "/tmp/agent-1/SOUL.md",
-      },
-      changed: true,
     });
 
     const res = await request(createApp())
       .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle?orgId=organization-1");
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(mockAgentService.update).toHaveBeenCalledWith(
-      "11111111-1111-4111-8111-111111111111",
-      expect.objectContaining({
-        agentRuntimeConfig: expect.objectContaining({
-          instructionsBundleMode: "managed",
-          instructionsRootPath: "/tmp/agent-1",
-          instructionsEntryFile: "SOUL.md",
-          instructionsFilePath: "/tmp/agent-1/SOUL.md",
-        }),
-      }),
+    expect(mockAgentService.update).not.toHaveBeenCalled();
+    expect(mockAgentInstructionsService.reconcileBundle).not.toHaveBeenCalled();
+  });
+
+  it("reads a bundle file without reconciling or persisting repaired metadata", async () => {
+    const res = await request(createApp())
+      .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file?orgId=organization-1&path=SOUL.md");
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body).toMatchObject({
+      path: "SOUL.md",
+      content: "# Agent\n",
+    });
+    expect(mockAgentInstructionsService.readFile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
+      "SOUL.md",
     );
+    expect(mockAgentInstructionsService.reconcileBundle).not.toHaveBeenCalled();
+    expect(mockAgentService.update).not.toHaveBeenCalled();
   });
 
   it("writes a bundle file and persists compatibility config", async () => {

@@ -27,8 +27,8 @@ import {
   type CSSProperties
 } from "react";
 import { buildTranscript, getUIAdapter } from "../agent-runtimes";
-import { ApiError } from "../api/client";
 import { agentRunsApi, type LiveRunForIssue } from "../api/agent-runs";
+import { ApiError } from "../api/client";
 import { instanceSettingsApi } from "../api/instanceSettings";
 import { CopyText } from "../components/CopyText";
 import { PageTabBar } from "../components/PageTabBar";

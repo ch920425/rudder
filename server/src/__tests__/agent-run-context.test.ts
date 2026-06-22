@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../home-paths.js", async (importOriginal) => {
@@ -28,12 +31,21 @@ vi.mock("../services/agents.js", () => ({
   agentService: () => ({}),
 }));
 
+const mockResolveAdapterConfigForRuntime = vi.fn();
+const mockGetEnabledSkillKeysForAgent = vi.fn();
+const mockListRealizedSkillEntriesForAgent = vi.fn();
+
 vi.mock("../services/secrets.js", () => ({
-  secretService: () => ({}),
+  secretService: () => ({
+    resolveAdapterConfigForRuntime: mockResolveAdapterConfigForRuntime,
+  }),
 }));
 
 vi.mock("../services/organization-skills.js", () => ({
-  organizationSkillService: () => ({}),
+  organizationSkillService: () => ({
+    getEnabledSkillKeysForAgent: mockGetEnabledSkillKeysForAgent,
+    listRealizedSkillEntriesForAgent: mockListRealizedSkillEntriesForAgent,
+  }),
 }));
 
 const mockListOrganizationResources = vi.fn();
@@ -55,8 +67,256 @@ vi.mock("../services/agent-startup-context.js", async (importOriginal) => {
 
 const { agentRunContextService } = await import("../services/agent-run-context.js");
 
+async function makeTempDir(prefix: string) {
+  return fs.mkdtemp(path.join(os.tmpdir(), prefix));
+}
+
+function managedInstructionsRoot(rudderHome: string, orgId: string, workspaceKey: string): string {
+  return path.join(
+    rudderHome,
+    "instances",
+    "test-instance",
+    "organizations",
+    orgId,
+    "workspaces",
+    "agents",
+    workspaceKey,
+    "instructions",
+  );
+}
+
+describe("agentRunContextService prepareRuntimeConfig", () => {
+  const originalRudderHome = process.env.RUDDER_HOME;
+  const originalRudderInstanceId = process.env.RUDDER_INSTANCE_ID;
+  const cleanupDirs = new Set<string>();
+
+  afterEach(async () => {
+    mockResolveAdapterConfigForRuntime.mockReset();
+    mockGetEnabledSkillKeysForAgent.mockReset();
+    mockListRealizedSkillEntriesForAgent.mockReset();
+    if (originalRudderHome === undefined) delete process.env.RUDDER_HOME;
+    else process.env.RUDDER_HOME = originalRudderHome;
+    if (originalRudderInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
+    else process.env.RUDDER_INSTANCE_ID = originalRudderInstanceId;
+    await Promise.all([...cleanupDirs].map(async (dir) => {
+      await fs.rm(dir, { recursive: true, force: true });
+      cleanupDirs.delete(dir);
+    }));
+  });
+
+  it("does not materialize a missing managed instructions entry while preparing runtime config", async () => {
+    const rudderHome = await makeTempDir("rudder-agent-run-context-empty-managed-");
+    cleanupDirs.add(rudderHome);
+    process.env.RUDDER_HOME = rudderHome;
+    process.env.RUDDER_INSTANCE_ID = "test-instance";
+
+    const orgId = "organization-1";
+    const workspaceKey = "builder--11111111";
+    const rootPath = managedInstructionsRoot(rudderHome, orgId, workspaceKey);
+    await fs.mkdir(rootPath, { recursive: true });
+    const instructionsFilePath = path.join(rootPath, "SOUL.md");
+    const baseConfig = {
+      instructionsBundleMode: "managed",
+      instructionsRootPath: rootPath,
+      instructionsEntryFile: "SOUL.md",
+      instructionsFilePath,
+    };
+
+    mockResolveAdapterConfigForRuntime.mockImplementation(async (_orgId: string, config: Record<string, unknown>) => ({
+      config,
+      secretKeys: new Set<string>(),
+    }));
+    mockGetEnabledSkillKeysForAgent.mockResolvedValue([]);
+    mockListRealizedSkillEntriesForAgent.mockResolvedValue([]);
+
+    const svc = agentRunContextService({} as any);
+    const prepared = await svc.prepareRuntimeConfig({
+      scene: "heartbeat",
+      agent: {
+        id: "11111111-1111-4111-8111-111111111111",
+        orgId,
+        name: "Builder",
+        workspaceKey,
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: baseConfig,
+      },
+      baseConfig,
+    });
+
+    expect(prepared.runtimeConfig.instructionsFilePath).toBe(instructionsFilePath);
+    await expect(fs.stat(instructionsFilePath)).rejects.toThrow();
+  });
+
+  it("passes explicitly materialized managed instructions metadata into secrets and skill resolution", async () => {
+    const rudderHome = await makeTempDir("rudder-agent-run-context-reconciled-managed-");
+    const staleRoot = await makeTempDir("rudder-agent-run-context-stale-root-");
+    cleanupDirs.add(rudderHome);
+    cleanupDirs.add(staleRoot);
+    process.env.RUDDER_HOME = rudderHome;
+    process.env.RUDDER_INSTANCE_ID = "test-instance";
+
+    const orgId = "organization-1";
+    const workspaceKey = "builder--11111111";
+    const managedRoot = managedInstructionsRoot(rudderHome, orgId, workspaceKey);
+    await fs.mkdir(managedRoot, { recursive: true });
+    await fs.writeFile(path.join(managedRoot, "SOUL.md"), "# Managed Persona\n", "utf8");
+
+    const baseConfig = {
+      instructionsBundleMode: "managed",
+      instructionsRootPath: staleRoot,
+      instructionsEntryFile: "docs/MISSING.md",
+      instructionsFilePath: path.join(staleRoot, "docs", "MISSING.md"),
+    };
+    const expectedInstructionsFilePath = path.join(managedRoot, "SOUL.md");
+
+    mockResolveAdapterConfigForRuntime.mockImplementation(async (_orgId: string, config: Record<string, unknown>) => ({
+      config,
+      secretKeys: new Set<string>(),
+    }));
+    mockGetEnabledSkillKeysForAgent.mockResolvedValue([]);
+    mockListRealizedSkillEntriesForAgent.mockResolvedValue([]);
+
+    const svc = agentRunContextService({} as any);
+    const materializedConfig = await svc.materializeManagedInstructionsForRun({
+      id: "11111111-1111-4111-8111-111111111111",
+      orgId,
+      name: "Builder",
+      workspaceKey,
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: baseConfig,
+    });
+    const prepared = await svc.prepareRuntimeConfig({
+      scene: "heartbeat",
+      agent: {
+        id: "11111111-1111-4111-8111-111111111111",
+        orgId,
+        name: "Builder",
+        workspaceKey,
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: materializedConfig,
+      },
+      baseConfig: materializedConfig,
+    });
+
+    expect(mockResolveAdapterConfigForRuntime).toHaveBeenCalledWith(
+      orgId,
+      expect.objectContaining({
+        instructionsBundleMode: "managed",
+        instructionsRootPath: managedRoot,
+        instructionsEntryFile: "SOUL.md",
+        instructionsFilePath: expectedInstructionsFilePath,
+      }),
+    );
+    expect(mockGetEnabledSkillKeysForAgent).toHaveBeenCalledWith(
+      orgId,
+      expect.objectContaining({
+        agentRuntimeConfig: expect.objectContaining({
+          instructionsRootPath: managedRoot,
+          instructionsFilePath: expectedInstructionsFilePath,
+        }),
+      }),
+    );
+    expect(prepared.runtimeConfig.instructionsFilePath).toBe(expectedInstructionsFilePath);
+  });
+
+  it("does not write per-run baseConfig instruction overrides into the managed bundle", async () => {
+    const rudderHome = await makeTempDir("rudder-agent-run-context-per-run-override-");
+    cleanupDirs.add(rudderHome);
+    process.env.RUDDER_HOME = rudderHome;
+    process.env.RUDDER_INSTANCE_ID = "test-instance";
+
+    const orgId = "organization-1";
+    const workspaceKey = "builder--11111111";
+    const managedRoot = managedInstructionsRoot(rudderHome, orgId, workspaceKey);
+    await fs.mkdir(managedRoot, { recursive: true });
+
+    const durableConfig = {
+      instructionsBundleMode: "managed",
+      instructionsRootPath: managedRoot,
+      instructionsEntryFile: "SOUL.md",
+      instructionsFilePath: path.join(managedRoot, "SOUL.md"),
+      promptTemplate: "# Durable Persona\n\nPersisted agent instructions.",
+    };
+
+    mockResolveAdapterConfigForRuntime.mockImplementation(async (_orgId: string, config: Record<string, unknown>) => ({
+      config,
+      secretKeys: new Set<string>(),
+    }));
+    mockGetEnabledSkillKeysForAgent.mockResolvedValue([]);
+    mockListRealizedSkillEntriesForAgent.mockResolvedValue([]);
+
+    const svc = agentRunContextService({} as any);
+    const materializedConfig = await svc.materializeManagedInstructionsForRun({
+      id: "11111111-1111-4111-8111-111111111111",
+      orgId,
+      name: "Builder",
+      workspaceKey,
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: durableConfig,
+    });
+    const perRunConfig = {
+      ...materializedConfig,
+      promptTemplate: "# Issue Override\n\nThis prompt is only for the current run.",
+    };
+
+    await svc.prepareRuntimeConfig({
+      scene: "heartbeat",
+      agent: {
+        id: "11111111-1111-4111-8111-111111111111",
+        orgId,
+        name: "Builder",
+        workspaceKey,
+        agentRuntimeType: "codex_local",
+        agentRuntimeConfig: materializedConfig,
+      },
+      baseConfig: perRunConfig,
+    });
+
+    await expect(fs.readFile(path.join(managedRoot, "SOUL.md"), "utf8")).resolves.toBe("# Durable Persona\n\nPersisted agent instructions.");
+    expect(mockResolveAdapterConfigForRuntime).toHaveBeenLastCalledWith(
+      orgId,
+      expect.objectContaining({ promptTemplate: "# Issue Override\n\nThis prompt is only for the current run." }),
+    );
+  });
+
+  it("uses the agent role when restoring default managed instructions for execution", async () => {
+    const rudderHome = await makeTempDir("rudder-agent-run-context-role-managed-");
+    cleanupDirs.add(rudderHome);
+    process.env.RUDDER_HOME = rudderHome;
+    process.env.RUDDER_INSTANCE_ID = "test-instance";
+
+    const orgId = "organization-1";
+    const workspaceKey = "operator--11111111";
+    const managedRoot = managedInstructionsRoot(rudderHome, orgId, workspaceKey);
+    await fs.mkdir(managedRoot, { recursive: true });
+
+    const baseConfig = {
+      instructionsBundleMode: "managed",
+      instructionsRootPath: managedRoot,
+      instructionsEntryFile: "SOUL.md",
+      instructionsFilePath: path.join(managedRoot, "SOUL.md"),
+    };
+
+    const svc = agentRunContextService({} as any);
+    await svc.materializeManagedInstructionsForRun({
+      id: "11111111-1111-4111-8111-111111111111",
+      orgId,
+      name: "Operator",
+      role: "ceo",
+      workspaceKey,
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: baseConfig,
+    });
+
+    await expect(fs.readFile(path.join(managedRoot, "SOUL.md"), "utf8")).resolves.toContain("# SOUL.md -- Operator Assistant Persona");
+  });
+});
+
 describe("agentRunContextService buildSceneContext", () => {
   afterEach(() => {
+    mockResolveAdapterConfigForRuntime.mockReset();
+    mockGetEnabledSkillKeysForAgent.mockReset();
+    mockListRealizedSkillEntriesForAgent.mockReset();
     mockListOrganizationResources.mockReset();
     mockListProjectResourceAttachments.mockReset();
     mockBuildAgentStartupContext.mockReset();

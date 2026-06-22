@@ -63,6 +63,15 @@ describe("primary rail memory", () => {
     expect(readRememberedPrimaryRailPath("org-2", "issues", "/issues")).toBe("/issues/ZST-100");
   });
 
+  it("does not remember workspace backups as the Library rail destination", () => {
+    rememberPrimaryRailPath("org-1", "/library?path=plans%2Froadmap.md");
+    rememberPrimaryRailPath("org-1", "/workspaces/backups?backup=backup-1");
+
+    expect(readRememberedPrimaryRailPath("org-1", "library", "/library")).toBe(
+      "/library?path=plans%2Froadmap.md",
+    );
+  });
+
   it("falls back when no safe path exists for the section", () => {
     rememberPrimaryRailPath("org-1", "/issues/ZST-586");
 

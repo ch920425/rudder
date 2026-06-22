@@ -1132,7 +1132,12 @@ function resolvedMentionLabel(mention: ParsedMentionChip, fallbackLabel: string,
   }
   if (mention.kind === "issue") {
     const current = mentions.find((option) => option.kind === "issue" && option.issueId === mention.issueId)?.name;
-    return mention.commentId ? fallbackLabel || current || mention.issueId : current ?? fallbackLabel;
+    return current ?? fallbackLabel;
+  }
+  if (mention.kind === "automation") {
+    return mentions.find((option) => option.kind === "automation" && option.automationId === mention.automationId)?.name
+      ?? mention.title?.trim()
+      ?? fallbackLabel;
   }
   if (mention.kind === "chat") {
     return mentions.find((option) => option.kind === "chat" && option.chatConversationId === mention.conversationId)?.name ?? fallbackLabel;

@@ -63,7 +63,7 @@ export interface IssueFilters {
   assigneeUserId?: string;
   reviewerAgentId?: string;
   reviewerUserId?: string;
-  excludeReviewerConfirmedBlockedHandoff?: boolean;
+  excludeReviewerRecordedBlockedDecision?: boolean;
   touchedByUserId?: string;
   unreadForUserId?: string;
   projectId?: string;

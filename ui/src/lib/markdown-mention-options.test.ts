@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildMarkdownMentionOptions } from "./markdown-mention-options";
 
 describe("buildMarkdownMentionOptions", () => {
-  it("orders @ mention categories as agents, skills, projects, issues, then chats", () => {
+  it("orders @ mention categories as agents, skills, projects, issues, automations, then chats", () => {
     const skillOption: MentionOption = {
       id: "skill:build-advisor",
       name: "build-advisor",
@@ -42,6 +42,44 @@ describe("buildMarkdownMentionOptions", () => {
           projectId: "project-1",
           assigneeAgentId: null,
           assigneeUserId: null,
+        },
+      ],
+      automations: [
+        {
+          id: "automation-1",
+          orgId: "org-1",
+          projectId: null,
+          goalId: null,
+          parentIssueId: null,
+          title: "Daily automation review",
+          description: "Review automation output",
+          assigneeAgentId: "agent-1",
+          outputMode: "track_issue",
+          chatConversationId: null,
+          notifyOnIssueCreated: false,
+          notifyOnIssueCreatedUserId: null,
+          priority: "medium",
+          status: "active",
+          concurrencyPolicy: "coalesce",
+          catchUpPolicy: "skip",
+          createdByAgentId: null,
+          createdByUserId: null,
+          updatedByAgentId: null,
+          updatedByUserId: null,
+          lastTriggeredAt: null,
+          lastEnqueuedAt: null,
+          triggers: [],
+          lastRun: null,
+          activeIssue: {
+            id: "issue-1",
+            identifier: "RUD-1",
+            title: "Mention menu",
+            status: "todo",
+            priority: "medium",
+            updatedAt: new Date("2026-05-20T00:00:00Z"),
+          },
+          createdAt: new Date("2026-05-20T00:00:00Z"),
+          updatedAt: new Date("2026-05-20T00:00:00Z"),
         },
       ],
       chats: [
@@ -89,8 +127,16 @@ describe("buildMarkdownMentionOptions", () => {
       "skill:build-advisor",
       "project:project-1",
       "issue:issue-1",
+      "automation:automation-1",
       "chat:chat-1",
     ]);
+    expect(options.find((option) => option.id === "automation:automation-1")).toMatchObject({
+      name: "Daily automation review",
+      kind: "automation",
+      automationId: "automation-1",
+      automationTitle: "Daily automation review",
+      automationStatus: "active",
+    });
   });
 
   it("includes chat conversations as mentionable entities", () => {

@@ -1,7 +1,11 @@
 export const type = "claude_local";
 export const label = "Claude Code (local)";
 
+export const DEFAULT_CLAUDE_LOCAL_MODEL = "deepseek-v4-pro[1m]";
+
 export const models = [
+  { id: DEFAULT_CLAUDE_LOCAL_MODEL, label: "DeepSeek V4 Pro (1M)" },
+  { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
   { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
   { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
   { id: "claude-haiku-4-6", label: "Claude Haiku 4.6" },
@@ -16,7 +20,7 @@ Adapter: claude_local
 Core fields:
 - cwd (string, optional): default absolute working directory fallback for the agent process (created if missing when possible)
 - instructionsFilePath (string, optional): absolute path to a markdown role/persona instructions file such as SOUL.md; Rudder's shared operating contract is injected separately at runtime
-- model (string, optional): Claude model id
+- model (string, optional): Claude Code model id; defaults to ${DEFAULT_CLAUDE_LOCAL_MODEL}
 - modelFallbacks (array, optional): ordered fallback attempts as { agentRuntimeType, model, config? }; each may use a different runtime/provider
 - effort (string, optional): reasoning effort passed via --effort (low|medium|high)
 - chrome (boolean, optional): pass --chrome when running Claude
@@ -36,5 +40,6 @@ Operational fields:
 
 Notes:
 - When Rudder realizes a workspace/runtime for a run, it injects RUDDER_WORKSPACE_* and RUDDER_RUNTIME_* env vars for agent-side tooling.
+- The default Claude Code model is DeepSeek. Reuse an existing DeepSeek credential by setting DEEPSEEK_API_KEY in the runtime env or organization secret bindings.
 - Claude loads only the bundled Rudder skills plus the skills explicitly enabled on the agent's Skills page. Unselected skills already present in the real user home do not load.
 `;

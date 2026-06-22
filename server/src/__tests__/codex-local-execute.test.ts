@@ -1565,10 +1565,11 @@ describe("codex execute", { timeout: 20_000 }, () => {
         capture.prompt.indexOf("# Rudder Heartbeat Instruction"),
       );
       expect(agentInstructionStack).toBe(capture.prompt);
-      expect(agentInstructionStack).toContain("## Agent Instruction: AGENTS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: SOUL.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: TOOLS.md");
-      expect(agentInstructionStack).toContain("## Agent Instruction: MEMORY.md");
+      expect(agentInstructionStack).toContain("# Agent Instructions");
+      expect(agentInstructionStack).toContain("# Agent Soul");
+      expect(agentInstructionStack).toContain("# Agent Tools");
+      expect(agentInstructionStack).toContain("# Tacit Memory");
+      expect(agentInstructionStack).not.toContain("## Agent Instruction:");
       expect(agentInstructionStack).toContain("## Your Current Automations");
       expect(agentInstructionStack).not.toContain("[startup context omitted from persisted prompt]");
       expect(commandNotes).toContain("Loaded agent memory instructions from $AGENT_HOME/instructions/MEMORY.md");

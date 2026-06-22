@@ -1,5 +1,5 @@
-import { agentsApi } from "@/api/agents";
 import { AGENT_RUN_LIST_HISTORY_LIMIT, agentRunsApi, type LiveRunForIssue } from "@/api/agent-runs";
+import { agentsApi } from "@/api/agents";
 import { AgentIcon } from "@/components/AgentAvatar";
 import { EmptyState } from "@/components/EmptyState";
 import { HeartbeatEnabledButtons } from "@/components/HeartbeatEnabledButtons";

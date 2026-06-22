@@ -5,12 +5,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const ORIGINAL_ANTHROPIC = process.env.ANTHROPIC_API_KEY;
+const ORIGINAL_DEEPSEEK = process.env.DEEPSEEK_API_KEY;
 
 afterEach(() => {
   if (ORIGINAL_ANTHROPIC === undefined) {
     delete process.env.ANTHROPIC_API_KEY;
   } else {
     process.env.ANTHROPIC_API_KEY = ORIGINAL_ANTHROPIC;
+  }
+  if (ORIGINAL_DEEPSEEK === undefined) {
+    delete process.env.DEEPSEEK_API_KEY;
+  } else {
+    process.env.DEEPSEEK_API_KEY = ORIGINAL_DEEPSEEK;
   }
 });
 
@@ -59,6 +65,33 @@ describe("claude_local environment diagnostics", () => {
         (check) =>
           check.code === "claude_anthropic_api_key_overrides_subscription" &&
           check.level === "warn",
+      ),
+    ).toBe(true);
+    expect(result.checks.some((check) => check.level === "error")).toBe(false);
+  });
+
+  it("recognizes DEEPSEEK_API_KEY for DeepSeek Claude Code models", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.DEEPSEEK_API_KEY;
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "claude_local",
+      config: {
+        command: process.execPath,
+        cwd: process.cwd(),
+        model: "deepseek-v4-pro[1m]",
+        env: {
+          DEEPSEEK_API_KEY: "sk-test-config",
+        },
+      },
+    });
+
+    expect(
+      result.checks.some(
+        (check) =>
+          check.code === "claude_deepseek_api_key_configured" &&
+          check.level === "info",
       ),
     ).toBe(true);
     expect(result.checks.some((check) => check.level === "error")).toBe(false);

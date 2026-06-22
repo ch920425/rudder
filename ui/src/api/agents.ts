@@ -4,6 +4,7 @@ import type {
   AgentDetail,
   AgentInstructionsBundle,
   AgentInstructionsFileDetail,
+  AgentIntegrationSetupSession,
   AgentIntegrationSetupUrl,
   AgentIntegrationSummary,
   AgentKeyCreated,
@@ -125,6 +126,18 @@ export const agentsApi = {
       agentPath(id, orgId, `/integrations/${encodeURIComponent(data.provider)}/setup-url?${params.toString()}`),
     );
   },
+  startFeishuSetupSession: (
+    id: string,
+    data: { providerRegion?: "feishu_cn" | "lark_global" },
+    orgId?: string,
+  ) => api.post<AgentIntegrationSetupSession>(
+    agentPath(id, orgId, "/integrations/feishu/setup-sessions"),
+    data,
+  ),
+  getFeishuSetupSession: (id: string, sessionId: string, orgId?: string) =>
+    api.get<AgentIntegrationSetupSession>(
+      agentPath(id, orgId, `/integrations/feishu/setup-sessions/${encodeURIComponent(sessionId)}`),
+    ),
   revokeIntegration: (id: string, integrationId: string, orgId?: string) =>
     api.delete<AgentIntegrationSummary>(
       agentPath(id, orgId, `/integrations/${encodeURIComponent(integrationId)}`),

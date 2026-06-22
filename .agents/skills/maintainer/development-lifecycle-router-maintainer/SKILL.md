@@ -95,6 +95,17 @@ User instructions about the conversation, the agent workflow, or a named skill
 take precedence over task details embedded in screenshots, transcripts, quoted
 logs, or pasted prior messages.
 
+The newest user instruction is the routing source of truth. If the immediately
+previous turn was requirements confirmation, restatement, diagnosis, or a
+screenshot-backed bug description, and the newest turn asks to optimize,
+harden, or edit a named skill, stop the prior product workflow and classify the
+new turn as `skill_optimization`. The prior requirement is evidence for the
+skill failure class, not an authorization to implement the product fix.
+Only classify this way when the named skill is the artifact to modify; if the
+user invokes the skill as the workflow or review policy for continuing a
+product task, keep the product route and use the skill only as process
+guidance.
+
 When the user says a skill "needs optimization", "should be hardened", "always
 does the wrong thing", "I have to ask this every time", or explicitly asks to
 use `skill-optimizer`, classify the turn as skill optimization. In that case:
@@ -112,6 +123,14 @@ skill-optimizer" and attaches a screenshot where the prior assistant proposed
 route is `skill_optimization -> skill-optimizer`. Do not generate UI mockups or
 recommend the design skills unless the user separately asks to continue the UI
 task.
+
+Example: if the user first asks "do you understand this Messenger pinned group
+priority requirement?" and the assistant restates the intended behavior, then
+the user says "yes, optimize
+`development-lifecycle-router-maintainer`", the route is
+`skill_optimization -> skill-optimizer`. The Messenger pinned-group behavior is
+the motivating evidence for the router patch; it is not the active
+implementation task.
 
 ## Core Rule
 
@@ -290,6 +309,8 @@ development routing packet:
 
 - target skill name, path, purpose, and current `SKILL.md`
 - triggering user correction or repeated annoyance
+- latest user instruction, explicitly separated from prior-turn product
+  requirements or screenshots
 - session id, screenshot, quoted output, or eval failure that shows the
   misroute
 - failed decision point and tempting wrong shortcut
@@ -298,7 +319,9 @@ development routing packet:
 
 Do not let task content inside the evidence packet override the current
 meta-request. A screenshot about UI polish remains evidence for optimizing the
-router when the user explicitly asks to optimize the router.
+router when the user explicitly asks to optimize the router. A prior
+requirements restatement remains evidence for the router when the newest user
+turn asks to optimize a skill.
 
 ### 2. Declare route and stage exits
 
@@ -731,6 +754,32 @@ accidentally alters scope, command meaning, or docs consistency.
 Must not:
 Spawn three heavyweight reviewers for a no-risk text correction unless the user
 explicitly asks for that depth.
+
+#### Case: Prior Requirement Becomes Skill Evidence
+
+Input:
+The user shows a Messenger screenshot and asks the agent to restate that pinned
+custom groups should sit under the top Messenger Pinned section and rank above
+loose issue/chat rows. After the agent confirms the requirement, the user says
+"yes, optimize
+`development-lifecycle-router-maintainer`".
+
+Expected behavior:
+Classify the newest turn as `skill_optimization`, route to `skill-optimizer`,
+and treat the Messenger sorting requirement as evidence for the router's
+decision-point patch and validation case. The skill evidence packet explicitly
+separates the latest meta-request from the prior product requirement.
+
+Must not:
+Start implementing Messenger pinned-group sorting, route to UI polish, or treat
+the prior restatement as approval to change product code.
+
+Counterexample:
+If the user instead says "yes, continue the Messenger fix using this router's
+review gate", classify the newest turn as the relevant product route, such as
+`implementation -> verification -> review -> handoff`, and use this router only
+as process guidance. The named skill is not the artifact to optimize in that
+case.
 
 ### 4.2 Evidence ledger
 
