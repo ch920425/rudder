@@ -136,7 +136,7 @@ export function NewProjectDialog() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("planned");
+  const [status, setStatus] = useState("in_progress");
   const [color, setColor] = useState<string>(randomProjectColor);
   const [icon, setIcon] = useState("folder");
   const [goalIds, setGoalIds] = useState<string[]>([]);
@@ -191,7 +191,7 @@ export function NewProjectDialog() {
   function reset() {
     setName("");
     setDescription("");
-    setStatus("planned");
+    setStatus("in_progress");
     setColor(randomProjectColor());
     setIcon("folder");
     setGoalIds([]);
