@@ -41,6 +41,9 @@ edit_policy: user_confirmed_only
 
 - `CHAT.LIFECYCLE.001`: chat is an intake/lightweight run surface with durable
   messages and references.
+- `CHAT.RICH.REFERENCE.RENDERING.001`: markdown rich-reference tokens keep
+  consistent labels, icon rhythm, baseline alignment, and truncation behavior
+  across composers and read-only rendered markdown.
 - `MESSENGER.ATTENTION.001`: Messenger aggregates chat, issue, approval, and
   run attention without becoming the source of every domain rule.
 - `IM.FEISHU.001`: Feishu inbound/outbound integration bridges external chat

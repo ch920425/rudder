@@ -5,6 +5,7 @@ status: active
 coverage: detailed
 contract_ids:
   - CHAT.LIFECYCLE.001
+  - CHAT.RICH.REFERENCE.RENDERING.001
   - MESSENGER.ATTENTION.001
   - IM.FEISHU.001
 related_code:
@@ -23,6 +24,9 @@ related_code:
   - server/src/services/integrations/feishu/inbound-dispatcher-db.ts
   - server/src/services/integrations/feishu/inbound-normalizer.ts
   - server/src/services/integrations/feishu/event-verifier.ts
+  - ui/src/index.css
+  - ui/src/components/MarkdownBody.tsx
+  - ui/src/components/MilkdownMarkdownEditor.tsx
   - ui/src/pages/Chat.tsx
   - ui/src/pages/Messenger.tsx
   - ui/src/pages/AgentDetail.integrations.tsx
@@ -34,6 +38,9 @@ related_tests:
   - server/src/__tests__/agent-integration-inbound-dispatcher.test.ts
   - server/src/__tests__/agent-integration-feishu-db-dispatcher.test.ts
   - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
+  - ui/src/lib/index-css.test.ts
+  - ui/src/components/MilkdownMarkdownEditor.test.ts
+  - ui/src/components/MarkdownBody.test.tsx
   - tests/e2e/messenger-contract.spec.ts
   - tests/e2e/chat-rich-references.spec.ts
   - tests/e2e/agent-detail-feishu-integration.spec.ts
@@ -83,6 +90,57 @@ Evidence:
 - Chat E2E covers rich references, skill picker, attachments, draft
   persistence, and attribution navigation.
 - Chat assistant tests cover runtime-backed turns.
+
+## CHAT.RICH.REFERENCE.RENDERING.001
+
+Why:
+
+- Chat and issue work rely on compact markdown tokens for issue, automation,
+  project, library, and skill references. Operators scan these tokens inline
+  while drafting, reviewing comments, reading descriptions, and inspecting
+  documents.
+- Small vertical shifts make references feel broken even when the link target
+  is correct. The stable product contract is a shared baseline and icon rhythm,
+  not repeated per-surface nudging.
+
+Product model:
+
+- Rich references render as text-first inline tokens with a compact leading
+  icon, canonical title/code text, and normal inline wrapping behavior.
+- Composer/editor surfaces and read-only markdown surfaces share the same
+  visual grammar for the same reference type.
+- Composer tokens may use single-line truncation for very long labels, but
+  short or ordinary labels remain visible without unnecessary abbreviation.
+
+Flow:
+
+1. A user inserts or views a markdown reference in chat, an issue comment
+   editor, issue description, rendered issue/comment body, or Library document.
+2. The renderer chooses the reference type icon and label from the resolved
+   entity, preferring human titles over opaque ids when available.
+3. The token is displayed inline with the surrounding text and remains
+   selectable/copyable as part of the editor or rendered body.
+
+Invariants:
+
+- Rich-reference icons and labels must share a stable text baseline across
+  composer, issue comment editor, issue description, rendered markdown, and
+  Library document surfaces.
+- Do not add one-off vertical offsets for a single surface unless visual proof
+  shows the shared token contract is wrong for that whole class of tokens.
+- New reference kinds must join the same token grammar instead of inventing
+  separate pill, badge, or icon alignment behavior.
+- Human-readable entity labels take precedence over raw ids in user-facing
+  tokens. Raw ids are acceptable only as fallback or secondary disambiguation.
+- Truncation in editors is only for labels long enough to threaten the current
+  line; ordinary labels should not be shortened.
+
+Evidence:
+
+- CSS contract tests lock the composer token icon alignment and truncation
+  behavior.
+- Markdown editor/body tests cover special markdown rendering consistency.
+- Chat rich-reference E2E covers real chat insertion and rendering behavior.
 
 ## MESSENGER.ATTENTION.001
 
