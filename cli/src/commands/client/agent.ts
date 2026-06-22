@@ -97,7 +97,7 @@ interface AgentSkillCreateOptions extends BaseClientOptions {
   enable?: boolean;
 }
 
-interface AgentConfigurationRow {
+export interface AgentConfigurationRow {
   id: string;
   orgId: string;
   name: string;
@@ -110,6 +110,19 @@ interface AgentConfigurationRow {
   runtimeConfig: Record<string, unknown>;
   permissions: Record<string, unknown> | null;
   updatedAt: string;
+}
+
+export function formatAgentConfigurationListRow(row: AgentConfigurationRow): string {
+  return formatInlineRecord({
+    id: row.id,
+    name: row.name,
+    title: row.title,
+    role: row.role,
+    status: row.status,
+    agentRuntimeType: row.agentRuntimeType,
+    reportsTo: row.reportsTo,
+    updatedAt: row.updatedAt,
+  });
 }
 
 interface AgentHireResult {
@@ -425,17 +438,7 @@ export function registerAgentCommands(program: Command): void {
           }
 
           for (const row of rows) {
-            console.log(
-              formatInlineRecord({
-                id: row.id,
-                name: row.name,
-                role: row.role,
-                status: row.status,
-                agentRuntimeType: row.agentRuntimeType,
-                reportsTo: row.reportsTo,
-                updatedAt: row.updatedAt,
-              }),
-            );
+            console.log(formatAgentConfigurationListRow(row));
           }
         } catch (err) {
           handleCommandError(err);

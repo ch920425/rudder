@@ -39,6 +39,7 @@ import {
   DraftNumberInput,
   Field,
   help,
+  roleLabels,
   ToggleField,
   ToggleWithNumber
 } from "./agent-config-primitives";
@@ -453,6 +454,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 className={inputClass}
                 placeholder="e.g. VP of Engineering"
               />
+            </Field>
+            <Field label="Role" hint={help.role}>
+              <div
+                role="textbox"
+                aria-readonly="true"
+                data-testid="agent-role-display"
+                className={cn(inputClass, "flex items-center justify-between gap-2 bg-muted/30 text-foreground")}
+              >
+                <span className="font-sans">{roleLabels[props.agent.role] ?? props.agent.role}</span>
+                <span className="text-xs text-muted-foreground">{props.agent.role}</span>
+              </div>
             </Field>
             <Field label="Reports to" hint={help.reportsTo}>
               <ReportsToPicker

@@ -1,0 +1,33 @@
+{
+  "name": "@sj/rudder-mac-mini-agent-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Rudder tools for streaming jobs to Jonathan's Mac mini tailnet execution gateway",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "pretest": "pnpm run build",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "rudderPlugin": {
+    "manifest": "./dist/manifest.js",
+    "worker": "./dist/worker.js"
+  },
+  "keywords": [
+    "rudder",
+    "plugin",
+    "agent-tools",
+    "tailscale"
+  ],
+  "author": "Jonathan Cha",
+  "license": "MIT",
+  "dependencies": {
+    "@rudderhq/plugin-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.9.3"
+  }
+}

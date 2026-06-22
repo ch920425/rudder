@@ -116,7 +116,7 @@ export async function doctor(opts: {
   );
 
   // 9. Port check
-  const portResult = await portCheck(config);
+  const portResult = await portCheck(config, configPath);
   results.push(portResult);
   printResult(portResult);
 

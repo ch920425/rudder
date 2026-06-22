@@ -35,6 +35,7 @@ import { Router } from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { forbidden } from "../errors.js";
 import { logActivity } from "../services/activity-log.js";
 import { publishGlobalLiveEvent } from "../services/live-events.js";
 import type { PluginJobScheduler } from "../services/plugin-job-scheduler.js";
@@ -266,6 +267,33 @@ interface PluginToolExecuteRequest {
   parameters?: unknown;
   /** Agent run context. */
   runContext: ToolRunContext;
+}
+
+function assertPluginToolDiscoveryAccess(req: Request) {
+  if (req.actor.type === "board") return;
+  if (req.actor.type === "agent") return;
+  throw forbidden("Board or agent access required");
+}
+
+function assertPluginToolExecuteAccess(req: Request, runContext: ToolRunContext) {
+  if (req.actor.type === "board") {
+    assertCompanyAccess(req, runContext.orgId);
+    return;
+  }
+
+  if (req.actor.type !== "agent") {
+    throw forbidden("Board or agent access required");
+  }
+
+  if (req.actor.orgId !== runContext.orgId) {
+    throw forbidden("Agent key cannot access another organization");
+  }
+  if (!req.actor.agentId || req.actor.agentId !== runContext.agentId) {
+    throw forbidden("Agent key cannot execute plugin tools for another agent");
+  }
+  if (req.actor.runId && req.actor.runId !== runContext.runId) {
+    throw forbidden("Agent key cannot execute plugin tools for another run");
+  }
 }
 
 /**
@@ -507,7 +535,7 @@ export function pluginRoutes(
    * Errors: 501 if tool dispatcher is not configured
    */
   router.get("/plugins/tools", async (req, res) => {
-    assertBoard(req);
+    assertPluginToolDiscoveryAccess(req);
 
     if (!toolDeps) {
       res.status(501).json({ error: "Plugin tool dispatch is not enabled" });
@@ -541,8 +569,6 @@ export function pluginRoutes(
    * - 502 if the plugin worker is unavailable or the RPC call fails
    */
   router.post("/plugins/tools/execute", async (req, res) => {
-    assertBoard(req);
-
     if (!toolDeps) {
       res.status(501).json({ error: "Plugin tool dispatch is not enabled" });
       return;
@@ -574,7 +600,7 @@ export function pluginRoutes(
       return;
     }
 
-    assertCompanyAccess(req, runContext.orgId);
+    assertPluginToolExecuteAccess(req, runContext);
 
     // Verify the tool exists
     const registeredTool = toolDeps.toolDispatcher.getTool(tool);
