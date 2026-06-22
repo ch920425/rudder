@@ -724,6 +724,142 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(mockUpdateThreadUserState).toHaveBeenCalledWith("org-1", "issue:issue-1", { pinned: true });
   });
 
+  it("marks an unread grouped split issue read when the row is selected", async () => {
+    chatList = [];
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Onboarding",
+        icon: "folder::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [
+          {
+            id: "entry-1",
+            orgId: "org-1",
+            userId: "local-board",
+            groupId: "group-1",
+            threadKey: "issue:issue-1",
+            sortOrder: 0,
+            createdAt: "2026-04-11T09:40:00.000Z",
+            updatedAt: "2026-04-11T09:40:00.000Z",
+            thread: {
+              threadKey: "issue:issue-1",
+              kind: "issues",
+              title: "ISS-1 · Needs a read ack",
+              preview: "Unread issue update",
+              subtitle: null,
+              href: "/messenger/issues/ISS-1",
+              latestActivityAt: "2026-04-11T09:41:00.000Z",
+              lastReadAt: null,
+              unreadCount: 1,
+              needsAttention: true,
+              isPinned: false,
+              metadata: {
+                splitIssue: true,
+                issueId: "issue-1",
+                issueIdentifier: "ISS-1",
+                status: "todo",
+              },
+            },
+          },
+        ],
+      },
+    ];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [],
+    };
+
+    renderSidebar();
+
+    const row = document.querySelector('[data-testid="messenger-thread-issue-issue-1"]') as HTMLElement | null;
+    const link = row?.querySelector<HTMLAnchorElement>("a");
+    expect(link).toBeTruthy();
+    await act(async () => {
+      link?.click();
+      await Promise.resolve();
+    });
+
+    expect(setQueryData).toHaveBeenCalledWith(["messenger", "org-1", "threads"], expect.any(Function));
+    expect(setQueriesData).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "threads", "pages"] }, expect.any(Function));
+    expect(setQueryData.mock.invocationCallOrder[0]).toBeLessThan(mockMarkThreadRead.mock.invocationCallOrder[0]);
+    expect(mockMarkThreadRead).toHaveBeenCalledWith("org-1", "issue:issue-1", "2026-04-11T09:41:00.000Z");
+  });
+
+  it("refetches custom groups when a grouped split issue read ack fails", async () => {
+    mockMarkThreadRead.mockRejectedValueOnce(new Error("read ack failed"));
+    chatList = [];
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Onboarding",
+        icon: "folder::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [
+          {
+            id: "entry-1",
+            orgId: "org-1",
+            userId: "local-board",
+            groupId: "group-1",
+            threadKey: "issue:issue-1",
+            sortOrder: 0,
+            createdAt: "2026-04-11T09:40:00.000Z",
+            updatedAt: "2026-04-11T09:40:00.000Z",
+            thread: {
+              threadKey: "issue:issue-1",
+              kind: "issues",
+              title: "ISS-1 · Needs a read ack",
+              preview: "Unread issue update",
+              subtitle: null,
+              href: "/messenger/issues/ISS-1",
+              latestActivityAt: "2026-04-11T09:41:00.000Z",
+              lastReadAt: null,
+              unreadCount: 1,
+              needsAttention: true,
+              isPinned: false,
+              metadata: {
+                splitIssue: true,
+                issueId: "issue-1",
+                issueIdentifier: "ISS-1",
+                status: "todo",
+              },
+            },
+          },
+        ],
+      },
+    ];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [],
+    };
+
+    renderSidebar();
+
+    const row = document.querySelector('[data-testid="messenger-thread-issue-issue-1"]') as HTMLElement | null;
+    const badge = row?.querySelector<HTMLElement>('[data-testid="issue-issue-1-unread-badge"]');
+    expect(badge).toBeTruthy();
+    await act(async () => {
+      badge?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockMarkThreadRead).toHaveBeenCalledWith("org-1", "issue:issue-1", "2026-04-11T09:41:00.000Z");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "groups"] });
+  });
+
   it("marks a read chat thread unread from the actions menu", () => {
     renderSidebar();
 

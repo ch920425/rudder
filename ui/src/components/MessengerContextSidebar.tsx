@@ -258,6 +258,10 @@ function threadIcon(kind: string) {
   }
 }
 
+function isMessengerSystemThreadKind(kind: string): kind is "failed-runs" | "budget-alerts" | "join-requests" {
+  return kind === "failed-runs" || kind === "budget-alerts" || kind === "join-requests";
+}
+
 function sanitizeThreadKey(threadKey: string) {
   return threadKey.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
@@ -1478,7 +1482,7 @@ function ThreadRow({
   onCreateCustomGroup?: () => void;
   dragHandleProps?: Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
   dragging?: boolean;
-  onSelect: (href: string) => void;
+  onSelect: (thread: ReturnType<typeof useMessengerModel>["threadSummaries"][number]) => void;
 }) {
   const Icon = threadIcon(thread.kind);
   const preview = formatMessengerPreview(thread.preview) || formatMessengerPreview(thread.subtitle) || messengerThreadKindLabel(thread.kind);
@@ -1518,25 +1522,29 @@ function ThreadRow({
         dragging && "opacity-80 shadow-sm ring-1 ring-border/70",
       )}
     >
-      {issueStatus ? (
-        <IssueStatusThreadAvatar
-          status={issueStatus}
-          unreadCount={thread.unreadCount}
-          needsAttention={thread.needsAttention}
-          density={density}
-          testId={`${sanitizeThreadKey(thread.threadKey)}-unread-badge`}
-        />
-      ) : (
-        <ThreadAvatar
-          icon={Icon}
-          unreadCount={thread.unreadCount}
-          needsAttention={thread.needsAttention}
-          density={density}
-          testId={`${sanitizeThreadKey(thread.threadKey)}-unread-badge`}
-        />
-      )}
-      <Link to={thread.href} onClick={() => onSelect(thread.href)} className="block min-w-0 flex-1">
-        <span className="min-w-0">
+      <Link
+        to={thread.href}
+        onClick={() => onSelect(thread)}
+        className={cn("flex min-w-0 flex-1", compact ? "items-center gap-2" : "items-start gap-3")}
+      >
+        {issueStatus ? (
+          <IssueStatusThreadAvatar
+            status={issueStatus}
+            unreadCount={thread.unreadCount}
+            needsAttention={thread.needsAttention}
+            density={density}
+            testId={`${sanitizeThreadKey(thread.threadKey)}-unread-badge`}
+          />
+        ) : (
+          <ThreadAvatar
+            icon={Icon}
+            unreadCount={thread.unreadCount}
+            needsAttention={thread.needsAttention}
+            density={density}
+            testId={`${sanitizeThreadKey(thread.threadKey)}-unread-badge`}
+          />
+        )}
+        <span className="min-w-0 flex-1">
           <span className={cn(
             "grid min-w-0 gap-x-2",
             compact ? "grid-cols-[minmax(0,1fr)_2.75rem] items-center" : "grid-cols-[minmax(0,1fr)_3rem] items-start",
@@ -2589,6 +2597,42 @@ export function MessengerContextSidebar() {
     closeMobileSidebar();
   };
 
+  const handleMessengerThreadSelect = (thread: MessengerThreadSummaryItem) => {
+    const orgId = model.selectedOrganizationId;
+    handleMessengerEntrySelect(thread.href);
+    if (!orgId || thread.unreadCount === 0) return;
+
+    const readAt = thread.latestActivityAt ?? null;
+    const marker = `${orgId}:${thread.threadKey}:${readAt ?? "none"}`;
+    if (markedThreadRef.current === marker) return;
+    markedThreadRef.current = marker;
+
+    markMessengerThreadReadInCache(queryClient, orgId, thread.threadKey, readAt);
+
+    void messengerApi.markThreadRead(
+      orgId,
+      thread.threadKey,
+      readAt ? new Date(readAt).toISOString() : null,
+    ).then(async () => {
+      await invalidateMessengerThreadSummaryQueries(queryClient, orgId);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(orgId) });
+      if (thread.kind === "issues") {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.messenger.issues(orgId) });
+      }
+      if (thread.kind === "approvals") {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.messenger.approvals(orgId) });
+      }
+      if (isMessengerSystemThreadKind(thread.kind)) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.messenger.system(orgId, thread.kind),
+        });
+      }
+    }).catch(() => {
+      markedThreadRef.current = null;
+      void invalidateMessengerThreadSummaryQueries(queryClient, orgId);
+    });
+  };
+
   const handleThreadOrganizationRuleChange = (rule: ThreadOrganizationRule) => {
     setThreadOrganizationRule(rule);
     if (model.selectedOrganizationId) {
@@ -3120,7 +3164,7 @@ export function MessengerContextSidebar() {
         onCreateCustomGroup={() => handleCreateCustomGroup(thread.threadKey)}
         dragHandleProps={dragHandleProps}
         dragging={dragging}
-        onSelect={handleMessengerEntrySelect}
+        onSelect={handleMessengerThreadSelect}
       />
     );
   };

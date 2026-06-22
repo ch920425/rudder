@@ -1,5 +1,5 @@
 import { queryKeys } from "@/lib/queryKeys";
-import type { ChatConversation, MessengerThreadSummary, SidebarBadges } from "@rudderhq/shared";
+import type { ChatConversation, MessengerCustomGroupsResponse, MessengerThreadSummary, SidebarBadges } from "@rudderhq/shared";
 import type { QueryClient } from "@tanstack/react-query";
 
 interface MessengerThreadPageData {
@@ -150,6 +150,23 @@ function markThreadPreviewDataRead(
   };
 }
 
+function updateCustomGroupsData(
+  current: MessengerCustomGroupsResponse | undefined,
+  updater: (summary: MessengerThreadSummary) => MessengerThreadSummary,
+) {
+  if (!current) return current;
+  return {
+    ...current,
+    groups: current.groups.map((group) => ({
+      ...group,
+      entries: group.entries.map((entry) => ({
+        ...entry,
+        thread: updater(entry.thread),
+      })),
+    })),
+  };
+}
+
 function markChatConversationPinned(conversation: ChatConversation, pinned: boolean): ChatConversation {
   return {
     ...conversation,
@@ -195,6 +212,7 @@ export function invalidateMessengerThreadSummaryQueries(queryClient: QueryClient
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.messenger.threads(orgId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.messenger.threadPages(orgId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(orgId) }),
   ]);
 }
 
@@ -332,6 +350,10 @@ export function markMessengerThreadReadInCache(
   queryClient.setQueryData<MessengerThreadPreviewData>(
     queryKeys.messenger.threadPreview(orgId),
     (current) => markThreadPreviewDataRead(current, threadKey, nextReadAt),
+  );
+  queryClient.setQueryData<MessengerCustomGroupsResponse>(
+    queryKeys.messenger.customGroups(orgId),
+    (current) => updateCustomGroupsData(current, (summary) => markThreadRead(summary, threadKey, nextReadAt)),
   );
 }
 
