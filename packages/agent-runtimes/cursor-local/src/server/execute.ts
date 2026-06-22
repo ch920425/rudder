@@ -54,6 +54,9 @@ function firstNonEmptyLine(text: string): string {
   );
 }
 
+const CURSOR_QUOTA_EXHAUSTED_RE =
+  /(?:usage\s+limit|get\s+cursor\s+pro|quota|rate[-\s]?limit|too many requests|\b429\b|billing)/i;
+
 function hasNonEmptyEnvValue(env: Record<string, string>, key: string): boolean {
   const raw = env[key];
   return typeof raw === "string" && raw.trim().length > 0;
@@ -653,7 +656,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       };
       parsed: ReturnType<typeof parseCursorJsonl>;
     },
-    clearSessionOnMissingSession = false,
+    clearSessionWhenMissing = false,
   ): AgentRuntimeExecutionResult => {
     if (attempt.proc.timedOut) {
       return {
@@ -661,7 +664,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         signal: attempt.proc.signal,
         timedOut: true,
         errorMessage: `Timed out after ${timeoutSec}s`,
-        clearSession: clearSessionOnMissingSession,
+        clearSession: clearSessionWhenMissing,
       };
     }
 
@@ -681,19 +684,32 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
       parsedError ||
       stderrLine ||
       `Cursor exited with code ${attempt.proc.exitCode ?? -1}`;
+    const failed = (attempt.proc.exitCode ?? 0) !== 0 || parsedError.length > 0;
+    const shouldPersistSession = !failed && !(clearSessionWhenMissing && !resolvedSessionId);
+    const resultSessionId = shouldPersistSession ? resolvedSessionId : undefined;
+    const sessionFields = shouldPersistSession
+      ? {
+          sessionId: resolvedSessionId,
+          sessionParams: resolvedSessionParams,
+          sessionDisplayId: resolvedSessionId,
+        }
+      : {};
+    const quotaExhausted = CURSOR_QUOTA_EXHAUSTED_RE.test(
+      `${parsedError}\n${attempt.proc.stdout}\n${attempt.proc.stderr}`,
+    );
+    const shouldClearSession = clearSessionWhenMissing && !resultSessionId;
 
     return {
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
       timedOut: false,
       errorMessage:
-        (attempt.proc.exitCode ?? 0) === 0
+        !failed
           ? null
           : fallbackErrorMessage,
+      errorCode: failed && quotaExhausted ? "cursor_quota_exhausted" : null,
       usage: attempt.parsed.usage,
-      sessionId: resolvedSessionId,
-      sessionParams: resolvedSessionParams,
-      sessionDisplayId: resolvedSessionId,
+      ...sessionFields,
       provider: providerFromModel,
       biller: resolveCursorBiller(runtimeEnv, billingType, providerFromModel),
       model,
@@ -704,7 +720,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
         stderr: attempt.proc.stderr,
       },
       summary: attempt.parsed.summary,
-      clearSession: Boolean(clearSessionOnMissingSession && !resolvedSessionId),
+      clearSession: shouldClearSession,
     };
   };
 

@@ -51,6 +51,8 @@ function summarizeProbeDetail(stdout: string, stderr: string, parsedError: strin
 
 const CURSOR_AUTH_REQUIRED_RE =
   /(?:authentication\s+required|not\s+authenticated|not\s+logged\s+in|unauthorized|invalid(?:\s+or\s+missing)?\s+api(?:[_\s-]?key)?|cursor[_\s-]?api[_\s-]?key|run\s+'?agent\s+login'?\s+first|api(?:[_\s-]?key)?(?:\s+is)?\s+required)/i;
+const CURSOR_QUOTA_EXHAUSTED_RE =
+  /(?:usage\s+limit|get\s+cursor\s+pro|quota|rate[-\s]?limit|too many requests|\b429\b|billing)/i;
 const DEFAULT_CURSOR_HELLO_PROBE_TIMEOUT_SEC = 90;
 
 export async function testEnvironment(
@@ -190,6 +192,14 @@ export async function testEnvironment(
           message: "Cursor CLI is installed, but authentication is not ready.",
           ...(detail ? { detail } : {}),
           hint: "Run `cursor-agent login` or configure CURSOR_API_KEY in adapter env/shell, then retry the probe.",
+        });
+      } else if (CURSOR_QUOTA_EXHAUSTED_RE.test(authEvidence)) {
+        checks.push({
+          code: "cursor_hello_probe_quota_exhausted",
+          level: "warn",
+          message: "Cursor CLI authentication is configured, but the current account is over quota.",
+          ...(detail ? { detail } : {}),
+          hint: "Upgrade or wait for Cursor Agent quota to reset, then retry the probe.",
         });
       } else {
         checks.push({

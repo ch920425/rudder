@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ArrowLeft,
   Download,
   HardDrive,
   Loader2,
@@ -22,8 +23,9 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useDialog } from "../context/DialogContext";
 import { useToast } from "../context/ToastContext";
 import { useViewedOrganization } from "../hooks/useViewedOrganization";
+import { applyOrganizationPrefix } from "../lib/organization-routes";
 import { queryKeys } from "../lib/queryKeys";
-import { useSearchParams } from "../lib/router";
+import { Link, useSearchParams } from "../lib/router";
 
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
@@ -123,7 +125,7 @@ function BackupVersionButton({
 
 export function OrganizationWorkspaceBackups() {
   const { viewedOrganization, viewedOrganizationId } = useViewedOrganization();
-  const { setBreadcrumbs } = useBreadcrumbs();
+  const { setBreadcrumbs, setHeaderActions } = useBreadcrumbs();
   const { confirm } = useDialog();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
@@ -134,6 +136,25 @@ export function OrganizationWorkspaceBackups() {
   useEffect(() => {
     setBreadcrumbs([{ label: "Workspace backups" }]);
   }, [setBreadcrumbs]);
+
+  const libraryHref = applyOrganizationPrefix("/library", viewedOrganization?.issuePrefix);
+
+  useEffect(() => {
+    if (!viewedOrganization) {
+      setHeaderActions(null);
+      return () => setHeaderActions(null);
+    }
+
+    setHeaderActions(
+      <Button asChild size="sm" variant="ghost" className="text-muted-foreground">
+        <Link to={libraryHref}>
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+          Back to library
+        </Link>
+      </Button>,
+    );
+    return () => setHeaderActions(null);
+  }, [libraryHref, setHeaderActions, viewedOrganization]);
 
   const backupsQuery = useQuery({
     queryKey: queryKeys.organizations.workspaceBackups(viewedOrganizationId ?? "__none__"),

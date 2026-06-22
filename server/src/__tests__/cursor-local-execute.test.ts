@@ -39,6 +39,39 @@ const payload = {
 if (capturePath) {
   fs.writeFileSync(capturePath, JSON.stringify(payload), "utf8");
 }
+if (process.env.RUDDER_TEST_CURSOR_UNKNOWN_SESSION_THEN_SUCCESS === "1") {
+  if (process.argv.includes("--resume")) {
+    console.error("Error: unknown session id old-cursor-session");
+    process.exit(1);
+  }
+  console.log(JSON.stringify({
+    type: "system",
+    subtype: "init",
+    session_id: "cursor-session-after-retry",
+    model: "auto",
+  }));
+  console.log(JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "output_text", text: "fresh retry ok" }] },
+  }));
+  console.log(JSON.stringify({
+    type: "result",
+    subtype: "success",
+    session_id: "cursor-session-after-retry",
+    result: "ok",
+  }));
+  process.exit(0);
+}
+if (process.env.RUDDER_TEST_CURSOR_USAGE_LIMIT === "1") {
+  console.log(JSON.stringify({
+    type: "system",
+    subtype: "init",
+    session_id: "cursor-failed-session",
+    model: "auto",
+  }));
+  console.error("ActionRequiredError: You've hit your usage limit Get Cursor Pro for more Agent usage, unlimited Tab, and more.");
+  process.exit(1);
+}
 console.log(JSON.stringify({
   type: "system",
   subtype: "init",
@@ -391,6 +424,173 @@ describe("cursor execute", { timeout: 20_000 }, () => {
       await expect(fs.lstat(path.join(root, ".cursor", "skills"))).rejects.toMatchObject({
         code: "ENOENT",
       });
+    } finally {
+      restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("classifies Cursor usage limits and does not persist the failed session", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-usage-limit-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "agent");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeCursorCommand(commandPath);
+
+    const restoreEnv = setManagedCursorEnv(root);
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-usage-limit",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CURSOR_USAGE_LIMIT: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.errorCode).toBe("cursor_quota_exhausted");
+      expect(result.errorMessage).toContain("usage limit");
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionId")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionParams")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionDisplayId")).toBe(false);
+      expect(result.clearSession).toBe(false);
+    } finally {
+      restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves the previous session record on Cursor quota failures", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-usage-limit-old-session-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "agent");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeCursorCommand(commandPath);
+
+    const restoreEnv = setManagedCursorEnv(root);
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-usage-limit-old-session",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: "old-cursor-session",
+          sessionParams: {
+            sessionId: "old-cursor-session",
+            cwd: workspace,
+          },
+          sessionDisplayId: "old-cursor-session",
+          taskKey: "issue:1",
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CURSOR_USAGE_LIMIT: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.errorCode).toBe("cursor_quota_exhausted");
+      expect(result.errorMessage).toContain("usage limit");
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionId")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionParams")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(result, "sessionDisplayId")).toBe(false);
+      expect(result.clearSession).toBe(false);
+    } finally {
+      restoreEnv();
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("persists the fresh session when unknown-session retry succeeds", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-cursor-execute-retry-session-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "agent");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakeCursorCommand(commandPath);
+
+    const restoreEnv = setManagedCursorEnv(root);
+
+    try {
+      const result = await execute({
+        runId: "run-cursor-retry-session",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Cursor Coder",
+          agentRuntimeType: "cursor",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: "old-cursor-session",
+          sessionParams: {
+            sessionId: "old-cursor-session",
+            cwd: workspace,
+          },
+          sessionDisplayId: "old-cursor-session",
+          taskKey: "issue:1",
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "auto",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_CURSOR_UNKNOWN_SESSION_THEN_SUCCESS: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+      expect(result.sessionId).toBe("cursor-session-after-retry");
+      expect(result.sessionParams).toMatchObject({
+        sessionId: "cursor-session-after-retry",
+        cwd: workspace,
+      });
+      expect(result.sessionDisplayId).toBe("cursor-session-after-retry");
+      expect(result.clearSession).toBe(false);
     } finally {
       restoreEnv();
       await fs.rm(root, { recursive: true, force: true });

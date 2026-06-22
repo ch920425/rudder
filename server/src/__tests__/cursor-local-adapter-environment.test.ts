@@ -12,6 +12,10 @@ const outPath = process.env.RUDDER_TEST_ARGS_PATH;
 if (outPath) {
   fs.writeFileSync(outPath, JSON.stringify(process.argv.slice(2)), "utf8");
 }
+if (process.env.RUDDER_TEST_CURSOR_USAGE_LIMIT === "1") {
+  console.error("ActionRequiredError: You've hit your usage limit Get Cursor Pro for more Agent usage.");
+  process.exit(1);
+}
 console.log(JSON.stringify({
   type: "assistant",
   message: { content: [{ type: "output_text", text: "hello" }] },
@@ -114,6 +118,39 @@ describe("cursor environment diagnostics", () => {
     const args = JSON.parse(await fs.readFile(argsCapturePath, "utf8")) as string[];
     expect(args).toContain("--yolo");
     expect(args).not.toContain("--trust");
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  it("surfaces Cursor usage limits as quota readiness warnings", async () => {
+    const root = path.join(
+      os.tmpdir(),
+      `rudder-cursor-local-probe-quota-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const binDir = path.join(root, "bin");
+    const cwd = path.join(root, "workspace");
+    const argsCapturePath = path.join(root, "args.json");
+    await fs.mkdir(binDir, { recursive: true });
+    await writeFakeAgentCommand(binDir, argsCapturePath);
+
+    const result = await testEnvironment({
+      orgId: "organization-1",
+      agentRuntimeType: "cursor",
+      config: {
+        command: "agent",
+        cwd,
+        env: {
+          CURSOR_API_KEY: "test-key",
+          RUDDER_TEST_ARGS_PATH: argsCapturePath,
+          RUDDER_TEST_CURSOR_USAGE_LIMIT: "1",
+          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    });
+
+    const quotaCheck = result.checks.find((check) => check.code === "cursor_hello_probe_quota_exhausted");
+    expect(result.status).toBe("warn");
+    expect(quotaCheck?.level).toBe("warn");
+    expect(quotaCheck?.detail).toContain("usage limit");
     await fs.rm(root, { recursive: true, force: true });
   });
 });
