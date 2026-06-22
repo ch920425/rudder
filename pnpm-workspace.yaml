@@ -2,6 +2,7 @@ packages:
   - packages/*
   - packages/agent-runtimes/*
   - packages/plugins/*
+  - packages/plugins/local/*
   - packages/plugins/examples/*
   - server
   - ui
