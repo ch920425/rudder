@@ -58,6 +58,20 @@ function threadTestId(threadKey: string) {
   return `messenger-thread-${threadKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
+function messengerSectionTestId(sectionKey: string) {
+  return `messenger-thread-section-${sectionKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function chatUnreadBadgeTestId(chatId: string) {
   return `${threadTestId(`chat:${chatId}`)}-agent-avatar-unread-badge`;
 }
@@ -1385,6 +1399,81 @@ test.describe("Messenger unified threads contract", () => {
     const fatalClientSignals = [...pageErrors, ...consoleErrors]
       .filter((message) => /removeChild|UI recovery|reload|NotFoundError/i.test(message));
     expect(fatalClientSignals).toEqual([]);
+  });
+
+  test("keeps a pending custom group rendered while a loose-row merge is saving", async ({ page }) => {
+    const organization = await createOrganization(page, `Messenger-Pending-Merge-${Date.now()}`);
+
+    async function createChat(title: string, summary = `${title} summary`) {
+      const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
+        data: {
+          title,
+          summary,
+          issueCreationMode: "manual_approval",
+          planMode: false,
+        },
+      });
+      expect(res.ok()).toBe(true);
+      return res.json() as Promise<{ id: string }>;
+    }
+
+    const sourceChat = await createChat("Pending source tab");
+    const targetChat = await createChat("Pending target tab");
+
+    await page.goto("/");
+    await page.evaluate((orgId) => {
+      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
+    }, organization.id);
+    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+
+    const releaseMerge = deferred<void>();
+    let startedMerge!: () => void;
+    const mergeStarted = new Promise<void>((resolve) => {
+      startedMerge = resolve;
+    });
+    await page.route(`**/api/orgs/${organization.id}/messenger/groups/merge`, async (route) => {
+      startedMerge();
+      await releaseMerge.promise;
+      const response = await route.fetch();
+      await route.fulfill({ response });
+    });
+
+    await dragMessengerThreadHandleOver(
+      page,
+      page.getByTestId(threadTestId(`chat:${sourceChat.id}`)),
+      page.getByTestId(threadTestId(`chat:${targetChat.id}`)),
+    );
+    await mergeStarted;
+
+    const pendingSectionId = messengerSectionTestId(`pending-custom-group:chat:${targetChat.id}->chat:${sourceChat.id}`);
+    const pendingSection = page.getByTestId(pendingSectionId);
+    await expect(pendingSection).toBeVisible();
+    await expect(pendingSection).toContainText("Pending target tab");
+    await expect(pendingSection).toContainText("Pending source tab");
+    await expect(page.getByTestId(messengerSectionTestId(`chat:${sourceChat.id}`))).toHaveCount(0);
+    await expect(page.getByTestId(messengerSectionTestId(`chat:${targetChat.id}`))).toHaveCount(0);
+
+    releaseMerge.resolve();
+    let savedGroupId: string | null = null;
+    await expect.poll(async () => {
+      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+      expect(groupsRes.ok()).toBe(true);
+      const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
+      const group = payload.groups.find((candidate) => {
+        const threadKeys = candidate.entries.map((entry) => entry.threadKey);
+        return candidate.name === "Pending target tab" &&
+          threadKeys[0] === `chat:${targetChat.id}` &&
+          threadKeys[1] === `chat:${sourceChat.id}`;
+      });
+      savedGroupId = group?.id ?? null;
+      return Boolean(savedGroupId);
+    }).toBe(true);
+    expect(savedGroupId).toBeTruthy();
+    await expect(pendingSection).toHaveCount(0);
+    const savedGroupSection = page.getByTestId(`messenger-thread-section-custom-group-${savedGroupId}`);
+    await expect(savedGroupSection).toContainText("Pending target tab");
+    await expect(savedGroupSection).toContainText("Pending source tab");
   });
 
   test("loads older issue messages on demand instead of rendering the full issue feed", async ({ page }) => {

@@ -1738,12 +1738,73 @@ describe("MessengerContextSidebar chat actions", () => {
       await Promise.resolve();
     });
 
-    expect(mockCreateCustomGroupWithEntries).toHaveBeenCalledWith("org-1", {
+    expect(mockCreateCustomGroupWithEntries).toHaveBeenCalledWith("org-1", expect.objectContaining({
       name: "Target tab",
       icon: "folder::amber",
       threadKeys: ["chat:target", "chat:source"],
-    });
+    }));
     expect(mockAssignCustomGroupEntry).not.toHaveBeenCalled();
+  });
+
+  it("keeps a pending loose chat merge rendered until the group save resolves", async () => {
+    const pendingMerge = deferred<{ groups: any[] }>();
+    mockCreateCustomGroupWithEntries.mockReturnValueOnce(pendingMerge.promise);
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [
+        {
+          threadKey: "chat:source",
+          kind: "chat",
+          title: "Source tab",
+          preview: "Source work.",
+          subtitle: null,
+          href: "/messenger/chat/source",
+          latestActivityAt: "2026-04-11T09:50:00.000Z",
+          lastReadAt: null,
+          unreadCount: 0,
+          needsAttention: false,
+          isPinned: false,
+        },
+        {
+          threadKey: "chat:target",
+          kind: "chat",
+          title: "Target tab",
+          preview: "Target work.",
+          subtitle: null,
+          href: "/messenger/chat/target",
+          latestActivityAt: "2026-04-11T09:40:00.000Z",
+          lastReadAt: null,
+          unreadCount: 0,
+          needsAttention: false,
+          isPinned: false,
+        },
+      ],
+    };
+
+    renderSidebar();
+
+    await act(async () => {
+      dndMockState.onDragEnd?.({
+        active: { id: "chat:source" },
+        over: { id: "chat:target" },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const pendingSection = document.querySelector(
+      '[data-testid="messenger-thread-section-pending-custom-group-chat-target--chat-source"]',
+    );
+    expect(pendingSection?.textContent).toContain("Target tab");
+    expect(pendingSection?.textContent).toContain("Source tab");
+    expect(document.querySelector('[data-testid="messenger-thread-section-chat-source"]')).toBeNull();
+    expect(document.querySelector('[data-testid="messenger-thread-section-chat-target"]')).toBeNull();
+
+    await act(async () => {
+      pendingMerge.resolve({ groups: [] });
+      await pendingMerge.promise;
+      await Promise.resolve();
+    });
   });
 
   it("creates custom groups from non-chat rows", async () => {
@@ -1793,12 +1854,82 @@ describe("MessengerContextSidebar chat actions", () => {
       await Promise.resolve();
     });
 
-    expect(mockCreateCustomGroupWithEntries).toHaveBeenCalledWith("org-1", {
+    expect(mockCreateCustomGroupWithEntries).toHaveBeenCalledWith("org-1", expect.objectContaining({
       name: "Planning chat",
       icon: "folder::amber",
       threadKeys: ["chat:chat-1", "issues"],
-    });
+    }));
     expect(mockAssignCustomGroupEntry).not.toHaveBeenCalled();
+  });
+
+  it("keeps a pending non-chat merge rendered across stale custom group refetches", async () => {
+    installLocalStorage({
+      "rudder.messengerSplitIssueNotificationsByOrg": JSON.stringify({ "org-1": false }),
+    });
+    const pendingMerge = deferred<{ groups: any[] }>();
+    mockCreateCustomGroupWithEntries.mockReturnValueOnce(pendingMerge.promise);
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [
+        {
+          threadKey: "chat:chat-1",
+          kind: "chat",
+          title: "Planning chat",
+          preview: "Chat work.",
+          subtitle: null,
+          href: "/messenger/chat/chat-1",
+          latestActivityAt: "2026-04-11T09:50:00.000Z",
+          lastReadAt: null,
+          unreadCount: 0,
+          needsAttention: false,
+          isPinned: false,
+        },
+        {
+          threadKey: "issues",
+          kind: "issues",
+          title: "Issues",
+          preview: "Followed issues",
+          subtitle: null,
+          href: "/messenger/issues",
+          latestActivityAt: "2026-04-11T09:40:00.000Z",
+          lastReadAt: null,
+          unreadCount: 0,
+          needsAttention: false,
+          isPinned: false,
+        },
+      ],
+    };
+
+    const { root } = renderSidebar();
+
+    await act(async () => {
+      dndMockState.onDragEnd?.({
+        active: { id: "issues" },
+        over: { id: "chat:chat-1" },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    customGroupList = [];
+    await act(async () => {
+      root.render(<MessengerContextSidebar />);
+      await Promise.resolve();
+    });
+
+    const pendingSection = document.querySelector(
+      '[data-testid="messenger-thread-section-pending-custom-group-chat-chat-1--issues"]',
+    );
+    expect(pendingSection?.textContent).toContain("Planning chat");
+    expect(pendingSection?.textContent).toContain("Issues");
+    expect(document.querySelector('[data-testid="messenger-thread-section-chat-chat-1"]')).toBeNull();
+    expect(document.querySelector('[data-testid="messenger-thread-section-issues"]')).toBeNull();
+
+    await act(async () => {
+      pendingMerge.resolve({ groups: [] });
+      await pendingMerge.promise;
+      await Promise.resolve();
+    });
   });
 
   it("moves non-chat rows into an existing custom group", async () => {
