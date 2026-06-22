@@ -103,15 +103,25 @@ export function prepareAgentInstructionRuntimeContext(context: Record<string, un
 }
 
 function instructionFileSection(input: {
-  title: string;
   contents: string;
-  displayFilePath: string;
+}) {
+  return input.contents.trimEnd();
+}
+
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function instructionFilesFooter(input: {
+  displayFilePaths: string[];
   displayFileDir: string;
 }) {
+  if (input.displayFilePaths.length === 0) return "";
+
   return [
-    input.contents.trimEnd(),
-    "",
-    `The above ${input.title} content was loaded from ${input.displayFilePath}.`,
+    `The above instruction files were loaded from ${formatList(input.displayFilePaths)}.`,
     `Resolve any relative file references from ${input.displayFileDir}.`,
   ].join("\n");
 }
@@ -202,10 +212,7 @@ export async function loadAgentInstructionsPrefix(input: {
       const instructionsContents = await fs.readFile(instructionsFilePath, "utf8");
       loadedPaths.add(path.resolve(instructionsFilePath));
       entrySection = instructionFileSection({
-        title: path.basename(instructionsFilePath),
         contents: instructionsContents,
-        displayFilePath: displayInstructionsFilePath,
-        displayFileDir: displayInstructionsDir,
       });
       await input.onLog(
         "stdout",
@@ -235,7 +242,6 @@ export async function loadAgentInstructionsPrefix(input: {
     const filePath = path.join(path.dirname(instructionsFilePath), siblingInput.fileName);
     const resolvedPath = path.resolve(filePath);
     const displayFilePath = displayInstructionPath(filePath, instructionsFilePath);
-    const displayFileDir = displayInstructionDir(filePath, instructionsFilePath);
     if (loadedPaths.has(resolvedPath)) return { path: filePath, section: "" };
     try {
       const contents = await fs.readFile(filePath, "utf8");
@@ -247,10 +253,7 @@ export async function loadAgentInstructionsPrefix(input: {
       return {
         path: filePath,
         section: instructionFileSection({
-          title: siblingInput.fileName,
           contents,
-          displayFilePath,
-          displayFileDir,
         }),
       };
     } catch (err) {
@@ -300,6 +303,16 @@ export async function loadAgentInstructionsPrefix(input: {
   const heartbeatFilePath = null;
   const heartbeatFileChars = 0;
   const heartbeatChars = runtimeHeartbeatSection.length + heartbeatFileChars;
+  const loadedInstructionFilePaths = [
+    ...(entrySection ? [displayInstructionsFilePath] : []),
+    ...(soul.section && soul.path ? [displayInstructionPath(soul.path, instructionsFilePath)] : []),
+    ...(tools.section && tools.path ? [displayInstructionPath(tools.path, instructionsFilePath)] : []),
+    ...(memorySection && memory.path ? [displayInstructionPath(memory.path, instructionsFilePath)] : []),
+  ];
+  const instructionFooterSection = instructionFilesFooter({
+    displayFilePaths: loadedInstructionFilePaths,
+    displayFileDir: displayInstructionsDir,
+  });
 
   const prefix = joinPromptSections([
     operatingContractSection,
@@ -307,6 +320,7 @@ export async function loadAgentInstructionsPrefix(input: {
     soul.section,
     tools.section,
     memorySection,
+    instructionFooterSection,
     ...contextSectionsBeforeCurrentTime,
     currentTimeSection,
     runtimeHeartbeatSection,
