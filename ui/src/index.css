@@ -3396,6 +3396,7 @@ a.rudder-skill-token {
 .chat-composer .rudder-milkdown-content .rudder-skill-token::before {
   flex: none;
   margin-right: 0.28em;
+  transform: translateY(0.1em);
   width: 1.28em;
   height: 1.28em;
 }
@@ -4179,6 +4180,7 @@ a.rudder-mention-chip[data-mention-kind="project"]::before {
 .chat-composer .rudder-milkdown-content .rudder-mention-chip::before,
 .chat-composer .rudder-milkdown-content .rudder-project-mention-chip::before {
   margin-right: 0.28em;
+  transform: translateY(0.1em);
   width: 1.28em;
   height: 1.28em;
 }
@@ -4208,6 +4210,11 @@ a.rudder-mention-chip[data-mention-kind="automation"]::before {
   height: 1.2em;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center / contain no-repeat;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.chat-composer .rudder-mdxeditor-content .rudder-mention-chip[data-mention-kind="automation"]::before,
+.chat-composer .rudder-milkdown-content .rudder-mention-chip[data-mention-kind="automation"]::before {
+  transform: translateY(0.18em);
 }
 
 .rudder-mdxeditor-content .rudder-mention-chip--with-status-icon[data-mention-kind="issue"]::before,

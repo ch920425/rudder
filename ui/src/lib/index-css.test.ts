@@ -286,9 +286,15 @@ describe("index.css motion rules", () => {
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-project-mention-chip::before \{[\s\S]*?\n\}/)?.[0] ?? "";
     const composerSkillIconBlock =
       indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-skill-token::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-skill-token::before \{[\s\S]*?\n\}/)?.[0] ?? "";
+    const composerAutomationIconBlock =
+      indexCss.match(/\n\.chat-composer \.rudder-mdxeditor-content \.rudder-mention-chip\[data-mention-kind="automation"]::before,[\s\S]*?\.chat-composer \.rudder-milkdown-content \.rudder-mention-chip\[data-mention-kind="automation"]::before \{[\s\S]*?\n\}/)?.[0] ?? "";
 
     expect(composerMentionIconBlock).toContain("margin-right: 0.28em");
+    expect(composerMentionIconBlock).toContain("transform: translateY(0.1em)");
     expect(composerSkillIconBlock).toContain("margin-right: 0.28em");
+    expect(composerSkillIconBlock).toContain("transform: translateY(0.1em)");
+    expect(composerAutomationIconBlock).toContain("transform: translateY(0.18em)");
+    expect(composerAutomationIconBlock).not.toContain("a.rudder-mention-chip");
   });
 
   it("keeps chat composer drafts aligned with the toolbar axis", () => {
