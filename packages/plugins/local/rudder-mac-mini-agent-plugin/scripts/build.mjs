@@ -8,6 +8,13 @@ const common = {
 };
 
 await esbuild.build({
+  entryPoints: ["src/constants.ts"],
+  outfile: "dist/constants.js",
+  bundle: false,
+  ...common,
+});
+
+await esbuild.build({
   entryPoints: ["src/manifest.ts"],
   outfile: "dist/manifest.js",
   bundle: false,

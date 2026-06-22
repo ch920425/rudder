@@ -125,6 +125,20 @@ export function formatAgentConfigurationListRow(row: AgentConfigurationRow): str
   });
 }
 
+export function formatAgentListRow(row: Agent): string {
+  return formatInlineRecord({
+    shortRef: row.shortRef,
+    id: row.id,
+    name: row.name,
+    title: row.title,
+    status: row.status,
+    role: row.role,
+    reportsTo: row.reportsTo,
+    budgetMonthlyCents: row.budgetMonthlyCents,
+    spentMonthlyCents: row.spentMonthlyCents,
+  });
+}
+
 interface AgentHireResult {
   agent: Agent;
   approval: Approval | null;
@@ -363,18 +377,7 @@ export function registerAgentCommands(program: Command): void {
           }
 
           for (const row of rows) {
-            console.log(
-              formatInlineRecord({
-                shortRef: row.shortRef,
-                id: row.id,
-                name: row.name,
-                role: row.role,
-                status: row.status,
-                reportsTo: row.reportsTo,
-                budgetMonthlyCents: row.budgetMonthlyCents,
-                spentMonthlyCents: row.spentMonthlyCents,
-              }),
-            );
+            console.log(formatAgentListRow(row));
           }
         } catch (err) {
           handleCommandError(err);

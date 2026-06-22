@@ -40,6 +40,7 @@ Core fields:
 - dangerouslyBypassApprovalsAndSandbox (boolean, optional): run with bypass flag
 - command (string, optional): defaults to "codex"
 - extraArgs (string[], optional): additional CLI args
+- managedMcpServers (object, optional): MCP servers that Rudder should explicitly write into the managed CODEX_HOME/config.toml after stripping inherited MCP/plugin config. Shape is { serverName: { command?, args?, url?, env?, startup_timeout_sec? } }.
 - env (object, optional): KEY=VALUE environment variables
 - workspaceStrategy (object, optional): run workspace strategy; currently supports { type: "git_worktree", baseRef?, branchTemplate?, worktreeParentDir? }
 - workspaceRuntime (object, optional): workspace runtime service intents; local host-managed services are realized before Codex starts and exposed back via context/env
@@ -57,6 +58,7 @@ Notes:
 - Rudder runs Codex with the operator HOME preserved for normal local CLI auth/config, while exporting a per-agent managed CODEX_HOME under the active Rudder instance for Codex runtime state and enabled Rudder skills.
 - Adapter env values for HOME, USERPROFILE, RUDDER_OPERATOR_HOME, AGENT_HOME, RUDDER_AGENT_ROOT, and CODEX_HOME do not override those protected runtime paths in the default Codex execution path.
 - Rudder sanitizes managed CODEX_HOME/config.toml, disables Codex bundled skills/plugins, strips inherited skill registries, and writes disabled external skill-path entries for operator-home, shared-Codex-home, and repo-local skill roots so runtime loading stays controlled by Rudder's enabled skill set.
+- If agentRuntimeConfig.managedMcpServers is set, Rudder appends only those MCP server definitions back into the managed CODEX_HOME/config.toml. This is the deterministic path for allowing specific MCP tools such as Context7 or Exa without inheriting the operator's whole Codex config.
 - Rudder prepares a managed Git config sidecar for the run, forces user.useConfigOnly=true, and points Git at it with GIT_CONFIG_GLOBAL so commits use the normal repo-local or host Git identity and never fall back to hostname .local authors.
 - When Rudder realizes a workspace/runtime for a run, it injects RUDDER_WORKSPACE_* and RUDDER_RUNTIME_* env vars for agent-side tooling.
 `;

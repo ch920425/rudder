@@ -19,6 +19,23 @@ import {
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
+function parseObject(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function resolveManagedMcpServers(config: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const raw = parseObject(config.managedMcpServers);
+  const servers: Record<string, Record<string, unknown>> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const serverConfig = parseObject(value);
+    if (Object.keys(serverConfig).length === 0) continue;
+    servers[name] = serverConfig;
+  }
+  return servers;
+}
+
 async function buildCodexSkillSnapshot(
   orgId: string,
   agentId: string,
@@ -83,6 +100,7 @@ export async function syncCodexSkills(
     path.join(sharedCodexHome, "skills"),
     path.join(configuredCwd, ".agents", "skills"),
   ]);
+  const managedMcpServers = resolveManagedMcpServers(ctx.config);
   await realizeManagedCodexSkillEntries(
     sourceEnv,
     resolveManagedCodexHomeDir(process.env, ctx.orgId, ctx.agentId),
@@ -90,7 +108,7 @@ export async function syncCodexSkills(
       .filter((entry) => desiredSkills.includes(entry.key))
       .map((entry) => entry.source),
     async () => {},
-    { disabledSkillPaths: externalCodexSkillPaths },
+    { disabledSkillPaths: externalCodexSkillPaths, managedMcpServers },
   ).catch(() => {});
   return buildCodexSkillSnapshot(ctx.orgId, ctx.agentId, ctx.config);
 }

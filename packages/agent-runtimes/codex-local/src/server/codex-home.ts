@@ -22,6 +22,7 @@ const codexHomeMutationLocks = new Map<string, Promise<void>>();
 
 export type CodexSkillIsolationSurface = {
   disabledSkillPaths: string[];
+  managedMcpServers?: Record<string, Record<string, unknown>>;
 };
 
 export function resolveTrustedOperatorHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -191,6 +192,74 @@ function renderDisabledCodexSkillConfigEntries(skillPaths: string[]): string {
       "enabled = false",
     ].join("\n"))
     .join("\n\n");
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidManagedMcpServerName(name: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(name);
+}
+
+function renderTomlScalar(value: unknown): string | null {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (Array.isArray(value)) {
+    const rendered = value.map(renderTomlScalar);
+    if (rendered.some((entry) => entry === null)) return null;
+    return `[${rendered.join(", ")}]`;
+  }
+  return null;
+}
+
+function renderManagedCodexMcpServersConfigEntries(
+  servers: Record<string, Record<string, unknown>> | undefined,
+): string {
+  if (!servers) return "";
+
+  const normalizedEntries = Object.entries(servers)
+    .map(([name, config]) => [name.trim(), config] as const)
+    .filter(([name, config]) => name.length > 0 && isValidManagedMcpServerName(name) && isPlainRecord(config))
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  if (normalizedEntries.length === 0) return "";
+
+  const sections: string[] = [];
+  for (const [name, config] of normalizedEntries) {
+    const scalarLines: string[] = [];
+    const nestedSections: string[] = [];
+    for (const [key, value] of Object.entries(config).sort(([left], [right]) => left.localeCompare(right))) {
+      if (!isValidManagedMcpServerName(key)) continue;
+      const renderedScalar = renderTomlScalar(value);
+      if (renderedScalar !== null) {
+        scalarLines.push(`${key} = ${renderedScalar}`);
+        continue;
+      }
+      if (!isPlainRecord(value)) continue;
+      const nestedLines = Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([nestedKey, nestedValue]) => {
+          if (!isValidManagedMcpServerName(nestedKey)) return null;
+          const renderedNestedValue = renderTomlScalar(nestedValue);
+          return renderedNestedValue === null ? null : `${nestedKey} = ${renderedNestedValue}`;
+        })
+        .filter((line): line is string => Boolean(line));
+      if (nestedLines.length === 0) continue;
+      nestedSections.push([
+        `[mcp_servers.${name}.${key}]`,
+        ...nestedLines,
+      ].join("\n"));
+    }
+    sections.push([
+      `[mcp_servers.${name}]`,
+      ...scalarLines,
+      ...(nestedSections.length > 0 ? ["", ...nestedSections] : []),
+    ].join("\n"));
+  }
+
+  return sections.join("\n\n");
 }
 
 function sanitizeCodexConfigToml(content: string): {
@@ -487,7 +556,8 @@ async function syncManagedCodexConfigToml(
   const pluginsDisabled = ensureCodexPluginsDisabled(bundledSkillsDisabled.content);
   const baseContent = pluginsDisabled.content.replace(/\s+$/u, "");
   const disabledSkillConfigEntries = renderDisabledCodexSkillConfigEntries(isolationSurface.disabledSkillPaths);
-  const mergedContent = [baseContent, disabledSkillConfigEntries].filter((part) => part.length > 0).join("\n\n");
+  const managedMcpConfigEntries = renderManagedCodexMcpServersConfigEntries(isolationSurface.managedMcpServers);
+  const mergedContent = [baseContent, disabledSkillConfigEntries, managedMcpConfigEntries].filter((part) => part.length > 0).join("\n\n");
   const nextContent = mergedContent.length > 0 ? `${mergedContent}\n` : "";
 
   if (!existingTarget || nextContent !== rawContent) {
@@ -541,6 +611,14 @@ async function syncManagedCodexConfigToml(
     await onLog(
       "stdout",
       `[rudder] Disabled ${isolationSurface.disabledSkillPaths.length} external Codex skill path${isolationSurface.disabledSkillPaths.length === 1 ? "" : "s"} in ${target} to keep runtime skills controlled by Rudder.\n`,
+    );
+  }
+
+  const managedMcpServerCount = Object.keys(isolationSurface.managedMcpServers ?? {}).length;
+  if (managedMcpServerCount > 0) {
+    await onLog(
+      "stdout",
+      `[rudder] Enabled ${managedMcpServerCount} managed Codex MCP server${managedMcpServerCount === 1 ? "" : "s"} in ${target}.\n`,
     );
   }
 }
