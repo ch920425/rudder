@@ -238,7 +238,7 @@ describe("user chat message rendering", () => {
     expect(link?.textContent).toBe(url);
     expect(link?.getAttribute("target")).toBe("_blank");
     expect(link?.classList.contains("rudder-website-link")).toBe(true);
-    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
+    expect(link?.querySelector("[data-website-icon='x']")).toBeTruthy();
     expect(bubble?.textContent).toContain("你觉得这个我怎么回复比较好?");
   });
 

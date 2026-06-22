@@ -415,6 +415,9 @@ function websiteLogoForUrl(url: URL) {
 function websiteIconKindForUrl(url: URL) {
   const hostname = url.hostname.replace(/^www\./iu, "").toLowerCase();
   if (hostnameMatchesWebsiteSource(hostname, "github.com")) return "github";
+  if (hostnameMatchesWebsiteSource(hostname, "x.com") || hostnameMatchesWebsiteSource(hostname, "twitter.com")) {
+    return "x";
+  }
   return "generic";
 }
 
@@ -435,6 +438,15 @@ export function WebsiteLinkIcon({ url }: { url: URL }) {
   const iconKind = websiteIconKindForUrl(url);
   if (iconKind === "github") {
     return <Github className="rudder-website-link-icon" aria-hidden="true" data-website-icon="github" />;
+  }
+  if (iconKind === "x") {
+    return (
+      <span
+        className="rudder-website-link-icon rudder-website-link-icon--x"
+        aria-hidden="true"
+        data-website-icon="x"
+      />
+    );
   }
   return <Globe2 className="rudder-website-link-icon" aria-hidden="true" data-website-icon="generic" />;
 }
