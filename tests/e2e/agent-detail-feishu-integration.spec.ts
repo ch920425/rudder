@@ -36,7 +36,7 @@ test.describe("Agent detail Feishu integration", () => {
     return { agent, organization };
   }
 
-  test("opens the Feishu one-click bot launcher with the agent name prefilled", async ({ page }) => {
+  test("opens the Feishu one-click bot launcher and stores the authorized app", async ({ page }) => {
     const { agent, organization } = await createIntegrationFixture(page);
 
     await page.context().route("https://open.feishu.cn/page/launcher**", async (route) => {
@@ -59,11 +59,31 @@ test.describe("Agent detail Feishu integration", () => {
     expect(launcherUrl.pathname).toBe("/page/launcher");
     expect(launcherUrl.searchParams.get("from")).toBe("sdk");
     expect(launcherUrl.searchParams.get("name")).toBe("Ella - Rudder");
-    expect(launcherUrl.searchParams.get("source")).toBe("rudder/agent-integrations");
+    expect(launcherUrl.searchParams.get("source")).toBe("node-sdk/rudder/agent-integrations");
     expect(launcherUrl.searchParams.get("tp")).toBe("sdk");
-    expect(launcherUrl.searchParams.get("agentId")).toBe(agent.id);
-    expect(launcherUrl.searchParams.get("orgId")).toBe(organization.id);
-    expect(launcherUrl.searchParams.get("transport")).toBe("long_connection");
+
+    await expect(page.getByText("Waiting for Feishu authorization").first()).toBeVisible();
+    await expect(page.getByText("Connected", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Credential stored")).toBeVisible();
+    await expect(page.getByText(/cli_mock_/)).toBeVisible();
+
+    const integrationsRes = await page.request.get(`/api/agents/${agent.id}/integrations?orgId=${organization.id}`);
+    expect(integrationsRes.ok()).toBe(true);
+    const integrations = await integrationsRes.json() as Array<{
+      provider: string;
+      status: string;
+      externalAppId: string;
+      hasCredentialSecret: boolean;
+    }>;
+    expect(integrations).toEqual([
+      expect.objectContaining({
+        provider: "feishu",
+        status: "active",
+        hasCredentialSecret: true,
+      }),
+    ]);
+    expect(integrations[0]?.externalAppId).toMatch(/^cli_mock_/);
+    expect(JSON.stringify(integrations)).not.toContain("mock-secret");
   });
 
   test("opens the Lark Global launcher when that region is selected", async ({ page }) => {
@@ -89,8 +109,6 @@ test.describe("Agent detail Feishu integration", () => {
     expect(launcherUrl.origin).toBe("https://open.larksuite.com");
     expect(launcherUrl.pathname).toBe("/page/launcher");
     expect(launcherUrl.searchParams.get("name")).toBe("Ella - Rudder");
-    expect(launcherUrl.searchParams.get("region")).toBe("lark_global");
-    expect(launcherUrl.searchParams.get("agentId")).toBe(agent.id);
-    expect(launcherUrl.searchParams.get("orgId")).toBe(organization.id);
+    expect(launcherUrl.searchParams.get("source")).toBe("node-sdk/rudder/agent-integrations");
   });
 });

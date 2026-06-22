@@ -6,24 +6,27 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { agentsApi } from "../api/agents";
+import { queryKeys } from "../lib/queryKeys";
 import { AgentIntegrationsTab, getFeishuIntegrationState } from "./AgentDetail.integrations";
 
 const mockWindowOpen = vi.fn();
+
+const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ initialData }: { initialData?: unknown }) => ({
     data: initialData,
     isLoading: false,
   }),
-  useMutation: (options: { mutationFn?: () => Promise<unknown>; onSuccess?: (result: unknown) => void }) => ({
+  useMutation: (options: { mutationFn?: () => Promise<unknown>; onSuccess?: (result: unknown) => void | Promise<void> }) => ({
     mutate: vi.fn(async () => {
       const result = await options.mutationFn?.();
-      options.onSuccess?.(result);
+      await options.onSuccess?.(result);
     }),
     isPending: false,
   }),
   useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
+    invalidateQueries: mockInvalidateQueries,
   }),
 }));
 
@@ -41,6 +44,28 @@ vi.mock("../api/agents", () => ({
       setupUrl: "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
       suggestedBotName: "Wesley - Rudder",
       expiresAt: null,
+    }),
+    startFeishuSetupSession: vi.fn().mockResolvedValue({
+      id: "session-1",
+      provider: "feishu",
+      providerRegion: "feishu_cn",
+      setupUrl: "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
+      suggestedBotName: "Wesley - Rudder",
+      status: "waiting_for_authorization",
+      statusDetail: "Waiting for Feishu authorization",
+      expiresAt: new Date("2026-06-18T01:10:00.000Z"),
+      integration: null,
+    }),
+    getFeishuSetupSession: vi.fn().mockResolvedValue({
+      id: "session-1",
+      provider: "feishu",
+      providerRegion: "feishu_cn",
+      setupUrl: "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
+      suggestedBotName: "Wesley - Rudder",
+      status: "waiting_for_authorization",
+      statusDetail: "Waiting for Feishu authorization",
+      expiresAt: new Date("2026-06-18T01:10:00.000Z"),
+      integration: null,
     }),
     listIntegrations: vi.fn(),
     revokeIntegration: vi.fn(),
@@ -63,6 +88,7 @@ afterEach(() => {
   cleanupFn = null;
   document.body.innerHTML = "";
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 function render(element: ReactNode) {
@@ -150,6 +176,34 @@ describe("AgentIntegrationsTab", () => {
     expect(container.textContent).toContain("Lark Global");
   });
 
+  it("renders a Feishu-safe prefilled bot name for long agent names", () => {
+    const container = render(<AgentIntegrationsTab agent={agent({
+      name: "ZST613 Bot 1782103161531",
+    })} orgId="org-1" />);
+
+    expect(container.textContent).toContain("Create a Feishu bot named ZST613 Bot 178210316153 - Rudder");
+    expect(container.textContent).not.toContain("ZST613 Bot 1782103161531 - Rudde");
+  });
+
+  it("shows a reconnect prompt when a previous Feishu integration is revoked", () => {
+    const container = render(<AgentIntegrationsTab
+      agent={agent({
+        integrations: [
+          integration({
+            status: "revoked",
+            revokedAt: new Date("2026-06-18T02:00:00.000Z"),
+          }),
+        ],
+      })}
+      orgId="org-1"
+    />);
+
+    expect(container.textContent).toContain("Disconnected");
+    expect(container.textContent).toContain("Reconnect a Feishu bot named Wesley - Rudder");
+    expect(container.textContent).toContain("Connect");
+    expect(container.textContent).toContain("cli_a_app");
+  });
+
   it("opens the Feishu setup URL from the agent detail tab", async () => {
     const container = render(<AgentIntegrationsTab agent={agent()} orgId="org-1" />);
     const connectButton = [...container.querySelectorAll("button")]
@@ -164,8 +218,7 @@ describe("AgentIntegrationsTab", () => {
       await Promise.resolve();
     });
 
-    expect(agentsApi.integrationSetupUrl).toHaveBeenCalledWith("agent-1", {
-      provider: "feishu",
+    expect(agentsApi.startFeishuSetupSession).toHaveBeenCalledWith("agent-1", {
       providerRegion: "feishu_cn",
     }, "org-1");
     expect(mockWindowOpen).toHaveBeenCalledWith(
@@ -173,6 +226,43 @@ describe("AgentIntegrationsTab", () => {
       "_blank",
       "noopener,noreferrer",
     );
+    expect(container.textContent).toContain("Waiting for Feishu authorization");
+    expect(container.textContent).toContain("Finish setup");
+  });
+
+  it("polls the setup session and refreshes agent integration state after Feishu authorization", async () => {
+    vi.useFakeTimers();
+    vi.mocked(agentsApi.getFeishuSetupSession).mockResolvedValueOnce({
+      id: "session-1",
+      provider: "feishu",
+      providerRegion: "feishu_cn",
+      setupUrl: "https://open.feishu.cn/page/launcher?name=Wesley+-+Rudder",
+      suggestedBotName: "Wesley - Rudder",
+      status: "completed",
+      statusDetail: "Connected",
+      expiresAt: new Date("2026-06-18T01:10:00.000Z"),
+      integration: integration({
+        externalAppId: "cli_registered",
+        externalBotOpenId: null,
+        installerUserId: "ou_installer",
+      }),
+    });
+    const container = render(<AgentIntegrationsTab agent={agent()} orgId="org-1" />);
+    const connectButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Connect"));
+
+    await act(async () => {
+      connectButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+
+    expect(agentsApi.getFeishuSetupSession).toHaveBeenCalledWith("agent-1", "session-1", "org-1");
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.agents.integrations("agent-1") });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.agents.detail("agent-1") });
+    expect(container.textContent).not.toContain("secret");
   });
 
   it("updates setup copy when Lark Global is selected", () => {

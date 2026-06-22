@@ -19,6 +19,7 @@ import {
   resetAgentSessionSchema,
   testAgentRuntimeEnvironmentSchema,
   type AgentIntegrationProviderRegion,
+  type AgentIntegrationSetupSession,
   type AgentSkillAnalytics,
   type AgentSkillSnapshot,
   type InstanceSchedulerHeartbeatAgent
@@ -33,6 +34,7 @@ import { findServerAdapter, listAgentRuntimeModels } from "../agent-runtimes/ind
 import { resolveStoredOrDerivedAgentWorkspaceKey } from "../agent-workspace-key.js";
 import { MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
+import { logger } from "../middleware/logger.js";
 import { validate } from "../middleware/validate.js";
 import { redactEventPayload } from "../redaction.js";
 import { assetService } from "../services/assets.js";
@@ -57,6 +59,13 @@ import {
 } from "../services/index.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { agentIntegrationService, summarizeAgentIntegration } from "../services/integrations/agent-integrations.js";
+import type { FeishuAppRegistrationResult } from "../services/integrations/feishu/app-registration.js";
+import { defaultFeishuAppRegistrationSessions } from "../services/integrations/feishu/app-registration.js";
+import {
+  ensureFeishuIntegrationRuntimeStarted,
+  stopFeishuIntegrationRuntime,
+} from "../services/integrations/feishu/runtime-registry.js";
+import { feishuIntegrationUserBindingService } from "../services/integrations/feishu/user-bindings.js";
 import type { StorageService } from "../storage/types.js";
 import { registerAgentManagementRoutes } from "./agents.management-routes.js";
 import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo } from "./authz.js";
@@ -134,9 +143,23 @@ function normalizeFeishuProviderRegion(value: unknown): AgentIntegrationProvider
   return value === "lark_global" ? "lark_global" : "feishu_cn";
 }
 
+const FEISHU_SUGGESTED_BOT_NAME_MAX_LENGTH = 32;
+const FEISHU_SUGGESTED_BOT_NAME_SUFFIX = " - Rudder";
+
 function suggestedFeishuBotName(agentName: string) {
   const trimmed = agentName.trim();
-  return `${trimmed || "Rudder Agent"} - Rudder`;
+  const base = trimmed || "Rudder Agent";
+  const maxBaseLength = FEISHU_SUGGESTED_BOT_NAME_MAX_LENGTH - FEISHU_SUGGESTED_BOT_NAME_SUFFIX.length;
+  return `${base.slice(0, maxBaseLength).trimEnd()}${FEISHU_SUGGESTED_BOT_NAME_SUFFIX}`;
+}
+
+function feishuOpenPlatformBaseUrl(providerRegion: AgentIntegrationProviderRegion) {
+  return providerRegion === "lark_global" ? "https://open.larksuite.com" : "https://open.feishu.cn";
+}
+
+function boardUserIdForFeishuAutoBinding(req: Request) {
+  if (req.actor.type !== "board") return null;
+  return req.actor.userId ?? (req.actor.source === "local_implicit" ? "local-board" : null);
 }
 
 function buildFeishuIntegrationSetupUrl(input: {
@@ -218,6 +241,8 @@ export function agentRoutes(db: Db, storage?: StorageService) {
   const assets = assetService(db);
   const access = accessService(db);
   const integrationsSvc = agentIntegrationService(db);
+  const feishuAppRegistrationSessions = defaultFeishuAppRegistrationSessions;
+  const feishuUserBindings = feishuIntegrationUserBindingService(db);
   const approvalsSvc = approvalService(db);
   const budgets = budgetService(db);
   const heartbeat = heartbeatService(db);
@@ -233,6 +258,174 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 },
   });
+
+  async function completeFeishuSetupSession(input: {
+    req: Request;
+    agent: NonNullable<Awaited<ReturnType<typeof svc.getById>>>;
+    sessionId: string;
+    existingSession: AgentIntegrationSetupSession;
+    result: FeishuAppRegistrationResult;
+  }) {
+    const { req, agent, sessionId, existingSession, result } = input;
+    const secret = await secretsSvc.create(
+      agent.orgId,
+      {
+        name: `Feishu app credentials - ${suggestedFeishuBotName(agent.name)} - ${result.appId}`,
+        provider: "local_encrypted",
+        value: JSON.stringify({
+          appId: result.appId,
+          appSecret: result.appSecret,
+        }),
+        description: `Feishu app credentials for ${agent.name}.`,
+        externalRef: null,
+      },
+      { userId: req.actor.type === "board" ? req.actor.userId ?? "board" : null, agentId: null },
+    );
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      orgId: agent.orgId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "secret.created",
+      entityType: "secret",
+      entityId: secret.id,
+      details: { name: secret.name, provider: secret.provider, source: "feishu_app_registration" },
+    });
+
+    const integration = await integrationsSvc.create(agent.orgId, {
+      agentId: agent.id,
+      provider: "feishu",
+      transport: "long_connection",
+      providerRegion: existingSession.providerRegion,
+      appCredentialSecretId: secret.id,
+      externalAppId: result.appId,
+      installerUserId: result.installerUserId,
+      manageUrl: `${feishuOpenPlatformBaseUrl(existingSession.providerRegion)}/app/${encodeURIComponent(result.appId)}`,
+    });
+    const summarized = summarizeAgentIntegration(integration);
+
+    const autoBindUserId = boardUserIdForFeishuAutoBinding(req);
+    const autoBoundUser = autoBindUserId && result.installerUserId
+      ? await feishuUserBindings.bindActiveOrgUserByOpenId({
+        orgId: agent.orgId,
+        integrationId: integration.id,
+        userId: autoBindUserId,
+        externalOpenId: result.installerUserId,
+        externalUnionId: result.installerUnionId,
+      })
+      : null;
+
+    await logActivity(db, {
+      orgId: agent.orgId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.integration.connected",
+      entityType: "agent",
+      entityId: agent.id,
+      details: {
+        provider: "feishu",
+        providerRegion: existingSession.providerRegion,
+        integrationId: integration.id,
+        externalAppId: result.appId,
+      },
+    });
+    if (autoBoundUser) {
+      await logActivity(db, {
+        orgId: agent.orgId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: "agent.integration.user_bound",
+        entityType: "agent_integration",
+        entityId: integration.id,
+        details: {
+          provider: "feishu",
+          userId: autoBoundUser.userId,
+          externalOpenId: autoBoundUser.externalOpenId,
+          source: "feishu_app_registration",
+        },
+      });
+    }
+
+    let runtimeResult: Awaited<ReturnType<typeof ensureFeishuIntegrationRuntimeStarted>>;
+    try {
+      runtimeResult = await ensureFeishuIntegrationRuntimeStarted(
+        integration.id,
+        "feishu_setup_session_completed",
+      );
+    } catch (err) {
+      await integrationsSvc.markErrorForAgent(agent.orgId, agent.id, integration.id);
+      logger.warn({ err, integrationId: integration.id }, "Feishu long-connection runtime refresh failed after setup");
+      await Promise.resolve(logActivity(db, {
+        orgId: agent.orgId,
+        actorType: "system",
+        actorId: "feishu-runtime",
+        action: "agent.integration.runtime_refresh_failed",
+        entityType: "agent_integration",
+        entityId: integration.id,
+        details: {
+          provider: "feishu",
+          reason: "feishu_setup_session_completed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+      })).catch(() => undefined);
+      return {
+        error: unprocessable("Feishu app was created, but Rudder could not start its chat connection"),
+        session: { ...existingSession, status: "failed" as const, statusDetail: "Feishu chat connection failed" },
+      };
+    }
+
+    if (runtimeResult.enabled && !runtimeResult.running) {
+      await integrationsSvc.markErrorForAgent(agent.orgId, agent.id, integration.id);
+      await Promise.resolve(logActivity(db, {
+        orgId: agent.orgId,
+        actorType: "system",
+        actorId: "feishu-runtime",
+        action: "agent.integration.runtime_refresh_failed",
+        entityType: "agent_integration",
+        entityId: integration.id,
+        details: {
+          provider: "feishu",
+          reason: "feishu_setup_session_completed",
+          error: "Feishu long-connection runtime did not start for the new integration",
+        },
+      })).catch(() => undefined);
+      return {
+        error: unprocessable("Feishu app was created, but Rudder could not start its chat connection"),
+        session: { ...existingSession, status: "failed" as const, statusDetail: "Feishu chat connection failed" },
+      };
+    }
+
+    return {
+      session: feishuAppRegistrationSessions.markCompleted({
+        id: sessionId,
+        orgId: agent.orgId,
+        agentId: agent.id,
+        integration: summarized,
+      }) ?? { ...existingSession, status: "completed" as const, integration: summarized },
+    };
+  }
+
+  async function sendFeishuSetupCompletionResponse(
+    res: Response,
+    input: Parameters<typeof completeFeishuSetupSession>[0],
+  ) {
+    const completed = await completeFeishuSetupSession(input);
+    if (completed.error) {
+      const { error, session } = completed;
+      res.status(error.status).json({
+        error: error.message,
+        session,
+      });
+      return;
+    }
+    res.json(completed.session);
+  }
 
   async function persistReconciledInstructionsBundle(
     agent: NonNullable<Awaited<ReturnType<typeof svc.getInternalById>>>,
@@ -1385,6 +1578,74 @@ export function agentRoutes(db: Db, storage?: StorageService) {
     });
   });
 
+  router.post("/agents/:id/integrations/feishu/setup-sessions", async (req, res) => {
+    const id = req.params.id as string;
+    const agent = await svc.getById(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanUpdateAgent(req, agent);
+    const providerRegion = normalizeFeishuProviderRegion(req.body?.providerRegion);
+    const session = await feishuAppRegistrationSessions.start({
+      orgId: agent.orgId,
+      agentId: agent.id,
+      providerRegion,
+      suggestedBotName: suggestedFeishuBotName(agent.name),
+      onAuthorizationComplete: (result, existingSession) => completeFeishuSetupSession({
+        req,
+        agent,
+        sessionId: existingSession.id,
+        existingSession,
+        result,
+      }).then((completed) => completed.session),
+    });
+    res.status(201).json(session);
+  });
+
+  router.get("/agents/:id/integrations/feishu/setup-sessions/:sessionId", async (req, res) => {
+    const id = req.params.id as string;
+    const sessionId = req.params.sessionId as string;
+    const agent = await svc.getById(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanUpdateAgent(req, agent);
+
+    const existingSession = feishuAppRegistrationSessions.get({
+      id: sessionId,
+      orgId: agent.orgId,
+      agentId: agent.id,
+    });
+    if (!existingSession) {
+      res.status(404).json({ error: "Integration setup session not found" });
+      return;
+    }
+    if (existingSession.status !== "waiting_for_authorization" || existingSession.integration) {
+      res.json(existingSession);
+      return;
+    }
+
+    const result = feishuAppRegistrationSessions.takeResult({
+      id: sessionId,
+      orgId: agent.orgId,
+      agentId: agent.id,
+    });
+    if (!result) {
+      res.json(existingSession);
+      return;
+    }
+
+    await sendFeishuSetupCompletionResponse(res, {
+      req,
+      agent,
+      sessionId,
+      existingSession,
+      result,
+    });
+  });
+
   router.post("/agents/:id/integrations", validate(connectAgentIntegrationSchema), async (req, res) => {
     const id = req.params.id as string;
     const agent = await svc.getById(id);
@@ -1414,6 +1675,9 @@ export function agentRoutes(db: Db, storage?: StorageService) {
       res.status(404).json({ error: "Integration not found" });
       return;
     }
+    await stopFeishuIntegrationRuntime(integrationId, "agent_integration_revoked").catch((err) => {
+      logger.warn({ err, integrationId }, "Feishu long-connection runtime stop failed after revoke");
+    });
     res.json(summarizeAgentIntegration(revoked));
   });
 

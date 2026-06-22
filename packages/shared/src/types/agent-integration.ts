@@ -40,6 +40,24 @@ export interface AgentIntegrationSetupUrl {
   expiresAt: Date | null;
 }
 
+export type AgentIntegrationSetupSessionStatus =
+  | "waiting_for_authorization"
+  | "completed"
+  | "failed"
+  | "expired";
+
+export interface AgentIntegrationSetupSession {
+  id: string;
+  provider: AgentIntegrationProvider;
+  providerRegion: AgentIntegrationProviderRegion;
+  setupUrl: string;
+  suggestedBotName: string;
+  status: AgentIntegrationSetupSessionStatus;
+  statusDetail: string | null;
+  expiresAt: Date | null;
+  integration: AgentIntegrationSummary | null;
+}
+
 export interface AgentIntegrationUserBinding {
   id: string;
   orgId: string;

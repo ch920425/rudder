@@ -67,6 +67,10 @@ import {
   workspaceBackupService,
 } from "./services/index.js";
 import { feishuIntegrationRuntimeService } from "./services/integrations/feishu/runtime.js";
+import {
+  configureFeishuIntegrationRuntime,
+  isFeishuLongConnectionEnabled,
+} from "./services/integrations/feishu/runtime-registry.js";
 import { printStartupBanner } from "./startup-banner.js";
 import { createStorageServiceFromConfig } from "./storage/index.js";
 import { serverVersion } from "./version.js";
@@ -1021,6 +1025,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   
   const intervalHandles: Array<ReturnType<typeof setInterval>> = [];
   const feishuRuntime = feishuIntegrationRuntimeService(db as any, { storage: storageService });
+  const feishuLongConnectionEnabled = isFeishuLongConnectionEnabled();
+  configureFeishuIntegrationRuntime({
+    runtime: feishuRuntime,
+    enabled: feishuLongConnectionEnabled,
+  });
 
   if (config.heartbeatSchedulerEnabled) {
     const heartbeat = heartbeatService(db as any);
@@ -1097,7 +1106,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     }, config.heartbeatSchedulerIntervalMs));
   }
 
-  if (process.env.RUDDER_FEISHU_LONG_CONNECTION_ENABLED === "true") {
+  if (feishuLongConnectionEnabled) {
     void feishuRuntime
       .start()
       .then((result) => {
@@ -1342,6 +1351,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       for (const handle of intervalHandles) {
         clearInterval(handle);
       }
+      configureFeishuIntegrationRuntime({ runtime: null, enabled: false });
       await new Promise<void>((resolveClose) => {
         if (!server.listening) {
           resolveClose();

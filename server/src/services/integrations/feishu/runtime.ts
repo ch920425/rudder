@@ -4,13 +4,13 @@ import {
   agentIntegrations,
   chatMessages,
 } from "@rudderhq/db";
+import { createLarkChannel, Domain, LoggerLevel, type NormalizedMessage } from "@larksuiteoapi/node-sdk";
 import type {
   AgentIntegrationProviderRegion,
   ChatConversation,
   ChatMessage,
 } from "@rudderhq/shared";
 import { and, eq, inArray } from "drizzle-orm";
-import WebSocket from "ws";
 import { logger } from "../../../middleware/logger.js";
 import type { StorageService } from "../../../storage/types.js";
 import { chatAgentRunService } from "../../chat-agent-runs.js";
@@ -34,7 +34,7 @@ interface FeishuCredential {
   websocketUrl?: string | null;
 }
 
-interface FeishuRuntimeIntegration {
+export interface FeishuRuntimeIntegration {
   id: string;
   orgId: string;
   agentId: string;
@@ -61,6 +61,19 @@ export interface FeishuLongConnectionClient {
     credential: FeishuCredential;
     onEvent: (payload: Record<string, unknown>) => Promise<void>;
   }): Promise<{ stop: () => Promise<void> | void }>;
+}
+
+export interface FeishuIntegrationRuntime {
+  handleEvent: (
+    integration: FeishuRuntimeIntegration,
+    credential: FeishuCredential,
+    payload: Record<string, unknown>,
+  ) => Promise<AgentIntegrationInboundDispatchResult>;
+  start(): Promise<{ started: number }>;
+  isRunning(integrationId: string): boolean;
+  stopIntegration(integrationId: string): Promise<boolean>;
+  stop(): Promise<void>;
+  sendPendingForRuns(runIds: string[]): Promise<number>;
 }
 
 type FeishuAssistantRunner = Pick<ReturnType<typeof chatAssistantService>, "streamChatAssistantReply">;
@@ -154,42 +167,111 @@ function normalizeLongConnectionPayload(payload: Record<string, unknown>, integr
   } satisfies FeishuInboundMessage;
 }
 
-function websocketUrl(region: AgentIntegrationProviderRegion, credential: FeishuCredential) {
-  if (credential.websocketUrl) return credential.websocketUrl;
-  const base = region === "lark_global"
-    ? "wss://open.larksuite.com/open-apis/im/v1/events"
-    : "wss://open.feishu.cn/open-apis/im/v1/events";
-  return base;
+function larkDomain(region: AgentIntegrationProviderRegion) {
+  return region === "lark_global" ? Domain.Lark : Domain.Feishu;
+}
+
+export function feishuRuntimePayloadFromNormalizedMessage(
+  msg: NormalizedMessage,
+  integration: FeishuRuntimeIntegration,
+): Record<string, unknown> {
+  const rawSenderId = msg.raw && typeof msg.raw === "object" && "sender" in msg.raw
+    ? (msg.raw as {
+      sender?: {
+        sender_id?: {
+          union_id?: unknown;
+        };
+      };
+    }).sender?.sender_id
+    : null;
+  const senderUnionId = typeof rawSenderId?.union_id === "string" && rawSenderId.union_id.trim().length > 0
+    ? rawSenderId.union_id
+    : null;
+  return {
+    appId: integration.externalAppId,
+    botOpenId: integration.externalBotOpenId,
+    eventId: msg.messageId,
+    messageId: msg.messageId,
+    chatId: msg.chatId,
+    chatType: msg.chatType,
+    senderOpenId: msg.senderId,
+    senderUnionId,
+    body: msg.content,
+    commandBody: msg.content,
+    addressedToBot: msg.chatType === "p2p" || msg.mentionedBot,
+    messageType: msg.rawContentType,
+    parentMessageId: msg.replyToMessageId ?? msg.rootId ?? null,
+    receivedAt: msg.createTime > 0 ? new Date(msg.createTime).toISOString() : undefined,
+  };
+}
+
+export async function dispatchFeishuNormalizedMessage(input: {
+  msg: NormalizedMessage;
+  integration: FeishuRuntimeIntegration;
+  onEvent: (payload: Record<string, unknown>) => Promise<void>;
+}) {
+  try {
+    await input.onEvent(feishuRuntimePayloadFromNormalizedMessage(input.msg, input.integration));
+    return true;
+  } catch (err) {
+    logger.error({
+      err,
+      integrationId: input.integration.id,
+      appId: input.integration.externalAppId,
+      messageId: input.msg.messageId,
+    }, "Feishu long-connection event handling failed");
+    return false;
+  }
 }
 
 export function createFeishuLongConnectionClient(): FeishuLongConnectionClient {
   return {
     start: async ({ integration, credential, onEvent }) => {
-      const token = await resolveTenantAccessToken({
-        region: integration.providerRegion,
+      const appSecret = credential.appSecret;
+      if (!appSecret) {
+        throw new Error("Feishu credential secret must include appSecret for long connection");
+      }
+      const channel = createLarkChannel({
         appId: credential.appId ?? integration.externalAppId,
-        appSecret: credential.appSecret,
-        tenantAccessToken: credential.tenantAccessToken,
-      });
-      const ws = new WebSocket(websocketUrl(integration.providerRegion, credential), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      ws.on("message", (data) => {
-        const raw = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
-        void Promise.resolve()
-          .then(() => JSON.parse(raw) as Record<string, unknown>)
-          .then(onEvent)
-          .catch((err) => {
-            logger.error({ err, integrationId: integration.id }, "Feishu long-connection event handling failed");
-          });
-      });
-      ws.on("error", (err) => {
-        logger.error({ err, integrationId: integration.id }, "Feishu long-connection socket error");
-      });
-      return {
-        stop: () => {
-          ws.close();
+        appSecret,
+        domain: larkDomain(integration.providerRegion),
+        source: "rudder/agent-integrations",
+        loggerLevel: LoggerLevel.warn,
+        includeRawEvent: true,
+        policy: {
+          dmMode: "open",
+          requireMention: true,
+          respondToMentionAll: false,
         },
+      });
+      const unsubscribeMessage = channel.on("message", async (msg) => {
+        await dispatchFeishuNormalizedMessage({ msg, integration, onEvent });
+      });
+      const unsubscribeError = channel.on("error", (err) => {
+        logger.error({ err, integrationId: integration.id }, "Feishu long-connection channel error");
+      });
+      await channel.connect();
+      logger.info({
+        integrationId: integration.id,
+        appId: integration.externalAppId,
+      }, "Feishu long-connection channel connected");
+      return {
+        stop: async () => {
+          unsubscribeMessage();
+          unsubscribeError();
+          await channel.disconnect();
+        },
+      };
+    },
+  };
+}
+
+export function createDisabledFeishuLongConnectionClient(): FeishuLongConnectionClient {
+  return {
+    start: async () => {
+      logger.info("Feishu long-connection runtime is disabled; skipping channel start");
+      return {
+        stop: () => {},
       };
     },
   };
@@ -201,6 +283,19 @@ function bindingRequiredText() {
 
 function persistableAssistantKind(kind: "message" | "ask_user" | "issue_proposal" | "operation_proposal" | "automation_create") {
   return kind === "automation_create" ? "message" : kind;
+}
+
+function asChatMessage(row: Awaited<ReturnType<ReturnType<typeof chatService>["listMessages"]>>[number]) {
+  if (!["user", "assistant", "system"].includes(row.role)) {
+    throw new Error(`Unsupported chat message role: ${row.role}`);
+  }
+  if (!["message", "ask_user", "issue_proposal", "operation_proposal", "system_event"].includes(row.kind)) {
+    throw new Error(`Unsupported chat message kind: ${row.kind}`);
+  }
+  if (!["streaming", "completed", "stopped", "failed", "interrupted"].includes(row.status)) {
+    throw new Error(`Unsupported chat message status: ${row.status}`);
+  }
+  return row as ChatMessage;
 }
 
 async function loadRuntimeIntegrations(db: Db) {
@@ -233,7 +328,7 @@ export function feishuIntegrationRuntimeService(
     client?: FeishuLongConnectionClient;
     assistant?: FeishuAssistantRunner;
   } = {},
-) {
+): FeishuIntegrationRuntime {
   const secrets = secretService(db);
   const chats = chatService(db);
   const chatRuns = chatAgentRunService(db);
@@ -241,6 +336,7 @@ export function feishuIntegrationRuntimeService(
   const sender = options.sender ?? createFeishuRestOutboundSender();
   const client = options.client ?? createFeishuLongConnectionClient();
   const stops = new Map<string, () => Promise<void> | void>();
+  const starting = new Set<string>();
 
   async function sendAndRecord(input: {
     integration: FeishuRuntimeIntegration;
@@ -305,11 +401,10 @@ export function feishuIntegrationRuntimeService(
   ) {
     const conversation = await chats.getById(result.conversationId) as ChatConversation | null;
     const userMessage = result.chatMessageId
-      ? await db
-        .select()
-        .from(chatMessages)
-        .where(eq(chatMessages.id, result.chatMessageId))
-        .then((rows) => rows[0] as ChatMessage | undefined)
+      ? await chats
+        .listMessages(result.conversationId, { includeTranscript: false })
+        .then((rows) => rows.find((message) => message.id === result.chatMessageId))
+        .then((row) => row ? asChatMessage(row) : null)
       : null;
     if (!conversation || !userMessage) {
       throw new Error("Feishu accepted inbound message is missing its Rudder chat conversation or user message");
@@ -402,26 +497,48 @@ export function feishuIntegrationRuntimeService(
 
   return {
     handleEvent,
+    isRunning: (integrationId) => stops.has(integrationId),
+    stopIntegration: async (integrationId) => {
+      const stop = stops.get(integrationId);
+      if (!stop) return false;
+      stops.delete(integrationId);
+      await Promise.resolve(stop());
+      return true;
+    },
     start: async () => {
       const integrations = await loadRuntimeIntegrations(db);
+      let started = 0;
       for (const integration of integrations) {
-        if (stops.has(integration.id)) continue;
-        const secretValue = await secrets.resolveSecretValue(
-          integration.orgId,
-          integration.appCredentialSecretId,
-          "latest",
-        );
-        const credential = parseFeishuCredential(secretValue);
-        const runner = await client.start({
-          integration,
-          credential,
-          onEvent: async (payload) => {
-            await handleEvent(integration, credential, payload);
-          },
-        });
-        stops.set(integration.id, runner.stop);
+        if (stops.has(integration.id) || starting.has(integration.id)) continue;
+        starting.add(integration.id);
+        try {
+          const secretValue = await secrets.resolveSecretValue(
+            integration.orgId,
+            integration.appCredentialSecretId,
+            "latest",
+          );
+          const credential = parseFeishuCredential(secretValue);
+          const runner = await client.start({
+            integration,
+            credential,
+            onEvent: async (payload) => {
+              await handleEvent(integration, credential, payload);
+            },
+          });
+          stops.set(integration.id, runner.stop);
+          started += 1;
+        } catch (err) {
+          logger.error({
+            err,
+            integrationId: integration.id,
+            orgId: integration.orgId,
+            appId: integration.externalAppId,
+          }, "Feishu long-connection integration startup failed");
+        } finally {
+          starting.delete(integration.id);
+        }
       }
-      return { started: integrations.length };
+      return { started };
     },
     stop: async () => {
       const currentStops = [...stops.values()];

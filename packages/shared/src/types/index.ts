@@ -23,6 +23,8 @@ export type {
   AgentIntegrationChatBinding,
   AgentIntegrationInboundAudit,
   AgentIntegrationOutboundMessage,
+  AgentIntegrationSetupSession,
+  AgentIntegrationSetupSessionStatus,
   AgentIntegrationSetupUrl,
   AgentIntegrationSummary,
   AgentIntegrationUserBinding
