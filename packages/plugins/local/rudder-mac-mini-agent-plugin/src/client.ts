@@ -9,6 +9,8 @@ export type GatewayEvent = {
 
 export type GatewayJob = {
   id: string;
+  jobId?: string;
+  job_id?: string;
   status: string;
   created_at?: string;
   updated_at?: string;
@@ -20,6 +22,26 @@ export type GatewayJob = {
   mutating?: boolean;
   exit_code?: number | null;
   output_bytes?: number;
+  result?: GatewayTerminalResult | null;
+};
+
+export type GatewayTerminalNextAction =
+  | "continue_polling"
+  | "finish_successfully"
+  | "report_failure"
+  | "acknowledge_cancelled"
+  | "report_rejected";
+
+export type GatewayTerminalResult = {
+  ready?: boolean;
+  status?: string;
+  exit_code?: number | null;
+  next_action?: GatewayTerminalNextAction | string;
+  stdout_tail?: string | null;
+  stderr_tail?: string | null;
+  artifacts?: Record<string, unknown>;
+  error?: unknown;
+  [key: string]: unknown;
 };
 
 export type GatewayFetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -111,6 +133,16 @@ export async function fetchJobEvents(
   return parseSseEvents(text);
 }
 
+export async function fetchJobResult(
+  options: GatewayRequestOptions,
+  jobId: string,
+): Promise<GatewayTerminalResult> {
+  return await gatewayRequest<GatewayTerminalResult>(
+    options,
+    `/v1/jobs/${encodeURIComponent(jobId)}/result`,
+  );
+}
+
 export function latestTerminalEvent(events: GatewayEvent[]): GatewayEvent | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;
@@ -121,4 +153,53 @@ export function latestTerminalEvent(events: GatewayEvent[]): GatewayEvent | null
 
 export function isTerminalStatus(status: string | undefined): boolean {
   return Boolean(status && TERMINAL_STATES.has(status));
+}
+
+export function canonicalJobId(job: GatewayJob | null | undefined): string | null {
+  if (!job) return null;
+  return job.id || job.jobId || job.job_id || null;
+}
+
+export function embeddedTerminalResult(job: GatewayJob | null | undefined): GatewayTerminalResult | null {
+  const result = job?.result;
+  return result && typeof result === "object" ? result : null;
+}
+
+export function nextActionForJob(
+  job: GatewayJob | null | undefined,
+  result?: GatewayTerminalResult | null,
+): GatewayTerminalNextAction | string {
+  const terminalResult = result ?? embeddedTerminalResult(job);
+  if (terminalResult?.next_action) return terminalResult.next_action;
+  const status = job?.status;
+  if (!status || !isTerminalStatus(status)) return "continue_polling";
+  if (status === "succeeded") return "finish_successfully";
+  if (status === "cancelled") return "acknowledge_cancelled";
+  if (status === "rejected") return "report_rejected";
+  return "report_failure";
+}
+
+function conciseTail(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function summarizeTerminalResult(result: GatewayTerminalResult | null | undefined): string {
+  if (!result) return "";
+  const parts = [
+    `next_action=${String(result.next_action ?? "unknown")}`,
+    `status=${String(result.status ?? "unknown")}`,
+  ];
+  if (result.exit_code !== undefined && result.exit_code !== null) {
+    parts.push(`exit_code=${String(result.exit_code)}`);
+  }
+  const artifacts = result.artifacts && typeof result.artifacts === "object" ? result.artifacts : null;
+  const resultJson = artifacts?.result_json ?? artifacts?.resultJson;
+  if (typeof resultJson === "string" && resultJson.trim()) {
+    parts.push(`result_json=${resultJson.trim()}`);
+  }
+  const stdout = conciseTail(result.stdout_tail);
+  const stderr = conciseTail(result.stderr_tail);
+  if (stdout) parts.push(`stdout_tail=${stdout}`);
+  if (stderr) parts.push(`stderr_tail=${stderr}`);
+  return parts.join("\n");
 }

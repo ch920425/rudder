@@ -1340,6 +1340,113 @@ describe("codex execute", { timeout: 20_000 }, () => {
     }
   });
 
+  it("writes configured managed MCP servers into the isolated Codex home", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-managed-mcp-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "codex");
+    const capturePath = path.join(root, "capture.json");
+    const sharedCodexHome = path.join(root, "shared-codex-home");
+    const paperclipHome = path.join(root, "rudder-home");
+    const managedCodexHome = managedCodexHomePath({ rudderHome: paperclipHome });
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(sharedCodexHome, { recursive: true });
+    await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"token":"shared"}\n', "utf8");
+    await fs.writeFile(
+      path.join(sharedCodexHome, "config.toml"),
+      [
+        'model = "codex-mini-latest"',
+        "",
+        "[mcp_servers.linear]",
+        'url = "https://mcp.linear.app/mcp"',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFakeCodexCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousPaperclipHome = process.env.RUDDER_HOME;
+    const previousPaperclipInstanceId = process.env.RUDDER_INSTANCE_ID;
+    const previousPaperclipInWorktree = process.env.RUDDER_IN_WORKTREE;
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_HOME = paperclipHome;
+    delete process.env.RUDDER_INSTANCE_ID;
+    delete process.env.RUDDER_IN_WORKTREE;
+    process.env.CODEX_HOME = sharedCodexHome;
+
+    try {
+      const logs: LogEntry[] = [];
+      const result = await execute({
+        runId: "run-managed-mcp",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Codex Coder",
+          agentRuntimeType: "codex_local",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          env: {
+            RUDDER_TEST_CAPTURE_PATH: capturePath,
+          },
+          managedMcpServers: {
+            context7: {
+              command: "/Users/example/.local/bin/context7-mcp-stdio",
+              startup_timeout_sec: 20,
+            },
+            exa: {
+              url: "https://mcp.exa.ai/mcp",
+            },
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async (stream, chunk) => {
+          logs.push({ stream, chunk });
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorMessage).toBeNull();
+
+      const managedConfigContents = await fs.readFile(path.join(managedCodexHome, "config.toml"), "utf8");
+      expect(managedConfigContents).not.toContain("[mcp_servers.linear]");
+      expect(managedConfigContents).toContain("[mcp_servers.context7]");
+      expect(managedConfigContents).toContain('command = "/Users/example/.local/bin/context7-mcp-stdio"');
+      expect(managedConfigContents).toContain("startup_timeout_sec = 20");
+      expect(managedConfigContents).toContain("[mcp_servers.exa]");
+      expect(managedConfigContents).toContain('url = "https://mcp.exa.ai/mcp"');
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          stream: "stdout",
+          chunk: expect.stringContaining("Enabled 2 managed Codex MCP servers"),
+        }),
+      );
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousPaperclipHome === undefined) delete process.env.RUDDER_HOME;
+      else process.env.RUDDER_HOME = previousPaperclipHome;
+      if (previousPaperclipInstanceId === undefined) delete process.env.RUDDER_INSTANCE_ID;
+      else process.env.RUDDER_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousPaperclipInWorktree === undefined) delete process.env.RUDDER_IN_WORKTREE;
+      else process.env.RUDDER_IN_WORKTREE = previousPaperclipInWorktree;
+      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = previousCodexHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prunes inherited Codex plugin cache state from the managed home before invocation", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-codex-execute-prune-plugin-cache-"));
     const workspace = path.join(root, "workspace");

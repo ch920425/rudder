@@ -6,7 +6,11 @@ const jobParametersSchema = {
   properties: {
     template: {
       type: "string",
-      description: "Gateway template name, such as codex_agent, gbrain_query, ask_kb, hermes_gateway_restart, or obsidian_maintain_sync.",
+      description: "Gateway template name, such as codex_agent, gbrain_query, ask_kb, hermes_project, hermes_gateway_restart, obsidian_writer_closeout, or obsidian_full_maintenance.",
+    },
+    requestId: {
+      type: "string",
+      description: "Stable idempotency key for async job starts. Reuse only with an identical payload.",
     },
     workspace: {
       type: "string",
@@ -125,6 +129,23 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: jobParametersSchema,
     },
     {
+      name: TOOL_NAMES.uploadArtifact,
+      displayName: "Upload Mac Mini Artifact",
+      description: "Uploads large text/base64 payloads to the Mac mini gateway artifact store for follow-up jobs.",
+      parametersSchema: {
+        type: "object",
+        properties: {
+          content: { type: "string" },
+          contentBase64: { type: "string" },
+          description: { type: "string" },
+          filename: { type: "string" },
+          contentType: { type: "string" },
+          chunkBytes: { type: "number", minimum: 1, maximum: 512000, default: 512000 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
       name: TOOL_NAMES.jobStatus,
       displayName: "Mac Mini Job Status",
       description: "Reads one gateway job's status and recent events.",
@@ -160,6 +181,7 @@ const manifest: PaperclipPluginManifestV1 = {
         required: ["prompt"],
         properties: {
           prompt: { type: "string", minLength: 1 },
+          requestId: { type: "string" },
           workspace: { type: "string", default: "ch920425" },
           cwd: { type: "string" },
           locks: { type: "array", items: { type: "string" } },
@@ -179,6 +201,7 @@ const manifest: PaperclipPluginManifestV1 = {
         required: ["question"],
         properties: {
           question: { type: "string", minLength: 1 },
+          requestId: { type: "string" },
           wait: { type: "boolean", default: true },
           followSeconds: { type: "number", minimum: 0, maximum: 3600, default: 120 },
           timeout_seconds: { type: "number", minimum: 1 },
@@ -195,9 +218,31 @@ const manifest: PaperclipPluginManifestV1 = {
         required: ["question"],
         properties: {
           question: { type: "string", minLength: 1 },
+          requestId: { type: "string" },
           wait: { type: "boolean", default: true },
           followSeconds: { type: "number", minimum: 0, maximum: 3600, default: 120 },
           timeout_seconds: { type: "number", minimum: 1 },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: TOOL_NAMES.hermesProject,
+      displayName: "Start Mac Mini Hermes Project",
+      description: "Runs long-horizon Hermes project work through the Mac mini hermes_project template with optional commit/push/restart controls.",
+      parametersSchema: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string", minLength: 1 },
+          requestId: { type: "string" },
+          commit: { type: "boolean" },
+          push: { type: "boolean" },
+          restart_gateway: { type: "boolean" },
+          target_branch: { type: "string" },
+          wait: { type: "boolean", default: true },
+          followSeconds: { type: "number", minimum: 0, maximum: 3600, default: 120 },
+          timeout_seconds: { type: "number", minimum: 1, default: 3600 },
         },
         additionalProperties: false,
       },
@@ -209,6 +254,7 @@ const manifest: PaperclipPluginManifestV1 = {
       parametersSchema: {
         type: "object",
         properties: {
+          requestId: { type: "string" },
           wait: { type: "boolean", default: true },
           followSeconds: { type: "number", minimum: 0, maximum: 3600, default: 120 },
         },

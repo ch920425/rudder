@@ -9,9 +9,11 @@ export const TOOL_NAMES = {
   startJob: "mac_mini_start_job",
   jobStatus: "mac_mini_job_status",
   cancelJob: "mac_mini_cancel_job",
+  uploadArtifact: "mac_mini_upload_artifact",
   codexAgent: "mac_mini_codex_agent",
   askKb: "mac_mini_ask_kb",
   gbrainQuery: "mac_mini_gbrain_query",
+  hermesProject: "mac_mini_hermes_project",
   hermesRestart: "mac_mini_hermes_gateway_restart",
 } as const;
 

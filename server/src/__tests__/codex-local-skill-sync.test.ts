@@ -105,6 +105,15 @@ describe("codex local skill sync", () => {
           CODEX_HOME: codexHome,
         },
         cwd: workspace,
+        managedMcpServers: {
+          context7: {
+            command: "/Users/example/.local/bin/context7-mcp-stdio",
+            startup_timeout_sec: 20,
+          },
+          exa: {
+            url: "https://mcp.exa.ai/mcp",
+          },
+        },
         rudderSkillSync: {
           desiredSkills: [rudderSkillKey],
         },
@@ -129,6 +138,11 @@ describe("codex local skill sync", () => {
     expect(configToml).toContain(`path = ${JSON.stringify(path.join(workspace, ".agents", "skills"))}`);
     expect(configToml).toContain(`path = ${JSON.stringify(path.join(workspace, ".agents", "skills", "repo-leak"))}`);
     expect(configToml).toContain(`path = ${JSON.stringify(path.join(workspace, ".agents", "skills", "repo-leak", "SKILL.md"))}`);
+    expect(configToml).toContain("[mcp_servers.context7]");
+    expect(configToml).toContain('command = "/Users/example/.local/bin/context7-mcp-stdio"');
+    expect(configToml).toContain("startup_timeout_sec = 20");
+    expect(configToml).toContain("[mcp_servers.exa]");
+    expect(configToml).toContain('url = "https://mcp.exa.ai/mcp"');
   });
 
   it("does not auto-enable bundled Rudder skills when the desired set is empty", async () => {

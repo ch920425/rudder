@@ -183,6 +183,17 @@ function envStrings(envConfig: Record<string, unknown>): Record<string, string> 
   );
 }
 
+function resolveManagedMcpServers(config: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const raw = parseObject(config.managedMcpServers);
+  const servers: Record<string, Record<string, unknown>> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const serverConfig = parseObject(value);
+    if (Object.keys(serverConfig).length === 0) continue;
+    servers[name] = serverConfig;
+  }
+  return servers;
+}
+
 function resolveFallbackAgentHome(effectiveCodexHome: string, agentId: string): string {
   const orgRoot = path.dirname(path.dirname(path.dirname(effectiveCodexHome)));
   return path.join(orgRoot, "workspaces", "agents", agentId);
@@ -268,12 +279,13 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     path.join(sharedCodexHome, "skills"),
     path.join(cwd, ".agents", "skills"),
   ]);
+  const managedMcpServers = resolveManagedMcpServers(config);
   const preparedManagedCodexHome = await prepareManagedCodexHome(
     codexTargetEnv,
     onLog,
     agent.orgId,
     agent.id,
-    { disabledSkillPaths: externalCodexSkillPaths },
+    { disabledSkillPaths: externalCodexSkillPaths, managedMcpServers },
   );
   const defaultCodexHome = resolveManagedCodexHomeDir(codexTargetEnv, agent.orgId, agent.id);
   const effectiveCodexHome = preparedManagedCodexHome ?? defaultCodexHome;
@@ -311,7 +323,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     effectiveCodexHome,
     selectedCodexSkillEntries.map((entry) => entry.source),
     onLog,
-    { disabledSkillPaths: externalCodexSkillPaths },
+    { disabledSkillPaths: externalCodexSkillPaths, managedMcpServers },
   );
   const hasExplicitApiKey =
     typeof envConfig.RUDDER_API_KEY === "string" && envConfig.RUDDER_API_KEY.trim().length > 0;

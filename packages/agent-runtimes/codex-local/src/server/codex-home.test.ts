@@ -11,7 +11,10 @@ describe("managed Codex home config sync", () => {
     await Promise.all(tempRoots.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
-  async function prepareWithSharedConfig(configToml: string) {
+  async function prepareWithSharedConfig(
+    configToml: string,
+    isolationSurface?: Parameters<typeof prepareManagedCodexHome>[4],
+  ) {
     const root = await mkdtemp(path.join(os.tmpdir(), "rudder-codex-home-"));
     tempRoots.push(root);
 
@@ -31,6 +34,7 @@ describe("managed Codex home config sync", () => {
       },
       "org-1",
       "agent-1",
+      isolationSurface,
     );
 
     return {
@@ -62,5 +66,69 @@ describe("managed Codex home config sync", () => {
     ].join("\n"));
 
     expect(config).toContain('service_tier = "fast"');
+  });
+
+  it("strips inherited MCP servers and writes only managed MCP servers", async () => {
+    const { config, logs } = await prepareWithSharedConfig([
+      'model = "gpt-5.5"',
+      "",
+      "[mcp_servers.linear]",
+      'url = "https://mcp.linear.app/mcp"',
+      "",
+      "[mcp_servers.slack]",
+      'command = "/tmp/slack-mcp"',
+      "",
+    ].join("\n"), {
+      disabledSkillPaths: [],
+      managedMcpServers: {
+        context7: {
+          command: "/Users/example/.local/bin/context7-mcp-stdio",
+          startup_timeout_sec: 20,
+        },
+        exa: {
+          url: "https://mcp.exa.ai/mcp",
+        },
+      },
+    });
+
+    expect(config).toContain('model = "gpt-5.5"');
+    expect(config).not.toContain("[mcp_servers.linear]");
+    expect(config).not.toContain("https://mcp.linear.app/mcp");
+    expect(config).not.toContain("[mcp_servers.slack]");
+    expect(config).toContain("[mcp_servers.context7]");
+    expect(config).toContain('command = "/Users/example/.local/bin/context7-mcp-stdio"');
+    expect(config).toContain("startup_timeout_sec = 20");
+    expect(config).toContain("[mcp_servers.exa]");
+    expect(config).toContain('url = "https://mcp.exa.ai/mcp"');
+    expect(logs.join("\n")).toContain("Removed 2 inherited Codex plugin/MCP configuration tables");
+    expect(logs.join("\n")).toContain("Enabled 2 managed Codex MCP servers");
+  });
+
+  it("supports nested managed MCP env tables without rendering invalid values", async () => {
+    const { config } = await prepareWithSharedConfig("", {
+      disabledSkillPaths: [],
+      managedMcpServers: {
+        demo: {
+          command: "/bin/demo",
+          args: ["--serve"],
+          env: {
+            SAFE_FLAG: "1",
+            INVALID_OBJECT: { nope: true },
+          },
+          invalid: { deep: { nope: true } },
+        },
+        "invalid.server": {
+          command: "/bin/nope",
+        },
+      },
+    });
+
+    expect(config).toContain("[mcp_servers.demo]");
+    expect(config).toContain('args = ["--serve"]');
+    expect(config).toContain("[mcp_servers.demo.env]");
+    expect(config).toContain('SAFE_FLAG = "1"');
+    expect(config).not.toContain("INVALID_OBJECT");
+    expect(config).not.toContain("invalid.server");
+    expect(config).not.toContain("/bin/nope");
   });
 });
