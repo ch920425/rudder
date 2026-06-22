@@ -26,6 +26,7 @@ import { projectRoutes } from "../routes/projects.js";
 import { runIntelligenceRoutes } from "../routes/run-intelligence.js";
 import { secretRoutes } from "../routes/secrets.js";
 import { sidebarBadgeRoutes } from "../routes/sidebar-badges.js";
+import { websiteMetadataRoutes } from "../routes/website-metadata.js";
 import type { PluginHostRuntime } from "./plugin-host-runtime.js";
 import type { RudderAppOptions } from "./types.js";
 
@@ -70,6 +71,7 @@ export function registerApiRoutes(
   api.use(runIntelligenceRoutes(db));
   api.use(dashboardRoutes(db));
   api.use(sidebarBadgeRoutes(db));
+  api.use(websiteMetadataRoutes());
   api.use(instanceSettingsRoutes(db, { deploymentMode: opts.deploymentMode }));
   api.use(
     pluginRoutes(

@@ -7,6 +7,7 @@ contract_ids:
   - CHAT.LIFECYCLE.001
   - CHAT.FORK.001
   - CHAT.RICH.REFERENCE.RENDERING.001
+  - CHAT.WEBSITE.LINK.ICON.001
   - MESSENGER.ATTENTION.001
   - IM.FEISHU.001
 related_code:
@@ -27,9 +28,12 @@ related_code:
   - server/src/services/integrations/feishu/event-verifier.ts
   - ui/src/index.css
   - ui/src/components/MarkdownBody.tsx
+  - ui/src/api/websiteMetadata.ts
   - ui/src/components/MilkdownMarkdownEditor.tsx
   - ui/src/pages/Chat.tsx
   - ui/src/pages/Messenger.tsx
+  - server/src/routes/website-metadata.ts
+  - server/src/services/website-metadata.ts
   - ui/src/pages/AgentDetail.integrations.tsx
 related_tests:
   - server/src/__tests__/chat-routes.test.ts
@@ -42,6 +46,8 @@ related_tests:
   - ui/src/lib/index-css.test.ts
   - ui/src/components/MilkdownMarkdownEditor.test.ts
   - ui/src/components/MarkdownBody.test.tsx
+  - server/src/__tests__/website-metadata.test.ts
+  - server/src/__tests__/website-metadata-routes.test.ts
   - tests/e2e/messenger-contract.spec.ts
   - tests/e2e/chat-fork.spec.ts
   - tests/e2e/chat-rich-references.spec.ts
@@ -201,6 +207,61 @@ Evidence:
   behavior.
 - Markdown editor/body tests cover special markdown rendering consistency.
 - Chat rich-reference E2E covers real chat insertion and rendering behavior.
+
+## CHAT.WEBSITE.LINK.ICON.001
+
+Why:
+
+- Operators often paste external website links into chat and issue text. The
+  link should feel like the linked website, not like a Rudder-maintained list
+  of favored domains.
+- Website icon rendering must degrade predictably when a site has no discoverable
+  icon or the metadata fetch fails.
+
+Product model:
+
+- External `http` and `https` links render as ordinary inline text links with a
+  compact leading website icon.
+- Rudder discovers the website icon from the target page metadata, preferring
+  declared favicon links such as `rel="icon"` or `rel="shortcut icon"`.
+- The browser receives the discovered icon through a Rudder proxy URL instead
+  of relying on cross-origin image fetch behavior.
+- Rudder caches metadata lookups briefly so repeated rendering of the same link
+  does not repeatedly fetch the same external page during normal reading.
+- Rudder falls back to the generic website icon when metadata discovery returns
+  no valid image icon, fails, or the proxied image cannot be rendered.
+
+Flow:
+
+1. A user or agent writes an external website link in chat, issue/comment
+   markdown, or another rendered markdown surface.
+2. The renderer initially shows a generic website icon so the message remains
+   readable immediately.
+3. Rudder fetches the target page metadata server-side and resolves the best
+   site-declared icon.
+4. When an icon is found, the renderer swaps the generic icon for the proxied
+   website icon while keeping the link label/copy text unchanged.
+5. If no icon is found, the generic website icon remains visible.
+
+Invariants:
+
+- Do not choose website icons from a hard-coded social/product domain allowlist.
+- Same-origin Rudder app links remain internal navigation links and do not use
+  website metadata discovery.
+- Unsafe or non-HTTP schemes are not fetched for metadata.
+- Metadata and icon fetches must not carry user credentials, cookies, or board
+  secrets to the external site.
+- Private, loopback, link-local, and otherwise internal network targets must be
+  rejected before fetch; redirects must be revalidated before they are followed.
+- The icon is decorative; it must not change selectable/copyable link text.
+
+Evidence:
+
+- Website metadata service tests cover favicon discovery, no-icon fallback,
+  invalid declared icon fallback, and redirect-to-private rejection.
+- Markdown/body and chat message tests cover metadata icon rendering, generic
+  fallback, image-load failure fallback, safe external-link attributes, and
+  unchanged link text.
 
 ## MESSENGER.ATTENTION.001
 

@@ -1,8 +1,9 @@
 import { buildAgentMentionHref } from "@rudderhq/shared";
-import { Check, Copy, Github, Globe2 } from "lucide-react";
+import { Check, Copy, Globe2 } from "lucide-react";
 import { isValidElement, useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type MouseEvent, type ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { websiteMetadataApi } from "../api/websiteMetadata";
 import { useMarkdownMentions } from "../context/MarkdownMentionsContext";
 import { useTheme } from "../context/ThemeContext";
 import { normalizeRenderedMarkdownSource } from "../lib/markdown-normalize";
@@ -363,92 +364,74 @@ function navigateInternalAppRoute(route: string) {
   window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
 }
 
-const websiteLogoSources = [
-  {
-    hosts: ["rudder.zeeland.studio", "doc.rudder.zeeland.studio"],
-    src: "/rudder-logo.png",
-    className: null,
-  },
-  {
-    hosts: ["openai.com", "chatgpt.com"],
-    src: "/brands/openai-logo.svg",
-    className: "dark:invert",
-  },
-  {
-    hosts: ["anthropic.com", "claude.ai"],
-    src: "/brands/claude-logo.svg",
-    className: null,
-  },
-  {
-    hosts: ["gemini.google.com", "ai.google.dev"],
-    src: "/brands/google-gemini-logo.svg",
-    className: null,
-  },
-  {
-    hosts: ["cursor.com"],
-    src: "/brands/cursor-logo.svg",
-    className: "dark:invert",
-  },
-  {
-    hosts: ["opencode.ai"],
-    src: "/brands/opencode-logo-light-square.svg",
-    className: null,
-  },
-  {
-    hosts: ["pi.ai", "pi.dev"],
-    src: "/brands/pi-logo.svg",
-    className: null,
-  },
-] as const;
+type WebsiteMetadataIconState =
+  | { status: "idle" | "loading" | "none" | "error"; iconUrl: null }
+  | { status: "ready"; iconUrl: string };
 
-function hostnameMatchesWebsiteSource(hostname: string, candidate: string) {
-  return hostname === candidate || hostname.endsWith(`.${candidate}`);
-}
+const websiteMetadataIconCache = new Map<string, WebsiteMetadataIconState>();
 
-function websiteLogoForUrl(url: URL) {
-  const hostname = url.hostname.replace(/^www\./iu, "").toLowerCase();
-  return websiteLogoSources.find((source) => (
-    source.hosts.some((candidate) => hostnameMatchesWebsiteSource(hostname, candidate))
-  )) ?? null;
-}
+function useWebsiteMetadataIcon(url: URL) {
+  const href = url.href;
+  const [state, setState] = useState<WebsiteMetadataIconState>(
+    () => websiteMetadataIconCache.get(href) ?? { status: "idle", iconUrl: null },
+  );
 
-function websiteIconKindForUrl(url: URL) {
-  const hostname = url.hostname.replace(/^www\./iu, "").toLowerCase();
-  if (hostnameMatchesWebsiteSource(hostname, "github.com")) return "github";
-  if (hostnameMatchesWebsiteSource(hostname, "x.com") || hostnameMatchesWebsiteSource(hostname, "twitter.com")) {
-    return "x";
-  }
-  return "generic";
+  useEffect(() => {
+    const cached = websiteMetadataIconCache.get(href);
+    if (cached && cached.status !== "loading") {
+      setState(cached);
+      return;
+    }
+
+    let cancelled = false;
+    const loadingState: WebsiteMetadataIconState = { status: "loading", iconUrl: null };
+    websiteMetadataIconCache.set(href, loadingState);
+
+    Promise.resolve(websiteMetadataApi.get(href))
+      .then((metadata) => {
+        const nextState: WebsiteMetadataIconState = metadata?.iconUrl
+          ? { status: "ready", iconUrl: metadata.iconUrl }
+          : { status: "none", iconUrl: null };
+        websiteMetadataIconCache.set(href, nextState);
+        if (!cancelled && nextState.status === "ready") setState(nextState);
+      })
+      .catch(() => {
+        const nextState: WebsiteMetadataIconState = { status: "error", iconUrl: null };
+        websiteMetadataIconCache.set(href, nextState);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [href]);
+
+  return state;
 }
 
 export function WebsiteLinkIcon({ url }: { url: URL }) {
-  const logo = websiteLogoForUrl(url);
-  if (logo) {
+  const metadataIcon = useWebsiteMetadataIcon(url);
+  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
+  if (metadataIcon.status === "ready") {
+    if (metadataIcon.iconUrl === failedIconUrl) {
+      return <Globe2 className="rudder-website-link-icon" aria-hidden="true" data-website-icon="generic" />;
+    }
     return (
       <img
-        src={logo.src}
+        src={metadataIcon.iconUrl}
         alt=""
-        className={cn("rudder-website-link-icon rudder-website-link-logo", logo.className)}
+        className="rudder-website-link-icon rudder-website-link-logo"
         aria-hidden="true"
-        data-website-icon="logo"
+        data-website-icon="metadata"
+        onError={() => setFailedIconUrl(metadataIcon.iconUrl)}
       />
     );
   }
 
-  const iconKind = websiteIconKindForUrl(url);
-  if (iconKind === "github") {
-    return <Github className="rudder-website-link-icon" aria-hidden="true" data-website-icon="github" />;
-  }
-  if (iconKind === "x") {
-    return (
-      <span
-        className="rudder-website-link-icon rudder-website-link-icon--x"
-        aria-hidden="true"
-        data-website-icon="x"
-      />
-    );
-  }
   return <Globe2 className="rudder-website-link-icon" aria-hidden="true" data-website-icon="generic" />;
+}
+
+export function __clearWebsiteMetadataIconCacheForTests() {
+  websiteMetadataIconCache.clear();
 }
 
 function extractMermaidSource(children: ReactNode): string | null {

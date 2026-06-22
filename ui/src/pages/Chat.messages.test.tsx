@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import type { TranscriptEntry } from "@/agent-runtimes";
+import { __clearWebsiteMetadataIconCacheForTests } from "@/components/MarkdownBody";
 import type { MentionOption } from "@/components/MarkdownEditor";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { buildAgentMentionHref, buildAutomationMentionHref, buildIssueMentionHref, type ChatMessage } from "@rudderhq/shared";
@@ -12,6 +13,10 @@ import { ChatMessageItem, ChatMessagesLoadingState, LazyStreamTranscriptItem, St
 
 const markdownMentionsMock = vi.hoisted(() => ({
   mentions: [] as MentionOption[],
+}));
+
+const websiteMetadataApiMock = vi.hoisted(() => ({
+  get: vi.fn(),
 }));
 
 vi.mock("@/context/MarkdownMentionsContext", () => ({
@@ -39,6 +44,14 @@ vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: () => null,
 }));
 
+vi.mock("@/api/websiteMetadata", () => ({
+  websiteMetadataApi: websiteMetadataApiMock,
+}));
+
+vi.mock("../api/websiteMetadata", () => ({
+  websiteMetadataApi: websiteMetadataApiMock,
+}));
+
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -61,6 +74,8 @@ afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
   markdownMentionsMock.mentions = [];
+  __clearWebsiteMetadataIconCacheForTests();
+  websiteMetadataApiMock.get.mockReset();
   document.body.innerHTML = "";
 });
 
@@ -239,8 +254,13 @@ describe("user chat message rendering", () => {
     expect(bubble?.querySelector('[data-mention-kind="agent"]')?.getAttribute("href")).toBe("/MARAAA/agents/agent-1");
   });
 
-  it("renders X status URLs as website links before following CJK text in user messages", () => {
+  it("renders X status URLs with fetched website icons before following CJK text in user messages", async () => {
     const url = "https://x.com/my_knn_totoro/status/2068910037238772102";
+    websiteMetadataApiMock.get.mockResolvedValue({
+      url,
+      siteName: "X",
+      iconUrl: "https://x.com/favicon.ico",
+    });
     const container = renderChatMessageItem(message({
       role: "user",
       kind: "message",
@@ -254,7 +274,18 @@ describe("user chat message rendering", () => {
     expect(link?.textContent).toBe(url);
     expect(link?.getAttribute("target")).toBe("_blank");
     expect(link?.classList.contains("rudder-website-link")).toBe(true);
-    expect(link?.querySelector("[data-website-icon='x']")).toBeTruthy();
+    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(websiteMetadataApiMock.get).toHaveBeenCalledWith(url);
+      });
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("https://x.com/favicon.ico");
+      });
+    });
+    expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("data-website-icon")).toBe("metadata");
     expect(bubble?.textContent).toContain("你觉得这个我怎么回复比较好?");
   });
 

@@ -4,9 +4,9 @@ import { buildAgentMentionHref, buildAutomationMentionHref, buildChatMentionHref
 import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "../context/ThemeContext";
-import { MarkdownBody } from "./MarkdownBody";
+import { __clearWebsiteMetadataIconCacheForTests, MarkdownBody } from "./MarkdownBody";
 import type { MentionOption } from "./MarkdownEditor";
 import {
   __clearRudderEntityPreviewCachesForTests,
@@ -29,6 +29,7 @@ const entityPreviewApiMocks = vi.hoisted(() => ({
   getLibraryDocument: vi.fn(),
   getLibraryEntry: vi.fn(),
   readWorkspaceFile: vi.fn(),
+  getWebsiteMetadata: vi.fn(),
 }));
 
 const localStorageMock = vi.hoisted(() => ({
@@ -142,12 +143,19 @@ vi.mock("../api/orgs", () => ({
   },
 }));
 
+vi.mock("../api/websiteMetadata", () => ({
+  websiteMetadataApi: {
+    get: entityPreviewApiMocks.getWebsiteMetadata,
+  },
+}));
+
 let cleanupFn: (() => void) | null = null;
 
 afterEach(() => {
   cleanupFn?.();
   cleanupFn = null;
   __clearRudderEntityPreviewCachesForTests();
+  __clearWebsiteMetadataIconCacheForTests();
   markdownMentionsMock.mentions = [];
   vi.clearAllMocks();
   vi.clearAllTimers();
@@ -155,6 +163,14 @@ afterEach(() => {
   localStorageMock.values.clear();
   document.body.innerHTML = "";
   window.history.pushState({}, "", "/");
+});
+
+beforeEach(() => {
+  entityPreviewApiMocks.getWebsiteMetadata.mockResolvedValue({
+    url: "https://example.com/",
+    siteName: null,
+    iconUrl: null,
+  });
 });
 
 function render(element: ReactNode) {
@@ -1724,40 +1740,13 @@ describe("MarkdownBody", () => {
     expect(link?.querySelector(".rudder-link-chip-detail")).toBeNull();
   });
 
-  it("renders recognized website icons without wrapping links in chips", () => {
-    const githubContainer = render(
-      <ThemeProvider>
-        <MarkdownBody>
-          {"Read [GitHub traffic](https://github.com/Undertone0809/rudder/graphs/traffic)"}
-        </MarkdownBody>
-      </ThemeProvider>,
-    );
+  it("uses the generic website icon when metadata has no site icon", async () => {
+    entityPreviewApiMocks.getWebsiteMetadata.mockResolvedValueOnce({
+      url: "https://openai.com/policies/terms-of-use/",
+      siteName: "OpenAI",
+      iconUrl: null,
+    });
 
-    const githubLink = githubContainer.querySelector("a");
-    expect(githubLink?.getAttribute("href")).toBe("https://github.com/Undertone0809/rudder/graphs/traffic");
-    expect(githubLink?.classList.contains("rudder-link-chip--website")).toBe(false);
-    expect(githubLink?.querySelector("[data-website-icon='github']")).toBeTruthy();
-    expect(githubLink?.querySelector(".rudder-website-link-label")?.textContent).toBe("GitHub traffic");
-
-    cleanupFn?.();
-    cleanupFn = null;
-
-    const container = render(
-      <ThemeProvider>
-        <MarkdownBody>
-          {"Read [Rudder docs](https://doc.rudder.zeeland.studio)"}
-        </MarkdownBody>
-      </ThemeProvider>,
-    );
-
-    const link = container.querySelector("a");
-    expect(link?.getAttribute("href")).toBe("https://doc.rudder.zeeland.studio");
-    expect(link?.classList.contains("rudder-link-chip--website")).toBe(false);
-    expect(link?.textContent).toBe("Rudder docs");
-    expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("/rudder-logo.png");
-  });
-
-  it("renders OpenAI website links with a brand icon and ordinary link label", () => {
     const container = render(
       <ThemeProvider>
         <MarkdownBody>
@@ -1770,7 +1759,81 @@ describe("MarkdownBody", () => {
     expect(link?.getAttribute("href")).toBe("https://openai.com/policies/terms-of-use/");
     expect(link?.classList.contains("rudder-link-chip--website")).toBe(false);
     expect(link?.textContent).toBe("Terms of Use");
-    expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("/brands/openai-logo.svg");
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(entityPreviewApiMocks.getWebsiteMetadata).toHaveBeenCalledWith("https://openai.com/policies/terms-of-use/");
+      });
+    });
+    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
+    expect(link?.querySelector("img.rudder-website-link-logo")).toBeNull();
+  });
+
+  it("renders fetched website metadata icons before falling back to the generic icon", async () => {
+    entityPreviewApiMocks.getWebsiteMetadata.mockResolvedValue({
+      url: "https://x.com/my_knn_totoro/status/2068910037238772102",
+      siteName: "X",
+      iconUrl: "https://x.com/favicon.ico",
+    });
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {"Read [tweet](https://x.com/my_knn_totoro/status/2068910037238772102)"}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const link = container.querySelector("a");
+    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(entityPreviewApiMocks.getWebsiteMetadata).toHaveBeenCalledWith("https://x.com/my_knn_totoro/status/2068910037238772102");
+      });
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("src")).toBe("https://x.com/favicon.ico");
+      });
+    });
+    expect(link?.querySelector("img.rudder-website-link-logo")?.getAttribute("data-website-icon")).toBe("metadata");
+    expect(link?.textContent).toBe("tweet");
+  });
+
+  it("falls back to the generic website icon when a fetched icon fails to load", async () => {
+    const url = "https://example.com/post/";
+    entityPreviewApiMocks.getWebsiteMetadata.mockResolvedValue({
+      url,
+      siteName: "Example",
+      iconUrl: "/api/website-metadata/icon?url=https%3A%2F%2Fexample.com%2Fbroken.ico",
+    });
+
+    const container = render(
+      <ThemeProvider>
+        <MarkdownBody>
+          {`Read [post](${url})`}
+        </MarkdownBody>
+      </ThemeProvider>,
+    );
+
+    const link = container.querySelector("a");
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(entityPreviewApiMocks.getWebsiteMetadata).toHaveBeenCalledWith(url);
+      });
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(link?.querySelector("img.rudder-website-link-logo")).toBeTruthy();
+      });
+    });
+
+    await act(async () => {
+      link?.querySelector("img.rudder-website-link-logo")?.dispatchEvent(new Event("error", { bubbles: false }));
+    });
+
+    expect(link?.querySelector("img.rudder-website-link-logo")).toBeNull();
+    expect(link?.querySelector("[data-website-icon='generic']")).toBeTruthy();
   });
 
   it("keeps same-origin absolute markdown links in the current window", () => {
