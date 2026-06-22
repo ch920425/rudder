@@ -1,4 +1,15 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/domains/issues/ and doc/engineering/CLI.md
+archive_note: Legacy MCP/task interface sketch; current agent-facing behavior lives in product contracts and CLI docs.
+---
+
 # Task Management MCP Interface
+
+Archived: this is not current behavior truth. Use
+`doc/product/domains/issues/**`, `doc/product/domains/work-routing/**`, and
+`doc/engineering/CLI.md` for current issue and CLI behavior.
 
 Function contracts for the Rudder task management system. Defines the
 operations available to agents (and external tools) via MCP. Refer to

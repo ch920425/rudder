@@ -18,7 +18,7 @@ import {
  * `manifest_json` so the host can reconstruct capability and UI
  * slot information without loading the plugin package.
  *
- * @see PLUGIN_SPEC.md §21.3
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
  */
 export const plugins = pgTable(
   "plugins",

@@ -1392,7 +1392,7 @@ describe("RunTranscriptView", () => {
               ts: "2026-03-12T00:00:01.000Z",
               name: "command_execution",
               toolUseId: "cmd-1",
-              input: { command: "sed -n '1,120p' doc/GOAL.md" },
+              input: { command: "sed -n '1,120p' doc/product/GOAL.md" },
             },
             {
               kind: "tool_result",
@@ -1406,7 +1406,7 @@ describe("RunTranscriptView", () => {
               ts: "2026-03-12T00:00:03.000Z",
               name: "command_execution",
               toolUseId: "cmd-2",
-              input: { command: "cat doc/PRODUCT.md" },
+              input: { command: "cat doc/product/PRODUCT.md" },
             },
             {
               kind: "tool_result",
@@ -2068,8 +2068,8 @@ describe("RunTranscriptView", () => {
       {
         runtime: "Pi",
         name: "WriteFileToolCall",
-        input: { filePath: "doc/DESIGN.md" },
-        expected: "Edited doc/DESIGN.md",
+        input: { filePath: "doc/engineering/DESIGN.md" },
+        expected: "Edited doc/engineering/DESIGN.md",
       },
       {
         runtime: "Claude",
@@ -2127,7 +2127,7 @@ describe("RunTranscriptView", () => {
               ts: "2026-03-12T00:00:01.000Z",
               name: "read_file",
               toolUseId: "read-1",
-              input: { path: "doc/DESIGN.md" },
+              input: { path: "doc/engineering/DESIGN.md" },
             },
             {
               kind: "tool_result",

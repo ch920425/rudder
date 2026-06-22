@@ -5,7 +5,7 @@ Guidance for human and AI contributors working in this repository.
 ## 1. Purpose
 
 Rudder is an orchestration and control platform for agent work, and the operating layer for agent teams. It organizes goals, tasks, knowledge, and workflows into an executable structure, enabling agents to work within clear boundaries, collaborate, and move work forward.
-The current implementation target is V1 and is defined in `doc/SPEC-implementation.md`.
+The current product behavior contract is the guarded Product Logic Registry in `doc/product/`.
 The product north-star metric is the weekly count of real agent-work loops successfully completed through Rudder end-to-end.
 
 ## 1.1 Repository Identity
@@ -21,54 +21,53 @@ Documentation folders have different audiences:
 
 - `docs/` is the public website documentation. It is user-facing, use-case-led,
   and written for installation, onboarding, and product understanding.
-- `doc/` is internal product, engineering, operations, release, and development
-  documentation for contributors working on Rudder itself.
+- `doc/` is internal product, engineering, plans, and archive documentation for
+  contributors working on Rudder itself.
 
 When the task is to improve website docs, edit `docs/`. When the task is to
 change contributor/product-development guidance, edit `doc/`.
 
 Start here for almost every task:
 
-1. `doc/GOAL.md`
-2. `doc/PRODUCT.md`
-3. `doc/SPEC-implementation.md`
+1. `doc/product/GOAL.md`
+2. `doc/product/PRODUCT.md`
+3. `doc/product/README.md`
 
 Then choose the route that matches the work:
 
 - Desktop app, packaging, installer, local prod startup:
   - `doc/README.md`
-  - `doc/DESKTOP.md`
-  - `doc/DEVELOPING.md`
+  - `doc/engineering/DESKTOP.md`
+  - `doc/engineering/DEVELOPING.md`
   - `desktop/scripts/smoke.mjs`
   - `scripts/prod-desktop.mjs`
 - Server/runtime/database work:
   - `doc/README.md`
-  - `doc/DEVELOPING.md`
-  - `doc/DATABASE.md`
-  - `doc/DEPLOYMENT-MODES.md`
+  - `doc/engineering/DEVELOPING.md`
+  - `doc/engineering/DATABASE.md`
+  - `doc/engineering/DEPLOYMENT-MODES.md`
   - relevant `doc/product/domains/**` contracts when behavior changes
 - CLI/task-surface work:
   - `doc/README.md`
-  - `doc/CLI.md`
-  - `doc/TASKS.md`
-  - `doc/TASKS-mcp.md`
+  - `doc/engineering/CLI.md`
+  - relevant `doc/product/domains/issues/**`, `doc/product/domains/work-routing/**`, and `doc/product/domains/agents/**` contracts
 - Visible UI or interaction design work:
   - `doc/README.md`
-  - `doc/PRODUCT.md`
-  - `doc/DESIGN.md`
+  - `doc/product/PRODUCT.md`
+  - `doc/engineering/DESIGN.md`
   - relevant `doc/product/domains/**` contracts for user-visible behavior
 - Release/publishing work:
   - `doc/README.md`
-  - `doc/RELEASING.md`
-  - `doc/PUBLISHING.md`
-  - `doc/RELEASE-AUTOMATION-SETUP.md`
+  - `doc/engineering/RELEASING.md`
+  - `doc/engineering/PUBLISHING.md`
+  - `doc/engineering/RELEASE-AUTOMATION-SETUP.md`
 - Plugin work:
   - `doc/README.md`
-  - `doc/plugins/PLUGIN_AUTHORING_GUIDE.md`
-  - `doc/plugins/PLUGIN_SPEC.md`
+  - `doc/engineering/PLUGIN_AUTHORING_GUIDE.md`
+  - `doc/engineering/PLUGIN_RUNTIME_CONTRACT.md`
+  - `doc/product/domains/plugins/**`
 
-`doc/SPEC.md` is long-horizon product context.
-`doc/SPEC-implementation.md` is the concrete V1 build contract.
+`doc/archive/` contains historical or superseded docs for archaeology. Do not use archived docs as current behavior contracts.
 `doc/README.md` is the navigation hub for choosing the right doc route.
 
 ## 3. Repo Map
@@ -79,7 +78,7 @@ Then choose the route that matches the work:
 - `packages/db/`: Drizzle schema, migrations, DB clients
 - `packages/shared/`: shared types, constants, validators, API path constants
 - `docs/`: public website documentation
-- `doc/`: internal product, engineering, operations, and release docs
+- `doc/`: internal product, engineering, plans, and archive docs
 
 ## 4. Dev Setup (Auto DB)
 
@@ -153,9 +152,9 @@ If you change schema/API behavior, update all impacted layers:
 - Budget hard-stop auto-pause behavior
 - Activity logging for mutating actions
 
-1. Do not replace strategic docs wholesale unless asked.
+1. Do not replace current product contracts wholesale unless asked.
 
-Prefer additive updates. Keep `doc/SPEC.md` and `doc/SPEC-implementation.md` aligned.
+Prefer additive updates. Keep `doc/product/**` as the current source of product truth. `doc/archive/**` is historical context only.
 
 1. Keep bundled skill docs synchronized.
 
@@ -169,7 +168,7 @@ Repository-based agent skills for local development, maintenance, release, debug
 
 New plan documents belong in `doc/plans/` and should use `YYYY-MM-DD-slug.md` filenames. Plan docs must be written in English.
 When using plan mode, write the plan in `doc/plans/` before starting implementation work.
-New plan docs should start with the standard YAML frontmatter described in `doc/DEVELOPING.md`, use the most specific supported `kind`, and choose `area` / `entities` using `doc/plans/_taxonomy.md` plus relevant prior plans.
+New plan docs should start with the standard YAML frontmatter described in `doc/engineering/DEVELOPING.md`, use the most specific supported `kind`, and choose `area` / `entities` using `doc/plans/_taxonomy.md` plus relevant prior plans.
 
 1. Treat `doc/product/` as the guarded Product Logic Registry.
 
@@ -258,8 +257,8 @@ When adding endpoints:
 - Keep routes and nav aligned with available API surface
 - Use organization selection context for organization-scoped pages
 - Surface failures clearly; do not silently ignore API errors
-- Follow `doc/DESIGN.md` for visible UI defaults, especially density, hierarchy, dialog structure, copy style, and progressive disclosure
-- For desktop-shell UI changes, preserve the `Desktop Shell` contract and review checklist in `doc/DESIGN.md`; do not revert the shell to raw-wallpaper transparency or push glass treatment into the work cards.
+- Follow `doc/engineering/DESIGN.md` for visible UI defaults, especially density, hierarchy, dialog structure, copy style, and progressive disclosure
+- For desktop-shell UI changes, preserve the `Desktop Shell` contract and review checklist in `doc/engineering/DESIGN.md`; do not revert the shell to raw-wallpaper transparency or push glass treatment into the work cards.
 - For visible UI changes, verify the rendered result before hand-off using a browser, screenshot, or equivalent visual inspection. Prefer `@browser-use` when that verification uses a browser. Do not rely on code review, typecheck, or tests alone for layout-sensitive changes.
 - If a change affects user-visible functionality, include the relevant final screenshots in the hand-off response so the reviewer can see the shipped result, not just read about it.
 
@@ -267,7 +266,7 @@ When adding endpoints:
 
 A change is done when all are true:
 
-1. Behavior matches `doc/SPEC-implementation.md`
+1. Behavior matches affected `doc/product/**` contracts, or the product logic delta has been explicitly proposed when the registry cannot be edited yet
 2. Typecheck, tests, and build pass
 3. Contracts are synced across db/shared/server/ui
 4. Docs updated when behavior or commands change

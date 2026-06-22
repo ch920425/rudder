@@ -16,7 +16,7 @@
  *    access. If a plugin attempts an operation it did not declare, the
  *    call is rejected with a 403 error.
  *
- * @see PLUGIN_SPEC.md §15 — Capability Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capability Model
  * @see host-client-factory.ts — SDK-side capability gating
  */
 import type {
@@ -39,7 +39,7 @@ import { logger } from "../middleware/logger.js";
  * the operation in this map and checks the plugin's declared capabilities.
  * If any required capability is missing, the call is rejected.
  *
- * @see PLUGIN_SPEC.md §15 — Capability Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capability Model
  */
 const OPERATION_CAPABILITIES: Record<string, readonly PluginCapability[]> = {
   // Data read operations
@@ -92,7 +92,7 @@ const OPERATION_CAPABILITIES: Record<string, readonly PluginCapability[]> = {
 /**
  * Maps UI slot types to the capability required to register them.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
  */
 const UI_SLOT_CAPABILITIES: Record<PluginUiSlotType, PluginCapability> = {
   sidebar: "ui.sidebar.register",

@@ -15,8 +15,8 @@ import { NotFoundPage } from "./NotFound";
  * `/:orgPrefix/plugins/:pluginId` when the plugin declares a page slot
  * and is enabled for that organization.
  *
- * @see doc/plugins/PLUGIN_SPEC.md §19.2 — Organization-Context Routes
- * @see doc/plugins/PLUGIN_SPEC.md §24.4 — Organization-Context Plugin Page
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
  */
 export function PluginPage() {
   const { orgPrefix: routeOrganizationPrefix, pluginId, pluginRoutePath } = useParams<{

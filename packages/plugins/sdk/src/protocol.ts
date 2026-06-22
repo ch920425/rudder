@@ -10,8 +10,8 @@
  * - Typed method maps for host→worker and worker→host calls
  * - Helper functions for creating well-formed messages
  *
- * @see PLUGIN_SPEC.md §12.1 — Process Model
- * @see PLUGIN_SPEC.md §13 — Host-Worker Protocol
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Host-Worker Protocol
  * @see https://www.jsonrpc.org/specification
  */
 
@@ -173,7 +173,7 @@ export type JsonRpcErrorCode =
  * These live in the JSON-RPC "server error" reserved range (-32000 to -32099)
  * as specified by JSON-RPC 2.0 for implementation-defined server errors.
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 export const PLUGIN_RPC_ERROR_CODES = {
   /** The worker process is not running or not reachable. */
@@ -200,7 +200,7 @@ export type PluginRpcErrorCode =
 /**
  * Input for the `initialize` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.1 — `initialize`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `initialize`
  */
 export interface InitializeParams {
   /** Full plugin manifest snapshot. */
@@ -231,7 +231,7 @@ export interface InitializeResult {
 /**
  * Input for the `configChanged` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.4 — `configChanged`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `configChanged`
  */
 export interface ConfigChangedParams {
   /** The newly resolved configuration. */
@@ -241,7 +241,7 @@ export interface ConfigChangedParams {
 /**
  * Input for the `validateConfig` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.3 — `validateConfig`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `validateConfig`
  */
 export interface ValidateConfigParams {
   /** The configuration to validate. */
@@ -251,7 +251,7 @@ export interface ValidateConfigParams {
 /**
  * Input for the `onEvent` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.5 — `onEvent`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `onEvent`
  */
 export interface OnEventParams {
   /** The domain event to deliver. */
@@ -261,7 +261,7 @@ export interface OnEventParams {
 /**
  * Input for the `runJob` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.6 — `runJob`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `runJob`
  */
 export interface RunJobParams {
   /** Job execution context. */
@@ -271,7 +271,7 @@ export interface RunJobParams {
 /**
  * Input for the `getData` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.8 — `getData`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `getData`
  */
 export interface GetDataParams {
   /** Plugin-defined data key (e.g. `"sync-health"`). */
@@ -285,7 +285,7 @@ export interface GetDataParams {
 /**
  * Input for the `performAction` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.9 — `performAction`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `performAction`
  */
 export interface PerformActionParams {
   /** Plugin-defined action key (e.g. `"resync"`). */
@@ -299,7 +299,7 @@ export interface PerformActionParams {
 /**
  * Input for the `executeTool` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.10 — `executeTool`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `executeTool`
  */
 export interface ExecuteToolParams {
   /** Tool name (without plugin namespace prefix). */
@@ -355,27 +355,27 @@ export interface PluginRenderCloseEvent {
  * ensure type safety across the IPC boundary.
  */
 export interface HostToWorkerMethods {
-  /** @see PLUGIN_SPEC.md §13.1 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   initialize: [params: InitializeParams, result: InitializeResult];
-  /** @see PLUGIN_SPEC.md §13.2 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   health: [params: Record<string, never>, result: PluginHealthDiagnostics];
-  /** @see PLUGIN_SPEC.md §12.5 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   shutdown: [params: Record<string, never>, result: void];
-  /** @see PLUGIN_SPEC.md §13.3 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   validateConfig: [params: ValidateConfigParams, result: PluginConfigValidationResult];
-  /** @see PLUGIN_SPEC.md §13.4 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   configChanged: [params: ConfigChangedParams, result: void];
-  /** @see PLUGIN_SPEC.md §13.5 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   onEvent: [params: OnEventParams, result: void];
-  /** @see PLUGIN_SPEC.md §13.6 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   runJob: [params: RunJobParams, result: void];
-  /** @see PLUGIN_SPEC.md §13.7 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   handleWebhook: [params: PluginWebhookInput, result: void];
-  /** @see PLUGIN_SPEC.md §13.8 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   getData: [params: GetDataParams, result: unknown];
-  /** @see PLUGIN_SPEC.md §13.9 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   performAction: [params: PerformActionParams, result: unknown];
-  /** @see PLUGIN_SPEC.md §13.10 */
+  /** @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md */
   executeTool: [params: ExecuteToolParams, result: ToolResult];
 }
 

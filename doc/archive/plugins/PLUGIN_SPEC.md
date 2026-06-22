@@ -1,11 +1,22 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/engineering/PLUGIN_RUNTIME_CONTRACT.md and doc/product/domains/plugins/
+archive_note: Future target plugin architecture; not current implementation truth.
+---
+
 # Rudder Plugin System Specification
+
+Archived: this is not current implementation truth. Use
+`doc/engineering/PLUGIN_RUNTIME_CONTRACT.md` and
+`doc/product/domains/plugins/**` for current plugin behavior.
 
 Status: proposed complete spec for the post-V1 plugin system
 
 This document is the complete specification for Rudder's plugin and extension architecture.
-It expands the brief plugin notes in [doc/SPEC.md](../SPEC.md) and should be read alongside the comparative analysis in [doc/plugins/ideas-from-opencode.md](./ideas-from-opencode.md).
+It expands the brief plugin notes in [doc/archive/SPEC.md](../SPEC.md) and should be read alongside the comparative analysis in [doc/archive/plugins/ideas-from-opencode.md](./ideas-from-opencode.md).
 
-This is not part of the V1 implementation contract in [doc/SPEC-implementation.md](../SPEC-implementation.md).
+This is not part of the dated V1 baseline in [doc/archive/SPEC-implementation.md](../SPEC-implementation.md).
 It is the full target architecture for the plugin system that should follow V1.
 
 ## Current implementation caveats

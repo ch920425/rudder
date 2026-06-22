@@ -85,7 +85,7 @@ pnpm rudder run --instance dev
 
 ## Deployment Modes
 
-Mode taxonomy and design intent are documented in `doc/DEPLOYMENT-MODES.md`.
+Mode taxonomy and design intent are documented in `doc/engineering/DEPLOYMENT-MODES.md`.
 
 Current CLI behavior:
 
@@ -93,7 +93,7 @@ Current CLI behavior:
 - runtime can override mode with `RUDDER_DEPLOYMENT_MODE`
 - `rudder run` and `rudder doctor` do not yet expose a direct `--mode` flag
 
-Target behavior (planned) is documented in `doc/DEPLOYMENT-MODES.md` section 5.
+Target behavior (planned) is documented in `doc/engineering/DEPLOYMENT-MODES.md` section 5.
 
 Allow an authenticated/private hostname (for example custom Tailscale DNS):
 

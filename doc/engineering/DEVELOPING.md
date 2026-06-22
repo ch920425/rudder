@@ -5,7 +5,7 @@ It keeps the shortest path here and routes deep operational details to focused d
 
 ## Deployment Modes
 
-For mode definitions and intended CLI behavior, see `doc/DEPLOYMENT-MODES.md`.
+For mode definitions and intended CLI behavior, see `doc/engineering/DEPLOYMENT-MODES.md`.
 
 Current implementation status:
 
@@ -37,7 +37,7 @@ Recommended shape:
  *
  * Traceability:
  * - doc/plans/YYYY-MM-DD-topic.md
- * - doc/DEVELOPING.md
+ * - doc/engineering/DEVELOPING.md
  */
 ```
 
@@ -196,7 +196,7 @@ When revisiting an existing feature area, inspect plan history in this order:
 ## Product Logic Registry
 
 `doc/product/` is the guarded source for current product behavior contracts.
-It is more specific than `doc/PRODUCT.md` and more current than historical
+It is more specific than `doc/product/PRODUCT.md` and more current than historical
 plans, but it does not replace implementation code or tests.
 
 Use it when a change touches:
@@ -468,19 +468,16 @@ Compose:
 docker compose -f docker/docker-compose.quickstart.yml up --build
 ```
 
-Detailed Docker guidance (providers, persistence, auth): `doc/DOCKER.md`.
+Detailed Docker guidance (providers, persistence, auth): `doc/engineering/DOCKER.md`.
 
-For isolated untrusted PR review container workflow: `doc/UNTRUSTED-PR-REVIEW.md`.
+For isolated untrusted PR review container workflow: `doc/engineering/UNTRUSTED-PR-REVIEW.md`.
 
 ## Progressive Deep Dives
 
 Use these focused docs for detailed operations and full command references:
 
-- Langfuse local observability/eval setup and verification: `doc/developing/LANGFUSE.md`
-- Local operations (database/storage, backups, secrets, quick checks, CLI client ops): `doc/developing/LOCAL-OPERATIONS.md`
-- Worktree-local instances and full worktree CLI option matrix: `doc/developing/WORKTREE.md`
-- OpenClaw onboarding endpoints and smoke scripts: `doc/developing/OPENCLAW.md`
-- Run recovery contract and case library: `doc/developing/RUN-RECOVERY.md`
-- Desktop runtime/packaging behavior: `doc/DESKTOP.md`
-- CLI command reference: `doc/CLI.md`
-- Database model and migrations: `doc/DATABASE.md`
+- Langfuse local observability/eval setup and verification: `doc/engineering/LANGFUSE.md`
+- OpenClaw onboarding endpoints and smoke scripts: `doc/engineering/OPENCLAW_ONBOARDING.md`
+- Desktop runtime/packaging behavior: `doc/engineering/DESKTOP.md`
+- CLI command reference: `doc/engineering/CLI.md`
+- Database model and migrations: `doc/engineering/DATABASE.md`

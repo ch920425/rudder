@@ -14,7 +14,7 @@
  * All routes require board-level authentication (assertBoard middleware).
  *
  * @module server/routes/plugins
- * @see doc/plugins/PLUGIN_SPEC.md for the full plugin specification
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the current plugin runtime contract
  */
 
 import type { Db } from "@rudderhq/db";
@@ -238,7 +238,7 @@ export function registerPluginOperationsRoutes(ctx: PluginOperationsRouteContext
         configKeyCount: Object.keys(body.configJson).length,
       });
 
-      // Notify the running worker about the config change (PLUGIN_SPEC §25.4.4).
+      // Notify the running worker about the config change (doc/engineering/PLUGIN_RUNTIME_CONTRACT.md).
       // If the worker implements onConfigChanged, send the new config via RPC.
       // If it doesn't (METHOD_NOT_IMPLEMENTED), restart the worker so it picks
       // up the new config on re-initialize. If no worker is running, skip.

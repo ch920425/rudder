@@ -44,8 +44,8 @@
  * });
  * ```
  *
- * @see PLUGIN_SPEC.md §13 — Host-Worker Protocol
- * @see PLUGIN_SPEC.md §15 — Capability Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Host-Worker Protocol
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capability Model
  */
 
 import type { PluginCapability } from "@rudderhq/shared";
@@ -245,7 +245,7 @@ export type HostClientHandlers = {
  * Methods without a capability requirement (e.g. `config.get`, `log`) are
  * mapped to `null`.
  *
- * @see PLUGIN_SPEC.md §15 — Capability Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capability Model
  */
 const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | null> = {
   // Config — always allowed

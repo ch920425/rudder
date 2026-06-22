@@ -800,7 +800,7 @@ const fixtureChatAttachments: ChatMessage["attachments"] = [
     messageId: "chat-user-message",
     assetId: "asset-chat-plan",
     provider: "local",
-    objectKey: "doc/DESIGN.md",
+    objectKey: "doc/engineering/DESIGN.md",
     contentType: "text/markdown",
     byteSize: 4096,
     sha256: "fixture-plan-sha",
@@ -809,7 +809,7 @@ const fixtureChatAttachments: ChatMessage["attachments"] = [
     createdByUserId: "local-board",
     createdAt: new Date(Date.now() - 1000 * 60 * 6),
     updatedAt: new Date(Date.now() - 1000 * 60 * 6),
-    contentPath: "file:///Users/zeeland/projects/rudder-oss/doc/DESIGN.md",
+    contentPath: "file:///Users/zeeland/projects/rudder-oss/doc/engineering/DESIGN.md",
   },
 ];
 
@@ -1185,7 +1185,7 @@ function CommonComponentsSection() {
   const [customTo, setCustomTo] = useState("2026-05-25");
   const [heartbeatOn, setHeartbeatOn] = useState(true);
   const [schedule, setSchedule] = useState("0 10 * * 1-5");
-  const [resourceLocator, setResourceLocator] = useState("/Users/zeeland/projects/rudder-oss/doc/DESIGN.md");
+  const [resourceLocator, setResourceLocator] = useState("/Users/zeeland/projects/rudder-oss/doc/engineering/DESIGN.md");
   const [jsonValues, setJsonValues] = useState<Record<string, unknown>>({
     model: "gpt-5",
     temperature: 0.2,
@@ -1680,7 +1680,7 @@ function CommonComponentsSection() {
               />
               <ChatFileAttachmentChip
                 name="DESIGN.md"
-                href="file:///Users/zeeland/projects/rudder-oss/doc/DESIGN.md"
+                href="file:///Users/zeeland/projects/rudder-oss/doc/engineering/DESIGN.md"
                 onOpenFile={() => {}}
               />
               {pendingChatFile ? (

@@ -5,8 +5,8 @@
  * from `@rudderhq/plugin-sdk`.  The host provides a concrete implementation
  * of `PluginContext` to the plugin at initialisation time.
  *
- * @see PLUGIN_SPEC.md §14 — SDK Surface
- * @see PLUGIN_SPEC.md §29.2 — SDK Versioning
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Versioning
  */
 
 import type {
@@ -48,7 +48,7 @@ export type {
  * - `{ scopeKind: "project", scopeId: "proj-uuid" }` — per-project state
  * - `{ scopeKind: "issue", scopeId: "iss-uuid" }` — per-issue state
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_state`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_state`
  */
 export interface ScopeKey {
   /** What kind of Rudder object this state is scoped to. */
@@ -72,7 +72,7 @@ export interface ScopeKey {
  * All filter fields are optional. If omitted the plugin receives every event
  * of the subscribed type.
  *
- * @see PLUGIN_SPEC.md §16.1 — Event Filtering
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event Filtering
  */
 export interface EventFilter {
   /** Only receive events for this project. */
@@ -88,7 +88,7 @@ export interface EventFilter {
 /**
  * Envelope wrapping every domain event delivered to a plugin worker.
  *
- * @see PLUGIN_SPEC.md §16 — Event System
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event System
  */
 export interface PluginEvent<TPayload = unknown> {
   /** Unique event identifier (UUID). */
@@ -118,7 +118,7 @@ export interface PluginEvent<TPayload = unknown> {
 /**
  * Context passed to a plugin job handler when the host triggers a scheduled run.
  *
- * @see PLUGIN_SPEC.md §13.6 — `runJob`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `runJob`
  */
 export interface PluginJobContext {
   /** Stable job key matching the declaration in the manifest. */
@@ -138,7 +138,7 @@ export interface PluginJobContext {
 /**
  * Run context passed to a plugin tool handler when an agent invokes the tool.
  *
- * @see PLUGIN_SPEC.md §13.10 — `executeTool`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `executeTool`
  */
 export interface ToolRunContext {
   /** UUID of the agent invoking the tool. */
@@ -154,7 +154,7 @@ export interface ToolRunContext {
 /**
  * Result returned from a plugin tool handler.
  *
- * @see PLUGIN_SPEC.md §13.10 — `executeTool`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `executeTool`
  */
 export interface ToolResult {
   /** String content returned to the agent. Required for success responses. */
@@ -172,7 +172,7 @@ export interface ToolResult {
 /**
  * Input for creating or updating a plugin-owned entity.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_entities`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_entities`
  */
 export interface PluginEntityUpsert {
   /** Plugin-defined entity type (e.g. `"linear-issue"`, `"github-pr"`). */
@@ -194,7 +194,7 @@ export interface PluginEntityUpsert {
 /**
  * A plugin-owned entity record as returned by `ctx.entities.list()`.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_entities`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_entities`
  */
 export interface PluginEntityRecord {
   /** UUID primary key. */
@@ -245,8 +245,8 @@ export interface PluginEntityQuery {
  * Workspace metadata provided by the host. Plugins use this to resolve local
  * filesystem paths for file browsing, git, terminal, and process operations.
  *
- * @see PLUGIN_SPEC.md §7 — Project Workspaces
- * @see PLUGIN_SPEC.md §20 — Local Tooling
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Project Workspaces
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Local Tooling
  */
 export interface PluginWorkspace {
   /** UUID primary key. */
@@ -276,8 +276,8 @@ export interface PluginWorkspace {
  * to access the current configuration at any time. The host calls
  * `configChanged` on the worker when the operator updates config at runtime.
  *
- * @see PLUGIN_SPEC.md §13.3 — `validateConfig`
- * @see PLUGIN_SPEC.md §13.4 — `configChanged`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `validateConfig`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `configChanged`
  */
 export interface PluginConfigClient {
   /**
@@ -294,7 +294,7 @@ export interface PluginConfigClient {
  * Requires `events.subscribe` capability for `on()`.
  * Requires `events.emit` capability for `emit()`.
  *
- * @see PLUGIN_SPEC.md §16 — Event System
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event System
  */
 export interface PluginEventsClient {
   /**
@@ -325,7 +325,7 @@ export interface PluginEventsClient {
    * `"acme.linear"` and the event name is `"sync-done"`, the full event type
    * becomes `"plugin.acme.linear.sync-done"`.
    *
-   * @see PLUGIN_SPEC.md §16.2 — Plugin-to-Plugin Events
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin-to-Plugin Events
    *
    * @param name - Bare event name (e.g. `"sync-done"`)
    * @param orgId - UUID of the company this event belongs to
@@ -339,7 +339,7 @@ export interface PluginEventsClient {
  *
  * Requires `jobs.schedule` capability.
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
  */
 export interface PluginJobsClient {
   /**
@@ -378,7 +378,7 @@ export interface PluginLaunchersClient {
  *
  * Requires `http.outbound` capability.
  *
- * @see PLUGIN_SPEC.md §15.1 — Capabilities: Runtime/Integration
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capabilities: Runtime/Integration
  */
 export interface PluginHttpClient {
   /**
@@ -404,7 +404,7 @@ export interface PluginHttpClient {
  * This client resolves the reference through the Rudder secret provider
  * system and returns the resolved value at execution time.
  *
- * @see PLUGIN_SPEC.md §22 — Secrets
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Secrets
  */
 export interface PluginSecretsClient {
   /**
@@ -425,7 +425,7 @@ export interface PluginSecretsClient {
 /**
  * Input for writing a plugin activity log entry.
  *
- * @see PLUGIN_SPEC.md §21.4 — Activity Log Changes
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Activity Log Changes
  */
 export interface PluginActivityLogEntry {
   /** UUID of the company this activity belongs to. Required for auditing. */
@@ -445,7 +445,7 @@ export interface PluginActivityLogEntry {
  *
  * Requires `activity.log.write` capability.
  *
- * @see PLUGIN_SPEC.md §21.4 — Activity Log Changes
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Activity Log Changes
  */
 export interface PluginActivityClient {
   /**
@@ -510,7 +510,7 @@ export interface PluginActivityClient {
  * `plugin.state.read` capability required for `get()`.
  * `plugin.state.write` capability required for `set()` and `delete()`.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_state`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_state`
  */
 export interface PluginStateClient {
   /**
@@ -549,7 +549,7 @@ export interface PluginStateClient {
 /**
  * `ctx.entities` — create and query plugin-owned entity records.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_entities`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_entities`
  */
 export interface PluginEntitiesClient {
   /**
@@ -575,7 +575,7 @@ export interface PluginEntitiesClient {
  * Requires `projects.read` capability.
  * Requires `project.workspaces.read` capability for workspace operations.
  *
- * @see PLUGIN_SPEC.md §7 — Project Workspaces
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Project Workspaces
  */
 export interface PluginProjectsClient {
   /**
@@ -622,7 +622,7 @@ export interface PluginProjectsClient {
    * @returns The primary workspace for the issue's project, or `null` if
    *   the issue has no project or the project has no workspace
    *
-   * @see PLUGIN_SPEC.md §20 — Local Tooling
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Local Tooling
    */
   getWorkspaceForIssue(issueId: string, orgId: string): Promise<PluginWorkspace | null>;
 }
@@ -634,7 +634,7 @@ export interface PluginProjectsClient {
  * The plugin's UI calls `usePluginData(key, params)` which routes through the
  * host bridge to the worker's registered handler.
  *
- * @see PLUGIN_SPEC.md §13.8 — `getData`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `getData`
  */
 export interface PluginDataClient {
   /**
@@ -650,7 +650,7 @@ export interface PluginDataClient {
  * `ctx.actions` — register `performAction` handlers that back
  * `usePluginAction()` in the plugin's frontend components.
  *
- * @see PLUGIN_SPEC.md §13.9 — `performAction`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `performAction`
  */
 export interface PluginActionsClient {
   /**
@@ -669,7 +669,7 @@ export interface PluginActionsClient {
  *
  * Tool names are automatically namespaced by plugin ID at runtime.
  *
- * @see PLUGIN_SPEC.md §11 — Agent Tools
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Agent Tools
  */
 export interface PluginToolsClient {
   /**
@@ -692,7 +692,7 @@ export interface PluginToolsClient {
  * Log output is captured by the host, stored, and surfaced in the plugin
  * health dashboard.
  *
- * @see PLUGIN_SPEC.md §26.1 — Logging
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Logging
  */
 export interface PluginLogger {
   /** Log an informational message. */
@@ -714,7 +714,7 @@ export interface PluginLogger {
  *
  * Requires `metrics.write` capability.
  *
- * @see PLUGIN_SPEC.md §15.1 — Capabilities: Data Write
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capabilities: Data Write
  */
 export interface PluginMetricsClient {
   /**
@@ -992,7 +992,7 @@ export interface PluginStreamsClient {
  * });
  * ```
  *
- * @see PLUGIN_SPEC.md §14 — SDK Surface
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface
  */
 export interface PluginContext {
   /** The plugin's manifest as validated at install time. */

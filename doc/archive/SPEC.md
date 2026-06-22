@@ -1,8 +1,18 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/README.md
+archive_note: Long-horizon legacy product spec with old task/CEO terminology.
+---
+
 # Rudder Specification
+
+Archived: this is not current behavior truth. Use `doc/product/README.md` and
+the owning `doc/product/domains/**` contract for current product behavior.
 
 Target specification for the Rudder control plane. Living document — updated incrementally during spec interviews.
 
-Current product narrative: Rudder builds a self-improving agent team by turning goals, issues, agent runs, reviews, and feedback into a real work loop. This long-horizon spec still contains legacy `task`, `CEO`, and organization-template language where it describes older design sketches. For V1 behavior, `doc/SPEC-implementation.md` controls; when updating this document, prefer issue-centric work-loop language unless a legacy compatibility name is being documented deliberately.
+Current product narrative: Rudder builds a self-improving agent team by turning goals, issues, agent runs, reviews, and feedback into a real work loop. This long-horizon spec still contains legacy `task`, `CEO`, and organization-template language where it describes older design sketches. For current behavior, use `doc/product/**`; when updating current docs, prefer issue-centric work-loop language unless a legacy compatibility name is being documented deliberately.
 
 ---
 

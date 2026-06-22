@@ -1,15 +1,27 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/README.md
+archive_note: Dated V1 baseline retained for historical comparison only.
+---
+
 # Rudder V1 Implementation Spec
+
+Archived: this is not current behavior truth. Use `doc/product/README.md` and
+the owning `doc/product/domains/**` contract for current product behavior.
 
 Status: Implementation contract for first release (V1)
 Date: 2026-03-26
 Audience: Product, engineering, and agent-integration authors
-Source inputs: `GOAL.md`, `PRODUCT.md`, `SPEC.md`, `DATABASE.md`, current monorepo code
+Source inputs: `doc/product/GOAL.md`, `doc/product/PRODUCT.md`,
+`doc/archive/SPEC.md`, `doc/engineering/DATABASE.md`, current monorepo code
 
 ## 1. Document Role
 
-`SPEC.md` remains the long-horizon product spec.
+`doc/archive/SPEC.md` remains the historical long-horizon product spec.
 This document is the concrete, build-ready V1 contract.
-When there is a conflict, `SPEC-implementation.md` controls V1 behavior.
+When there is a conflict in archived material, this document records the dated
+V1 baseline; current behavior is governed by `doc/product/**`.
 
 ## 2. V1 Outcomes
 

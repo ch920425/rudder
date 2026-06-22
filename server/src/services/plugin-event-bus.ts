@@ -15,9 +15,9 @@
  * forwards to handlers that proxy the call to the relevant worker process via IPC.
  * That IPC layer is separate; this module only handles routing and filtering.
  *
- * @see PLUGIN_SPEC.md §16 — Event System
- * @see PLUGIN_SPEC.md §16.1 — Event Filtering
- * @see PLUGIN_SPEC.md §16.2 — Plugin-to-Plugin Events
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event System
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event Filtering
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin-to-Plugin Events
  */
 
 import type { EventFilter, PluginEvent } from "@rudderhq/plugin-sdk";

@@ -25,7 +25,7 @@ import {
  * Used to validate `instanceConfigSchema` and `parametersSchema` fields in the
  * plugin manifest without fully parsing JSON Schema.
  *
- * @see PLUGIN_SPEC.md §10.1 — Manifest shape
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Manifest shape
  */
 export const jsonSchemaSchema = z.record(z.unknown()).refine(
   (val) => {
@@ -45,7 +45,7 @@ export const jsonSchemaSchema = z.record(z.unknown()).refine(
  * plugin manifest. Requires `jobKey` and `displayName`; `description` and
  * `schedule` (cron expression) are optional.
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
  */
 /**
  * Validates a cron expression has exactly 5 whitespace-separated fields,
@@ -79,7 +79,7 @@ export type PluginJobDeclarationInput = z.infer<typeof pluginJobDeclarationSchem
  * Validates a {@link PluginWebhookDeclaration} — a webhook endpoint declared
  * in the plugin manifest. Requires `endpointKey` and `displayName`.
  *
- * @see PLUGIN_SPEC.md §18 — Webhooks
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Webhooks
  */
 export const pluginWebhookDeclarationSchema = z.object({
   endpointKey: z.string().min(1),
@@ -94,7 +94,7 @@ export type PluginWebhookDeclarationInput = z.infer<typeof pluginWebhookDeclarat
  * plugin. Requires `name`, `displayName`, `description`, and a valid
  * `parametersSchema`. Requires the `agent.tools.register` capability.
  *
- * @see PLUGIN_SPEC.md §11 — Agent Tools
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Agent Tools
  */
 export const pluginToolDeclarationSchema = z.object({
   name: z.string().min(1),
@@ -110,7 +110,7 @@ export type PluginToolDeclarationInput = z.infer<typeof pluginToolDeclarationSch
  * fills with a React component. Includes `superRefine` checks for slot-specific
  * requirements such as `entityTypes` for context-sensitive slots.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
  */
 export const pluginUiSlotDeclarationSchema = z.object({
   type: z.enum(PLUGIN_UI_SLOT_TYPES),
@@ -344,7 +344,7 @@ export type PluginLauncherDeclarationInput = z.infer<typeof pluginLauncherDeclar
  * Zod schema for {@link PaperclipPluginManifestV1} — the complete runtime
  * validator for plugin manifests read at install time.
  *
- * Field-level constraints (see PLUGIN_SPEC.md §10.1 for the normative rules):
+ * Field-level constraints (see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the normative rules):
  *
  * | Field                    | Type       | Constraints                                  |
  * |--------------------------|------------|----------------------------------------------|
@@ -371,7 +371,7 @@ export type PluginLauncherDeclarationInput = z.infer<typeof pluginLauncherDeclar
  * - duplicate `tools[].name` values are rejected
  * - duplicate `ui.slots[].id` values are rejected
  *
- * @see PLUGIN_SPEC.md §10.1 — Manifest shape
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Manifest shape
  * @see {@link PaperclipPluginManifestV1} — the inferred TypeScript type
  */
 export const pluginManifestV1Schema = z.object({
@@ -413,7 +413,7 @@ export const pluginManifestV1Schema = z.object({
 }).superRefine((manifest, ctx) => {
   // ── Entrypoint ↔ UI slot consistency ──────────────────────────────────
   // Plugins that declare UI slots must also declare a UI entrypoint so the
-  // host knows where to load the bundle from (PLUGIN_SPEC.md §10.1).
+  // host knows where to load the bundle from (doc/engineering/PLUGIN_RUNTIME_CONTRACT.md).
   const hasUiSlots = (manifest.ui?.slots?.length ?? 0) > 0;
   const hasUiLaunchers = (manifest.ui?.launchers?.length ?? 0) > 0;
   if ((hasUiSlots || hasUiLaunchers) && !manifest.entrypoints.ui) {
@@ -441,7 +441,7 @@ export const pluginManifestV1Schema = z.object({
   // declare every capability it needs up-front; silently having more features
   // than capabilities would cause runtime rejections.
 
-  // tools require agent.tools.register (PLUGIN_SPEC.md §11)
+  // tools require agent.tools.register (doc/engineering/PLUGIN_RUNTIME_CONTRACT.md)
   if (manifest.tools && manifest.tools.length > 0) {
     if (!manifest.capabilities.includes("agent.tools.register")) {
       ctx.addIssue({
@@ -452,7 +452,7 @@ export const pluginManifestV1Schema = z.object({
     }
   }
 
-  // jobs require jobs.schedule (PLUGIN_SPEC.md §17)
+  // jobs require jobs.schedule (doc/engineering/PLUGIN_RUNTIME_CONTRACT.md)
   if (manifest.jobs && manifest.jobs.length > 0) {
     if (!manifest.capabilities.includes("jobs.schedule")) {
       ctx.addIssue({
@@ -463,7 +463,7 @@ export const pluginManifestV1Schema = z.object({
     }
   }
 
-  // webhooks require webhooks.receive (PLUGIN_SPEC.md §18)
+  // webhooks require webhooks.receive (doc/engineering/PLUGIN_RUNTIME_CONTRACT.md)
   if (manifest.webhooks && manifest.webhooks.length > 0) {
     if (!manifest.capabilities.includes("webhooks.receive")) {
       ctx.addIssue({
@@ -632,7 +632,7 @@ export type UninstallPlugin = z.infer<typeof uninstallPluginSchema>;
  * state is stored. Used by the `ctx.state.get()`, `ctx.state.set()`, and
  * `ctx.state.delete()` SDK methods.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_state`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_state`
  */
 export const pluginStateScopeKeySchema = z.object({
   scopeKind: z.enum(PLUGIN_STATE_SCOPE_KINDS),

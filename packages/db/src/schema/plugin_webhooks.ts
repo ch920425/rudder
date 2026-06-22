@@ -29,7 +29,7 @@ import { plugins } from "./plugins.js";
  * - `succeeded` — worker processed the payload successfully
  * - `failed` — worker returned an error or timed out
  *
- * @see PLUGIN_SPEC.md §21.3 — `plugin_webhook_deliveries`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_webhook_deliveries`
  */
 export const pluginWebhookDeliveries = pgTable(
   "plugin_webhook_deliveries",

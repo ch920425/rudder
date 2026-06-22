@@ -18,8 +18,8 @@
  * The dispatcher is created once at server startup and shared across
  * the application.
  *
- * @see PLUGIN_SPEC.md §11 — Agent Tools
- * @see PLUGIN_SPEC.md §13.10 — `executeTool`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Agent Tools
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `executeTool`
  */
 
 import type { Db } from "@rudderhq/db";

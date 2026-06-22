@@ -22,13 +22,13 @@
  * ## Security Invariants
  *
  * - Resolved values are **never** logged, persisted, or included in error
- *   messages (per PLUGIN_SPEC.md §22).
+ *   messages (per doc/engineering/PLUGIN_RUNTIME_CONTRACT.md).
  * - The handler is capability-gated: only plugins with `secrets.read-ref`
  *   declared in their manifest may call it (enforced by `host-client-factory`).
  * - The host handler itself does not cache resolved values. Each call goes
  *   through the secret provider to honour rotation.
  *
- * @see PLUGIN_SPEC.md §22 — Secrets
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Secrets
  * @see host-client-factory.ts — capability gating
  * @see services/secrets.ts — secretService used by agent env bindings
  */

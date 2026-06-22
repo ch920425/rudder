@@ -8,7 +8,7 @@ ClipHub is the public registry where people share, discover, and download Rudder
 
 ## What It Is
 
-ClipHub is to Rudder what a package registry is to a programming language. Rudder already supports exportable org configs (see [SPEC.md](./SPEC.md) §2). ClipHub is the public directory where those exports live.
+ClipHub is to Rudder what a package registry is to a programming language. Rudder already supports exportable org configs (historical context: `doc/archive/SPEC.md` §2). ClipHub is the public directory where those exports live.
 
 A user builds a working organization in Rudder — a dev shop, a marketing agency, a research lab, a content studio — exports the template, and publishes it to ClipHub. Anyone can browse, search, download, and spin up that organization on their own Rudder instance.
 

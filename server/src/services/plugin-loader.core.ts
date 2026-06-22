@@ -20,9 +20,9 @@
  * 4. **Shutdown** — `shutdownAll()` gracefully stops all active workers
  *    and unregisters runtime hooks.
  *
- * @see PLUGIN_SPEC.md §8 — Plugin Discovery
- * @see PLUGIN_SPEC.md §10 — Package Contract
- * @see PLUGIN_SPEC.md §12 — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Discovery
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
  */
 import type { Db } from "@rudderhq/db";
 import type {
@@ -216,7 +216,7 @@ export function pluginLoader(
       }
     }
 
-    // Use the version declared in the manifest (required field per the spec)
+    // Use the version declared in the manifest.
     const resolvedVersion = manifest.version;
 
     return {
@@ -1191,5 +1191,5 @@ export function pluginLoader(
  * We check the local plugin directory (where the package was installed) and
  * also the package directory if it was a local-path install.
  *
- * @see PLUGIN_SPEC.md §10 — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
  */

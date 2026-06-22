@@ -17,9 +17,9 @@ Use this skill when the task is to create, scaffold, or document a Rudder plugin
 
 Read these first when needed:
 
-1. `doc/plugins/PLUGIN_AUTHORING_GUIDE.md`
+1. `doc/engineering/PLUGIN_AUTHORING_GUIDE.md`
 2. `packages/plugins/sdk/README.md`
-3. `doc/plugins/PLUGIN_SPEC.md` only for future-looking context
+3. `doc/engineering/PLUGIN_RUNTIME_CONTRACT.md` only for future-looking context
 
 Current runtime assumptions:
 

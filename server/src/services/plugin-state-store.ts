@@ -62,9 +62,9 @@ function scopeConditions(
  * - enforcing `plugin.state.read` capability before calling `get` / `list`
  * - enforcing `plugin.state.write` capability before calling `set` / `delete`
  *
- * @see PLUGIN_SPEC.md §14 — SDK Surface (`ctx.state`)
- * @see PLUGIN_SPEC.md §15.1 — Capabilities: Plugin State
- * @see PLUGIN_SPEC.md §21.3 — `plugin_state` table
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface (`ctx.state`)
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capabilities: Plugin State
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_state` table
  */
 export function pluginStateStore(db: Db) {
   // -----------------------------------------------------------------------

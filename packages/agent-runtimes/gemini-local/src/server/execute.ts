@@ -478,7 +478,7 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
    * "what changed?" discovery.
    *
    * Traceability:
-   * - doc/DEVELOPING.md
+   * - doc/engineering/DEVELOPING.md
    */
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {

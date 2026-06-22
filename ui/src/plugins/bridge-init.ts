@@ -8,8 +8,8 @@
  * Call `initPluginBridge()` once during app startup (in `main.tsx`), before
  * any plugin UI modules are loaded.
  *
- * @see PLUGIN_SPEC.md §19.0.1 — Plugin UI SDK
- * @see PLUGIN_SPEC.md §19.0.2 — Bundle Isolation
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin UI SDK
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Bundle Isolation
  */
 
 import {

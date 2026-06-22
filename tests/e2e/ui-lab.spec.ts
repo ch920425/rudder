@@ -188,7 +188,7 @@ test.describe("UI Lab", () => {
     await expect(page.getByText("Run Transcript Fixtures")).toBeVisible();
 
     await page.getByRole("button", { name: "Expand tool activity group 1" }).click();
-    const docGoalCommand = page.getByRole("button", { name: "Expand command details" }).filter({ hasText: "Read doc/GOAL.md" });
+    const docGoalCommand = page.getByRole("button", { name: "Expand command details" }).filter({ hasText: "Read doc/product/GOAL.md" });
     await expect(docGoalCommand).toHaveCount(1);
     await docGoalCommand.click();
 
@@ -202,7 +202,7 @@ test.describe("UI Lab", () => {
     await expect(commandCopyButton).toHaveAttribute("data-copy-state", "copied");
 
     const copiedCommandOutput = await page.evaluate(() => navigator.clipboard.readText());
-    expect(copiedCommandOutput).toContain("sed -n '1,220p' doc/GOAL.md");
+    expect(copiedCommandOutput).toContain("sed -n '1,220p' doc/product/GOAL.md");
     expect(copiedCommandOutput).not.toContain("$ sed");
   });
 });

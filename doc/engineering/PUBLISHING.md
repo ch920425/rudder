@@ -2,7 +2,7 @@
 
 Low-level reference for how Rudder packages are prepared and published to npm.
 
-For the maintainer workflow, use [doc/RELEASING.md](RELEASING.md). This document focuses on packaging internals.
+For the maintainer workflow, use [doc/engineering/RELEASING.md](RELEASING.md). This document focuses on packaging internals.
 
 ## Current Release Entry Points
 
@@ -152,7 +152,7 @@ That means:
   `exports`) are applied correctly; pnpm remains the workspace build and install
   tool
 
-See [doc/RELEASE-AUTOMATION-SETUP.md](RELEASE-AUTOMATION-SETUP.md) for the GitHub/npm setup steps.
+See [doc/engineering/RELEASE-AUTOMATION-SETUP.md](RELEASE-AUTOMATION-SETUP.md) for the GitHub/npm setup steps.
 
 ## Rollback model
 
@@ -172,4 +172,4 @@ This is the fastest way to restore the default install path if a stable release 
 - [`scripts/generate-npm-package-json.mjs`](../scripts/generate-npm-package-json.mjs)
 - [`scripts/release-package-map.mjs`](../scripts/release-package-map.mjs)
 - [`cli/esbuild.config.mjs`](../cli/esbuild.config.mjs)
-- [`doc/RELEASING.md`](RELEASING.md)
+- [`doc/engineering/RELEASING.md`](RELEASING.md)

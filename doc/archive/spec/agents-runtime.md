@@ -1,3 +1,10 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/domains/agents/instruction-loading.md and doc/product/domains/execution/
+archive_note: Old agent runtime guide draft.
+---
+
 # Agent Runtime Guide
 
 Status: User-facing guide  

@@ -24,7 +24,8 @@ Scope note:
 
 - This registry documents the current implemented product behavior that
   contributors must preserve when changing Rudder.
-- `doc/SPEC-implementation.md` remains the dated V1 implementation contract.
+- `doc/archive/SPEC-implementation.md` remains a dated V1 baseline kept for
+  historical context.
   When this registry covers implemented surfaces that were out of scope in that
   dated V1 document, the registry records implementation reality and guardrails;
   it does not silently expand the V1 promise or roadmap.

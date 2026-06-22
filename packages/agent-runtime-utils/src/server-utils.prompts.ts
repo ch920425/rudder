@@ -251,7 +251,7 @@ Before changing the issue, inspect the current issue state and any side effects 
  * - Keep behavior deterministic across runtimes: template selection is centralized here.
  *
  * See also:
- * - doc/DEVELOPING.md
+ * - doc/engineering/DEVELOPING.md
  */
 export function selectPromptTemplate(
   configuredTemplate: string | undefined,

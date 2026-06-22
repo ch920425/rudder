@@ -28,7 +28,7 @@ export type JsonSchema = Record<string, unknown>;
 /**
  * Declares a scheduled job a plugin can run.
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
  */
 export interface PluginJobDeclaration {
   /** Stable identifier for this job, unique within the plugin. */
@@ -45,7 +45,7 @@ export interface PluginJobDeclaration {
  * Declares a webhook endpoint the plugin can receive.
  * Route: `POST /api/plugins/:pluginId/webhooks/:endpointKey`
  *
- * @see PLUGIN_SPEC.md §18 — Webhooks
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Webhooks
  */
 export interface PluginWebhookDeclaration {
   /** Stable identifier for this endpoint, unique within the plugin. */
@@ -62,7 +62,7 @@ export interface PluginWebhookDeclaration {
  *
  * Requires the `agent.tools.register` capability.
  *
- * @see PLUGIN_SPEC.md §11 — Agent Tools
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Agent Tools
  */
 export interface PluginToolDeclaration {
   /** Tool name, unique within the plugin. Namespaced by plugin ID at runtime. */
@@ -78,7 +78,7 @@ export interface PluginToolDeclaration {
 /**
  * Declares a UI extension slot the plugin fills with a React component.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
  */
 export interface PluginUiSlotDeclaration {
   /** The type of UI mount point (page, detailTab, taskDetailView, toolbarButton, etc.). */
@@ -196,7 +196,7 @@ export interface PluginUiDeclaration {
 
 /**
  * The manifest shape every plugin package must export.
- * See PLUGIN_SPEC.md §10.1 for the normative definition.
+ * See doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the normative definition.
  */
 export interface PaperclipPluginManifestV1 {
   /** Globally unique plugin identifier (e.g. `"acme.linear-sync"`). Must be lowercase alphanumeric with dots, hyphens, or underscores. */
@@ -255,7 +255,7 @@ export interface PaperclipPluginManifestV1 {
 
 /**
  * Domain type for an installed plugin as persisted in the `plugins` table.
- * See PLUGIN_SPEC.md §21.3 for the schema definition.
+ * See doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the schema definition.
  */
 export interface PluginRecord {
   /** UUID primary key. */
@@ -297,7 +297,7 @@ export interface PluginRecord {
  * The five-part composite key `(pluginId, scopeKind, scopeId, namespace, stateKey)`
  * uniquely identifies a state entry.
  *
- * @see PLUGIN_SPEC.md §21.3 — `plugin_state`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_state`
  */
 export interface PluginStateRecord {
   /** UUID primary key. */
@@ -331,7 +331,7 @@ export interface PluginStateRecord {
 /**
  * Domain type for a plugin's instance configuration as persisted in the
  * `plugin_config` table.
- * See PLUGIN_SPEC.md §21.3 for the schema definition.
+ * See doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the schema definition.
  */
 export interface PluginConfig {
   /** UUID primary key. */

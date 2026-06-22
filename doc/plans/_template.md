@@ -10,7 +10,7 @@ issue:
 related_plans: []
 supersedes: []
 related_code:
-  - doc/DEVELOPING.md
+  - doc/engineering/DEVELOPING.md
   - doc/plans/_taxonomy.md
 commit_refs: []
 updated_at: YYYY-MM-DD
@@ -22,7 +22,7 @@ Use this file to choose the right template, not as the default body for every
 plan.
 
 All new plan docs should keep the shared YAML frontmatter schema defined in
-`doc/DEVELOPING.md`.
+`doc/engineering/DEVELOPING.md`.
 
 ## Choose A Template
 

@@ -5,7 +5,7 @@
  * each event to all connected SSE clients that match the (pluginId, channel,
  * orgId) tuple.
  *
- * @see PLUGIN_SPEC.md §19.8 — Real-Time Streaming
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Real-Time Streaming
  */
 
 /** Valid SSE event types for plugin streams. */

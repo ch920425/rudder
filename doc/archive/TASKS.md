@@ -1,4 +1,14 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/domains/issues/
+archive_note: Legacy target task model; current issue behavior lives in product contracts.
+---
+
 # Task Management Data Model
+
+Archived: this is not current behavior truth. Use
+`doc/product/domains/issues/**` for current issue behavior.
 
 Reference for how task tracking works in Rudder. Describes the entities, their
 relationships, and the rules governing task lifecycle. Written as a target model

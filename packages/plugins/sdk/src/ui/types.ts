@@ -9,9 +9,9 @@
  * All communication with the plugin worker goes through the host bridge — plugin
  * components must NOT access host internals or call host APIs directly.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
- * @see PLUGIN_SPEC.md §19.0.1 — Plugin UI SDK
- * @see PLUGIN_SPEC.md §29.2 — SDK Versioning
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin UI SDK
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Versioning
  */
 
 import type {
@@ -52,7 +52,7 @@ export type {
  * - `TIMEOUT` — worker did not respond within the configured timeout
  * - `UNKNOWN` — unexpected bridge-level failure
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 export interface PluginBridgeError {
   /** Machine-readable error code. */
@@ -76,7 +76,7 @@ export interface PluginBridgeError {
  * Plugin components use this to know which company, project, or entity is
  * currently active so they can scope their data requests accordingly.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
  */
 export interface PluginHostContext {
   /** UUID of the currently active company, if any. */
@@ -138,8 +138,8 @@ export interface PluginRenderEnvironmentContext
  *
  * A page is a full-page extension at `/plugins/:pluginId` or `/:company/plugins/:pluginId`.
  *
- * @see PLUGIN_SPEC.md §19.1 — Global Operator Routes
- * @see PLUGIN_SPEC.md §19.2 — Organization-Context Routes
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Global Operator Routes
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Organization-Context Routes
  */
 export interface PluginPageProps {
   /** The current host context. */
@@ -151,7 +151,7 @@ export interface PluginPageProps {
  *
  * A dashboard widget is rendered as a card or section on the main dashboard.
  *
- * @see PLUGIN_SPEC.md §19.4 — Dashboard Widgets
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Dashboard Widgets
  */
 export interface PluginWidgetProps {
   /** The current host context. */
@@ -164,7 +164,7 @@ export interface PluginWidgetProps {
  * A detail tab is rendered as an additional tab on a project, issue, agent,
  * goal, or run detail page.
  *
- * @see PLUGIN_SPEC.md §19.3 — Detail Tabs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Detail Tabs
  */
 export interface PluginDetailTabProps {
   /** The current host context, always including `entityId` and `entityType`. */
@@ -179,7 +179,7 @@ export interface PluginDetailTabProps {
  *
  * A sidebar entry adds a link or section to the application sidebar.
  *
- * @see PLUGIN_SPEC.md §19.5 — Sidebar Entries
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Sidebar Entries
  */
 export interface PluginSidebarProps {
   /** The current host context. */
@@ -196,7 +196,7 @@ export interface PluginSidebarProps {
  * Use this slot to add a link (e.g. "Files", "Linear Sync") that navigates to
  * the project detail with a plugin tab selected: `/projects/:projectRef?tab=plugin:key:slotId`.
  *
- * @see PLUGIN_SPEC.md §19.5.1 — Project sidebar items
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Project sidebar items
  */
 export interface PluginProjectSidebarItemProps {
   /** Host context plus entityId (project id) and entityType "project". */
@@ -217,7 +217,7 @@ export interface PluginProjectSidebarItemProps {
  * Use this slot to augment comments with parsed file links, sentiment
  * badges, inline actions, or any per-comment metadata.
  *
- * @see PLUGIN_SPEC.md §19.6 — Comment Annotations
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Comment Annotations
  */
 export interface PluginCommentAnnotationProps {
   /** Host context with comment and parent issue identifiers. */
@@ -242,7 +242,7 @@ export interface PluginCommentAnnotationProps {
  * Use this slot to add per-comment actions such as "Create sub-issue from
  * comment", "Translate", "Flag for review", or any custom plugin action.
  *
- * @see PLUGIN_SPEC.md §19.7 — Comment Context Menu Items
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Comment Context Menu Items
  */
 export interface PluginCommentContextMenuItemProps {
   /** Host context with comment and parent issue identifiers. */
@@ -263,7 +263,7 @@ export interface PluginCommentContextMenuItemProps {
  * a `settingsPage` UI slot. The component is responsible for reading and
  * writing config through the bridge.
  *
- * @see PLUGIN_SPEC.md §19.8 — Plugin Settings UI
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Settings UI
  */
 export interface PluginSettingsPageProps {
   /** The current host context. */
@@ -282,7 +282,7 @@ export interface PluginSettingsPageProps {
  *
  * @template T The type of the data returned by the worker handler
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 export interface PluginDataResult<T = unknown> {
   /** The data returned by the worker's `getData` handler. `null` while loading or on error. */
@@ -338,7 +338,7 @@ export type PluginToastFn = (input: PluginToastInput) => string | null;
  *
  * @template T The type of each event emitted by the worker
  *
- * @see PLUGIN_SPEC.md §19.8 — Real-Time Streaming
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Real-Time Streaming
  */
 export interface PluginStreamResult<T = unknown> {
   /** All events received so far, in arrival order. */
@@ -367,7 +367,7 @@ export interface PluginStreamResult<T = unknown> {
  *
  * On failure, the async function throws a `PluginBridgeError`.
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  *
  * @example
  * ```tsx

@@ -52,7 +52,7 @@ function isPluginKeyConflict(error: unknown): boolean {
  * gating are handled by {@link pluginLifecycleManager} and
  * {@link pluginCapabilityValidator} respectively.
  *
- * @see PLUGIN_SPEC.md §21.3 — Required Tables
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Required Tables
  */
 export function pluginRegistryService(db: Db) {
   // -----------------------------------------------------------------------

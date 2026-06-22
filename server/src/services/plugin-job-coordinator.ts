@@ -18,7 +18,7 @@
  * the "glue" between them without adding coupling. This pattern is used
  * throughout Rudder (e.g. heartbeat service coordinates timers + runs).
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
  * @see ./plugin-job-scheduler.ts — Scheduler service
  * @see ./plugin-job-store.ts — Persistence layer
  * @see ./plugin-lifecycle.ts — Plugin state machine

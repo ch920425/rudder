@@ -1,3 +1,10 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/engineering/PLUGIN_RUNTIME_CONTRACT.md and doc/product/domains/plugins/
+archive_note: Historical plugin research notes.
+---
+
 # Plugin Ideas From OpenCode
 
 Status: design report, not a V1 commitment

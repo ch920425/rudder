@@ -29,9 +29,9 @@
  *   |                                        (process exits)
  * ```
  *
- * @see PLUGIN_SPEC.md §12 — Process Model
- * @see PLUGIN_SPEC.md §13 — Host-Worker Protocol
- * @see PLUGIN_SPEC.md §14 — SDK Surface
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Host-Worker Protocol
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface
  */
 
 import path from "node:path";

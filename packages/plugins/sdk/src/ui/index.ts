@@ -6,8 +6,8 @@
  *
  * The worker-side SDK is available from `@rudderhq/plugin-sdk` (root).
  *
- * @see PLUGIN_SPEC.md §19.0.1 — Plugin UI SDK
- * @see PLUGIN_SPEC.md §29.2 — SDK Versioning
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin UI SDK
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Versioning
  *
  * @example
  * ```tsx

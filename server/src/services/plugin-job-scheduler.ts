@@ -29,7 +29,7 @@
  *    scheduling when plugins start/stop. On registration, the scheduler
  *    computes `nextRunAt` for all active jobs that don't already have one.
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
  * @see ./plugin-job-store.ts — Persistence layer
  * @see ./cron.ts — Cron parsing utilities
  */

@@ -20,9 +20,9 @@
  * 4. **Shutdown** — `shutdownAll()` gracefully stops all active workers
  *    and unregisters runtime hooks.
  *
- * @see PLUGIN_SPEC.md §8 — Plugin Discovery
- * @see PLUGIN_SPEC.md §10 — Package Contract
- * @see PLUGIN_SPEC.md §12 — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Discovery
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
  */
 import type {
   PaperclipPluginManifestV1,
@@ -55,7 +55,7 @@ export const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Naming convention for npm-published Rudder plugins.
  * Packages matching this pattern are considered Rudder plugins.
  *
- * @see PLUGIN_SPEC.md §10 — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
  */
 export const NPM_PLUGIN_PACKAGE_PREFIX = "rudder-plugin-";
 
@@ -63,7 +63,7 @@ export const NPM_PLUGIN_PACKAGE_PREFIX = "rudder-plugin-";
  * Default local plugin directory.  The loader scans this directory for
  * locally-installed plugin packages.
  *
- * @see PLUGIN_SPEC.md §8.1 — On-Disk Layout
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — On-Disk Layout
  */
 export const DEFAULT_LOCAL_PLUGIN_DIR = path.join(
   os.homedir(),
@@ -96,7 +96,7 @@ export interface DiscoveredPlugin {
 /**
  * Sources from which plugins can be discovered.
  *
- * @see PLUGIN_SPEC.md §8.1 — On-Disk Layout
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — On-Disk Layout
  */
 export type PluginSource =
   | "local-filesystem"  // ~/.rudder/plugins/ local directory
@@ -208,8 +208,8 @@ export interface PluginInstallOptions {
  * workers, register event subscriptions, sync jobs, register tools).
  * When omitted, the loader operates in discovery/install-only mode.
  *
- * @see PLUGIN_SPEC.md §8.3 — Install Process
- * @see PLUGIN_SPEC.md §12 — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Install Process
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
  */
 export interface PluginRuntimeServices {
   /** Worker process manager for spawning and managing plugin workers. */
@@ -315,8 +315,8 @@ export interface PluginLoader {
    * @param npmSearchDirs - Optional override for node_modules directories to search.
    *   Passed through to discoverFromNpm. When omitted the defaults are used.
    *
-   * @see PLUGIN_SPEC.md §8.1 — On-Disk Layout
-   * @see PLUGIN_SPEC.md §8.3 — Install Process
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — On-Disk Layout
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Install Process
    */
   discoverAll(npmSearchDirs?: string[]): Promise<PluginDiscoveryResult>;
 
@@ -350,14 +350,14 @@ export interface PluginLoader {
    * Returns null if the package is not a Rudder plugin.
    * Throws if the package is a Rudder plugin but the manifest is invalid.
    *
-   * @see PLUGIN_SPEC.md §10 — Package Contract
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
    */
   loadManifest(packagePath: string): Promise<PaperclipPluginManifestV1 | null>;
 
   /**
    * Install a plugin package and register it in the database.
    *
-   * Follows the install process described in PLUGIN_SPEC.md §8.3:
+   * Follows the install process described in doc/engineering/PLUGIN_RUNTIME_CONTRACT.md:
    * 1. Resolve npm package / local path.
    * 2. Install into the plugin directory (npm install).
    * 3. Read and validate plugin manifest.
@@ -369,7 +369,7 @@ export interface PluginLoader {
    * Worker spawning and lifecycle management are handled by the caller
    * (pluginLifecycleManager and the server startup orchestration).
    *
-   * @see PLUGIN_SPEC.md §8.3 — Install Process
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Install Process
    */
   installPlugin(options: PluginInstallOptions): Promise<DiscoveredPlugin>;
 
@@ -382,7 +382,7 @@ export interface PluginLoader {
    * 3. Updates the existing plugin record instead of creating a new one.
    * 4. Returns the old and new manifests for capability comparison.
    *
-   * @see PLUGIN_SPEC.md §25.3 — Upgrade Lifecycle
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Upgrade Lifecycle
    */
   upgradePlugin(pluginId: string, options: Omit<PluginInstallOptions, "installDir">): Promise<{
     oldManifest: PaperclipPluginManifestV1;
@@ -432,8 +432,8 @@ export interface PluginLoader {
    *
    * @returns Aggregated results for all attempted plugin loads.
    *
-   * @see PLUGIN_SPEC.md §8.4 — Server-Start Plugin Loading
-   * @see PLUGIN_SPEC.md §12 — Process Model
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Server-Start Plugin Loading
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
    */
   loadAll(): Promise<PluginLoadAllResult>;
 
@@ -452,7 +452,7 @@ export interface PluginLoader {
    * @param pluginId - UUID of the plugin to activate
    * @returns The activation result for this plugin
    *
-   * @see PLUGIN_SPEC.md §8.3 — Install Process
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Install Process
    */
   loadSingle(pluginId: string): Promise<PluginLoadResult>;
 
@@ -469,7 +469,7 @@ export interface PluginLoader {
    * @param pluginId - UUID of the plugin to deactivate
    * @param pluginKey - The plugin key (manifest ID) for scoped cleanup
    *
-   * @see PLUGIN_SPEC.md §8.5 — Uninstall Process
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Uninstall Process
    */
   unloadSingle(pluginId: string, pluginKey: string): Promise<void>;
 
@@ -498,7 +498,7 @@ export interface PluginLoader {
  * Check whether a package name matches the Rudder plugin naming convention.
  * Accepts both the "rudder-plugin-" prefix and scoped "@scope/plugin-" packages.
  *
- * @see PLUGIN_SPEC.md §10 — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
  */
 export function isPluginPackageName(name: string): boolean {
   if (name.startsWith(NPM_PLUGIN_PACKAGE_PREFIX)) return true;
@@ -531,10 +531,11 @@ export async function readPackageJson(
 /**
  * Resolve the manifest entrypoint from a package.json and package root.
  *
- * The spec defines a "rudderPlugin" key in package.json with a "manifest"
- * subkey pointing to the manifest module.  This helper resolves the path.
+ * Rudder plugin packages define a "rudderPlugin" key in package.json with a
+ * "manifest" subkey pointing to the manifest module. This helper resolves the
+ * path.
  *
- * @see PLUGIN_SPEC.md §10 — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
  */
 export function resolveManifestPath(
   packageRoot: string,
@@ -719,7 +720,7 @@ export function getPluginUiContributionMetadata(
  * await loader.shutdownAll();
  * ```
  *
- * @see PLUGIN_SPEC.md §8.1 — On-Disk Layout
- * @see PLUGIN_SPEC.md §8.3 — Install Process
- * @see PLUGIN_SPEC.md §12 — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — On-Disk Layout
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Install Process
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
  */

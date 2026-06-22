@@ -1,3 +1,10 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/engineering/DESIGN.md and doc/product/surfaces/
+archive_note: Old UI draft spec.
+---
+
 # Rudder UI Spec
 
 Status: Draft

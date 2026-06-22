@@ -67,15 +67,15 @@ test.describe("Run transcript detail", () => {
     await expect(firstProgressChunk).toHaveCount(1);
     await expect(page.getByText("Model turn", { exact: false })).toHaveCount(0);
     await expect(page.getByText("Read", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("doc/GOAL.md", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("doc/SPEC-implementation.md", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("doc/product/GOAL.md", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("doc/archive/SPEC-implementation.md", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Marked PAP-473 done", { exact: false })).toBeVisible();
     await expect(page.getByText("added review summary comment", { exact: false })).toBeVisible();
     await expect(page.getByText("Ran rudder issue done", { exact: false })).toHaveCount(0);
 
     await firstProgressChunk.click();
-    await expect(page.getByText("Read doc/GOAL.md", { exact: false })).toBeVisible();
-    await expect(page.getByText("Read doc/SPEC-implementation.md", { exact: false })).toBeVisible();
+    await expect(page.getByText("Read doc/product/GOAL.md", { exact: false })).toBeVisible();
+    await expect(page.getByText("Read doc/archive/SPEC-implementation.md", { exact: false })).toBeVisible();
 
     const externalToolGroup = page.getByRole("button", { name: /Expand tool activity group 2/ }).filter({ hasText: "2 searches, used 1 tool" });
     await expect(externalToolGroup).toHaveCount(1);

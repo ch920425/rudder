@@ -367,8 +367,8 @@ export const pluginsApi = {
    * - `409` when the plugin is not in a callable runtime state
    * - `5xx` with a `PluginBridgeError`-shaped body when the worker throws
    *
-   * @see PLUGIN_SPEC.md §13.8 — `getData`
-   * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `getData`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
    */
   bridgeGetData: (
     pluginId: string,
@@ -407,8 +407,8 @@ export const pluginsApi = {
    * - `409` when the plugin is not in a callable runtime state
    * - `5xx` with a `PluginBridgeError`-shaped body when the worker throws
    *
-   * @see PLUGIN_SPEC.md §13.9 — `performAction`
-   * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `performAction`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
    */
   bridgePerformAction: (
     pluginId: string,

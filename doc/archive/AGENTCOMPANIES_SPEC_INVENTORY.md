@@ -1,3 +1,10 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/README.md
+archive_note: Historical inventory from pre-registry documentation.
+---
+
 # Agent Organizations Spec Inventory
 
 This document indexes every part of the Rudder codebase that touches the [Agent Organizations Specification](docs/organizations/organizations-spec.md) (`agentorganizations/v1-draft`).

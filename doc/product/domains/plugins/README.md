@@ -27,9 +27,9 @@ Scope note:
 
 - Plugins are implemented extension surfaces and are documented here so their
   current behavior does not regress.
-- This does not change the dated V1 scope statement in
-  `doc/SPEC-implementation.md`; plugin contracts are extension-surface
-  guardrails unless a later V1/V2 spec explicitly promotes them into core scope.
+- Plugin contracts document implemented extension-surface guardrails. Archived
+  V1 or target specs are historical context and do not override these current
+  product contracts.
 
 ## Owns
 

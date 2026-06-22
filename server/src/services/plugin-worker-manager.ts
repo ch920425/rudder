@@ -7,15 +7,15 @@
  * JSON-RPC requests over the child's stdin and reads responses from stdout.
  * Worker stderr is captured and forwarded to the host logger.
  *
- * Process Model (from PLUGIN_SPEC.md §12):
+ * Process model. See doc/engineering/PLUGIN_RUNTIME_CONTRACT.md.
  * - One worker process per installed plugin
  * - Failure isolation: plugin crashes do not affect the host
  * - Graceful shutdown: 10-second drain, then SIGTERM, then SIGKILL
  * - Automatic restart with exponential backoff on unexpected exits
  *
- * @see PLUGIN_SPEC.md §12 — Process Model
- * @see PLUGIN_SPEC.md §12.5 — Graceful Shutdown Policy
- * @see PLUGIN_SPEC.md §13 — Host-Worker Protocol
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Graceful Shutdown Policy
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Host-Worker Protocol
  */
 
 import type {
@@ -527,7 +527,8 @@ export function createPluginWorkerHandle(
    *
    * The `log` notification is the primary case — worker `ctx.logger` calls
    * arrive here. We append structured plugin context (pluginId, timestamp,
-   * level) so that every log entry is queryable per the spec (§26.1).
+   * level) so every log entry is queryable by the current plugin runtime
+   * contract.
    */
   function handleWorkerNotification(notification: JsonRpcNotification): void {
     if (notification.method === "log") {
@@ -540,8 +541,8 @@ export function createPluginWorkerHandle(
       const msg = params?.message ?? "";
       const meta = params?.meta;
 
-      // Build a structured log object that includes the plugin context fields
-      // required by §26.1: pluginId, timestamp, level, message, and metadata.
+      // Build a structured log object that includes the plugin context fields:
+      // pluginId, timestamp, level, message, and metadata.
       // The child logger already carries `pluginId` in its bindings, but we
       // add explicit `pluginLogLevel` and `pluginTimestamp` so downstream
       // consumers (log storage, UI queries) can filter without parsing.

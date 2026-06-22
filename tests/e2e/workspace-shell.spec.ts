@@ -599,7 +599,7 @@ test.describe("Workspace shell", () => {
       data: {
         name: "SPEC doc",
         kind: "file",
-        locator: "~/projects/rudder/doc/SPEC-implementation.md",
+        locator: "~/projects/rudder/doc/archive/SPEC-implementation.md",
         description: "Concrete implementation contract for the product.",
       },
     });

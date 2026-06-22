@@ -52,8 +52,8 @@ export function createHeartbeatRecoveryHandlers(context: any) {
      *   lossy retry runs without mutating the historical source run rows.
      *
      * Traceability:
-     * - doc/developing/RUN-RECOVERY.md
-     * - doc/DEVELOPING.md
+     * - doc/product/domains/execution/run-admission-and-recovery.md
+     * - doc/engineering/DEVELOPING.md
      */
     const baseContextSnapshot = await hydrateRecoveryBaseContextSnapshot(run, getRun);
     const recoveryWakeSource = isIssueCommentMentionWake({

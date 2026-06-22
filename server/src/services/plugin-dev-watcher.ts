@@ -11,7 +11,7 @@
  * backend across platforms and avoid exhausting file descriptors as quickly in
  * large dev workspaces.
  *
- * @see PLUGIN_SPEC.md §27.2 — Local Development Workflow
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Local Development Workflow
  */
 import chokidar, { type FSWatcher } from "chokidar";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";

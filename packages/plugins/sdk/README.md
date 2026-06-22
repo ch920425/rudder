@@ -8,7 +8,7 @@ Official TypeScript SDK for Rudder plugin authors.
 - **Bundlers:** `@rudderhq/plugin-sdk/bundlers` — esbuild/rollup presets
 - **Dev server:** `@rudderhq/plugin-sdk/dev-server` — static UI server + SSE reload
 
-Reference: `doc/plugins/PLUGIN_SPEC.md`
+Reference: `../../../doc/engineering/PLUGIN_RUNTIME_CONTRACT.md`
 
 ## Package surface
 
@@ -102,7 +102,7 @@ runWorker(plugin, import.meta.url);
 
 **Context (`ctx`) in setup:** `config`, `events`, `jobs`, `launchers`, `http`, `secrets`, `activity`, `state`, `entities`, `projects`, `companies`, `issues`, `agents`, `goals`, `data`, `actions`, `streams`, `tools`, `metrics`, `logger`, `manifest`. Worker-side host APIs are capability-gated; declare capabilities in the manifest.
 
-**Agents:** `ctx.agents.invoke(agentId, companyId, opts)` for one-shot invocation. `ctx.agents.sessions` for two-way chat: `create`, `list`, `sendMessage` (with streaming `onEvent` callback), `close`. See the [Plugin Authoring Guide](../../doc/plugins/PLUGIN_AUTHORING_GUIDE.md#agent-sessions-two-way-chat) for details.
+**Agents:** `ctx.agents.invoke(agentId, companyId, opts)` for one-shot invocation. `ctx.agents.sessions` for two-way chat: `create`, `list`, `sendMessage` (with streaming `onEvent` callback), `close`. See the [Plugin Authoring Guide](../../../doc/engineering/PLUGIN_AUTHORING_GUIDE.md#agent-sessions-two-way-chat) for details.
 
 **Jobs:** Declare in `manifest.jobs` with `jobKey`, `displayName`, `schedule` (cron). Register handler with `ctx.jobs.register(jobKey, fn)`. **Webhooks:** Declare in `manifest.webhooks` with `endpointKey`; handle in `onWebhook(input)`. **State:** `ctx.state.get/set/delete(scopeKey)`; scope kinds: `instance`, `company`, `project`, `project_workspace`, `agent`, `issue`, `goal`, `run`.
 
@@ -583,7 +583,7 @@ Plugins can add a link under each project in the sidebar via the `projectSidebar
 }
 ```
 
-Minimal React component that links to the project’s plugin tab (see project detail tabs in the spec):
+Minimal React component that links to the project’s plugin tab:
 
 ```tsx
 import type { PluginProjectSidebarItemProps } from "@rudderhq/plugin-sdk/ui";
@@ -600,7 +600,7 @@ export function FilesLink({ context }: PluginProjectSidebarItemProps) {
 }
 ```
 
-Use optional `order` in the slot to sort among other project sidebar items. See §19.5.1 in the plugin spec and project detail plugin tabs (§19.3) for the full flow.
+Use optional `order` in the slot to sort among other project sidebar items. Project sidebar items and project detail plugin tabs are covered in the current plugin runtime contract.
 
 ## Toolbar launcher with a local modal
 

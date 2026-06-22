@@ -10,7 +10,7 @@ import { plugins } from "./plugins.js";
  * plugin settings UI. These values are validated at runtime against the
  * plugin's `instanceConfigSchema` from the manifest.
  *
- * @see PLUGIN_SPEC.md §21.3
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
  */
 export const pluginConfig = pgTable(
   "plugin_config",

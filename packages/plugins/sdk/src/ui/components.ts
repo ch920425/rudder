@@ -13,7 +13,7 @@
  * only the type declarations; the runtime implementations are injected via the
  * host module registry.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components In `@rudderhq/plugin-sdk/ui`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components In `@rudderhq/plugin-sdk/ui`
  */
 
 import type React from "react";
@@ -228,7 +228,7 @@ export interface ErrorBoundaryProps {
 /**
  * Displays a single metric with an optional trend indicator and sparkline.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 function createSdkUiComponent<TProps>(name: string): React.ComponentType<TProps> {
   return function PaperclipSdkUiComponent(props: TProps) {
@@ -241,63 +241,63 @@ export const MetricCard = createSdkUiComponent<MetricCardProps>("MetricCard");
 /**
  * Displays an inline status badge (ok / warning / error / info / pending).
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const StatusBadge = createSdkUiComponent<StatusBadgeProps>("StatusBadge");
 
 /**
  * Sortable, paginated data table.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const DataTable = createSdkUiComponent<DataTableProps>("DataTable");
 
 /**
  * Line or bar chart for time-series data.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const TimeseriesChart = createSdkUiComponent<TimeseriesChartProps>("TimeseriesChart");
 
 /**
  * Renders Markdown text as HTML.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const MarkdownBlock = createSdkUiComponent<MarkdownBlockProps>("MarkdownBlock");
 
 /**
  * Renders a definition-list of label/value pairs.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const KeyValueList = createSdkUiComponent<KeyValueListProps>("KeyValueList");
 
 /**
  * Row of action buttons wired to the plugin bridge's `performAction` handlers.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const ActionBar = createSdkUiComponent<ActionBarProps>("ActionBar");
 
 /**
  * Scrollable, timestamped log output viewer.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const LogView = createSdkUiComponent<LogViewProps>("LogView");
 
 /**
  * Collapsible JSON tree for debugging or raw data inspection.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const JsonTree = createSdkUiComponent<JsonTreeProps>("JsonTree");
 
 /**
  * Loading indicator.
  *
- * @see PLUGIN_SPEC.md §19.6 — Shared Components
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Shared Components
  */
 export const Spinner = createSdkUiComponent<SpinnerProps>("Spinner");
 
@@ -305,6 +305,6 @@ export const Spinner = createSdkUiComponent<SpinnerProps>("Spinner");
  * React error boundary that prevents plugin rendering errors from crashing
  * the host page.
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 export const ErrorBoundary = createSdkUiComponent<ErrorBoundaryProps>("ErrorBoundary");

@@ -119,11 +119,13 @@ There are two runtime modes Rudder must support:
 - `local_trusted` (default): single-user local trusted deployment with no login friction
 - `authenticated`: login-required mode that supports both private-network and public deployment exposure policies
 
-Canonical mode design and command expectations live in `doc/DEPLOYMENT-MODES.md`.
+Canonical mode design and command expectations live in `doc/engineering/DEPLOYMENT-MODES.md`.
 
 ## Further Detail
 
-See [SPEC.md](./SPEC.md) for the long-horizon technical specification and [TASKS.md](./TASKS.md) for legacy task/issue data-model notes.
+See `doc/product/README.md` and the owning product domain contracts for current
+behavior. Archived specs and legacy task notes live under `doc/archive/` for
+historical context only.
 
 ## What Rudder should do vs. not do
 

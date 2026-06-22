@@ -20,9 +20,9 @@
  * 4. **Shutdown** — `shutdownAll()` gracefully stops all active workers
  *    and unregisters runtime hooks.
  *
- * @see PLUGIN_SPEC.md §8 — Plugin Discovery
- * @see PLUGIN_SPEC.md §10 — Package Contract
- * @see PLUGIN_SPEC.md §12 — Process Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Discovery
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Package Contract
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Process Model
  */
 export * from "./plugin-loader.core.js";
 export * from "./plugin-loader.helpers.js";

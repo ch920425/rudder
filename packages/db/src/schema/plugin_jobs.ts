@@ -25,7 +25,7 @@ import { plugins } from "./plugins.js";
  * - `paused` — job is temporarily disabled by the operator
  * - `error` — job has been disabled due to repeated failures
  *
- * @see PLUGIN_SPEC.md §21.3 — `plugin_jobs`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_jobs`
  */
 export const pluginJobs = pgTable(
   "plugin_jobs",
@@ -66,7 +66,7 @@ export const pluginJobs = pgTable(
  * - `scheduled` — fired automatically by the cron/interval scheduler
  * - `manual` — triggered by an operator via the admin UI or API
  *
- * @see PLUGIN_SPEC.md §21.3 — `plugin_job_runs`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_job_runs`
  */
 export const pluginJobRuns = pgTable(
   "plugin_job_runs",

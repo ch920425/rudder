@@ -1,3 +1,10 @@
+---
+status: archived
+do_not_use_as_current_truth: true
+superseded_by: doc/product/domains/execution/ and doc/product/domains/agents/
+archive_note: Old agent runs subsystem draft.
+---
+
 # Agent Runs Subsystem Spec
 
 Status: Draft  

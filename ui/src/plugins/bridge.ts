@@ -20,9 +20,9 @@
  *    look up the current plugin context from a React context provider and
  *    delegate to the appropriate bridge instance.
  *
- * @see PLUGIN_SPEC.md §13.8 — `getData`
- * @see PLUGIN_SPEC.md §13.9 — `performAction`
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `getData`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `performAction`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 
 import { ApiError } from "@/api/client";

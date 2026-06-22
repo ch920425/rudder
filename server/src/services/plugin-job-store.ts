@@ -26,8 +26,8 @@
  * client factory and manifest validator — this store trusts that the caller
  * has already been authorised.
  *
- * @see PLUGIN_SPEC.md §17 — Scheduled Jobs
- * @see PLUGIN_SPEC.md §21.3 — `plugin_jobs` / `plugin_job_runs` tables
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Scheduled Jobs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `plugin_jobs` / `plugin_job_runs` tables
  */
 
 import type { Db } from "@rudderhq/db";

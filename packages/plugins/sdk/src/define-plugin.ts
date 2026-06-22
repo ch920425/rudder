@@ -6,7 +6,7 @@
  * calls `setup()` with a `PluginContext`, and from that point the plugin
  * responds to events, jobs, webhooks, and UI requests through the context.
  *
- * @see PLUGIN_SPEC.md §14.1 — Example SDK Shape
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Example SDK Shape
  *
  * @example
  * ```ts
@@ -56,7 +56,7 @@ import type { PluginContext } from "./types.js";
 /**
  * Optional plugin-reported diagnostics returned from the `health()` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.2 — `health`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `health`
  */
 export interface PluginHealthDiagnostics {
   /** Machine-readable status: `"ok"` | `"degraded"` | `"error"`. */
@@ -74,7 +74,7 @@ export interface PluginHealthDiagnostics {
 /**
  * Result returned from the `validateConfig()` RPC method.
  *
- * @see PLUGIN_SPEC.md §13.3 — `validateConfig`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `validateConfig`
  */
 export interface PluginConfigValidationResult {
   /** Whether the config is valid. */
@@ -92,7 +92,7 @@ export interface PluginConfigValidationResult {
 /**
  * Input received by the plugin worker's `handleWebhook` handler.
  *
- * @see PLUGIN_SPEC.md §13.7 — `handleWebhook`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `handleWebhook`
  */
 export interface PluginWebhookInput {
   /** Endpoint key matching the manifest declaration. */
@@ -122,7 +122,7 @@ export interface PluginWebhookInput {
  * host applies default behaviour (e.g. restarting the worker on config change
  * instead of calling `onConfigChanged`).
  *
- * @see PLUGIN_SPEC.md §13 — Host-Worker Protocol
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Host-Worker Protocol
  */
 export interface PluginDefinition {
   /**
@@ -144,7 +144,7 @@ export interface PluginDefinition {
    * plugin health dashboard. If not implemented, the host infers health from
    * worker process liveness.
    *
-   * @see PLUGIN_SPEC.md §13.2 — `health`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `health`
    */
   onHealth?(): Promise<PluginHealthDiagnostics>;
 
@@ -155,7 +155,7 @@ export interface PluginDefinition {
    * If not implemented, the host restarts the worker to apply the new config.
    *
    * @param newConfig - The newly resolved configuration
-   * @see PLUGIN_SPEC.md §13.4 — `configChanged`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `configChanged`
    */
   onConfigChanged?(newConfig: Record<string, unknown>): Promise<void>;
 
@@ -166,7 +166,7 @@ export interface PluginDefinition {
    * finish in-flight work and resolve this promise. After the deadline the
    * host sends SIGTERM, then SIGKILL.
    *
-   * @see PLUGIN_SPEC.md §12.5 — Graceful Shutdown Policy
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Graceful Shutdown Policy
    */
   onShutdown?(): Promise<void>;
 
@@ -179,7 +179,7 @@ export interface PluginDefinition {
    * - via the "Test Connection" button in the settings UI
    *
    * @param config - The configuration to validate
-   * @see PLUGIN_SPEC.md §13.3 — `validateConfig`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `validateConfig`
    */
   onValidateConfig?(config: Record<string, unknown>): Promise<PluginConfigValidationResult>;
 
@@ -194,7 +194,7 @@ export interface PluginDefinition {
    * returns HTTP 501 for webhook deliveries.
    *
    * @param input - Webhook delivery metadata and payload
-   * @see PLUGIN_SPEC.md §13.7 — `handleWebhook`
+   * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `handleWebhook`
    */
   onWebhook?(input: PluginWebhookInput): Promise<void>;
 }
@@ -209,7 +209,7 @@ export interface PluginDefinition {
  * Plugin authors export this as the default export from their worker
  * entrypoint. The host imports it and calls the lifecycle methods.
  *
- * @see PLUGIN_SPEC.md §14 — SDK Surface
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface
  */
 export interface PaperclipPlugin {
   /** The original plugin definition passed to `definePlugin()`. */
@@ -248,7 +248,7 @@ export interface PaperclipPlugin {
  * });
  * ```
  *
- * @see PLUGIN_SPEC.md §14.1 — Example SDK Shape
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Example SDK Shape
  */
 export function definePlugin(definition: PluginDefinition): PaperclipPlugin {
   return Object.freeze({ definition });

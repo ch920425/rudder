@@ -2,7 +2,7 @@
  * @fileoverview Plugin Manager page — admin UI for discovering,
  * installing, enabling/disabling, and uninstalling plugins.
  *
- * @see PLUGIN_SPEC.md §9 — Plugin Marketplace / Manager
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Marketplace / Manager
  */
 import { pluginsApi } from "@/api/plugins";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +59,7 @@ function getPluginErrorSummary(plugin: PluginRecord): string {
  *   `queryKeys.plugins.all` so the list refreshes automatically.
  *
  * @see PluginSettings — linked from the Settings icon on each plugin row.
- * @see doc/plugins/PLUGIN_SPEC.md §3 — Plugin Lifecycle for status semantics.
+ * @see doc/product/domains/plugins/lifecycle-capabilities.md.
  */
 export function PluginManager() {
   const { selectedOrganization } = useOrganization();

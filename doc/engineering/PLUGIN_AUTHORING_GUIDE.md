@@ -2,7 +2,9 @@
 
 This guide describes the current, implemented way to create a Rudder plugin in this repo.
 
-It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec includes future ideas; this guide only covers the alpha surface that exists now.
+It is intentionally narrower than `PLUGIN_RUNTIME_CONTRACT.md`. This guide
+covers the authoring workflow that exists now; future ideas live in
+`doc/archive/plugins/PLUGIN_SPEC.md`.
 
 ## Current reality
 

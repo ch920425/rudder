@@ -15,8 +15,8 @@
  * the plugin manifest at load time and do not need persistence. When a plugin
  * worker restarts, the host re-registers its manifest tools.
  *
- * @see PLUGIN_SPEC.md §11 — Agent Tools
- * @see PLUGIN_SPEC.md §13.10 — `executeTool`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Agent Tools
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — `executeTool`
  */
 
 import type { ExecuteToolParams, ToolResult, ToolRunContext } from "@rudderhq/plugin-sdk";

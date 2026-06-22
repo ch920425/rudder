@@ -22,7 +22,7 @@ import { plugins } from "./plugins.js";
  * is intended for structured object mappings that the host can understand
  * and query for cross-plugin UI integration.
  *
- * @see PLUGIN_SPEC.md §21.3
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
  */
 export const pluginEntities = pgTable(
   "plugin_entities",

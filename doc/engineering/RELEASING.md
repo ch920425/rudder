@@ -279,7 +279,7 @@ Recommended local generation flow:
 
 ```bash
 VERSION="$(./scripts/release.sh stable --print-version)"
-claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-4-6 "Use the release-changelog skill to draft or update releases/v${VERSION}.md for Rudder. Read doc/RELEASING.md and .agents/skills/release-changelog/SKILL.md, then generate the stable changelog for v${VERSION} from commits since the last stable tag. Do not create a canary changelog."
+claude --print --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-4-6 "Use the release-changelog skill to draft or update releases/v${VERSION}.md for Rudder. Read doc/engineering/RELEASING.md and .agents/skills/release-changelog/SKILL.md, then generate the stable changelog for v${VERSION} from commits since the last stable tag. Do not create a canary changelog."
 ```
 
 The repo intentionally does not run this through GitHub Actions because:
@@ -382,5 +382,5 @@ Then fix forward with a new stable release.
 - [`scripts/create-github-release.sh`](../scripts/create-github-release.sh)
 - [`scripts/cleanup-obsolete-canaries.mjs`](../scripts/cleanup-obsolete-canaries.mjs)
 - [`scripts/rollback-latest.sh`](../scripts/rollback-latest.sh)
-- [`doc/PUBLISHING.md`](PUBLISHING.md)
-- [`doc/RELEASE-AUTOMATION-SETUP.md`](RELEASE-AUTOMATION-SETUP.md)
+- [`doc/engineering/PUBLISHING.md`](PUBLISHING.md)
+- [`doc/engineering/RELEASE-AUTOMATION-SETUP.md`](RELEASE-AUTOMATION-SETUP.md)

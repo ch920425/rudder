@@ -6,7 +6,7 @@
  * a result union) and a throwing `parseOrThrow()` for HTTP error
  * propagation at install time.
  *
- * @see PLUGIN_SPEC.md §10 — Plugin Manifest
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Manifest
  * @see packages/shared/src/validators/plugin.ts — Zod schema definition
  */
 import type { PaperclipPluginManifestV1 } from "@rudderhq/shared";
@@ -56,7 +56,7 @@ export type ManifestParseResult = ManifestParseSuccess | ManifestParseFailure;
 /**
  * Service for parsing and validating plugin manifests.
  *
- * @see PLUGIN_SPEC.md §10 — Plugin Manifest
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Plugin Manifest
  */
 export interface PluginManifestValidator {
   /**

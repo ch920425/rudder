@@ -41,8 +41,8 @@
  * runWorker(plugin, import.meta.url);
  * ```
  *
- * @see PLUGIN_SPEC.md §14 — SDK Surface
- * @see PLUGIN_SPEC.md §29.2 — SDK Versioning
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Surface
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — SDK Versioning
  */
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ export type {
  *
  * Plugin authors do not need to add a separate `zod` dependency.
  *
- * @see PLUGIN_SPEC.md §14.1 — Example SDK Shape
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Example SDK Shape
  *
  * @example
  * ```ts

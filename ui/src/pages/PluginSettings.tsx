@@ -56,8 +56,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * - `pluginId` — UUID of the plugin to display.
  *
  * @see PluginManager — parent list page.
- * @see doc/plugins/PLUGIN_SPEC.md §13 — Plugin Health Checks.
- * @see doc/plugins/PLUGIN_SPEC.md §19.8 — Plugin Settings UI.
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md.
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md.
  */
 export function PluginSettings() {
   const { selectedOrganization, selectedOrganizationId } = useOrganization();

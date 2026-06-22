@@ -845,7 +845,7 @@ export function buildConversationPrompt(
    *
    * Traceability:
    * - doc/plans/2026-04-18-chat-plan-mode.md
-   * - doc/DEVELOPING.md
+   * - doc/engineering/DEVELOPING.md
    */
   return [
     systemPrompt(runtimeSource, input.conversation, resultSentinel),

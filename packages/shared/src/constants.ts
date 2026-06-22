@@ -586,7 +586,7 @@ export const PERMISSION_KEYS = [
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
 // ---------------------------------------------------------------------------
-// Plugin System — see doc/plugins/PLUGIN_SPEC.md for the full specification
+// Plugin System — see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md for the current runtime contract
 // ---------------------------------------------------------------------------
 
 /**
@@ -595,7 +595,7 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number];
  * Increment this value whenever a breaking change is made to the plugin API
  * so that the host can reject incompatible plugin manifests.
  *
- * @see PLUGIN_SPEC.md §4 — Versioning
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Versioning
  */
 export const PLUGIN_API_VERSION = 1 as const;
 
@@ -607,7 +607,7 @@ export const PLUGIN_API_VERSION = 1 as const;
  * upgrade_pending → ready | error | uninstalled, uninstalled → installed (reinstall).
  *
  * @see {@link PluginStatus} — inferred union type
- * @see PLUGIN_SPEC.md §21.3 `plugins.status`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugins.status`
  */
 export const PLUGIN_STATUSES = [
   "installed",
@@ -623,7 +623,7 @@ export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
  * Plugin classification categories. A plugin declares one or more categories
  * in its manifest to describe its primary purpose.
  *
- * @see PLUGIN_SPEC.md §6.2
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md
  */
 export const PLUGIN_CATEGORIES = [
   "connector",
@@ -641,7 +641,7 @@ export type PluginCategory = (typeof PLUGIN_CATEGORIES)[number];
  * Grouped into: Data Read, Data Write, Plugin State, Runtime/Integration,
  * Agent Tools, and UI.
  *
- * @see PLUGIN_SPEC.md §15 — Capability Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Capability Model
  */
 export const PLUGIN_CAPABILITIES = [
   // Data Read
@@ -696,7 +696,7 @@ export type PluginCapability = (typeof PLUGIN_CAPABILITIES)[number];
  * UI extension slot types. Each slot type corresponds to a mount point in the
  * Rudder UI where plugin components can be rendered.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
  */
 export const PLUGIN_UI_SLOT_TYPES = [
   "page",
@@ -808,7 +808,7 @@ export type PluginLauncherRenderEnvironment =
 /**
  * Entity types that a `detailTab` UI slot can attach to.
  *
- * @see PLUGIN_SPEC.md §19.3 — Detail Tabs
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Detail Tabs
  */
 export const PLUGIN_UI_SLOT_ENTITY_TYPES = [
   "project",
@@ -824,7 +824,7 @@ export type PluginUiSlotEntityType = (typeof PLUGIN_UI_SLOT_ENTITY_TYPES)[number
  * Scope kinds for plugin state storage. Determines the granularity at which
  * a plugin stores key-value state data.
  *
- * @see PLUGIN_SPEC.md §21.3 `plugin_state.scope_kind`
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md `plugin_state.scope_kind`
  */
 export const PLUGIN_STATE_SCOPE_KINDS = [
   "instance",
@@ -877,7 +877,7 @@ export type PluginWebhookDeliveryStatus = (typeof PLUGIN_WEBHOOK_DELIVERY_STATUS
  * Core domain event types that plugins can subscribe to via the
  * `events.subscribe` capability.
  *
- * @see PLUGIN_SPEC.md §16 — Event System
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Event System
  */
 export const PLUGIN_EVENT_TYPES = [
   "organization.created",
@@ -909,7 +909,7 @@ export type PluginEventType = (typeof PLUGIN_EVENT_TYPES)[number];
 /**
  * Error codes returned by the plugin bridge when a UI → worker call fails.
  *
- * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Error Propagation Through The Bridge
  */
 export const PLUGIN_BRIDGE_ERROR_CODES = [
   "WORKER_UNAVAILABLE",

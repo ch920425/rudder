@@ -15,8 +15,8 @@
  * exports named React components that correspond to `ui.slots[].exportName`
  * in the manifest.
  *
- * @see PLUGIN_SPEC.md §19 — UI Extension Model
- * @see PLUGIN_SPEC.md §19.0.3 — Bundle Serving
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — UI Extension Model
+ * @see doc/engineering/PLUGIN_RUNTIME_CONTRACT.md — Bundle Serving
  */
 import { authApi } from "@/api/auth";
 import { pluginsApi, type PluginUiContribution } from "@/api/plugins";

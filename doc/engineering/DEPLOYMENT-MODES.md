@@ -116,5 +116,5 @@ This prevents lockout when a user migrates from long-running local trusted usage
 ## 10. Relationship to Other Docs
 
 - implementation plan: `doc/plans/deployment-auth-mode-consolidation.md`
-- V1 contract: `doc/SPEC-implementation.md`
-- operator workflows: `doc/DEVELOPING.md` and `doc/CLI.md`
+- Historical V1 baseline: `doc/archive/SPEC-implementation.md`
+- operator workflows: `doc/engineering/DEVELOPING.md` and `doc/engineering/CLI.md`
