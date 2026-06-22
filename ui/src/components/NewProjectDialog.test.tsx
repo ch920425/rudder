@@ -228,6 +228,14 @@ describe("NewProjectDialog", () => {
     expect(container.querySelector<HTMLInputElement>("input[placeholder='Optional guidance specific to this project']")).not.toBeNull();
   });
 
+  it("defaults new projects to in progress", () => {
+    const container = renderDialog();
+    const selectedStatus = [...container.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "in progress");
+
+    expect(selectedStatus).not.toBeUndefined();
+  });
+
   it("opens the created project's issue board slice after creation", async () => {
     const container = renderDialog();
     const nameInput = container.querySelector<HTMLInputElement>("input[placeholder='Project name']");
@@ -249,6 +257,7 @@ describe("NewProjectDialog", () => {
       "org-1",
       expect.objectContaining({
         name: "New project",
+        status: "in_progress",
         color: expect.any(String),
         icon: DEFAULT_PROJECT_ICON,
       }),

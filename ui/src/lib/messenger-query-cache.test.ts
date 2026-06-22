@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { queryKeys } from "@/lib/queryKeys";
-import type { ChatConversation, MessengerThreadSummary, SidebarBadges } from "@rudderhq/shared";
+import type { ChatConversation, MessengerCustomGroupsResponse, MessengerThreadSummary, SidebarBadges } from "@rudderhq/shared";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
@@ -357,6 +357,62 @@ describe("markMessengerThreadReadInCache", () => {
       unreadCount: 0,
       needsAttention: false,
     });
+  });
+
+  it("clears unread state from custom group entries immediately", () => {
+    const queryClient = new QueryClient();
+    const orgId = "org-1";
+    const unreadIssue = thread({
+      threadKey: "issue:issue-1",
+      kind: "issues",
+      title: "ISS-1 · Grouped issue",
+      latestActivityAt: new Date("2026-05-03T08:00:00.000Z"),
+      unreadCount: 1,
+      needsAttention: true,
+    });
+    const groups: MessengerCustomGroupsResponse = {
+      groups: [
+        {
+          id: "group-1",
+          orgId,
+          userId: "local-board",
+          name: "Issue group",
+          icon: "folder::amber",
+          sortOrder: 0,
+          collapsed: false,
+          pinnedAt: null,
+          createdAt: new Date("2026-05-01T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-01T08:00:00.000Z"),
+          entries: [
+            {
+              id: "entry-1",
+              orgId,
+              userId: "local-board",
+              groupId: "group-1",
+              threadKey: "issue:issue-1",
+              sortOrder: 0,
+              createdAt: new Date("2026-05-01T08:00:00.000Z"),
+              updatedAt: new Date("2026-05-01T08:00:00.000Z"),
+              thread: unreadIssue,
+            },
+          ],
+        },
+      ],
+    };
+
+    queryClient.setQueryData(queryKeys.messenger.customGroups(orgId), groups);
+
+    markMessengerThreadReadInCache(queryClient, orgId, "issue:issue-1", "2026-05-03T08:00:00.000Z");
+
+    const groupedThread = queryClient.getQueryData<MessengerCustomGroupsResponse>(
+      queryKeys.messenger.customGroups(orgId),
+    )?.groups[0]?.entries[0]?.thread;
+    expect(groupedThread).toMatchObject({
+      threadKey: "issue:issue-1",
+      unreadCount: 0,
+      needsAttention: false,
+    });
+    expect(groupedThread?.lastReadAt?.toISOString()).toBe("2026-05-03T08:00:00.000Z");
   });
 
   it("optimistically clears a chat conversation and decrements the cached rail badge once", () => {
