@@ -54,36 +54,12 @@ async function createConfiguredOrganization(page: Page, name: string) {
   return { ...organization, chatAgent };
 }
 
-async function configureFastTitleProfile(page: Page, orgId: string, title: string) {
-  const profileRes = await page.request.put(`/api/orgs/${orgId}/intelligence-profiles/lightweight`, {
-    data: {
-      agentRuntimeType: "process",
-      agentRuntimeConfig: {
-        command: "node",
-        args: ["-e", `process.stdout.write(${JSON.stringify(title)})`],
-      },
-      status: "configured",
-    },
-  });
-  expect(profileRes.ok()).toBe(true);
-}
-
 function threadTestId(threadKey: string) {
   return `messenger-thread-${threadKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
 function messengerSectionTestId(sectionKey: string) {
   return `messenger-thread-section-${sectionKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-}
-
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
 }
 
 function chatUnreadBadgeTestId(chatId: string) {
@@ -121,7 +97,8 @@ async function dragMessengerSectionOver(page: Page, source: Locator, target: Loc
 }
 
 async function dragMessengerThreadHandleOver(page: Page, source: Locator, target: Locator) {
-  const sourceBox = await source.boundingBox();
+  const sourceHandle = source.getByRole("button", { name: /^Drag / }).first();
+  const sourceBox = await sourceHandle.boundingBox() ?? await source.boundingBox();
   const targetBox = await target.boundingBox();
   if (!sourceBox || !targetBox) {
     throw new Error("Could not resolve Messenger thread drag bounds");
@@ -1323,14 +1300,14 @@ test.describe("Messenger unified threads contract", () => {
     await expect(page.getByRole("menuitem", { name: "Pin" })).toBeVisible();
   });
 
-  test("moves pinned tabs into groups and merges two loose tabs by dropping one on another", async ({ page }) => {
+  test("moves tabs into existing groups and reorders loose tabs without drag-merging", async ({ page }) => {
     const pageErrors: string[] = [];
     const consoleErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
-    const organization = await createOrganization(page, `Messenger-Tab-Merge-${Date.now()}`);
+    const organization = await createOrganization(page, `Messenger-Tab-Reorder-${Date.now()}`);
 
     async function createChat(title: string, summary = `${title} summary`) {
       const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
@@ -1347,8 +1324,8 @@ test.describe("Messenger unified threads contract", () => {
 
     const groupedChat = await createChat("Existing grouped tab");
     const pinnedChat = await createChat("Pinned tab to group");
-    const looseTarget = await createChat("Loose merge target");
-    const looseSource = await createChat("Loose merge source");
+    const looseTarget = await createChat("Loose reorder target");
+    const looseSource = await createChat("Loose reorder source");
     const pinRes = await page.request.post(`/api/chats/${pinnedChat.id}/user-state`, {
       data: { pinned: true },
     });
@@ -1393,111 +1370,35 @@ test.describe("Messenger unified threads contract", () => {
     await expect(page.getByTestId("messenger-thread-section-custom-pinned")).toHaveCount(0);
     await expect(page.getByTestId(groupSectionId)).toContainText("Pinned tab to group");
 
+    const mergeRequests: string[] = [];
+    await page.route(`**/api/orgs/${organization.id}/messenger/groups/merge`, async (route) => {
+      mergeRequests.push(route.request().postData() ?? "");
+      await route.continue();
+    });
+
     await dragMessengerThreadHandleOver(
       page,
       page.getByTestId(threadTestId(`chat:${looseSource.id}`)),
       page.getByTestId(threadTestId(`chat:${looseTarget.id}`)),
     );
-    await expect.poll(async () => {
-      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
-      expect(groupsRes.ok()).toBe(true);
-      const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
-      return payload.groups
-        .map((candidate) => candidate.entries.map((entry) => entry.threadKey).sort())
-        .some((threadKeys) =>
-          threadKeys.includes(`chat:${looseSource.id}`) &&
-          threadKeys.includes(`chat:${looseTarget.id}`),
-        );
-    }).toBe(true);
+    await page.waitForTimeout(250);
+    expect(mergeRequests).toEqual([]);
+    const groupsAfterLooseDropRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+    expect(groupsAfterLooseDropRes.ok()).toBe(true);
+    const groupsAfterLooseDrop = await groupsAfterLooseDropRes.json() as { groups: Array<{ entries: Array<{ threadKey: string }> }> };
+    expect(groupsAfterLooseDrop.groups
+      .some((candidate) => {
+        const threadKeys = candidate.entries.map((entry) => entry.threadKey);
+        return threadKeys.includes(`chat:${looseSource.id}`) && threadKeys.includes(`chat:${looseTarget.id}`);
+      })).toBe(false);
+    await expectTestIdsInDomOrder(page, [
+      threadTestId(`chat:${looseTarget.id}`),
+      threadTestId(`chat:${looseSource.id}`),
+    ]);
 
     const fatalClientSignals = [...pageErrors, ...consoleErrors]
       .filter((message) => /removeChild|UI recovery|reload|NotFoundError/i.test(message));
     expect(fatalClientSignals).toEqual([]);
-  });
-
-  test("keeps a pending custom group rendered while a loose-row merge is saving", async ({ page }) => {
-    const organization = await createOrganization(page, `Messenger-Pending-Merge-${Date.now()}`);
-    await configureFastTitleProfile(page, organization.id, "Generated planning bundle");
-
-    async function createChat(title: string, summary = `${title} summary`) {
-      const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
-        data: {
-          title,
-          summary,
-          issueCreationMode: "manual_approval",
-          planMode: false,
-        },
-      });
-      expect(res.ok()).toBe(true);
-      return res.json() as Promise<{ id: string }>;
-    }
-
-    const sourceChat = await createChat("Pending source tab");
-    const targetChat = await createChat("Pending target tab");
-
-    await page.goto("/");
-    await page.evaluate((orgId) => {
-      window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
-      window.localStorage.setItem("rudder.messengerThreadOrganizationByOrg", JSON.stringify({ [orgId]: "latest" }));
-    }, organization.id);
-    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
-
-    const releaseMerge = deferred<void>();
-    let startedMerge!: () => void;
-    const mergeStarted = new Promise<void>((resolve) => {
-      startedMerge = resolve;
-    });
-    let mergePayload: { name?: string; threadKeys?: string[]; autoGenerateName?: boolean } | null = null;
-    await page.route(`**/api/orgs/${organization.id}/messenger/groups/merge`, async (route) => {
-      mergePayload = route.request().postDataJSON();
-      startedMerge();
-      await releaseMerge.promise;
-      const response = await route.fetch();
-      await route.fulfill({ response });
-    });
-
-    await dragMessengerThreadHandleOver(
-      page,
-      page.getByTestId(threadTestId(`chat:${sourceChat.id}`)),
-      page.getByTestId(threadTestId(`chat:${targetChat.id}`)),
-    );
-    await mergeStarted;
-
-    const pendingSectionId = messengerSectionTestId(`pending-custom-group:chat:${targetChat.id}->chat:${sourceChat.id}`);
-    const pendingSection = page.getByTestId(pendingSectionId);
-    await expect(pendingSection).toBeVisible();
-    expect(mergePayload).toMatchObject({
-      name: "Pending target tab",
-      threadKeys: [`chat:${targetChat.id}`, `chat:${sourceChat.id}`],
-      autoGenerateName: true,
-    });
-    await expect(pendingSection).toContainText("Pending target tab");
-    await expect(pendingSection).toContainText("Pending source tab");
-    await expect(pendingSection).toContainText("Naming");
-    await expect(page.getByTestId(messengerSectionTestId(`chat:${sourceChat.id}`))).toHaveCount(0);
-    await expect(page.getByTestId(messengerSectionTestId(`chat:${targetChat.id}`))).toHaveCount(0);
-
-    releaseMerge.resolve();
-    let savedGroupId: string | null = null;
-    await expect.poll(async () => {
-      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
-      expect(groupsRes.ok()).toBe(true);
-      const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
-      const group = payload.groups.find((candidate) => {
-        const threadKeys = candidate.entries.map((entry) => entry.threadKey);
-        return candidate.name === "Generated planning bundle" &&
-          threadKeys[0] === `chat:${targetChat.id}` &&
-          threadKeys[1] === `chat:${sourceChat.id}`;
-      });
-      savedGroupId = group?.id ?? null;
-      return Boolean(savedGroupId);
-    }).toBe(true);
-    expect(savedGroupId).toBeTruthy();
-    await expect(pendingSection).toHaveCount(0);
-    const savedGroupSection = page.getByTestId(`messenger-thread-section-custom-group-${savedGroupId}`);
-    await expect(savedGroupSection).toContainText("Generated planning bundle");
-    await expect(savedGroupSection).toContainText("Pending target tab");
-    await expect(savedGroupSection).toContainText("Pending source tab");
   });
 
   test("loads older issue messages on demand instead of rendering the full issue feed", async ({ page }) => {
