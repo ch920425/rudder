@@ -141,7 +141,9 @@ work, not a generic autonomous heartbeat loop.
    Secret-backed config values are resolved for the agent organization. Enabled
    skills are resolved for the exact agent, organization, runtime type, and
    resolved config, then materialized as runtime skill entries in the adapter
-   config.
+   config. Adapters receive this selected set as input; they must not add
+   provider-native, operator-home, project, global, or adapter-home skills that
+   Rudder did not resolve as enabled or always-enabled for the invocation.
 
 2. Rudder resolves the working directory for the run. Project workspace wins
    when issue/project context points to an available project workspace.
@@ -350,6 +352,10 @@ The contract is evidenced by:
   layers.
 - Runtime skill loading is scoped to the agent, organization, runtime type, and
   resolved config.
+- Adapter-native skill discovery is candidate metadata only. It must not cause
+  disabled or discovered-only skills to appear in prompt text,
+  provider-visible skill directories, provider-native config, or loaded-skill
+  metadata.
 - Project and startup resources are injected once at the instruction-prefix
   position when available.
 - `## Current Time` stays after durable instructions and runtime context.

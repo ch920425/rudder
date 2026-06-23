@@ -30,6 +30,8 @@ Why:
 
 - Skills are reusable operating procedures. Installing or discovering a skill is
   different from enabling it for a specific agent/runtime invocation.
+- Global/user and adapter-native skill sources may be discovered so the Agent
+  Skills page can show candidates, but discovery is not runtime enablement.
 - Bundled Rudder skills define core control-plane operations and must remain
   available even when optional skills are disabled.
 
@@ -41,18 +43,28 @@ Product model:
   materialized, native, prompt-injected, and unavailable entries.
 - Desired skills are scoped by organization, agent, runtime type, and runtime
   capability.
+- Runtime-loaded skill selection is owned by Rudder. The adapter transports or
+  materializes the Rudder-resolved enabled/always-enabled set for the exact
+  invocation; it does not choose additional skills from provider-native,
+  operator-home, project, global, or adapter-home defaults.
 
 Flow:
 
 1. Organization skill library is seeded and scanned.
 2. Agent skill snapshot is built from all supported sources.
 3. Desired selection is validated against available/always-enabled entries.
-4. Runtime skill sync/materialization prepares the runtime-side skill surface.
+4. Runtime skill sync/materialization prepares the runtime-side skill surface
+   from the Rudder-resolved desired/always-enabled set only.
 5. Instruction loading exposes desired/realized skill facts to the adapter.
 
 Invariants:
 
 - Bundled Rudder skills are not disabled by normal optional-skill toggles.
+- A discovered skill is absent from runtime prompt text, provider-visible skill
+  directories, provider-native config, and loaded-skill metadata until Rudder
+  resolves it as enabled or always-enabled for that invocation.
+- Adapters must prune, disable, isolate, or ignore stale Rudder-managed and
+  provider-native skill entries that are not in the current selected set.
 - Skill UI copy must not imply that a discovered skill was used in a run.
 
 Evidence:
