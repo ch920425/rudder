@@ -1502,14 +1502,14 @@ export function chatService(db: Db) {
       return getById(id);
   }
 
-  async function updateDefaultTitle(id: string, title: string) {
+  async function updateDefaultTitle(id: string, title: string, expectedCurrentTitle = "New chat") {
     const [updated] = await db
       .update(chatConversations)
       .set({
         title,
         updatedAt: new Date(),
       })
-      .where(and(eq(chatConversations.id, id), eq(chatConversations.title, "New chat")))
+      .where(and(eq(chatConversations.id, id), eq(chatConversations.title, expectedCurrentTitle)))
       .returning();
     if (!updated) return null;
     return getById(id);

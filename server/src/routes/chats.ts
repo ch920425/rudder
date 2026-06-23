@@ -177,6 +177,36 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return fallbackTitleFromText(body);
   }
 
+  function titleGenerationExpectedCurrentTitle(conversation: ChatConversation) {
+    const currentTitle = conversation.title.trim();
+    if (currentTitle === "New chat") return "New chat";
+    if (conversation.forkedFromConversationId && currentTitle.length > 0) return currentTitle;
+    return null;
+  }
+
+  function isForkSystemEvent(message: ChatMessage) {
+    if (message.role !== "system" || message.kind !== "system_event") return false;
+    if (message.structuredPayload?.type === "chat_fork") return true;
+    return message.body.startsWith("Forked from ");
+  }
+
+  async function isFirstUserMessageAfterFork(conversationId: string, userMessage: ChatMessage) {
+    const messages = (await svc.listMessages(conversationId, { includeTranscript: false })) ?? [];
+    let forkEventIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message && isForkSystemEvent(message as ChatMessage)) {
+        forkEventIndex = index;
+        break;
+      }
+    }
+    if (forkEventIndex < 0) return false;
+    const firstNewUserMessage = messages
+      .slice(forkEventIndex + 1)
+      .find((message) => message.role === "user" && message.kind === "message");
+    return firstNewUserMessage?.id === userMessage.id;
+  }
+
   function buildChatTitlePromptFromMessages(messages: ChatMessage[]) {
     const source = messages
       .filter((message) => message.role === "user" || message.role === "assistant")
@@ -187,13 +217,23 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return source ? buildChatTitlePrompt(source, "Conversation excerpt") : null;
   }
 
-  function startChatTitleGeneration(conversation: ChatConversation, body: string) {
-    if (conversation.title !== "New chat" || body.trim().length === 0) return;
+  function startChatTitleGeneration(conversation: ChatConversation, userMessage: ChatMessage) {
+    const body = userMessage.body;
+    const expectedCurrentTitle = titleGenerationExpectedCurrentTitle(conversation);
+    if (!expectedCurrentTitle || body.trim().length === 0) return;
     const prompt = buildChatTitlePrompt(body);
     const fallbackTitle = fallbackChatTitleFromBody(body);
+    const updateTitleIfExpected = (title: string) =>
+      expectedCurrentTitle === "New chat"
+        ? svc.updateDefaultTitle(conversation.id, title)
+        : svc.updateDefaultTitle(conversation.id, title, expectedCurrentTitle);
     void (async () => {
+      if (conversation.forkedFromConversationId) {
+        const shouldRetitleFork = await isFirstUserMessageAfterFork(conversation.id, userMessage);
+        if (!shouldRetitleFork) return;
+      }
       if (fallbackTitle) {
-        await svc.updateDefaultTitle(conversation.id, fallbackTitle);
+        await updateTitleIfExpected(fallbackTitle);
       }
       try {
         const result = await productIntelligence.execute({
@@ -207,7 +247,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
           if (fallbackTitle) {
             await svc.replaceSystemGeneratedTitle(conversation.id, fallbackTitle, title);
           } else {
-            await svc.updateDefaultTitle(conversation.id, title);
+            await updateTitleIfExpected(title);
           }
         }
       } catch (error) {
@@ -1705,7 +1745,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
         req.body.editUserMessageId ?? null,
       );
       if (!req.body.editUserMessageId) {
-        startChatTitleGeneration(conversation as ChatConversation, req.body.body);
+        startChatTitleGeneration(conversation as ChatConversation, userMessage);
       }
       const turnContext = turnContextFromUserMessage(userMessage);
       chatObservation = buildChatObservabilityContext(conversation as ChatConversation, {

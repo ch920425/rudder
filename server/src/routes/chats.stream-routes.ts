@@ -287,7 +287,7 @@ export function registerChatStreamRoutes(ctx: ChatStreamRouteContext) {
         });
       }
       if (!parsedBody.data.editUserMessageId) {
-        startChatTitleGeneration(conversation as ChatConversation, parsedBody.data.body);
+        startChatTitleGeneration(conversation as ChatConversation, userMessage);
       }
       const userAttachments = await attachFilesToUserMessage(
         conversation as ChatConversation,
