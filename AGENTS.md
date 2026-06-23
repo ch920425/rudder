@@ -174,9 +174,11 @@ New plan docs should start with the standard YAML frontmatter described in `doc/
 
 `doc/product/` is the current product-behavior contract. Agents may read it at any time, but must not semantically edit `doc/product/**` unless the current user explicitly authorizes that edit or has approved a proposal/plan that includes the product doc delta.
 
+Do not infer `doc/product/**` edit permission from implementation approval. User phrases such as "start", "proceed", "implement it", "fix it", "optimize it", "ship it", "add tests", "sync contracts", or similar task approval do not authorize guarded Product Logic Registry edits by themselves. Approval must explicitly mention updating `doc/product/**`, updating the Product Logic Contract/Registry, or approving a concrete product-doc delta.
+
 When changing product logic, state the affected contract IDs before implementation when practical, keep code/tests aligned with those contracts, and run `pnpm product-logic:check` before hand-off. If a behavior change needs a product doc update but the agent lacks authorization, stop with a proposed product logic delta instead of silently editing the registry or claiming the change is complete.
 
-After finishing a workflow or product-behavior change, proactively ask whether the completed iteration should be written back into `doc/product/**` as a Product Logic Contract update. This question does not grant edit permission by itself; only update the registry after the user explicitly approves the product doc delta.
+After finishing a feature, workflow, or product-behavior change, proactively remind the user that the implemented logic can be synchronized back into `doc/product/**` and ask whether they want the agent to add that Product Logic Contract update. This reminder must be explicit in the hand-off. The question does not grant edit permission by itself; only update the registry after the user explicitly approves the product doc delta.
 
 1. Require end-to-end coverage for feature work.
 
