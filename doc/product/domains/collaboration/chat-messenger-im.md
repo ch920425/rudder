@@ -111,7 +111,7 @@ Why:
 Product model:
 
 - A chat conversation may be forked from another conversation, optionally from
-  a specific source message.
+  a specific source assistant response.
 - The fork records direct lineage with `forkedFromConversationId` and optional
   `forkedFromMessageId`.
 - The fork records family lineage with `forkRootConversationId`; nested forks
@@ -126,7 +126,7 @@ Product model:
 Flow:
 
 1. The operator chooses `Fork` from a chat or `Fork from here` on a persisted
-   message.
+   assistant response.
 2. Rudder creates a new active conversation in the same organization.
 3. Rudder copies context links and messages up to the requested fork point. If
    no source message is supplied, it copies through the latest eligible message.
@@ -141,7 +141,9 @@ Invariants:
 - Forking is rejected while the source conversation has an active generation.
 - Forked conversations must not share mutable runtime context with the source
   conversation.
-- A message-level fork must not copy messages after the selected message.
+- A message-level fork must not copy messages after the selected assistant
+  response.
+- User messages must not expose or accept message-level fork actions.
 - Attachments are not copied by the initial fork contract; their original
   source messages remain available in the source conversation.
 - Nested forks must not produce duplicate fork-family custom groups.

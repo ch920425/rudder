@@ -15,7 +15,7 @@ import {
   organizations
 } from "@rudderhq/db";
 import { sanitizeChatStructuredPayload, type ChatQueuedMessagePayload, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { logActivity } from "./activity-log.js";
@@ -1302,13 +1302,23 @@ export function chatService(db: Db) {
         eq(chatMessages.orgId, input.orgId),
         isNull(chatMessages.supersededAt),
       ];
+      let forkSourceCreatedAt: Date | null = null;
       if (input.sourceMessageId) {
         const sourceMessage = await tx
-          .select({ id: chatMessages.id })
+          .select({
+            id: chatMessages.id,
+            kind: chatMessages.kind,
+            role: chatMessages.role,
+            createdAt: chatMessages.createdAt,
+          })
           .from(chatMessages)
           .where(and(...messageConditions, eq(chatMessages.id, input.sourceMessageId)))
           .then((rows) => rows[0] ?? null);
         if (!sourceMessage) throw unprocessable("Fork source message must belong to the source conversation");
+        if (sourceMessage.role !== "assistant" || sourceMessage.kind !== "message") {
+          throw unprocessable("Fork source message must be an assistant response");
+        }
+        forkSourceCreatedAt = sourceMessage.createdAt;
       }
 
       const now = new Date();
@@ -1355,7 +1365,12 @@ export function chatService(db: Db) {
       const messagesToCopy = await tx
         .select()
         .from(chatMessages)
-        .where(and(...messageConditions))
+        .where(and(
+          ...messageConditions,
+          ...(forkSourceCreatedAt && input.sourceMessageId
+            ? [or(lt(chatMessages.createdAt, forkSourceCreatedAt), eq(chatMessages.id, input.sourceMessageId))]
+            : []),
+        ))
         .orderBy(chatMessages.createdAt, chatMessages.id);
       const forkMessages = input.sourceMessageId
         ? messagesToCopy.slice(0, messagesToCopy.findIndex((message) => message.id === input.sourceMessageId) + 1)
@@ -1371,7 +1386,7 @@ export function chatService(db: Db) {
           structuredPayload: null,
           approvalId: null,
           runId: null,
-          replyingAgentId: null,
+          replyingAgentId: message.replyingAgentId,
           chatTurnId: null,
           turnVariant: 0,
           createdAt: message.createdAt,

@@ -3372,6 +3372,14 @@ describe("messengerService and issue follows", () => {
       name: "Forked context project",
       status: "planned",
     });
+    const agentId = randomUUID();
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Autumn",
+      role: "operator_assistant",
+      status: "idle",
+    });
 
     const source = await chatSvc.create(orgId, {
       title: "Original fork topic",
@@ -3381,17 +3389,18 @@ describe("messengerService and issue follows", () => {
       createdByUserId: userId,
       contextLinks: [{ entityType: "project", entityId: projectId }],
     });
-    const first = await chatSvc.addMessage(source.id, {
+    await chatSvc.addMessage(source.id, {
       orgId,
       role: "user",
       kind: "message",
       body: "First question",
     });
-    await chatSvc.addMessage(source.id, {
+    const firstAnswer = await chatSvc.addMessage(source.id, {
       orgId,
       role: "assistant",
       kind: "message",
       body: "First answer",
+      replyingAgentId: agentId,
     });
     await chatSvc.addMessage(source.id, {
       orgId,
@@ -3414,7 +3423,7 @@ describe("messengerService and issue follows", () => {
       sourceConversationId: source.id,
       orgId,
       userId,
-      sourceMessageId: first.id,
+      sourceMessageId: firstAnswer.id,
       title: "Alternative angle",
       createdByUserId: userId,
     });
@@ -3423,16 +3432,18 @@ describe("messengerService and issue follows", () => {
     expect(child).toMatchObject({
       title: "Alternative angle",
       forkedFromConversationId: source.id,
-      forkedFromMessageId: first.id,
+      forkedFromMessageId: firstAnswer.id,
       forkRootConversationId: source.id,
       planMode: true,
     });
-    expect(child.lastMessageAt?.getTime()).toBeGreaterThan(first.createdAt.getTime());
+    expect(child.lastMessageAt?.getTime()).toBeGreaterThan(firstAnswer.createdAt.getTime());
     expect(child.contextLinks.map((link) => [link.entityType, link.entityId])).toEqual([["project", projectId]]);
     expect(childMessages.map((message) => message.body)).toEqual([
       "First question",
+      "First answer",
       expect.stringContaining("Forked from"),
     ]);
+    expect(childMessages[1]?.replyingAgentId).toBe(agentId);
     expect(childMessages.map((message) => message.body).join("\n")).not.toContain("Later source-only turn");
 
     const grandchild = await chatSvc.forkConversation({
@@ -3456,6 +3467,156 @@ describe("messengerService and issue follows", () => {
     const summaries = await messengerSvc.listThreadSummaries(orgId, userId, { limit: 10, splitIssues: true });
     expect(summaries[0]?.threadKey).toBe(`chat:${grandchild.id}`);
     expect(summaries[1]?.threadKey).toBe(`chat:${child.id}`);
+  });
+
+  it("rejects message-level forks from user messages", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-fork-user-message";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Fork User Message Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Fork User Message Org"),
+      issuePrefix: `U${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const source = await chatSvc.create(orgId, {
+      title: "User message fork guard",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    const userMessage = await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "user",
+      kind: "message",
+      body: "Do not fork from this user prompt",
+    });
+
+    await expect(chatSvc.forkConversation({
+      sourceConversationId: source.id,
+      orgId,
+      userId,
+      sourceMessageId: userMessage.id,
+      createdByUserId: userId,
+    })).rejects.toMatchObject({
+      status: 422,
+      message: "Fork source message must be an assistant response",
+    });
+  });
+
+  it("rejects message-level forks from non-message assistant records", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-fork-assistant-record";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Fork Assistant Record Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Fork Assistant Record Org"),
+      issuePrefix: `A${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const source = await chatSvc.create(orgId, {
+      title: "Assistant record fork guard",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    const askUserRecord = await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "assistant",
+      kind: "ask_user",
+      body: "Need operator input",
+    });
+
+    await expect(chatSvc.forkConversation({
+      sourceConversationId: source.id,
+      orgId,
+      userId,
+      sourceMessageId: askUserRecord.id,
+      createdByUserId: userId,
+    })).rejects.toMatchObject({
+      status: 422,
+      message: "Fork source message must be an assistant response",
+    });
+  });
+
+  it("does not copy later source messages when their IDs sort before the fork point", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-fork-order";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Fork Ordering Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Fork Ordering Org"),
+      issuePrefix: `O${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const source = await chatSvc.create(orgId, {
+      title: "Fork ordering guard",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    const beforeAt = new Date("2026-06-23T01:00:00.000Z");
+    const forkAt = new Date("2026-06-23T01:00:01.000Z");
+    const laterAt = forkAt;
+    const forkMessageId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const laterMessageId = "00000000-0000-4000-8000-000000000001";
+
+    await db.insert(chatMessages).values([
+      {
+        orgId,
+        conversationId: source.id,
+        role: "user",
+        kind: "message",
+        status: "completed",
+        body: "Earlier setup",
+        createdAt: beforeAt,
+        updatedAt: beforeAt,
+      },
+      {
+        id: forkMessageId,
+        orgId,
+        conversationId: source.id,
+        role: "assistant",
+        kind: "message",
+        status: "completed",
+        body: "Fork point answer",
+        createdAt: forkAt,
+        updatedAt: forkAt,
+      },
+      {
+        id: laterMessageId,
+        orgId,
+        conversationId: source.id,
+        role: "user",
+        kind: "message",
+        status: "completed",
+        body: "Later turn with lexically earlier id",
+        createdAt: laterAt,
+        updatedAt: laterAt,
+      },
+    ]);
+
+    const child = await chatSvc.forkConversation({
+      sourceConversationId: source.id,
+      orgId,
+      userId,
+      sourceMessageId: forkMessageId,
+      createdByUserId: userId,
+    });
+
+    const childMessages = await chatSvc.listMessages(child.id, { includeTranscript: false });
+    expect(childMessages.map((message) => message.body)).toEqual([
+      "Earlier setup",
+      "Fork point answer",
+      expect.stringContaining("Forked from"),
+    ]);
+    expect(childMessages.map((message) => message.body).join("\n")).not.toContain("Later turn with lexically earlier id");
   });
 
   it("persists Messenger synthetic thread read state", async () => {

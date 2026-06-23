@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { eq } from "../../packages/db/node_modules/drizzle-orm/index.js";
 import {
+  agents,
   chatConversations,
   chatMessages,
   createDb,
@@ -29,6 +30,15 @@ test("forks a chat from a selected message and groups the fork family in Messeng
 
   const sourceConversationId = randomUUID();
   const sourceMessageIds = [randomUUID(), randomUUID(), randomUUID()];
+  const agentId = randomUUID();
+  await e2eDb.insert(agents).values({
+    id: agentId,
+    orgId: organization.id,
+    name: "Autumn",
+    role: "operator_assistant",
+    icon: "notionists-neutral",
+    status: "idle",
+  });
   await e2eDb.insert(chatConversations).values({
     id: sourceConversationId,
     orgId: organization.id,
@@ -60,6 +70,7 @@ test("forks a chat from a selected message and groups the fork family in Messeng
       kind: "message",
       status: "completed",
       body: "Middle branch point",
+      replyingAgentId: agentId,
       createdAt: new Date("2026-06-22T08:02:00.000Z"),
       updatedAt: new Date("2026-06-22T08:02:00.000Z"),
     },
@@ -82,9 +93,15 @@ test("forks a chat from a selected message and groups the fork family in Messeng
   }, organization.id);
   await page.goto(`/${organization.issuePrefix}/messenger/chat/${sourceConversationId}`);
 
+  const sourceUser = page.locator(`[data-testid="chat-user-message"][data-message-id="${sourceMessageIds[0]}"]`);
+  await expect(sourceUser).toContainText("Original premise", { timeout: 15_000 });
+  await sourceUser.hover();
+  await expect(sourceUser.getByRole("button", { name: "Fork from here" })).toHaveCount(0);
+
   const sourceAssistant = page.locator(`[data-testid="chat-assistant-message"][data-message-id="${sourceMessageIds[1]}"]`);
   await expect(sourceAssistant).toContainText("Middle branch point", { timeout: 15_000 });
   await sourceAssistant.hover();
+  await expect(sourceAssistant.getByRole("button", { name: "Fork from here" })).toBeVisible();
   const forkResponsePromise = page.waitForResponse((response) =>
     response.request().method() === "POST"
     && response.url().includes(`/api/chats/${sourceConversationId}/fork`),
@@ -107,6 +124,7 @@ test("forks a chat from a selected message and groups the fork family in Messeng
   await expect(page).toHaveURL(new RegExp(`/messenger/chat/${forkedConversation.id}$`));
   await expect(page.getByTestId("chat-messages-content")).toContainText("Original premise");
   await expect(page.getByTestId("chat-messages-content")).toContainText("Middle branch point");
+  await expect(page.getByTestId("chat-assistant-message").filter({ hasText: "Middle branch point" })).toContainText("Autumn");
   await expect(page.getByTestId("chat-messages-content")).not.toContainText("Later context that should stay out");
 
   const messagesRes = await page.request.get(`/api/chats/${forkedConversation.id}/messages`);

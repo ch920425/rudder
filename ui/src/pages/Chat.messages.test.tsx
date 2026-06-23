@@ -222,7 +222,7 @@ describe("ChatMessagesLoadingState", () => {
 });
 
 describe("user chat message rendering", () => {
-  it("exposes a fork action on persisted chat messages", () => {
+  it("does not expose a fork action on user messages", () => {
     const container = renderChatMessageItem(message({
       role: "user",
       kind: "message",
@@ -230,7 +230,7 @@ describe("user chat message rendering", () => {
       body: "Try this angle",
     }));
 
-    expect(container.querySelector('button[aria-label="Fork from here"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Fork from here"]')).toBeNull();
   });
 
   it("keeps user-authored markdown syntax literal while preserving links and Rudder references", () => {
@@ -437,6 +437,19 @@ describe("user chat message rendering", () => {
 
     expect(mention?.textContent).toBe("每日 Rudder 产品与搜索数据分析报告");
     expect(container.textContent).not.toContain("0d232c68");
+  });
+});
+
+describe("assistant chat message rendering", () => {
+  it("exposes a fork action on persisted assistant responses", () => {
+    const container = renderChatMessageItem(message({
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Fork from this answer",
+    }));
+
+    expect(container.querySelector('button[aria-label="Fork from here"]')).not.toBeNull();
   });
 });
 

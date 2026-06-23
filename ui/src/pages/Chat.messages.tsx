@@ -2187,7 +2187,7 @@ export function ChatMessageItem({
                 className="text-[11px] tracking-normal"
               />
               <CopyMessageButton onClick={() => void onCopyMessageText(message.body)} />
-              {onForkMessage ? (
+              {onForkMessage && message.status !== "streaming" ? (
                 <button
                   type="button"
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
@@ -2296,17 +2296,6 @@ export function ChatMessageItem({
           )}
         >
           <CopyMessageButton onClick={() => void onCopyMessageText(message.body)} />
-          {onForkMessage ? (
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
-              aria-label="Fork from here"
-              title="Fork from here"
-              onClick={() => onForkMessage(message)}
-            >
-              <GitFork className="h-4 w-4" />
-            </button>
-          ) : null}
           <button
             type="button"
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[color:var(--surface-active)] hover:text-foreground"
