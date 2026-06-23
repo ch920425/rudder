@@ -140,6 +140,12 @@ export function buildAgentStartupContextPrompt(
   limits: AgentStartupContextLimits = {},
 ) {
   const resolvedLimits = { ...DEFAULT_AGENT_STARTUP_CONTEXT_LIMITS, ...limits };
+  const hasDailyMemory =
+    input.todayMemory.content.trim().length > 0
+    || input.yesterdayMemory.content.trim().length > 0;
+  if (!hasDailyMemory && input.recentIssues.length === 0 && input.recentChats.length === 0) {
+    return "";
+  }
   const lines = [
     "## Recent Rudder Context",
     "",
