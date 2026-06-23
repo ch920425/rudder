@@ -1640,6 +1640,27 @@ describe("Chat project context selector", () => {
     expect(projectMenu?.textContent).not.toMatch(/\b\d+\s+resources\b/u);
   });
 
+  it("hides the no-project selector after a conversation starts without project context", () => {
+    mockState.conversations = [chat({ id: "chat-1" })];
+    mockState.messagesByChatId = {
+      "chat-1": [
+        message({
+          id: "message-1",
+          role: "user",
+          kind: "message",
+          body: "What skill do you have?",
+          createdAt: new Date("2026-05-12T09:01:00.000Z"),
+          updatedAt: new Date("2026-05-12T09:01:00.000Z"),
+        }),
+      ],
+    };
+    mockState.projects = [project({ name: "Rudder mkt" })];
+
+    const { container } = renderChat();
+
+    expect(container.querySelector("[data-testid='chat-project-selector']")).toBeNull();
+  });
+
   it("locks the project selector after a conversation already has project context", () => {
     mockState.conversations = [
       chat({
