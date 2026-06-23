@@ -620,8 +620,10 @@ contracts:
     related_code:
       - packages/db/src/schema/chat_conversations.ts
       - packages/db/src/schema/chat_messages.ts
+      - packages/shared/src/constants.ts
       - packages/shared/src/types/chat.ts
       - packages/shared/src/validators/chat.ts
+      - server/src/routes/chats.stream-routes.ts
       - server/src/routes/chats.ts
       - server/src/services/chats.ts
       - ui/src/api/chats.ts
@@ -632,8 +634,10 @@ contracts:
       - server/src/__tests__/chat-routes.test.ts
       - server/src/__tests__/messenger-service.test.ts
       - ui/src/pages/Chat.messages.test.tsx
+      - ui/src/pages/Chat.attachment-preview.test.tsx
       - ui/src/components/MessengerContextSidebar.actions.test.tsx
       - tests/e2e/chat-fork.spec.ts
+      - tests/e2e/feishu-source-badges.spec.ts
     related_plans:
       - doc/plans/2026-06-22-chat-fork-conversation-groups.md
   CHAT.RICH.REFERENCE.RENDERING.001:
@@ -711,7 +715,10 @@ contracts:
       - doc/product/domains/collaboration/chat-messenger-im.md
     related_code:
       - packages/db/src/schema/agent_integrations.ts
+      - packages/shared/src/constants.ts
       - packages/shared/src/types/chat.ts
+      - server/src/routes/chats.ts
+      - server/src/routes/chats.stream-routes.ts
       - server/src/routes/integrations.ts
       - server/src/services/chats.ts
       - server/src/services/chat-agent-runs.ts
@@ -727,6 +734,8 @@ contracts:
       - server/src/services/integrations/feishu/user-bindings.ts
       - ui/src/pages/AgentDetail.integrations.tsx
       - ui/src/pages/AgentDetail.runs.tsx
+      - ui/src/pages/Chat.tsx
+      - ui/src/pages/Chat.messages.tsx
       - ui/src/components/MessengerContextSidebar.tsx
       - ui/src/lib/source-badge.ts
     related_tests:
@@ -736,8 +745,11 @@ contracts:
       - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
       - server/src/__tests__/agent-integration-setup-url-routes.test.ts
       - server/src/__tests__/messenger-service.test.ts
+      - server/src/__tests__/chat-routes.test.ts
       - ui/src/components/MessengerContextSidebar.actions.test.tsx
       - ui/src/pages/AgentDetail.runs.test.ts
+      - ui/src/pages/Chat.attachment-preview.test.tsx
+      - ui/src/pages/Chat.messages.test.tsx
       - ui/src/lib/source-badge.test.ts
       - tests/e2e/agent-detail-feishu-integration.spec.ts
       - tests/e2e/feishu-source-badges.spec.ts
