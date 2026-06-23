@@ -39,7 +39,8 @@ owning domain contract.
   `RUN.EXECUTION.001`, `RUN.RESULT.001`.
 - Assigned and reviewable issue attention: `ROUTING.ASSIGNMENT.001`,
   `ROUTING.REVIEWER.001`, `ROUTING.ATTENTION.001`.
-- Integrations tab for Feishu/IM setup: `IM.FEISHU.001`.
+- Integrations tab for Feishu/IM setup and Feishu source badges on
+  chat-origin run details: `IM.FEISHU.001`.
 
 ## Issues List
 
@@ -89,6 +90,7 @@ owning domain contract.
   issue/approval/run attention: `MESSENGER.ATTENTION.001`.
 - Messenger custom group membership, grouped-row navigation/read behavior, and
   group pin priority: `MESSENGER.CUSTOM.GROUPS.001`.
+- Feishu/IM source badges on Feishu-bound chat rows: `IM.FEISHU.001`.
 - Issue comment and issue-thread facts: `ISSUE.COMMENTS.001`,
   `ROUTING.COMMENT.WAKE.001`.
 

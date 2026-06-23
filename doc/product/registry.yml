@@ -711,7 +711,11 @@ contracts:
       - doc/product/domains/collaboration/chat-messenger-im.md
     related_code:
       - packages/db/src/schema/agent_integrations.ts
+      - packages/shared/src/types/chat.ts
       - server/src/routes/integrations.ts
+      - server/src/services/chats.ts
+      - server/src/services/chat-agent-runs.ts
+      - server/src/services/messenger.ts
       - server/src/services/integrations/agent-integrations.ts
       - server/src/services/integrations/feishu/app-registration.ts
       - server/src/services/integrations/feishu/inbound-dispatcher.ts
@@ -722,13 +726,21 @@ contracts:
       - server/src/services/integrations/feishu/runtime-registry.ts
       - server/src/services/integrations/feishu/user-bindings.ts
       - ui/src/pages/AgentDetail.integrations.tsx
+      - ui/src/pages/AgentDetail.runs.tsx
+      - ui/src/components/MessengerContextSidebar.tsx
+      - ui/src/lib/source-badge.ts
     related_tests:
       - server/src/__tests__/agent-integration-routes.test.ts
       - server/src/__tests__/agent-integration-inbound-dispatcher.test.ts
       - server/src/__tests__/agent-integration-feishu-db-dispatcher.test.ts
       - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
       - server/src/__tests__/agent-integration-setup-url-routes.test.ts
+      - server/src/__tests__/messenger-service.test.ts
+      - ui/src/components/MessengerContextSidebar.actions.test.tsx
+      - ui/src/pages/AgentDetail.runs.test.ts
+      - ui/src/lib/source-badge.test.ts
       - tests/e2e/agent-detail-feishu-integration.spec.ts
+      - tests/e2e/feishu-source-badges.spec.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
   CONTROL.APPROVALS.001:

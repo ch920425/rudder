@@ -17,6 +17,7 @@ related_code:
   - packages/db/src/schema/chat_messages.ts
   - packages/db/src/schema/chat_generations.ts
   - packages/db/src/schema/agent_integrations.ts
+  - packages/shared/src/types/chat.ts
   - packages/shared/src/project-mentions.ts
   - server/src/routes/chats.ts
   - server/src/services/product-intelligence.ts
@@ -33,10 +34,12 @@ related_code:
   - ui/src/index.css
   - ui/src/components/MarkdownBody.tsx
   - ui/src/api/websiteMetadata.ts
+  - ui/src/lib/source-badge.ts
   - ui/src/components/MilkdownMarkdownEditor.tsx
   - ui/src/components/MessengerContextSidebar.tsx
   - ui/src/pages/Chat.tsx
   - ui/src/pages/Messenger.tsx
+  - ui/src/pages/AgentDetail.runs.tsx
   - server/src/routes/website-metadata.ts
   - server/src/services/website-metadata.ts
   - ui/src/pages/AgentDetail.integrations.tsx
@@ -52,14 +55,17 @@ related_tests:
   - server/src/__tests__/agent-integration-feishu-db-dispatcher.test.ts
   - server/src/__tests__/agent-integration-feishu-inbound-normalizer.test.ts
   - ui/src/lib/index-css.test.ts
+  - ui/src/lib/source-badge.test.ts
   - ui/src/components/MilkdownMarkdownEditor.test.ts
   - ui/src/components/MarkdownBody.test.tsx
+  - ui/src/pages/AgentDetail.runs.test.ts
   - server/src/__tests__/website-metadata.test.ts
   - server/src/__tests__/website-metadata-routes.test.ts
   - tests/e2e/messenger-contract.spec.ts
   - tests/e2e/chat-fork.spec.ts
   - tests/e2e/chat-rich-references.spec.ts
   - tests/e2e/agent-detail-feishu-integration.spec.ts
+  - tests/e2e/feishu-source-badges.spec.ts
 edit_policy: user_confirmed_only
 ---
 
@@ -697,6 +703,10 @@ Product model:
   disable that runtime only with an explicit environment override.
 - Group messages require explicit bot addressing unless provider policy says
   otherwise.
+- Feishu-bound conversations carry provider source metadata into Messenger
+  thread summaries, so chat rows can show a compact `Feishu` source badge.
+- Feishu-origin chat runs carry source metadata in the run context snapshot, so
+  Agent Detail can show `Source: Feishu` on the originating run.
 
 Setup flow:
 
@@ -723,7 +733,9 @@ Inbound flow:
 5. External chat is bound to a Rudder Messenger conversation.
 6. Inbound text is appended to chat and, when command/routing rules apply,
    issue and run work is created/enqueued.
-7. Outbound placeholder/status is recorded and sent to Feishu.
+7. Messenger summary metadata records that the conversation came from Feishu,
+   and Feishu-created chat runs persist matching source metadata.
+8. Outbound placeholder/status is recorded and sent to Feishu.
 
 Outbound flow:
 
@@ -740,6 +752,12 @@ Invariants:
 - External Feishu chat id maps to exactly one active Rudder conversation per
   integration binding.
 - IM messages remain auditable in Rudder even when the external send fails.
+- Feishu-bound Messenger chat rows must remain visibly distinguishable with a
+  compact `Feishu` source badge.
+- Feishu-origin chat runs must show `Source: Feishu` in Agent Detail run
+  details.
+- Source badges must derive from persisted provider/source metadata, not title
+  parsing alone.
 
 Evidence:
 
@@ -748,11 +766,16 @@ Evidence:
   outbound response.
 - Feishu DB/runtime dispatcher tests cover setup-session completion,
   credential secrecy, revoked integration reactivation, installer auto-binding,
-  SDK normalized long-connection events, hydrated chat message attachments, and
-  per-event runtime failure containment.
+  SDK normalized long-connection events, hydrated chat message attachments,
+  source metadata propagation, and per-event runtime failure containment.
 - Agent Detail Feishu E2E covers setup-session launcher flow, polling,
   persisted integration state, and credential redaction with a mocked Feishu
   app-registration provider.
+- Feishu source badge E2E covers the visible Messenger row badge and Agent
+  Detail run detail badge for Feishu-origin work.
+- Messenger service tests cover Feishu source metadata in thread summaries.
+- Agent Detail run facts tests and source-badge unit tests cover badge
+  detection from persisted source metadata.
 - Manual live Feishu validation for ZST-613 covered Feishu app creation, real
   user message intake, Rudder run success, persisted assistant chat message,
   outbound final status, and visible Feishu bot reply.
