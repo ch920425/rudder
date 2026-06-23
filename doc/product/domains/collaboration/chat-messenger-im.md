@@ -678,10 +678,9 @@ Evidence:
 
 Why:
 
-- IM integration lets external chat become Rudder work without losing audit
-  trail. Feishu inbound messages must land in Messenger, bind external chat
-  identity, optionally create issues/runs, and send outbound status/reply
-  messages.
+- Users do much of their work communication in external IM platforms. Feishu
+  integration lets them bring that work into Rudder without leaving their
+  existing chat workflow.
 
 Product model:
 
