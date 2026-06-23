@@ -261,7 +261,7 @@ When adding endpoints:
 - Surface failures clearly; do not silently ignore API errors
 - Follow `doc/engineering/DESIGN.md` for visible UI defaults, especially density, hierarchy, dialog structure, copy style, and progressive disclosure
 - For desktop-shell UI changes, preserve the `Desktop Shell` contract and review checklist in `doc/engineering/DESIGN.md`; do not revert the shell to raw-wallpaper transparency or push glass treatment into the work cards.
-- For visible UI changes, verify the rendered result before hand-off using a browser, screenshot, or equivalent visual inspection. Prefer `@browser-use` when that verification uses a browser. Do not rely on code review, typecheck, or tests alone for layout-sensitive changes.
+- For visible UI changes, verify the rendered result before hand-off using a browser, screenshot, or equivalent visual inspection. Do not rely on code review, typecheck, or tests alone for layout-sensitive changes.
 - If a change affects user-visible functionality, include the relevant final screenshots in the hand-off response so the reviewer can see the shipped result, not just read about it.
 
 ## 10. Definition of Done
