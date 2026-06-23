@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import http from "node:http";
 import { once } from "node:events";
-import { fileURLToPath } from "node:url";
+import http from "node:http";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const helperPath = resolve(__dirname, "../scripts/call-mac-mini-tool.mjs");
