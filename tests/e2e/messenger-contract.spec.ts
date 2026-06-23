@@ -3214,7 +3214,7 @@ test.describe("Messenger unified threads contract", () => {
     await expect(page.getByTestId(`messenger-approval-message-${approval.id}-timestamp`)).toHaveText(exactTimestampPattern());
   });
 
-  test("supports chat pin, archive, and delete actions from Messenger menus", async ({ page }) => {
+  test("keeps active chat actions aligned with Messenger row actions", async ({ page, baseURL }) => {
     const organization = await createOrganization(page, `Messenger-Actions-${Date.now()}`);
 
     async function createChat(title: string, summary = `${title} summary`) {
@@ -3231,10 +3231,33 @@ test.describe("Messenger unified threads contract", () => {
     }
 
     const pinChat = await createChat("Pin action chat");
+    const activeMenuChat = await createChat("Active menu parity chat", "Active menu stable summary");
+    const activeMenuReplyAt = new Date();
+    await e2eDb.insert(chatMessages).values({
+      orgId: organization.id,
+      conversationId: activeMenuChat.id,
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Incoming reply for active menu unread parity.",
+      createdAt: activeMenuReplyAt,
+      updatedAt: activeMenuReplyAt,
+    });
+    await e2eDb.update(chatConversations)
+      .set({
+        lastMessageAt: activeMenuReplyAt,
+        updatedAt: activeMenuReplyAt,
+      })
+      .where(eq(chatConversations.id, activeMenuChat.id));
     const renameChat = await createChat("Rename action chat", "Rename action stable summary");
     const archiveChat = await createChat("Archive action chat");
     const deleteChat = await createChat("Delete action chat");
     const sidebarDeleteChat = await createChat("Sidebar delete action chat");
+    const existingGroupRes = await page.request.post(`/api/orgs/${organization.id}/messenger/groups`, {
+      data: { name: "Existing action group", icon: "folder" },
+    });
+    expect(existingGroupRes.ok()).toBe(true);
+    const existingGroup = await existingGroupRes.json() as { id: string };
 
     let releaseRenamePatch!: () => void;
     const renamePatchGate = new Promise<void>((resolve) => {
@@ -3259,12 +3282,68 @@ test.describe("Messenger unified threads contract", () => {
     releaseRenamePatch();
     await expect.poll(async () => (await (await page.request.get(`/api/chats/${renameChat.id}`)).json()).title).toBe("Renamed action chat");
 
+    if (baseURL) {
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+    }
+    await page.goto(`/${organization.issuePrefix}/messenger/chat/${activeMenuChat.id}`, { waitUntil: "commit" });
+    await page.getByTestId("chat-actions-trigger").click();
+    for (const actionName of [
+      "Rename",
+      "Pin",
+      "Mark as Unread",
+      "Copy Chat Link",
+      "Fork",
+      "New group",
+      "Move to group",
+      "Archive",
+      "Delete",
+    ]) {
+      await expect(page.getByRole("menuitem", { name: actionName, exact: true })).toBeVisible();
+    }
+    await page.screenshot({ path: "/tmp/rudder-active-chat-actions-menu.png", fullPage: true });
+    await page.getByRole("menuitem", { name: "Copy Chat Link" }).click();
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(`[Active menu parity chat](chat://${activeMenuChat.id})`);
+
+    await page.getByTestId("chat-actions-trigger").click();
+    await page.getByRole("menuitem", { name: "Mark as Unread" }).click();
+    await expect.poll(async () => (await (await page.request.get(`/api/chats/${activeMenuChat.id}`)).json()).isUnread).toBe(true);
+
+    await page.getByTestId("chat-actions-trigger").click();
+    await page.getByRole("menuitem", { name: "Rename" }).click();
+    const activeRenameInput = page.getByTestId("chat-title-rename-form").getByRole("textbox", { name: "Chat title" });
+    await expect(activeRenameInput).toBeVisible();
+    await activeRenameInput.fill("Renamed active menu chat");
+    await activeRenameInput.press("Enter");
+    await expect.poll(async () => (await (await page.request.get(`/api/chats/${activeMenuChat.id}`)).json()).title).toBe("Renamed active menu chat");
+
+    await page.getByTestId("chat-actions-trigger").click();
+    await page.getByRole("menuitem", { name: "Move to group" }).hover();
+    await page.getByRole("menuitem", { name: "Existing action group" }).dispatchEvent("click");
+    await expect.poll(async () => {
+      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+      expect(groupsRes.ok()).toBe(true);
+      const groups = await groupsRes.json() as { groups: Array<{ id: string; entries: Array<{ threadKey: string }> }> };
+      return groups.groups.find((group) => group.id === existingGroup.id)?.entries.some((entry) => entry.threadKey === `chat:${activeMenuChat.id}`) ?? false;
+    }).toBe(true);
+
+    await page.getByTestId("chat-actions-trigger").click();
+    await page.getByRole("menuitem", { name: "New group" }).click();
+    await expect.poll(async () => {
+      const groupsRes = await page.request.get(`/api/orgs/${organization.id}/messenger/groups`);
+      expect(groupsRes.ok()).toBe(true);
+      const groups = await groupsRes.json() as { groups: Array<{ name: string; entries: Array<{ threadKey: string }> }> };
+      return groups.groups.some((group) =>
+        group.name === "Renamed active menu chat"
+        && group.entries.some((entry) => entry.threadKey === `chat:${activeMenuChat.id}`),
+      );
+    }).toBe(true);
+
     await page.goto(`/${organization.issuePrefix}/messenger/chat/${pinChat.id}`, { waitUntil: "commit" });
     await page.getByTestId("chat-actions-trigger").click();
-    await expect(page.getByRole("menuitem", { name: "Pin Chat" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Pin" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Archive" })).toBeVisible();
-    await page.getByRole("menuitem", { name: "Pin Chat" }).click();
+    await page.getByRole("menuitem", { name: "Pin" }).click();
     const pinnedRes = await page.request.get(`/api/chats/${pinChat.id}`);
     expect(pinnedRes.ok()).toBe(true);
     await expect.poll(async () => (await (await page.request.get(`/api/chats/${pinChat.id}`)).json()).isPinned).toBe(true);
@@ -3276,9 +3355,9 @@ test.describe("Messenger unified threads contract", () => {
     await expect.poll(async () => (await (await page.request.get(`/api/chats/${archiveChat.id}`)).json()).status).toBe("archived");
 
     await page.goto(`/${organization.issuePrefix}/messenger/chat/${deleteChat.id}`, { waitUntil: "commit" });
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByTestId("chat-actions-trigger").click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("dialog", { name: "Delete chat" }).getByRole("button", { name: "Delete" }).click();
     await expect(page).toHaveURL(/\/messenger\/chat(?:\?[^#]*)?$/, { timeout: 15_000 });
     await expect.poll(async () => (await page.request.get(`/api/chats/${deleteChat.id}`)).status()).toBe(404);
 
@@ -3287,8 +3366,8 @@ test.describe("Messenger unified threads contract", () => {
     await expect(sidebarRow).toContainText("Sidebar delete action chat");
     await sidebarRow.hover();
     await sidebarRow.getByRole("button", { name: "Chat actions" }).click();
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("dialog", { name: "Delete chat" }).getByRole("button", { name: "Delete" }).click();
     await expect.poll(async () => (await page.request.get(`/api/chats/${sidebarDeleteChat.id}`)).status()).toBe(404);
     await expect(sidebarRow).toHaveCount(0);
   });

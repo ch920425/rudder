@@ -7,6 +7,7 @@ import { chatsApi } from "@/api/chats";
 import { ApiError } from "@/api/client";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { issuesApi } from "@/api/issues";
+import { messengerApi } from "@/api/messenger";
 import { organizationSkillsApi } from "@/api/organizationSkills";
 import { organizationsApi } from "@/api/orgs";
 import { projectsApi } from "@/api/projects";
@@ -21,6 +22,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,6 +38,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useToast } from "@/context/ToastContext";
 import { useScrollbarActivityRef } from "@/hooks/useScrollbarActivityRef";
 import { formatChatAgentLabel } from "@/lib/agent-labels";
+import { displayChatTitle } from "@/lib/chat-title";
 import {
   NO_CHAT_AGENT_ID,
   isSelectableChatAgentId,
@@ -65,7 +70,15 @@ import { resolveLocalFileTarget } from "@/lib/local-file-targets";
 import { buildMarkdownMentionOptions } from "@/lib/markdown-mention-options";
 import { mentionChipNavigationPath, parseMentionChipHref } from "@/lib/mention-chips";
 import { rememberMessengerPath } from "@/lib/messenger-memory";
-import { invalidateMessengerThreadSummaryQueries, markMessengerChatReadInCache, upsertMessengerThreadSummaryQueries } from "@/lib/messenger-query-cache";
+import {
+  archiveMessengerChatInCache,
+  cancelMessengerChatRenameQueries,
+  invalidateMessengerThreadSummaryQueries,
+  markMessengerChatPinnedInCache,
+  markMessengerChatReadInCache,
+  renameMessengerChatInCache,
+  upsertMessengerThreadSummaryQueries,
+} from "@/lib/messenger-query-cache";
 import { toOrganizationRelativePath } from "@/lib/organization-routes";
 import {
   appendSkillReferencesToDraft,
@@ -74,6 +87,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "@/lib/router";
 import { cn } from "@/lib/utils";
 import {
+  buildChatMentionHref,
   type ChatConversation,
   type ChatMessage,
   type ChatOperationProposalDecisionAction,
@@ -86,16 +100,23 @@ import {
   Bot,
   Boxes,
   ChevronDown,
+  Copy,
   Folder,
+  FolderInput,
+  FolderPlus,
   GitFork,
   ListChecks,
   Loader2,
+  Mail,
+  MailOpen,
   MoreHorizontal,
   Paperclip,
   Pencil,
+  PencilLine,
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
   Square,
   Trash2,
   X
@@ -119,6 +140,13 @@ function clipboardAttachmentPayloadKey(file: File) {
 function isExternalBoundConversation(conversation: ChatConversation | null | undefined) {
   return conversation?.mutability === "external_bound_chat";
 }
+function escapeMarkdownLinkLabel(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/]/g, "\\]");
+}
+function chatReferenceMarkdown(conversation: Pick<ChatConversation, "id" | "title" | "summary">) {
+  const label = escapeMarkdownLinkLabel(displayChatTitle(conversation).trim() || "Chat");
+  return `[${label}](${buildChatMentionHref(conversation.id)})`;
+}
 const RECENT_PROJECT_CONVERSATION_INITIAL_LIMIT = 5;
 const RECENT_PROJECT_CONVERSATION_LOAD_INCREMENT = 10;
 function ChatWorkspace() { const { conversationId } = useParams<{ conversationId?: string }>(); const location = useLocation(); const navigate = useNavigate(); const [searchParams] = useSearchParams(); const queryClient = useQueryClient(); const { selectedOrganization, selectedOrganizationId } = useOrganization(); const { t } = useI18n(); const { setBreadcrumbs } = useBreadcrumbs(); const { pushToast } = useToast(); const { confirm } = useDialog();
@@ -133,7 +161,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     scopeKey: draftStorageScopeKey,
     value: readChatDraft(draftStorageOrgId, draftStorageConversationId), })); const draft = draftState.scopeKey === draftStorageScopeKey ? draftState.value : ""; const setDraft = useCallback((nextDraft: string) => { setDraftState((current) => ({ ...current, value: nextDraft })); }, []); const [, refreshPendingFiles] = useState(0); const pendingFiles = readChatPendingAttachmentsForScope(draftStorageScopeKey);
   const setPendingFilesForCurrentScope = useCallback((updater: (current: File[]) => File[]) => { updateChatPendingAttachmentsForScope(draftStorageScopeKey, updater); refreshPendingFiles((version) => version + 1); }, [draftStorageScopeKey]); const clearPendingFilesForCurrentScope = useCallback(() => { setPendingFilesForCurrentScope(() => []); }, [setPendingFilesForCurrentScope]); const [newConversationSendInFlight, setNewConversationSendInFlight] = useState(false); const [openProcessMessageIds, setOpenProcessMessageIds] = useState<Record<string, true>>({}); const [loadingTranscriptMessageIds, setLoadingTranscriptMessageIds] = useState<Record<string, true>>({}); const [loadedTranscriptsByMessageId, setLoadedTranscriptsByMessageId] = useState<Record<string, TranscriptEntry[]>>({}); const [draftPreferredAgentId, setDraftPreferredAgentId] = useState<string>(NO_CHAT_AGENT_ID); const [draftProjectId, setDraftProjectId] = useState<string>(NO_PROJECT_ID);
-  const [pendingProjectContextOverride, setPendingProjectContextOverride] = useState<{ chatId: string; projectId: string | null; } | null>(null); const [draftPlanMode, setDraftPlanMode] = useState(false); const [pendingPlanModeOverride, setPendingPlanModeOverride] = useState<boolean | null>(null); const [decisionNotesByMessageId, setDecisionNotesByMessageId] = useState<Record<string, string>>({}); const [issueProposalOverridesByMessageId, setIssueProposalOverridesByMessageId] = useState<Record<string, Record<string, unknown>>>({}); const [plusMenuOpen, setPlusMenuOpen] = useState(false); const [agentMenuOpen, setAgentMenuOpen] = useState(false); const [projectMenuOpen, setProjectMenuOpen] = useState(false); const [skillMenuOpen, setSkillMenuOpen] = useState(false); const [skillSearchQuery, setSkillSearchQuery] = useState(""); const [libraryFileMentionQuery, setLibraryFileMentionQuery] = useState<string | null>(null); const [composerMenuPosition, setComposerMenuPosition] = useState<CSSProperties | null>(null); const [inlineEditUserMessageId, setInlineEditUserMessageId] = useState<string | null>(null); const [inlineEditDraft, setInlineEditDraft] = useState(""); const [editingQueuedItem, setEditingQueuedItem] = useState<{ itemId: string; value: string; version: number } | null>(null); const [branchPreview, setBranchPreview] = useState<ChatBranchPreview | null>(null); const [expandedEmptyStatePrompt, setExpandedEmptyStatePrompt] = useState<EmptyStatePromptLabel | null>(null); const [emptyStatePromptPanelEntered, setEmptyStatePromptPanelEntered] = useState(false); const [emptyStateActiveTab, setEmptyStateActiveTab] = useState<"recent" | "use-cases">("recent"); const [recentProjectConversationLimit, setRecentProjectConversationLimit] = useState(RECENT_PROJECT_CONVERSATION_INITIAL_LIMIT); const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewState | null>(null); const [recentAskUserAnswerMessageId, setRecentAskUserAnswerMessageId] = useState<string | null>(null); const fileInputRef = useRef<HTMLInputElement>(null); const composerSurfaceRef = useRef<HTMLDivElement>(null); const composerEditorRef = useRef<MarkdownEditorRef>(null); const inlineEditSurfaceRef = useRef<HTMLDivElement>(null); const inlineEditEditorRef = useRef<MarkdownEditorRef>(null); const composerContextMenuRef = useRef<HTMLDivElement>(null); const composerEditorScrollRef = useScrollbarActivityRef(); const skillSearchInputRef = useRef<HTMLInputElement>(null); const stopRequestedChatIdsRef = useRef<Set<string>>(new Set()); const autoDequeuingChatIdsRef = useRef<Set<string>>(new Set()); const newConversationSendLockRef = useRef(false); const chatSendLocksRef = useRef<Record<string, true>>({}); const lastAppliedPrefillRef = useRef<string | null>(null); const lastAppliedAgentPrefillRef = useRef<string | null>(null); const lastAppliedProjectPrefillRef = useRef<string | null>(null); const draftProjectScopeKeyRef = useRef<string | null>(null); const draftProjectDefaultKeyRef = useRef<string | null>(null); const draftProjectManuallySelectedRef = useRef(false); const chatMessagesScrollElementRef = useRef<HTMLDivElement | null>(null); const initialScrolledConversationRef = useRef<string | null>(null); const { isMobile } = useSidebar(); const chatMessagesActivityRef = useScrollbarActivityRef(); const chatMessagesScrollRef = useCallback((element: HTMLDivElement | null) => { chatMessagesScrollElementRef.current = element; chatMessagesActivityRef(element); }, [chatMessagesActivityRef]); const pendingPrefill = searchParams.get("prefill") ?? ""; const pendingAgentPrefill = searchParams.get("agentId")?.trim() ?? ""; const pendingProjectPrefill = searchParams.get("projectId")?.trim() ?? ""; const pendingIssueId = searchParams.get("issueId")?.trim() ?? ""; const relativePath = toOrganizationRelativePath(location.pathname); const chatRouteBase = relativePath.startsWith("/messenger/chat") ? "/messenger/chat" : "/chat"; const openLocalFile = useCallback((targetPath: string) => { const desktopShell = readDesktopShell();
+  const [pendingProjectContextOverride, setPendingProjectContextOverride] = useState<{ chatId: string; projectId: string | null; } | null>(null); const [draftPlanMode, setDraftPlanMode] = useState(false); const [pendingPlanModeOverride, setPendingPlanModeOverride] = useState<boolean | null>(null); const [decisionNotesByMessageId, setDecisionNotesByMessageId] = useState<Record<string, string>>({}); const [issueProposalOverridesByMessageId, setIssueProposalOverridesByMessageId] = useState<Record<string, Record<string, unknown>>>({}); const [plusMenuOpen, setPlusMenuOpen] = useState(false); const [agentMenuOpen, setAgentMenuOpen] = useState(false); const [projectMenuOpen, setProjectMenuOpen] = useState(false); const [skillMenuOpen, setSkillMenuOpen] = useState(false); const [skillSearchQuery, setSkillSearchQuery] = useState(""); const [libraryFileMentionQuery, setLibraryFileMentionQuery] = useState<string | null>(null); const [composerMenuPosition, setComposerMenuPosition] = useState<CSSProperties | null>(null); const [inlineEditUserMessageId, setInlineEditUserMessageId] = useState<string | null>(null); const [inlineEditDraft, setInlineEditDraft] = useState(""); const [editingQueuedItem, setEditingQueuedItem] = useState<{ itemId: string; value: string; version: number } | null>(null); const [branchPreview, setBranchPreview] = useState<ChatBranchPreview | null>(null); const [expandedEmptyStatePrompt, setExpandedEmptyStatePrompt] = useState<EmptyStatePromptLabel | null>(null); const [emptyStatePromptPanelEntered, setEmptyStatePromptPanelEntered] = useState(false); const [emptyStateActiveTab, setEmptyStateActiveTab] = useState<"recent" | "use-cases">("recent"); const [recentProjectConversationLimit, setRecentProjectConversationLimit] = useState(RECENT_PROJECT_CONVERSATION_INITIAL_LIMIT); const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewState | null>(null); const [recentAskUserAnswerMessageId, setRecentAskUserAnswerMessageId] = useState<string | null>(null); const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null); const [renameDraft, setRenameDraft] = useState(""); const [generatingChatTitleIds, setGeneratingChatTitleIds] = useState<Set<string>>(() => new Set()); const fileInputRef = useRef<HTMLInputElement>(null); const composerSurfaceRef = useRef<HTMLDivElement>(null); const composerEditorRef = useRef<MarkdownEditorRef>(null); const inlineEditSurfaceRef = useRef<HTMLDivElement>(null); const inlineEditEditorRef = useRef<MarkdownEditorRef>(null); const composerContextMenuRef = useRef<HTMLDivElement>(null); const composerEditorScrollRef = useScrollbarActivityRef(); const skillSearchInputRef = useRef<HTMLInputElement>(null); const stopRequestedChatIdsRef = useRef<Set<string>>(new Set()); const autoDequeuingChatIdsRef = useRef<Set<string>>(new Set()); const manuallyMarkedUnreadKeyRef = useRef<string | null>(null); const newConversationSendLockRef = useRef(false); const chatSendLocksRef = useRef<Record<string, true>>({}); const lastAppliedPrefillRef = useRef<string | null>(null); const lastAppliedAgentPrefillRef = useRef<string | null>(null); const lastAppliedProjectPrefillRef = useRef<string | null>(null); const draftProjectScopeKeyRef = useRef<string | null>(null); const draftProjectDefaultKeyRef = useRef<string | null>(null); const draftProjectManuallySelectedRef = useRef(false); const chatMessagesScrollElementRef = useRef<HTMLDivElement | null>(null); const initialScrolledConversationRef = useRef<string | null>(null); const { isMobile } = useSidebar(); const chatMessagesActivityRef = useScrollbarActivityRef(); const chatMessagesScrollRef = useCallback((element: HTMLDivElement | null) => { chatMessagesScrollElementRef.current = element; chatMessagesActivityRef(element); }, [chatMessagesActivityRef]); const pendingPrefill = searchParams.get("prefill") ?? ""; const pendingAgentPrefill = searchParams.get("agentId")?.trim() ?? ""; const pendingProjectPrefill = searchParams.get("projectId")?.trim() ?? ""; const pendingIssueId = searchParams.get("issueId")?.trim() ?? ""; const relativePath = toOrganizationRelativePath(location.pathname); const chatRouteBase = relativePath.startsWith("/messenger/chat") ? "/messenger/chat" : "/chat"; const chatRootPath = chatRouteBase; const chatConversationPath = useCallback((id: string) => `${chatRouteBase}/${id}`, [chatRouteBase]); const openLocalFile = useCallback((targetPath: string) => { const desktopShell = readDesktopShell();
     if (!desktopShell) {
       pushToast({
         title: "Open from Desktop",
@@ -143,7 +171,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       pushToast({
         title: "Failed to open file",
         body: error instanceof Error ? error.message : `Could not open ${targetPath}.`, tone: "error", }); }); }, [pushToast]);
-  const handleChatMarkdownLinkClick = useCallback<MarkdownLinkClickHandler>(({ event, href }) => { if (!shouldHandlePlainChatLinkClick(event)) return; const targetPath = resolveLocalFileTarget(href); if (!targetPath) return; event.preventDefault(); event.stopPropagation(); openLocalFile(targetPath); return true; }, [openLocalFile]); const chatRootPath = chatRouteBase; const chatConversationPath = useCallback((id: string) => `${chatRouteBase}/${id}`, [chatRouteBase]); const composerContextMenuOpen = projectMenuOpen || agentMenuOpen || skillMenuOpen;
+  const handleChatMarkdownLinkClick = useCallback<MarkdownLinkClickHandler>(({ event, href }) => { if (!shouldHandlePlainChatLinkClick(event)) return; const targetPath = resolveLocalFileTarget(href); if (!targetPath) return; event.preventDefault(); event.stopPropagation(); openLocalFile(targetPath); return true; }, [openLocalFile]); const composerContextMenuOpen = projectMenuOpen || agentMenuOpen || skillMenuOpen;
   useEffect(() => { activeDraftScopeRef.current = draftStorageScopeKey; }, [draftStorageScopeKey]); const closeComposerContextMenus = useCallback(() => { setProjectMenuOpen(false); setAgentMenuOpen(false); setSkillMenuOpen(false); setSkillSearchQuery(""); }, []); const openComposerContextMenu = useCallback((kind: "project" | "agent" | "skill") => { const anchor = composerSurfaceRef.current;
     if (anchor) {
       setComposerMenuPosition(composerMenuPositionForAnchor(anchor)); } setProjectMenuOpen(kind === "project"); setAgentMenuOpen(kind === "agent"); setSkillMenuOpen(kind === "skill");
@@ -196,6 +224,15 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     queryFn: () => authApi.getSession(),
   });
   const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
+  const intelligenceProfilesQuery = useQuery({
+    queryKey: queryKeys.organizations.intelligenceProfiles(selectedOrganizationId ?? "__none__"),
+    queryFn: () => organizationsApi.listIntelligenceProfiles(selectedOrganizationId!),
+    enabled: !!selectedOrganizationId,
+  });
+  const canRegenerateChatTitles = useMemo(() => {
+    const profiles = intelligenceProfilesQuery.data ?? [];
+    return profiles.some((profile) => profile?.purpose === "lightweight" && profile.status === "configured");
+  }, [intelligenceProfilesQuery.data]);
   const { data: issues, error: issuesError } = useQuery({
     queryKey: queryKeys.issues.list(selectedOrganizationId ?? "__none__"),
     queryFn: () => issuesApi.list(selectedOrganizationId!), enabled: !!selectedOrganizationId, }); const { data: libraryDocuments } = useQuery({
@@ -244,7 +281,13 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     searchParams,
     selectedOrganizationId, visibleProjects, draftPreferredAgentId, ]); const selectedConversation = activeConversationBelongsToSelectedOrganization
     ? conversationQuery.data ?? activeConversationFromList
-    : null; const selectedConversationGenerating = Boolean(selectedConversation && (streamDrafts[selectedConversation.id] || sendInFlightByChatId[selectedConversation.id])); const draftIssueContext = !selectedConversation ? resolveDraftIssueContext(issues, pendingIssueId) : null; const draftIssueContextId = !selectedConversation && pendingIssueId ? draftIssueContext?.id ?? pendingIssueId : null; const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId; const selectedConversationProjectId = projectContextId(selectedConversation);
+    : null; const customGroupsQuery = useQuery({
+    queryKey: queryKeys.messenger.customGroups(selectedOrganizationId ?? "__none__"),
+    queryFn: () => messengerApi.listCustomGroups(selectedOrganizationId!),
+    enabled: !!selectedOrganizationId && !!selectedConversation,
+  }); const customGroups = customGroupsQuery.data?.groups ?? []; const selectedConversationThreadKey = selectedConversation ? `chat:${selectedConversation.id}` : null; const selectedConversationCustomGroupId = selectedConversationThreadKey
+    ? customGroups.find((group) => group.entries.some((entry) => entry.threadKey === selectedConversationThreadKey))?.id ?? null
+    : null; const selectedConversationGenerating = Boolean(selectedConversation && (streamDrafts[selectedConversation.id] || sendInFlightByChatId[selectedConversation.id])); const selectedConversationTitleGenerating = Boolean(selectedConversation && generatingChatTitleIds.has(selectedConversation.id)); const draftIssueContext = !selectedConversation ? resolveDraftIssueContext(issues, pendingIssueId) : null; const draftIssueContextId = !selectedConversation && pendingIssueId ? draftIssueContext?.id ?? pendingIssueId : null; const activeAgentId = selectedConversation?.preferredAgentId ?? draftPreferredAgentId; const selectedConversationProjectId = projectContextId(selectedConversation);
   const pendingSelectedConversationProjectId = selectedConversation && pendingProjectContextOverride?.chatId === selectedConversation.id ? pendingProjectContextOverride.projectId : undefined; const activeProjectId = selectedConversation ? (pendingSelectedConversationProjectId ?? selectedConversationProjectId ?? NO_PROJECT_ID) : draftProjectId; const activePlanMode = pendingPlanModeOverride ?? selectedConversation?.planMode ?? draftPlanMode; const activeSkillAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId; const activeSkillAgent = activeSkillAgentId ? (agents ?? []).find((agent) => agent.id === activeSkillAgentId) ?? null : null; const draftProjectScopeKey = `${selectedOrganizationId ?? "__none__"}:${conversationId ?? "new"}:${pendingIssueId || "__no_issue__"}`; const draftIssueProjectKey = draftIssueContext?.projectId ?? "__no_issue_project__"; const draftProjectDefaultKey = selectedConversation ? null : `${draftProjectScopeKey}:${activeSkillAgentId ?? "__no_agent__"}:${draftIssueProjectKey}`;
   const {
     data: organizationSkills,
@@ -387,33 +430,84 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         return rest; } return { ...current, [messageId]: value }; }); }, []); const clearDecisionNoteForMessage = useCallback((messageId: string) => {
     setDecisionNotesByMessageId((current) => { if (!(messageId in current)) return current; const { [messageId]: _removed, ...rest } = current; return rest; }); }, []); const setIssueProposalOverrideForMessage = useCallback((messageId: string, nextProposal: Record<string, unknown>) => {
     setIssueProposalOverridesByMessageId((current) => ({ ...current, [messageId]: nextProposal }));
-  }, []); const updateConversationMutation = useMutation({
+  }, []); const refreshActiveChatActions = useCallback(async (chatId?: string) => {
+    if (!selectedOrganizationId) return;
+    await Promise.all([
+      invalidateMessengerThreadSummaryQueries(queryClient, selectedOrganizationId),
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "all") }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.list(selectedOrganizationId, "active") }),
+    ]);
+    if (chatId) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(selectedOrganizationId, chatId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.chats.messages(selectedOrganizationId, chatId) }),
+      ]);
+    }
+  }, [queryClient, selectedOrganizationId]); const updateConversationMutation = useMutation({
     mutationFn: ({ chatId, data }: { chatId: string; data: Parameters<typeof chatsApi.update>[1] }) =>
       chatsApi.update(chatId, data),
     onSuccess: async (conversation) => {
       if (conversation.status === "archived" && conversation.id === selectedConversation?.id) {
-        navigate(chatRootPath); } upsertConversation(conversation); upsertMessengerThreadSummary(conversation);
-      await refreshChat(conversation.id); },
+        navigate(chatRootPath); }
+      if (conversation.status === "archived" && selectedOrganizationId) {
+        archiveMessengerChatInCache(queryClient, selectedOrganizationId, conversation.id);
+      } else {
+        upsertConversation(conversation); upsertMessengerThreadSummary(conversation);
+      }
+      await refreshActiveChatActions(conversation.id); },
     onError: (error) => {
       pushToast({
         title: "Failed to update conversation",
         body: error instanceof Error ? error.message : "Try again.",
+        tone: "error", }); }, }); const renameConversationMutation = useMutation({
+    mutationFn: ({ chatId, title }: { chatId: string; title: string }) =>
+      chatsApi.update(chatId, { title }),
+    onMutate: async ({ chatId, title }) => {
+      if (!selectedOrganizationId) return;
+      await cancelMessengerChatRenameQueries(queryClient, selectedOrganizationId);
+      renameMessengerChatInCache(queryClient, selectedOrganizationId, chatId, title);
+    },
+    onSuccess: async (conversation) => {
+      if (selectedOrganizationId) {
+        renameMessengerChatInCache(queryClient, selectedOrganizationId, conversation.id, conversation.title);
+      }
+      setRenamingConversationId((current) => (current === conversation.id ? null : current));
+      await refreshActiveChatActions(conversation.id); },
+    onError: async (error, variables) => {
+      setRenamingConversationId(null);
+      await refreshActiveChatActions(variables.chatId);
+      pushToast({
+        title: "Failed to rename conversation",
+        body: error instanceof Error ? error.message : "Try again.",
         tone: "error", }); }, }); const updateConversationUserStateMutation = useMutation({
-    mutationFn: ({ chatId, pinned }: { chatId: string; pinned: boolean }) =>
-      chatsApi.updateUserState(chatId, { pinned }),
+    mutationFn: ({ chatId, pinned, unread }: { chatId: string; pinned?: boolean; unread?: boolean }) =>
+      chatsApi.updateUserState(chatId, { pinned, unread }),
     onSuccess: async (conversation) => {
       upsertConversation(conversation); upsertMessengerThreadSummary(conversation);
-      await refreshChat(conversation.id); },
+      await refreshActiveChatActions(conversation.id); },
+    onMutate: ({ chatId, pinned }) => {
+      if (typeof pinned === "boolean" && selectedOrganizationId) {
+        markMessengerChatPinnedInCache(queryClient, selectedOrganizationId, chatId, pinned);
+      }
+    },
     onError: (error) => {
       pushToast({
         title: "Failed to update conversation",
         body: error instanceof Error ? error.message : "Try again.",
         tone: "error", }); }, }); const deleteConversationMutation = useMutation({
-    mutationFn: (chatId: string) => chatsApi.remove(chatId),
+    mutationFn: async ({ chatId, cancelActive }: { chatId: string; cancelActive?: boolean }) => {
+      if (cancelActive) {
+        abortChatStream(chatId);
+        await chatsApi.stopMessageStream(chatId).catch(() => undefined);
+        setStreamDraftForChat(chatId, null);
+        setChatSendInFlight(chatId, false);
+      }
+      return chatsApi.remove(chatId, cancelActive ? { cancelActive: true } : {});
+    },
     onSuccess: async (conversation) => {
       if (conversation.id === selectedConversation?.id) {
         navigate(chatRootPath); }
-      await refreshChat(conversation.id); },
+      await refreshActiveChatActions(conversation.id); },
     onError: (error) => {
       pushToast({
         title: "Failed to delete conversation",
@@ -425,7 +519,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       upsertConversation(conversation);
       upsertMessengerThreadSummary(conversation);
       await Promise.all([
-        refreshChat(conversation.id),
+        refreshActiveChatActions(conversation.id),
         queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(conversation.orgId) }),
       ]);
       navigate(chatConversationPath(conversation.id));
@@ -436,6 +530,71 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
         body: error instanceof Error ? error.message : "Try again after the current reply finishes.",
         tone: "error",
       });
+    },
+  }); const regenerateTitleMutation = useMutation({
+    mutationFn: (chatId: string) => chatsApi.regenerateTitle(chatId),
+    onMutate: (chatId) => {
+      setGeneratingChatTitleIds((current) => {
+        const next = new Set(current);
+        next.add(chatId);
+        return next;
+      });
+    },
+    onSuccess: async (conversation) => {
+      if (selectedOrganizationId) {
+        renameMessengerChatInCache(queryClient, selectedOrganizationId, conversation.id, conversation.title);
+      }
+      upsertConversation(conversation);
+      upsertMessengerThreadSummary(conversation);
+      await refreshActiveChatActions(conversation.id);
+    },
+    onError: (error) => {
+      pushToast({
+        title: "Could not regenerate title",
+        body: error instanceof Error ? error.message : "Try again.",
+        tone: "error",
+      });
+    },
+    onSettled: (_data, _error, chatId) => {
+      setGeneratingChatTitleIds((current) => {
+        const next = new Set(current);
+        next.delete(chatId);
+        return next;
+      });
+    },
+  }); const assignCustomGroupEntryMutation = useMutation({
+    mutationFn: ({ groupId, threadKey }: { groupId: string; threadKey: string }) => {
+      if (!selectedOrganizationId) throw new Error("Organization is required to move chat");
+      return messengerApi.assignCustomGroupEntry(selectedOrganizationId, groupId, threadKey);
+    },
+    onSuccess: async () => {
+      if (selectedOrganizationId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(selectedOrganizationId) });
+      }
+    },
+  }); const removeCustomGroupEntryMutation = useMutation({
+    mutationFn: (threadKey: string) => {
+      if (!selectedOrganizationId) throw new Error("Organization is required to move chat");
+      return messengerApi.removeCustomGroupEntry(selectedOrganizationId, threadKey);
+    },
+    onSuccess: async () => {
+      if (selectedOrganizationId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(selectedOrganizationId) });
+      }
+    },
+  }); const createCustomGroupForChatMutation = useMutation({
+    mutationFn: ({ conversation, threadKey }: { conversation: ChatConversation; threadKey: string }) => {
+      if (!selectedOrganizationId) throw new Error("Organization is required to create a group");
+      return messengerApi.createCustomGroupWithEntries(selectedOrganizationId, {
+        name: conversationDisplayTitle(conversation),
+        icon: "folder",
+        threadKeys: [threadKey],
+      });
+    },
+    onSuccess: async () => {
+      if (selectedOrganizationId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.messenger.customGroups(selectedOrganizationId) });
+      }
     },
   }); const updateProjectContextMutation = useMutation({
     mutationFn: ({ chatId, projectId }: { chatId: string; projectId: string | null; previousProjectId?: string | null;
@@ -734,7 +893,9 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     () => findLatestUnansweredAskUserMessage(visibleMessages), [visibleMessages], ); const pendingAskUserRequest = pendingAskUserMessage ? askUserRequestFromMessage(pendingAskUserMessage) : null; const lastMarkedReadKeyRef = useRef<string | null>(null); const optimisticReadBadgeMarkerRef = useRef<string | null>(null);
   useEffect(() => { if (!pendingAskUserRequest) return; closeComposerContextMenus(); }, [closeComposerContextMenus, pendingAskUserRequest]);
   useEffect(() => { const chatId = selectedConversation?.id ?? null; if (!chatId || showMessagesLoading) return; if (initialScrolledConversationRef.current === chatId) return; initialScrolledConversationRef.current = chatId; const frame = requestAnimationFrame(() => { const scrollElement = chatMessagesScrollElementRef.current; if (!scrollElement) return; scrollChatMessagesToBottom(scrollElement); }); return () => cancelAnimationFrame(frame); }, [selectedConversation?.id, showMessagesLoading, visibleMessages.length]);
-  useEffect(() => { if (!selectedConversation?.id || !latestIncomingMessageId) return; if (typeof document !== "undefined" && document.visibilityState !== "visible") return; const shouldMarkRead = selectedConversation.isUnread || latestIncomingMessageId !== lastMarkedReadKeyRef.current?.split(":")[1]; if (!shouldMarkRead) return; const nextKey = `${selectedConversation.id}:${latestIncomingMessageId}`; const shouldDecrementSidebarBadge = selectedConversation.isUnread && optimisticReadBadgeMarkerRef.current !== nextKey; if (selectedOrganizationId) {
+  useEffect(() => { if (!selectedConversation?.id || !latestIncomingMessageId) return; if (typeof document !== "undefined" && document.visibilityState !== "visible") return; const shouldMarkRead = selectedConversation.isUnread || latestIncomingMessageId !== lastMarkedReadKeyRef.current?.split(":")[1]; if (!shouldMarkRead) return; const nextKey = `${selectedConversation.id}:${latestIncomingMessageId}`; if (manuallyMarkedUnreadKeyRef.current === nextKey) return; if (manuallyMarkedUnreadKeyRef.current?.startsWith(`${selectedConversation.id}:`)) {
+      manuallyMarkedUnreadKeyRef.current = null;
+    } const shouldDecrementSidebarBadge = selectedConversation.isUnread && optimisticReadBadgeMarkerRef.current !== nextKey; if (selectedOrganizationId) {
       markMessengerChatReadInCache(queryClient, selectedOrganizationId, selectedConversation, {
         decrementSidebarBadge: shouldDecrementSidebarBadge,
       });
@@ -757,7 +918,14 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     if (agentSelectionLocked) {
       setAgentMenuOpen(false); } }, [agentSelectionLocked]);
   const loadError = conversationsQuery.error ?? conversationQuery.error ?? messagesQuery.error ?? agentsError ?? organizationSkillsError ?? activeAgentSkillsError ?? projectsError ?? issuesError;
-  const loadErrorMessage = loadError instanceof Error ? loadError.message : loadError ? "Failed to load chat data." : null; const controlsDisabled = activeSendInFlight || newConversationSendInFlight; const activeSelectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId; const canPersistSelectedAgentForConversation = Boolean( selectedConversation && !selectedConversation.preferredAgentId && activeSelectedAgentId, );
+  const loadErrorMessage = loadError instanceof Error ? loadError.message : loadError ? "Failed to load chat data." : null; const startActiveConversationRename = () => { if (!selectedConversation) return; setRenamingConversationId(selectedConversation.id); setRenameDraft(selectedConversation.title); }; const submitActiveConversationRename = () => { if (!selectedConversation || renamingConversationId !== selectedConversation.id) return; const trimmed = renameDraft.trim(); setRenamingConversationId(null); if (!trimmed || trimmed === selectedConversation.title) return; renameConversationMutation.mutate({ chatId: selectedConversation.id, title: trimmed }); }; const copyActiveConversationLink = async () => { if (!selectedConversation) return;
+    try {
+      await navigator.clipboard.writeText(chatReferenceMarkdown(selectedConversation));
+      pushToast({ title: "Copied chat link", tone: "success" });
+    } catch {
+      pushToast({ title: "Could not copy chat link", tone: "error" });
+    }
+  }; const createGroupForActiveConversation = () => { if (!selectedConversation || !selectedConversationThreadKey) return; createCustomGroupForChatMutation.mutate({ conversation: selectedConversation, threadKey: selectedConversationThreadKey }); }; const moveActiveConversationToGroup = (groupId: string) => { if (!selectedConversationThreadKey) return; assignCustomGroupEntryMutation.mutate({ groupId, threadKey: selectedConversationThreadKey }); }; const removeActiveConversationFromGroup = () => { if (!selectedConversationThreadKey) return; removeCustomGroupEntryMutation.mutate(selectedConversationThreadKey); }; const controlsDisabled = activeSendInFlight || newConversationSendInFlight; const activeSelectedAgentId = activeAgentId === NO_CHAT_AGENT_ID ? null : activeAgentId; const canPersistSelectedAgentForConversation = Boolean( selectedConversation && !selectedConversation.preferredAgentId && activeSelectedAgentId, );
   const composerUnavailable = selectedConversation ? !selectedConversation.chatRuntime.available && !canPersistSelectedAgentForConversation : !activeSelectedAgentId; const composerUnavailableMessage = activeSelectedAgentId ? selectedConversation?.chatRuntime.error ?? "Selected chat agent is unavailable." : "Create or activate an agent before sending messages."; const hasPendingLightweightProposal = rawMessages.some(
     (message) => !message.supersededAt && message.kind === "operation_proposal" && !message.approval && operationProposalStatusFromMessage(message) === "pending", ); const hasActionableApprovals = rawMessages .filter((m) => !m.supersededAt) .some((message) => approvalNeedsAction(message.approval));
   const agentPillLabel =
@@ -1443,6 +1611,23 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="surface-overlay text-foreground">
+                    <DropdownMenuItem onClick={startActiveConversationRename}>
+                      <PencilLine className="h-4 w-4" />
+                      Rename
+                    </DropdownMenuItem>
+                    {canRegenerateChatTitles ? (
+                      <DropdownMenuItem
+                        disabled={selectedConversationTitleGenerating || regenerateTitleMutation.isPending}
+                        onClick={() => regenerateTitleMutation.mutate(selectedConversation.id)}
+                      >
+                        {selectedConversationTitleGenerating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        Regenerate title
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       onClick={() => updateConversationUserStateMutation.mutate({
                         chatId: selectedConversation.id,
@@ -1452,41 +1637,84 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                       {selectedConversation.isPinned ? (
                         <>
                           <PinOff className="h-4 w-4" />
-                          Unpin Chat
+                          Unpin
                         </>
                       ) : (
                         <>
                           <Pin className="h-4 w-4" />
-                          Pin Chat
+                          Pin
                         </>
                       )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const nextUnread = !selectedConversation.isUnread;
+                        manuallyMarkedUnreadKeyRef.current = nextUnread && latestIncomingMessageId ? `${selectedConversation.id}:${latestIncomingMessageId}` : null;
+                        updateConversationUserStateMutation.mutate({
+                          chatId: selectedConversation.id,
+                          unread: nextUnread,
+                        });
+                      }}
+                    >
+                      {selectedConversation.isUnread ? (
+                        <>
+                          <MailOpen className="h-4 w-4" />
+                          Mark as Read
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4" />
+                          Mark as Unread
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void copyActiveConversationLink()}>
+                      <Copy className="h-4 w-4" />
+                      Copy Chat Link
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={selectedConversationGenerating || forkConversationMutation.isPending}
                       onClick={() => forkConversationMutation.mutate({ chatId: selectedConversation.id })}
                     >
                       <GitFork className="h-4 w-4" />
-                      Fork latest
+                      Fork
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={createGroupForActiveConversation}>
+                      <FolderPlus className="h-4 w-4" />
+                      New group
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <FolderInput className="h-4 w-4" />
+                        Move to group
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="surface-overlay text-foreground">
+                        {selectedConversationCustomGroupId ? (
+                          <DropdownMenuItem onClick={removeActiveConversationFromGroup}>
+                            <Folder className="h-4 w-4" />
+                            Move out of group
+                          </DropdownMenuItem>
+                        ) : null}
+                        {customGroups.length > 0 ? (
+                          customGroups.map((group) => (
+                            <DropdownMenuItem
+                              key={group.id}
+                              disabled={group.id === selectedConversationCustomGroupId}
+                              onClick={() => moveActiveConversationToGroup(group.id)}
+                            >
+                              <Folder className="h-4 w-4" />
+                              {group.name}
+                            </DropdownMenuItem>
+                          ))
+                        ) : (
+                          <DropdownMenuItem disabled>No groups</DropdownMenuItem>
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                     {!selectedConversationExternalBound ? (
                       <>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          disabled={selectedConversationGenerating}
-                          onClick={async () => {
-                            const confirmed = await confirm({
-                              title: "Delete chat",
-                              description: `Delete "${conversationDisplayTitle(selectedConversation)}"? This cannot be undone.`,
-                              confirmLabel: "Delete",
-                              tone: "destructive",
-                            });
-                            if (!confirmed) return;
-                            deleteConversationMutation.mutate(selectedConversation.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => updateConversationMutation.mutate({
                             chatId: selectedConversation.id,
@@ -1495,6 +1723,25 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                         >
                           <Archive className="h-4 w-4" />
                           Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={async () => {
+                            const confirmed = await confirm({
+                              title: "Delete chat",
+                              description: `Delete "${conversationDisplayTitle(selectedConversation)}"? This cannot be undone.`,
+                              confirmLabel: "Delete",
+                              tone: "destructive",
+                            });
+                            if (!confirmed) return;
+                            deleteConversationMutation.mutate({
+                              chatId: selectedConversation.id,
+                              cancelActive: selectedConversationGenerating,
+                            });
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
                         </DropdownMenuItem>
                       </>
                     ) : null}
@@ -1530,6 +1777,33 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-5">
                 <div ref={chatMessagesScrollRef} data-testid="chat-messages-scroll-region" className="scrollbar-auto-hide min-h-0 flex-1 overflow-y-auto" >
                   <div data-testid="chat-messages-content" className="mx-auto flex w-full max-w-4xl flex-col gap-5 pr-1" >
+                      {renamingConversationId === selectedConversation.id ? (
+                        <form
+                          data-testid="chat-title-rename-form"
+                          className="surface-overlay pointer-events-auto mt-1 flex items-center gap-2 rounded-[var(--radius-md)] border px-2.5 py-2 text-foreground"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            submitActiveConversationRename();
+                          }}
+                        >
+                          <PencilLine className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <input
+                            autoFocus
+                            aria-label="Chat title"
+                            value={renameDraft}
+                            onChange={(event) => setRenameDraft(event.currentTarget.value)}
+                            onBlur={submitActiveConversationRename}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setRenamingConversationId(null);
+                                setRenameDraft("");
+                              }
+                            }}
+                            className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+                          />
+                        </form>
+                      ) : null}
                       {showMessagesLoading ? (
                         <ChatMessagesLoadingState /> ) : visibleMessages.length === 0 && !activeStream ? (
                         <div className="surface-inset rounded-[var(--radius-xl)] border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
