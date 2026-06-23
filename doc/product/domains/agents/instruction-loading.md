@@ -230,9 +230,12 @@ stack must preserve this semantic order:
 6. The selected resources/startup context section, when non-empty.
 7. `## Current Time`, with the runtime instruction load timestamp.
 8. Runtime heartbeat instruction, only for non-comment heartbeat scene runs.
-9. Adapter-specific bootstrap prompt, session handoff markdown, and wake/chat
-   prompt after the instruction prefix when the adapter uses stdin-style prompt
-   assembly.
+9. Adapter-specific selected-skill boundary text inside the provider's system
+   prompt layer when that provider can expose native or built-in skills outside
+   Rudder's desired selection.
+10. Adapter-specific bootstrap prompt, session handoff markdown, and wake/chat
+    prompt after the instruction prefix or system prompt when the adapter uses
+    stdin-style prompt assembly.
 
 The agent does not see duplicated resource aliases after the selected resource
 prompt is moved into the instruction prefix. The agent does not see sibling
@@ -248,7 +251,7 @@ through Rudder APIs, but the auth injection is separate from prompt text.
 
 | Adapter | Prefix transport | Final actor-visible input after shared prefix | Additional notes |
 | --- | --- | --- | --- |
-| Claude local | Writes the loaded prefix to an appended system prompt file | Provider receives the appended system prompt plus bootstrap/session/wake prompt through Claude Code invocation | Image attachment paths can be added to prompt instructions for Claude inspection |
+| Claude local | Writes the loaded prefix and Rudder enabled-skill boundary to an appended system prompt file | Provider receives the appended system prompt plus bootstrap/session/wake prompt through Claude Code invocation | Claude Code may advertise built-in provider-native skills in its own init metadata; Rudder keeps those out of loaded skill metadata and tells the agent to answer Rudder skill questions from the Rudder enabled-skill boundary |
 | Codex local | Prepends the loaded prefix to the stdin prompt | Prefix, optional bootstrap prompt, optional session handoff markdown, then selected wake/chat prompt | Codex CLI can also auto-apply repo-scoped `AGENTS.md` from the current workspace; Rudder records this as a command note and does not suppress it |
 | Cursor local | Pipes the prompt through stdin | Prefix, optional bootstrap prompt, optional session handoff markdown, runtime env note, then selected wake/chat prompt | Command notes record stdin transport and auto-trust flags when applied |
 | Gemini local | Sends the full prompt through the Gemini `--prompt` argument | Prefix, optional bootstrap prompt, optional session handoff markdown, Rudder env note, API access note, then selected wake/chat prompt | Prompt metrics include `runtimeNoteChars` for the env/API notes |

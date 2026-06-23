@@ -47,6 +47,11 @@ Product model:
   materializes the Rudder-resolved enabled/always-enabled set for the exact
   invocation; it does not choose additional skills from provider-native,
   operator-home, project, global, or adapter-home defaults.
+- Provider-native built-in capabilities that the provider CLI always exposes
+  are not Rudder-enabled skills. If they cannot be disabled by provider config,
+  Rudder keeps them out of desired/materialized/loaded skill metadata and
+  instructs the agent to answer Rudder skill questions from the
+  Rudder-resolved set only.
 
 Flow:
 
@@ -65,6 +70,9 @@ Invariants:
   resolves it as enabled or always-enabled for that invocation.
 - Adapters must prune, disable, isolate, or ignore stale Rudder-managed and
   provider-native skill entries that are not in the current selected set.
+- Agent-facing skill status must separate Rudder-enabled skills from
+  provider-native built-ins. Runtime prompts must not let provider-native
+  built-ins appear as this agent's Rudder-loaded skills.
 - Skill UI copy must not imply that a discovered skill was used in a run.
 
 Evidence:

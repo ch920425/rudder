@@ -189,6 +189,10 @@ Actor-visible input is the resulting provider environment:
 - discovered-only, disabled, stale, provider-default, and operator-home skills
   are absent from the loaded skill set unless Rudder selected them for the
   current invocation
+- provider-native built-ins that cannot be disabled by the provider remain
+  classified as provider-native behavior, not Rudder-loaded skills; the run
+  must expose a Rudder skill boundary so the agent does not report those
+  built-ins as enabled Agent Skills
 - `HOME`, `USERPROFILE`, provider home variables, and `RUDDER_OPERATOR_HOME`
   reflect the intended managed-home and operator-home boundary
 - Rudder API env vars and local auth credentials are present only when the
