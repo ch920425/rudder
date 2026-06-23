@@ -1976,6 +1976,7 @@ function chatConversationForThreadSummary(
     id: conversationId,
     orgId,
     status: "active",
+    mutability: "native_chat",
     title: thread.title,
     summary: null,
     latestReplyPreview: preview,

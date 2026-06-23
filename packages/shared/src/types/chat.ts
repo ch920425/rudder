@@ -1,4 +1,5 @@
 import type { Approval } from "./approval.js";
+import type { ChatConversationMutability } from "../constants.js";
 
 export interface ChatLinkedEntity {
   type: "issue" | "project" | "agent";
@@ -134,6 +135,7 @@ export interface ChatConversation {
   id: string;
   orgId: string;
   status: "active" | "resolved" | "archived";
+  mutability: ChatConversationMutability;
   title: string;
   summary: string | null;
   latestReplyPreview: string | null;

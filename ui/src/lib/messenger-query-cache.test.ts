@@ -41,6 +41,7 @@ function thread(overrides: Partial<MessengerThreadSummary> & Pick<MessengerThrea
 function conversation(overrides: Partial<ChatConversation> & Pick<ChatConversation, "id" | "orgId" | "title">): ChatConversation {
   return {
     status: "active",
+    mutability: "native_chat",
     summary: null,
     latestReplyPreview: null,
     latestUserMessagePreview: null,

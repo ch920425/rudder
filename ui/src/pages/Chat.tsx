@@ -116,6 +116,9 @@ export function Chat() { const { selectedOrganizationId } = useOrganization();
 function clipboardAttachmentPayloadKey(file: File) {
   return `${file.name.trim()}\u0000${file.type.trim().toLowerCase()}\u0000${file.size}`;
 }
+function isExternalBoundConversation(conversation: ChatConversation | null | undefined) {
+  return conversation?.mutability === "external_bound_chat";
+}
 const RECENT_PROJECT_CONVERSATION_INITIAL_LIMIT = 5;
 const RECENT_PROJECT_CONVERSATION_LOAD_INCREMENT = 10;
 function ChatWorkspace() { const { conversationId } = useParams<{ conversationId?: string }>(); const location = useLocation(); const navigate = useNavigate(); const [searchParams] = useSearchParams(); const queryClient = useQueryClient(); const { selectedOrganization, selectedOrganizationId } = useOrganization(); const { t } = useI18n(); const { setBreadcrumbs } = useBreadcrumbs(); const { pushToast } = useToast(); const { confirm } = useDialog();
@@ -535,6 +538,10 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     bodyOverride?: string,
     options?: { files?: File[]; clearComposerOnSuccess?: boolean },
   ) => {
+    if (isExternalBoundConversation(conversation)) {
+      pushToast({ title: "Fork this Feishu chat to continue in Rudder", tone: "error" });
+      return false;
+    }
     if (!selectedOrganizationId) { pushToast({ title: "Select a organization first", tone: "error" });
       return false; } const body = (bodyOverride ?? readComposerDraft()).trim();
     if (!body) { pushToast({ title: "Message cannot be empty", tone: "error" });
@@ -586,6 +593,10 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
     try {
       if (!conversation && conversationId) { conversation = await chatsApi.get(conversationId); upsertConversation(conversation);
         upsertMessengerThreadSummary(conversation); }
+      if (isExternalBoundConversation(conversation)) {
+        pushToast({ title: "Fork this Feishu chat to continue in Rudder", tone: "error" });
+        return;
+      }
       if (!conversation) { if (!acquireNewConversationSendLock()) return; newConversationLockAcquired = true; const selectedDraftAgentId = draftPreferredAgentId === NO_CHAT_AGENT_ID ? null : draftPreferredAgentId;
         if (!selectedDraftAgentId) {
           pushToast({
@@ -1000,7 +1011,8 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
   const selectedConversationHasActiveReply = Boolean(selectedConversation && (activeStream || activeSendInFlight || queueQuery.data?.activeGenerationId));
   const canQueueDraft = Boolean(selectedConversationHasActiveReply && draft.trim().length > 0 && !newConversationSendInFlight);
   const sendButtonMode: SendButtonMode = newConversationSendInFlight || (activeSendInFlight && !activeStream) ? "sending" : canQueueDraft ? "queue" : activeSendInFlight ? "stop" : "send";
-  const sendButtonDisabled = composerUnavailable || sendButtonMode === "sending" || ((sendButtonMode === "send" || sendButtonMode === "queue") && draft.trim().length === 0);
+  const selectedConversationExternalBound = isExternalBoundConversation(selectedConversation);
+  const sendButtonDisabled = selectedConversationExternalBound || composerUnavailable || sendButtonMode === "sending" || ((sendButtonMode === "send" || sendButtonMode === "queue") && draft.trim().length === 0);
   const canStopSelectedConversationReply = Boolean(selectedConversation && (activeSendInFlight || queueQuery.data?.activeGenerationId));
   const composerStreaming = Boolean(activeStream) || activeSendInFlight || newConversationSendInFlight;
   useEffect(() => {
@@ -1160,7 +1172,33 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
       .catch((error) => {
         pushToast({ title: "Failed to delete queued message", body: error instanceof Error ? error.message : "Try again.", tone: "error" });
       });
-  }; const renderComposer = (centered: boolean) => (
+  }; const renderComposer = (centered: boolean) => {
+    if (selectedConversationExternalBound && selectedConversation) {
+      return (
+        <div ref={composerSurfaceRef} data-testid="chat-external-bound-readonly" className={cn(
+          "chat-composer rounded-[var(--radius-lg)] p-3 transition-all duration-300",
+          centered ? "mx-auto w-full max-w-3xl" : "w-full",
+        )} >
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-foreground">Feishu chat is read-only in Rudder</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">Fork it to continue in a normal Rudder chat.</div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              data-testid="chat-fork-to-continue"
+              disabled={forkConversationMutation.isPending}
+              onClick={() => forkConversationMutation.mutate({ chatId: selectedConversation.id })}
+            >
+              <GitFork className="mr-2 h-4 w-4" />
+              Fork to continue in Rudder
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return (
     <div ref={composerSurfaceRef} className={cn(
         "chat-composer rounded-[var(--radius-lg)] p-3 transition-all duration-300",
         composerStreaming && "chat-composer--streaming",
@@ -1350,6 +1388,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
               <div key={fileKey} data-testid="chat-pending-attachment" className="max-w-full" >
                 <PendingAttachmentPreview file={file} onOpenImage={setAttachmentPreview} onRemove={() => removePendingFile(fileKey)} /> </div> );
           })} </div> ) : null} {renderComposerContextMenu()} </div> );
+  };
   const renderEmptyStateUseCases = () => (
     <>
       <div className="flex max-w-3xl flex-wrap justify-center gap-2">
@@ -1429,32 +1468,36 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                       <GitFork className="h-4 w-4" />
                       Fork latest
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      disabled={selectedConversationGenerating}
-                      onClick={async () => {
-                        const confirmed = await confirm({
-                          title: "Delete chat",
-                          description: `Delete "${conversationDisplayTitle(selectedConversation)}"? This cannot be undone.`,
-                          confirmLabel: "Delete",
-                          tone: "destructive",
-                        });
-                        if (!confirmed) return;
-                        deleteConversationMutation.mutate(selectedConversation.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => updateConversationMutation.mutate({
-                        chatId: selectedConversation.id,
-                        data: { status: "archived" },
-                      })}
-                    >
-                      <Archive className="h-4 w-4" />
-                      Archive
-                    </DropdownMenuItem>
+                    {!selectedConversationExternalBound ? (
+                      <>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={selectedConversationGenerating}
+                          onClick={async () => {
+                            const confirmed = await confirm({
+                              title: "Delete chat",
+                              description: `Delete "${conversationDisplayTitle(selectedConversation)}"? This cannot be undone.`,
+                              confirmLabel: "Delete",
+                              tone: "destructive",
+                            });
+                            if (!confirmed) return;
+                            deleteConversationMutation.mutate(selectedConversation.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => updateConversationMutation.mutate({
+                            chatId: selectedConversation.id,
+                            data: { status: "archived" },
+                          })}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Archive
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1523,7 +1566,8 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                                   actionPending={
                                     approvalMutation.isPending
                                     || convertToIssueMutation.isPending
-                                    || operationProposalMutation.isPending }
+                                    || operationProposalMutation.isPending
+                                    || selectedConversationExternalBound }
                                   decisionNote={decisionNotesByMessageId[message.id] ?? ""} onDecisionNoteChange={(value) => setDecisionNoteForMessage(message.id, value)}
                                   decisionNoteMentions={mentionOptions}
                                   onDecisionNoteMentionQueryChange={setLibraryFileMentionQuery}
@@ -1533,11 +1577,11 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                                       chatId: selectedConversation.id,
                                       message: messageToConvert,
                                       proposalOverride: issueProposalOverridesByMessageId[messageToConvert.id], })
-                                  } onCopyMessageText={copyChatMessageText} onEditUserMessage={beginEditUserMessage} onContinueInterruptedMessage={() => {
+                                  } onCopyMessageText={copyChatMessageText} onEditUserMessage={selectedConversationExternalBound ? undefined : beginEditUserMessage} onContinueInterruptedMessage={selectedConversationExternalBound ? undefined : () => {
                                     void sendMessage({
                                       bodyOverride: INTERRUPTED_CHAT_CONTINUATION_PROMPT,
                                       filesOverride: [], conversationOverride: selectedConversation, });
-                                  }} onRetryFailedMessage={retryFailedMessage} onForkMessage={(messageToFork) => forkConversationMutation.mutate({
+                                  }} onRetryFailedMessage={selectedConversationExternalBound ? undefined : retryFailedMessage} onForkMessage={(messageToFork) => forkConversationMutation.mutate({
                                     chatId: selectedConversation.id,
                                     sourceMessageId: messageToFork.id,
                                   })} onOpenImage={setAttachmentPreview} onOpenFile={openLocalFile} onMarkdownLinkClick={handleChatMarkdownLinkClick}
@@ -1546,7 +1590,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                                   issueCreatedMessage={issueCreatedMessage}
                                   inlineEdit={inlineEditUserMessageId === message.id ? {
                                     draft: inlineEditDraft,
-                                    disabled: controlsDisabled || composerUnavailable,
+                                    disabled: controlsDisabled || composerUnavailable || selectedConversationExternalBound,
                                     mentions: mentionOptions,
                                     surfaceRef: inlineEditSurfaceRef,
                                     editorRef: inlineEditEditorRef,
@@ -1586,7 +1630,9 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
                       )} </div> </div>
                 {hasActionableApprovals || hasPendingLightweightProposal ? null : (
                   <div className="mx-auto w-full max-w-4xl shrink-0 space-y-4">
-                    {pendingAskUserMessage && pendingAskUserRequest ? (
+                    {selectedConversationExternalBound ? (
+                      renderComposer(false)
+                    ) : pendingAskUserMessage && pendingAskUserRequest ? (
                       <AskUserPanel
                         message={pendingAskUserMessage}
                         request={pendingAskUserRequest} disabled={controlsDisabled || composerUnavailable}

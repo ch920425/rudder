@@ -246,6 +246,8 @@ function chat(overrides: Partial<ChatConversation> = {}): ChatConversation {
     needsAttention: false,
     resolvedAt: null,
     contextLinks: [],
+    sourceMetadata: null,
+    mutability: "native_chat",
     chatRuntime: {
       sourceType: "agent",
       sourceLabel: "Wesley",
@@ -966,6 +968,91 @@ describe("Chat streaming controls", () => {
     expect(queueItem?.querySelector("button[aria-label='Edit queued message']")).toBeNull();
     expect(queueItem?.querySelector("button[aria-label='Delete queued message']")).toBeNull();
     expect(queueItem?.textContent).not.toContain("Steer");
+  });
+});
+
+describe("Feishu-backed chat controls", () => {
+  function feishuChat(overrides: Partial<ChatConversation> = {}) {
+    return chat({
+      mutability: "external_bound_chat",
+      sourceMetadata: {
+        source: "agent_integration",
+        provider: "feishu",
+        integrationId: "integration-1",
+        externalChatId: "oc_chat",
+        externalChatType: "p2p",
+      },
+      ...overrides,
+    });
+  }
+
+  it("shows a read-only fork CTA instead of sending Feishu quick commands", async () => {
+    mockState.conversations = [feishuChat()];
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "plain-user-message", body: "Message from Feishu" })],
+    };
+
+    const { container } = renderChat();
+
+    expect(container.querySelector("[data-testid='chat-external-bound-readonly']")).not.toBeNull();
+    expect(container.querySelector("textarea[aria-label='Composer draft']")).toBeNull();
+    expect(container.querySelector("[data-testid='feishu-quick-command']")).toBeNull();
+    const forkButton = container.querySelector<HTMLButtonElement>("[data-testid='chat-fork-to-continue']");
+    expect(forkButton).not.toBeNull();
+
+    await act(async () => {
+      forkButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockState.sendMessageStream).not.toHaveBeenCalled();
+    expect(mockState.mutations.at(-1)).toEqual({ chatId: "chat-1" });
+  });
+
+  it("allows normal composer controls in a native fork from Feishu", () => {
+    mockState.conversations = [
+      chat({
+        id: "chat-fork",
+        title: "Forked Feishu chat",
+        forkedFromConversationId: "chat-1",
+        forkRootConversationId: "chat-1",
+        mutability: "native_fork_from_external",
+      }),
+    ];
+    mockState.conversationId = "chat-fork";
+    mockState.messagesByChatId = {
+      "chat-fork": [message({ id: "fork-message", conversationId: "chat-fork", body: "Continue in Rudder" })],
+    };
+
+    const { container } = renderChat();
+
+    expect(container.querySelector("[data-testid='chat-external-bound-readonly']")).toBeNull();
+    expect(container.querySelector("textarea[aria-label='Composer draft']")).not.toBeNull();
+  });
+
+  it("hides archive and delete actions for Feishu-backed chats", async () => {
+    mockState.conversations = [feishuChat()];
+    mockState.messagesByChatId = {
+      "chat-1": [message({ id: "plain-user-message", body: "Message from Feishu" })],
+    };
+
+    const { container } = renderChat();
+    const actionsTrigger = container.querySelector<HTMLButtonElement>('[data-testid="chat-actions-trigger"]');
+    expect(actionsTrigger).not.toBeNull();
+
+    await act(async () => {
+      actionsTrigger?.dispatchEvent(new MouseEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("Pin Chat");
+    expect(document.body.textContent).toContain("Fork latest");
+    expect(document.body.textContent).not.toContain("Delete");
+    expect(document.body.textContent).not.toContain("Archive");
   });
 });
 

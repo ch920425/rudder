@@ -207,6 +207,12 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return firstNewUserMessage?.id === userMessage.id;
   }
 
+  function assertChatLocalMutationAllowed(conversation: ChatConversation) {
+    if (conversation.mutability === "external_bound_chat") {
+      throw conflict("Fork this Feishu chat to continue in Rudder");
+    }
+  }
+
   function buildChatTitlePromptFromMessages(messages: ChatMessage[]) {
     const source = messages
       .filter((message) => message.role === "user" || message.role === "assistant")
@@ -556,6 +562,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     actor: ActorInfo,
     editUserMessageId?: string | null,
   ) {
+    assertChatLocalMutationAllowed(conversation);
     const userMessage = await svc.addUserChatMessage(
       conversation.id,
       conversation.orgId,
@@ -588,6 +595,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     body: string,
     actor: ActorInfo,
   ) {
+    assertChatLocalMutationAllowed(conversation);
     if (!actor.agentId) {
       throw forbidden("Agent authentication required");
     }
@@ -627,6 +635,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     files: Array<{ mimetype: string; buffer: Buffer; originalname: string }>,
     actor: ActorInfo,
   ): Promise<ChatAttachment[]> {
+    assertChatLocalMutationAllowed(conversation);
     const attachments: ChatAttachment[] = [];
     for (const file of files) {
       const contentType = (file.mimetype || "").toLowerCase();
@@ -1334,6 +1343,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(existing as ChatConversation);
     if (req.body.primaryIssueId) {
       const issue = await issuesSvc.getById(req.body.primaryIssueId);
       if (!issue || issue.orgId !== existing.orgId) {
@@ -1355,7 +1365,6 @@ export function chatRoutes(db: Db, storage: StorageService) {
         return;
       }
     }
-
     const updated = await svc.update(existing.id, {
       ...req.body,
       resolvedAt: req.body.resolvedAt ? new Date(req.body.resolvedAt) : req.body.resolvedAt,
@@ -1382,6 +1391,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(existing as ChatConversation);
 
     const messages = await svc.listMessages(existing.id, { includeTranscript: false });
     const prompt = buildChatTitlePromptFromMessages(messages as ChatMessage[]);
@@ -1463,6 +1473,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(existing as ChatConversation);
     if (hasActiveChatGeneration(existing.id)) {
       if (req.query.cancelActive === "true") {
         cancelAndReleaseActiveChatGeneration(existing.id);
@@ -1470,7 +1481,6 @@ export function chatRoutes(db: Db, storage: StorageService) {
         throw conflict("Cannot delete a chat while a reply is in progress");
       }
     }
-
     const attachments = await svc.listAttachmentsForConversation(existing.id);
     const deleted = await svc.remove(existing.id);
     if (!deleted) {
@@ -1520,6 +1530,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     const item = await svc.createQueuedMessage({
       orgId: conversation.orgId,
       conversationId: conversation.id,
@@ -1551,6 +1562,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     if (hasActiveChatGeneration(conversation.id)) {
       throw conflict("Cannot dequeue the next message while a reply is in progress");
     }
@@ -1585,6 +1597,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     const item = await svc.releaseQueuedMessageClaim({
       conversationId: conversation.id,
       itemId: req.params.itemId as string,
@@ -1599,6 +1612,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     const item = await svc.updateQueuedMessage({
       conversationId: conversation.id,
       itemId: req.params.itemId as string,
@@ -1614,6 +1628,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     const parsed = cancelChatQueuedMessageSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid queued message cancel request", details: parsed.error.issues });
@@ -1633,6 +1648,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     const active = getActiveChatGeneration(conversation.id);
     const expected = req.body.expectedActiveGenerationId ?? null;
     const result = !active?.generationId
@@ -1662,7 +1678,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
-    if (!hasActiveChatGeneration(conversation.id)) {
+    if (conversation.mutability !== "external_bound_chat" && !hasActiveChatGeneration(conversation.id)) {
       await svc.markInterruptedStreamingMessages(conversation.id);
     }
     const includeTranscript = req.query.includeTranscript === "true";
@@ -1696,6 +1712,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     }
 
     const actor = getActorInfo(req);
+    assertChatLocalMutationAllowed(conversation as ChatConversation);
     if (actor.actorType === "agent") {
       if (req.body.editUserMessageId) {
         res.status(422).json({ error: "Agent-authored chat messages cannot edit operator messages" });
@@ -1972,6 +1989,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
     operatorProfiles,
     heartbeat,
     assertConversationAccess,
+    assertChatLocalMutationAllowed,
     boardUserId,
     assertCanAssignTasks,
     runSingleFileUpload,
