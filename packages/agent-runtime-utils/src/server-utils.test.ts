@@ -448,7 +448,7 @@ describe("loadAgentInstructionsPrefix", () => {
 
       expect(loaded.prefix).toContain("# Rudder Agent Operating Contract");
       expect(loaded.prefix).toContain("# Agent Instructions");
-      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/AGENTS.md.");
+      expect(loaded.prefix).toContain("The above AGENTS.md instruction file was loaded from $AGENT_HOME/instructions.");
       expect(loaded.prefix).toContain("relative file references from $AGENT_HOME/instructions/");
       expect(loaded.prefix).not.toContain("Tacit Memory");
       expect(loaded.commandNotes).toEqual([
@@ -497,7 +497,7 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).toContain("# Tacit Memory");
       expect(loaded.prefix).not.toContain("# Heartbeat");
       expect(loaded.prefix.indexOf("# Tacit Memory")).toBeLessThan(loaded.prefix.indexOf("## Current Time"));
-      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/AGENTS.md, $AGENT_HOME/instructions/SOUL.md, $AGENT_HOME/instructions/TOOLS.md, and $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix).toContain("The above AGENTS.md, SOUL.md, TOOLS.md, MEMORY.md instruction files were loaded from $AGENT_HOME/instructions.");
       expect(loaded.prefix.match(/Resolve any relative file references from \$AGENT_HOME\/instructions\/\./g)).toHaveLength(1);
       expect(loaded.prefix).toMatch(/## Current Time\n\nInstruction load time: 2026-06-15T23:45:00\.000Z\.[\s\S]*fresher timestamp\.$/);
       expect(loaded.commandNotes).toContain("Loaded agent instructions from $AGENT_HOME/instructions/AGENTS.md");
@@ -563,7 +563,7 @@ describe("loadAgentInstructionsPrefix", () => {
       expect(loaded.prefix).not.toContain("The above SOUL.md content was loaded");
       expect(loaded.prefix).not.toContain("The above TOOLS.md content was loaded");
       expect(loaded.prefix).not.toContain("The above MEMORY.md content was loaded");
-      expect(loaded.prefix).toContain("The above instruction files were loaded from $AGENT_HOME/instructions/SOUL.md, $AGENT_HOME/instructions/TOOLS.md, and $AGENT_HOME/instructions/MEMORY.md.");
+      expect(loaded.prefix).toContain("The above SOUL.md, TOOLS.md, MEMORY.md instruction files were loaded from $AGENT_HOME/instructions.");
       expect(loaded.prefix.match(/Resolve any relative file references from \$AGENT_HOME\/instructions\/\./g)).toHaveLength(1);
     } finally {
       await fs.rm(root, { recursive: true, force: true });

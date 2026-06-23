@@ -108,10 +108,15 @@ function instructionFileSection(input: {
   return input.contents.trimEnd();
 }
 
-function formatList(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+function formatInstructionFileNames(displayFilePaths: string[]): string {
+  return displayFilePaths.map((filePath) => {
+    const lastSlash = filePath.lastIndexOf("/");
+    return lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
+  }).join(", ");
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
 }
 
 function instructionFilesFooter(input: {
@@ -120,8 +125,9 @@ function instructionFilesFooter(input: {
 }) {
   if (input.displayFilePaths.length === 0) return "";
 
+  const fileLabel = input.displayFilePaths.length === 1 ? "file was" : "files were";
   return [
-    `The above instruction files were loaded from ${formatList(input.displayFilePaths)}.`,
+    `The above ${formatInstructionFileNames(input.displayFilePaths)} instruction ${fileLabel} loaded from ${trimTrailingSlash(input.displayFileDir)}.`,
     `Resolve any relative file references from ${input.displayFileDir}.`,
   ].join("\n");
 }
