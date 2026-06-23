@@ -26,7 +26,7 @@ export {
   type StorageProvider, type WakeupRequestStatus, type WakeupTriggerDetail
 } from "./constants.js";
 
-export { toAgentRun, toAgentRuns } from "./agent-run.js";
+export { resolveAgentRunScene, toAgentRun, toAgentRuns } from "./agent-run.js";
 export { EXECUTION_OBSERVABILITY_SURFACES } from "./types/observability.js";
 export {
   WORKSPACE_BACKUP_DEFAULT_INTERVAL_HOURS,

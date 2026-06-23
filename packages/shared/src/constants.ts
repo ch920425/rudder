@@ -36,7 +36,6 @@ export const AGENT_RUN_SCENES = [
   "chat",
   "automation",
   "review",
-  "manual",
   "heartbeat",
 ] as const;
 export type AgentRunScene = (typeof AGENT_RUN_SCENES)[number];
