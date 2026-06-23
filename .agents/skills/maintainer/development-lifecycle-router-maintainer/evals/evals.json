@@ -284,6 +284,22 @@
       ]
     },
     {
+      "id": 32,
+      "prompt": "writer 已经实现，reviewer 也看过 diff 说没问题，CI 也过了。这个功能需求是列表按更新时间倒序，不是创建时间。按 lifecycle-router 继续走最后验收。",
+      "expected_output": "Routes to verification before final handoff and uses product-acceptance-verifier-maintainer as a distinct black-box acceptance gate. It checks the running UI or API with records where created and updated order differ, treats reviewer approval and CI as supporting evidence only, and blocks handoff on FAIL or QUESTION.",
+      "files": [
+        ".agents/skills/maintainer/product-acceptance-verifier-maintainer/SKILL.md",
+        ".agents/skills/maintainer/development-lifecycle-router-maintainer/SKILL.md"
+      ],
+      "expectations": [
+        "The result does not treat code review, CI, or author self-check as final product acceptance.",
+        "The result invokes or routes to product-acceptance-verifier-maintainer for black-box verification.",
+        "The result names the acceptance target: actor, trigger, expected effect, and terminal surface.",
+        "The result requires product evidence where created-time and updated-time ordering can be distinguished.",
+        "The result returns to implementation on verifier FAIL and stops for clarification on verifier QUESTION instead of asking reviewers to approve around it."
+      ]
+    },
+    {
       "id": 7,
       "prompt": "organization-portability 这个文件太大了，一口气做完架构优化，但可以分批 commit，不要一下子来一个很大的 commit。",
       "expected_output": "Routes the long refactor through phased implementation, creates a visible phase checklist, commits coherent phases separately when safe, keeps checkpoint evidence after each phase, and requires spawned reviewers before each phase handoff or final completion.",

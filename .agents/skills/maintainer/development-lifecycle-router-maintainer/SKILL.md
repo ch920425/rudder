@@ -3,13 +3,13 @@ name: development-lifecycle-router-maintainer
 description: >
   Route Rudder development work when a request is ambiguous or spans lifecycle
   stages: requirements, advisor/product analysis, UI design, implementation,
-  verification, review, commit/push, and handoff. Use for stage selection,
-  reviewer gates, aborted-run recovery, component-lab work, scoped performance
-  optimization, skill-improvement routing, and risky dirty-worktree cleanup.
-  Keep thin: if the prompt clearly names release, UI polish, run/debug, local
-  preview, data path, Desktop recovery, PR preview, mock data, review-only
-  work, or direct skill optimization, use the narrower maintainer or meta-skill
-  directly.
+  black-box acceptance verification, review, commit/push, and handoff. Use for
+  stage selection, verifier/reviewer gates, aborted-run recovery, component-lab
+  work, scoped performance optimization, skill-improvement routing, and risky
+  dirty-worktree cleanup. Keep thin: if the prompt clearly names release, UI
+  polish, run/debug, local preview, data path, Desktop recovery, PR preview,
+  mock data, review-only work, acceptance-only work, or direct skill
+  optimization, use the narrower maintainer or meta-skill directly.
 ---
 
 # Development Lifecycle Router Maintainer
@@ -164,6 +164,14 @@ right surface shows the result, and the next actor can trust what happened.
 When those terminal effects are cheap to exercise, they are required evidence,
 not optional polish.
 
+Separate verification from review. Verification is black-box acceptance from
+the requirement side: run the product path and decide whether the delivered
+behavior meets the user's acceptance criteria. Review is white-box or
+evidence-aware judgment of the diff, architecture, scope, tests, handoff, and
+verifier evidence. A reviewer gate can challenge acceptance evidence, but it
+does not replace a verifier gate for workflow, UI, Desktop, release, runtime,
+CLI, or regression work where the final product path is cheap to exercise.
+
 Default to review with real spawned reviewers. Do not use self-review or a
 serial two-role simulation as a substitute for the reviewer gate; those modes
 overfit to the author's own reasoning and cannot close a routed stage as
@@ -199,7 +207,7 @@ Classify the prompt into one primary stage:
   or screenshot-based product/design judgment before code.
 - `implementation`: user approved a direction or directly asks to fix/build.
 - `verification`: user asks whether tests, CI, E2E, screenshot, Desktop smoke,
-  actor-run-chain, or release checks prove the work.
+  actor-run-chain, release checks, or black-box acceptance prove the work.
 - `review`: user asks for review, PM judgment, first-principles critique, or a
   Codex/session/PR/commit verdict.
 - `debug`: user asks why a run, UI path, data path, CI job, Desktop app, or
@@ -373,8 +381,9 @@ concrete artifact:
 - advisor: diagnosis, options, recommendation, decision boundary
 - UI design: wireframe, screenshot criteria, or approved direction
 - implementation: scoped diff, tests, docs or contract updates as needed
-- verification: passing checks, terminal product proof, screenshots, logs, or
-  explicit blockers
+- verification: `product-acceptance-verifier-maintainer` result when acceptance
+  is required, plus passing checks, terminal product proof, screenshots, logs,
+  or explicit blockers
 - review: verdict, blocking gaps, smallest fixes, residual risk
 - release: locked source ref, live publish/asset/dist-tag evidence
 - handoff: files, validation, commit/push state, unverified items
@@ -481,6 +490,15 @@ For any change that affects a user-visible, agent-visible, Desktop, release, or
 control-plane workflow, identify the terminal product surface before calling
 verification complete.
 
+Default to `product-acceptance-verifier-maintainer` for this stage after the
+writer has produced an implementation artifact and basic checks. The verifier
+is a separate role from the reviewer: it may run commands, start local services,
+use Browser or Computer Use, query API/DB state, and create disposable dev data,
+but it must not edit files, stage changes, commit, push, or fix failures during
+the acceptance pass. If a separate verifier pass is unavailable, record
+`blocked: verifier unavailable` or ask the user to lower the acceptance bar; do
+not silently collapse acceptance into author self-check.
+
 Start from the work loop, not from the implementation layer:
 
 - actor: board operator, reviewer, assignee agent, runtime agent, CLI user,
@@ -538,6 +556,24 @@ dev app for Desktop shell capture`; do not present it as full Desktop proof.
 
 Missing terminal product proof blocks handoff for workflow changes unless the
 user explicitly lowers the acceptance bar for this turn.
+
+### 3.5.1 Reconcile verifier gates
+
+Before moving from verification to review or handoff, reconcile the verifier
+result:
+
+- `PASS`: acceptance criteria are met with observed product evidence; carry the
+  evidence packet into reviewer and final handoff.
+- `FAIL`: stop the lifecycle and return to writer implementation with the
+  verifier's reproduction steps, expected behavior, actual behavior, and
+  evidence. Do not ask reviewers to approve around a failing acceptance path.
+- `QUESTION`: stop for human/product clarification unless a current product
+  contract under `doc/product/**` resolves the ambiguity.
+
+The reviewer phase follows a verifier `PASS`; it does not convert a verifier
+`FAIL` into acceptance. If the reviewer finds the verifier evidence weak,
+return to verification with the missing scenario rather than calling the work
+done from code review.
 
 ### 3.6 Prove runtime/provider contracts with a matrix
 
@@ -652,6 +688,11 @@ parent must verify that reviewer outputs distinguish author-claimed validation
 from reviewer-verified terminal product proof. If all reviewers only repeat the
 implementer's claimed tests, screenshots, or dev-server evidence, the review
 gate is not strong enough to close final handoff.
+
+For the same classes of changes, the parent must also verify that a distinct
+black-box verifier pass either produced `PASS` evidence or was explicitly
+blocked/substituted. Spawned reviewer approval is not a substitute for a missing
+verifier result when acceptance verification was required.
 
 Before recording `blocked: spawned reviewers unavailable`, perform an explicit
 spawn availability probe. Absence of a visible spawn tool in the first tool list,
@@ -836,13 +877,13 @@ fallback mode without claiming spawned reviewer coverage.
 
 Before handoff, include a compact evidence ledger:
 
-- Required: the checks or artifacts this route requires, including spawned
-  reviewer verdicts
+- Required: the checks or artifacts this route requires, including verifier
+  result and spawned reviewer verdicts
 - Scenario: the actor, trigger, system effect, and terminal surface the work was
   supposed to prove
 - Proven: commands, screenshots, browser/Desktop checks, live release evidence,
-  actor-run-chain results, readbacks, mutation ledger entries, or reviewer
-  outputs that actually ran
+  actor-run-chain results, readbacks, mutation ledger entries, verifier result,
+  or reviewer outputs that actually ran
 - Missing or substituted: anything not proven, why it is missing, and whether it
   blocks completion
 

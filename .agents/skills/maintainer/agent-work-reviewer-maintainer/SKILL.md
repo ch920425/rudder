@@ -13,6 +13,12 @@ The core question is:
 > Did the agent solve the right product problem, with the right object model,
 > complete behavior, credible validation, and a clean handoff?
 
+Reviewer is not the same role as verifier. Reviewer may inspect the running
+product when that is needed for judgment, but its durable responsibility is to
+judge the diff, architecture, scope, test strategy, handoff safety, and the
+credibility of acceptance evidence. For black-box acceptance of final product
+behavior, use `product-acceptance-verifier-maintainer`.
+
 Default to Chinese when the user asks in Chinese. Keep the verdict early and
 ground every judgment in evidence.
 
@@ -297,6 +303,14 @@ scenario verification is skipped or blocked, the verdict should normally be
 `conditional accept` or `needs more evidence`, and the missing interaction must
 be named.
 
+When the work is already in a routed lifecycle that requires acceptance
+verification, do not let reviewer scenario checks replace the verifier gate.
+The review should ask whether a distinct verifier result exists, whether it is
+`PASS`, `FAIL`, or `QUESTION`, and whether the verifier evidence actually
+matches the user's acceptance criteria. A reviewer can reject or qualify weak
+verifier evidence, but should not convert a missing or failing verifier pass
+into final acceptance.
+
 ### 5. Assemble The Review Packet
 
 Before writing the verdict, make the review packet explicit. It should include
@@ -311,6 +325,8 @@ the relevant subset:
 - evidence inspected: files, diffs, logs, screenshots, docs, plans, tests, CI,
   browser/Desktop state, release artifacts, or sub-reviewer notes
 - proof split: author-claimed proof versus reviewer-verified proof
+- verifier status: verifier result, evidence packet, and whether acceptance
+  proof was distinct from code review when required
 - validation status: what passed, what failed, what timed out, what was skipped,
   and what was only inferred
 - product proof status: actor, trigger, system effect, terminal surface, and any

@@ -117,6 +117,22 @@
         "The result separates implementation-slice confidence from final handoff readiness.",
         "The result names any missing real UI, workflow, or screenshot proof as a blocker or evidence gap."
       ]
+    },
+    {
+      "id": 10,
+      "prompt": "你是 spawned reviewer。writer 做完了，CI 过了，另一个 reviewer 说 diff 很干净，但 lifecycle 里还没有 verifier 的 PASS 结果。现在这个 UI workflow 可以 final accept 吗？",
+      "expected_output": "Refuses final accept when the routed workflow requires black-box acceptance verification but no distinct verifier PASS exists. It reviews diff/test confidence separately from acceptance proof, asks for product-acceptance-verifier-maintainer evidence, and treats reviewer approval as insufficient for final handoff.",
+      "files": [
+        ".agents/skills/maintainer/agent-work-reviewer-maintainer/SKILL.md",
+        ".agents/skills/maintainer/product-acceptance-verifier-maintainer/SKILL.md"
+      ],
+      "expectations": [
+        "The result distinguishes reviewer approval from verifier acceptance.",
+        "The result asks whether verifier status is PASS, FAIL, QUESTION, blocked, or missing.",
+        "The result does not convert CI, clean diff, screenshots, or reviewer scenario checks into a missing verifier PASS.",
+        "The result gives conditional accept or needs more evidence for final handoff when required acceptance proof is absent.",
+        "The result names the smallest next step: run the verifier on the actual product path or explicitly lower the acceptance bar."
+      ]
     }
   ]
 }
