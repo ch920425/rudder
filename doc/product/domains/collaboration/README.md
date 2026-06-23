@@ -41,6 +41,9 @@ edit_policy: user_confirmed_only
 
 - `CHAT.LIFECYCLE.001`: chat is an intake/lightweight run surface with durable
   messages and references.
+- `CHAT.TITLE.GENERATION.001`: chat titles use a first-user-message fallback
+  plus organization Fast Intelligence generation/regeneration without blocking
+  replies or overwriting explicit operator names.
 - `CHAT.RICH.REFERENCE.RENDERING.001`: markdown rich-reference tokens keep
   consistent labels, icon rhythm, baseline alignment, and truncation behavior
   across composers and read-only rendered markdown.

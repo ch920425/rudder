@@ -588,6 +588,30 @@ contracts:
       - tests/e2e/chat-rich-references.spec.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
+  CHAT.TITLE.GENERATION.001:
+    owner: product
+    domain: collaboration
+    spec_depth: logic_contract
+    docs:
+      - doc/product/domains/collaboration/chat-messenger-im.md
+    related_code:
+      - packages/db/src/schema/chat_conversations.ts
+      - server/src/routes/chats.ts
+      - server/src/services/chats.ts
+      - server/src/services/product-intelligence.ts
+      - server/src/services/organization-intelligence-profiles.ts
+      - ui/src/api/chats.ts
+      - ui/src/components/MessengerContextSidebar.tsx
+    related_tests:
+      - server/src/__tests__/chat-routes.test.ts
+      - server/src/__tests__/messenger-service.test.ts
+      - server/src/__tests__/product-intelligence.test.ts
+      - server/src/__tests__/organization-intelligence-profiles.test.ts
+      - ui/src/components/MessengerContextSidebar.actions.test.tsx
+      - tests/e2e/messenger-chat-title-regenerate.spec.ts
+    related_plans:
+      - doc/plans/2026-06-18-chat-title-defaults.md
+      - doc/plans/2026-05-22-organization-intelligence-profiles.md
   CHAT.FORK.001:
     owner: product
     domain: collaboration
