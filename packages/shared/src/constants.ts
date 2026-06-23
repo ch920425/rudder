@@ -260,6 +260,11 @@ export const MESSENGER_SYSTEM_THREAD_KINDS = [
 ] as const;
 export type MessengerSystemThreadKind = (typeof MESSENGER_SYSTEM_THREAD_KINDS)[number];
 
+export const MESSENGER_FORK_GROUP_DEFAULT_ICON = "🌿" as const;
+export const MESSENGER_CUSTOM_GROUP_EMOJI_ICONS = [
+  MESSENGER_FORK_GROUP_DEFAULT_ICON,
+] as const;
+
 export const GOAL_LEVELS = ["organization", "team", "agent", "task"] as const;
 export type GoalLevel = (typeof GOAL_LEVELS)[number];
 

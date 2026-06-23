@@ -164,14 +164,16 @@ export function ProjectIdentityPicker({
 
 export function ProjectIconGrid({
   icon,
+  selectedIcon,
   onIconChange,
   ariaLabel = "Project icons",
 }: {
   icon: string | null | undefined;
+  selectedIcon?: ProjectIconName | null;
   onIconChange: (icon: ProjectIconName) => void;
   ariaLabel?: string;
 }) {
-  const currentIcon = normalizeProjectIconName(icon);
+  const currentIcon = selectedIcon === null ? null : normalizeProjectIconName(selectedIcon ?? icon);
   return (
     <div className="grid grid-cols-6 gap-1.5" aria-label={ariaLabel}>
       {PROJECT_ICONS.map((candidate) => {

@@ -23,7 +23,7 @@ import {
   organizations,
   projects,
 } from "@rudderhq/db";
-import { deriveOrganizationUrlKey } from "@rudderhq/shared";
+import { deriveOrganizationUrlKey, MESSENGER_FORK_GROUP_DEFAULT_ICON } from "@rudderhq/shared";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -3354,6 +3354,49 @@ describe("messengerService and issue follows", () => {
     expect(summaries.find((item) => item.threadKey === `chat:${unpinnedConversation.id}`)?.isPinned).toBe(false);
   });
 
+  it("creates new fork family groups with the leaf icon", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-chat-fork-leaf-icon";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Chat Fork Leaf Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Chat Fork Leaf Org"),
+      issuePrefix: `L${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    const source = await chatSvc.create(orgId, {
+      title: "Leaf fork topic",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      createdByUserId: userId,
+    });
+    const answer = await chatSvc.addMessage(source.id, {
+      orgId,
+      role: "assistant",
+      kind: "message",
+      body: "Branch here",
+    });
+
+    const child = await chatSvc.forkConversation({
+      sourceConversationId: source.id,
+      orgId,
+      userId,
+      sourceMessageId: answer.id,
+      title: null,
+      createdByUserId: userId,
+    });
+
+    const groups = await messengerSvc.listCustomGroups(orgId, userId);
+    expect(groups.groups).toHaveLength(1);
+    expect(groups.groups[0]?.name).toBe("Leaf fork topic");
+    expect(groups.groups[0]?.icon).toBe(MESSENGER_FORK_GROUP_DEFAULT_ICON);
+    expect(groups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual([
+      `chat:${source.id}`,
+      `chat:${child.id}`,
+    ]);
+  });
+
   it("forks a chat from a middle message and keeps the fork family in one custom group", async () => {
     const orgId = randomUUID();
     const userId = "board-user-chat-fork";
@@ -3409,7 +3452,7 @@ describe("messengerService and issue follows", () => {
       body: "Later source-only turn",
     });
 
-    const manualGroup = await messengerSvc.createCustomGroup(orgId, userId, "Manual research group");
+    const manualGroup = await messengerSvc.createCustomGroup(orgId, userId, "Manual research group", "rocket::teal");
     await db.insert(messengerCustomGroupEntries).values({
       id: randomUUID(),
       orgId,
@@ -3458,6 +3501,7 @@ describe("messengerService and issue follows", () => {
     const groups = await messengerSvc.listCustomGroups(orgId, userId);
     expect(groups.groups).toHaveLength(1);
     expect(groups.groups[0]?.name).toBe("Manual research group");
+    expect(groups.groups[0]?.icon).toBe("rocket::teal");
     expect(groups.groups[0]?.entries.map((entry) => entry.threadKey)).toEqual([
       `chat:${source.id}`,
       `chat:${child.id}`,

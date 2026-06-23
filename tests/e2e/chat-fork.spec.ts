@@ -9,6 +9,7 @@ import {
   messengerCustomGroupEntries,
   messengerCustomGroups,
 } from "../../packages/db/src/index.ts";
+import { MESSENGER_FORK_GROUP_DEFAULT_ICON } from "../../packages/shared/src/index.ts";
 import { E2E_DATABASE_URL } from "./support/e2e-env";
 
 const e2eDb = createDb(E2E_DATABASE_URL);
@@ -147,6 +148,8 @@ test("forks a chat from a selected message and groups the fork family in Messeng
     .where(eq(messengerCustomGroups.orgId, organization.id));
   expect(groups).toHaveLength(1);
   expect(groups[0]?.name).toContain("Forkable strategy chat");
+  expect(groups[0]?.icon).toBe(MESSENGER_FORK_GROUP_DEFAULT_ICON);
+  await expect(page.getByTestId(`messenger-thread-section-custom-group-${groups[0]!.id}`)).toContainText(MESSENGER_FORK_GROUP_DEFAULT_ICON);
   const groupEntries = await e2eDb
     .select()
     .from(messengerCustomGroupEntries)

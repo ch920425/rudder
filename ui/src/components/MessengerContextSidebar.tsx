@@ -70,11 +70,12 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { buildChatMentionHref, DEFAULT_PROJECT_ICON, formatMessengerPreview, formatMessengerTitle, PROJECT_ICONS, type Agent, type ChatConversation, type MessengerCustomGroupsResponse, type MessengerCustomGroupWithEntries, type ProjectIconName } from "@rudderhq/shared";
+import { buildChatMentionHref, DEFAULT_PROJECT_ICON, formatMessengerPreview, formatMessengerTitle, MESSENGER_CUSTOM_GROUP_EMOJI_ICONS, PROJECT_ICONS, type Agent, type ChatConversation, type MessengerCustomGroupsResponse, type MessengerCustomGroupWithEntries, type ProjectIconName } from "@rudderhq/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Archive,
+  Check,
   ChevronDown,
   ChevronRight,
   CircleCheckBig,
@@ -598,6 +599,51 @@ function CustomGroupIcon({ icon }: { icon?: string | null }) {
   );
 }
 
+function CustomGroupIconPicker({
+  icon,
+  ariaLabel,
+  onIconChange,
+}: {
+  icon: string | null | undefined;
+  ariaLabel: string;
+  onIconChange: (icon: string) => void;
+}) {
+  const currentIcon = customGroupIconLabel(icon);
+  return (
+    <div className="space-y-1.5" aria-label={ariaLabel}>
+      <ProjectIconGrid
+        icon={customGroupProjectIconName(icon)}
+        selectedIcon={currentIcon && isProjectIconName(currentIcon) ? currentIcon : null}
+        ariaLabel={`${ariaLabel} project icons`}
+        onIconChange={onIconChange}
+      />
+      <div className="grid grid-cols-6 gap-1.5" aria-label={`${ariaLabel} emoji icons`}>
+        {MESSENGER_CUSTOM_GROUP_EMOJI_ICONS.map((candidate) => {
+          const selected = candidate === currentIcon;
+          return (
+            <button
+              key={candidate}
+              type="button"
+              className={cn(
+                "relative inline-flex h-9 w-9 items-center justify-center rounded-[calc(var(--radius-sm)-1px)] border text-[18px] leading-none outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                selected
+                  ? "border-[color:color-mix(in_oklab,var(--project-accent-color)_54%,var(--border-base))] bg-muted/55"
+                  : "border-border/70 bg-transparent",
+              )}
+              aria-label={`Select ${candidate} group emoji`}
+              aria-pressed={selected}
+              onClick={() => onIconChange(candidate)}
+            >
+              <span aria-hidden>{candidate}</span>
+              {selected ? <Check className="absolute h-2.5 w-2.5 translate-x-3 translate-y-3 text-[color:var(--project-accent-color)]" /> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CustomGroupEditor({
   name,
   icon,
@@ -643,9 +689,9 @@ function CustomGroupEditor({
         className="mt-1.5 rounded-[calc(var(--radius-sm)-1px)] border border-[color:color-mix(in_oklab,var(--border-soft)_74%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-page)_72%,transparent)] p-1.5"
         style={customGroupProjectColorCssVars(color)}
       >
-        <ProjectIconGrid
-          icon={customGroupProjectIconName(icon)}
-          ariaLabel="Group project icons"
+        <CustomGroupIconPicker
+          icon={icon}
+          ariaLabel="Group icons"
           onIconChange={onIconChange}
         />
       </div>
@@ -3544,9 +3590,9 @@ export function MessengerContextSidebar() {
                       sortOrder: customGroup.sortOrder,
                     }))}
                   >
-                    <ProjectIconGrid
-                      icon={customGroupProjectIconName(pendingCustomGroupIcons[customGroup.id] ?? customGroup.icon)}
-                      ariaLabel="Group project icons"
+                    <CustomGroupIconPicker
+                      icon={pendingCustomGroupIcons[customGroup.id] ?? customGroup.icon}
+                      ariaLabel="Group icons"
                       onIconChange={(option) => updateCustomGroupIcon(customGroup, option)}
                     />
                   </DropdownMenuSubContent>

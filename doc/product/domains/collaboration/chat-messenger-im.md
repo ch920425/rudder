@@ -373,11 +373,13 @@ Product model:
 - The fork records family lineage with `forkRootConversationId`; nested forks
   reuse the original root conversation.
 - Forking automatically ensures one Messenger custom group for the fork family.
-  The group contains the root/source family and its forks. Nested forks reuse
-  the same group instead of creating a new group per child. Because Messenger
-  custom group membership is unique per thread, if the root conversation is
-  already in a custom group for the operator, Rudder reuses that group as the
-  fork-family group and appends the forked conversations to it.
+  New fork-family groups use the default 🌿 icon. The group contains the
+  root/source family and its forks. Nested forks reuse the same group instead of
+  creating a new group per child. Because Messenger custom group membership is
+  unique per thread, if the root conversation is already in a custom group for
+  the operator, Rudder reuses that group as the fork-family group and appends
+  the forked conversations to it without overwriting that group's existing
+  icon.
 
 Flow:
 

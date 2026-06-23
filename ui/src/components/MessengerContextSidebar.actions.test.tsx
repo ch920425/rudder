@@ -1121,15 +1121,18 @@ describe("MessengerContextSidebar chat actions", () => {
     const editor = document.querySelector('[data-testid="messenger-custom-group-editor"]');
     expect(editor).toBeTruthy();
     const nameInput = editor?.querySelector<HTMLInputElement>('input[aria-label="Group name"]');
-    const projectIconPicker = editor?.querySelector('[aria-label="Group project icons"]');
+    const projectIconPicker = editor?.querySelector('[aria-label="Group icons project icons"]');
     const iconButtonLabels = Array.from(projectIconPicker?.querySelectorAll("button") ?? [])
       .map((button) => button.getAttribute("aria-label"))
       .filter((label): label is string => Boolean(label?.startsWith("Select ")));
     const iconButton = editor?.querySelector<HTMLButtonElement>('[aria-label="Select rocket project icon"]');
+    const leafEmojiButton = Array.from(editor?.querySelectorAll("button") ?? [])
+      .find((button) => button.textContent?.trim() === "🌿") as HTMLButtonElement | undefined;
     const submitButton = Array.from(editor?.querySelectorAll("button") ?? [])
       .find((button) => button.textContent === "Create") as HTMLButtonElement | undefined;
 
     expect(nameInput).toBeTruthy();
+    expect(leafEmojiButton).toBeTruthy();
     expect(iconButtonLabels.length).toBeGreaterThan(36);
     expect(iconButtonLabels).toContain("Select folder project icon");
     expect(iconButtonLabels).toContain("Select stethoscope project icon");
@@ -1160,7 +1163,7 @@ describe("MessengerContextSidebar chat actions", () => {
         orgId: "org-1",
         userId: "local-board",
         name: "Deep work",
-        icon: "😀::amber",
+        icon: "🌿::amber",
         sortOrder: 0,
         collapsed: false,
         pinnedAt: null,
@@ -1234,13 +1237,18 @@ describe("MessengerContextSidebar chat actions", () => {
     const changeIconTrigger = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "Change icon") as HTMLButtonElement | undefined;
     const iconButton = document.querySelector<HTMLButtonElement>('[aria-label="Select rocket project icon"]');
-    const projectIconPicker = document.querySelector('[aria-label="Group project icons"]');
+    const projectIconPicker = document.querySelector('[aria-label="Group icons project icons"]');
     const iconButtonLabels = Array.from(projectIconPicker?.querySelectorAll("button") ?? [])
       .map((button) => button.getAttribute("aria-label"))
       .filter((label): label is string => Boolean(label?.startsWith("Select ")));
+    const leafEmojiButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "🌿") as HTMLButtonElement | undefined;
 
     expect(changeIconTrigger).toBeTruthy();
     expect(iconButton).toBeTruthy();
+    expect(leafEmojiButton).toBeTruthy();
+    expect(leafEmojiButton?.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector<HTMLButtonElement>('[aria-label="Select folder project icon"]')?.getAttribute("aria-pressed")).toBe("false");
     expect(iconButtonLabels.length).toBeGreaterThan(36);
     expect(iconButtonLabels).toContain("Select folder project icon");
     expect(iconButtonLabels).toContain("Select stethoscope project icon");
@@ -1253,6 +1261,18 @@ describe("MessengerContextSidebar chat actions", () => {
 
     expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", {
       icon: "rocket::amber",
+    });
+
+    mockUpdateCustomGroup.mockClear();
+
+    await act(async () => {
+      leafEmojiButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", {
+      icon: "🌿::amber",
     });
 
     mockUpdateCustomGroup.mockClear();
@@ -1271,7 +1291,7 @@ describe("MessengerContextSidebar chat actions", () => {
     });
 
     expect(mockUpdateCustomGroup).toHaveBeenCalledWith("org-1", "group-1", {
-      icon: "rocket::teal",
+      icon: "🌿::teal",
     });
     expect(document.querySelector('[data-testid="messenger-custom-group-editor"]')).toBeNull();
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "groups"] });

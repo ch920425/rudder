@@ -14,7 +14,7 @@ import {
   messengerCustomGroups,
   organizations
 } from "@rudderhq/db";
-import { sanitizeChatStructuredPayload, type ChatQueuedMessagePayload, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
+import { MESSENGER_FORK_GROUP_DEFAULT_ICON, sanitizeChatStructuredPayload, type ChatQueuedMessagePayload, type ChatStreamTranscriptEntry } from "@rudderhq/shared";
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { conflict, notFound, unprocessable } from "../errors.js";
@@ -1220,7 +1220,7 @@ export function chatService(db: Db) {
         orgId,
         userId,
         name: name.trim() || "Forked conversation",
-        icon: "git-branch::blue",
+        icon: MESSENGER_FORK_GROUP_DEFAULT_ICON,
         sortOrder: (lastGroup?.sortOrder ?? -1) + 1,
         updatedAt: now,
       })
