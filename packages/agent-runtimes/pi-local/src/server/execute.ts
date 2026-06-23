@@ -45,6 +45,8 @@ const PI_PROTECTED_ENV_KEYS = new Set([
   "RUDDER_OPERATOR_HOME",
   "USERPROFILE",
 ]);
+const PI_AUTH_REQUIRED_RE =
+  /(?:auth(?:entication)?\s+required|api[-_\s]*key|invalid\s*api[-_\s]*key|x[-_\s]*api[-_\s]*key|not\s+logged\s+in|free\s+usage\s+exceeded|membership\s+benefits|membership\s+is\s+active)/i;
 
 function firstNonEmptyLine(text: string): string {
   return (
@@ -53,6 +55,10 @@ function firstNonEmptyLine(text: string): string {
       .map((line) => line.trim())
       .find(Boolean) ?? ""
   );
+}
+
+function isPiAuthRequiredEvidence(...parts: Array<string | null | undefined>): boolean {
+  return PI_AUTH_REQUIRED_RE.test(parts.filter(Boolean).join("\n"));
 }
 
 function truncateText(value: string, maxChars = MAX_PI_LOG_TEXT_CHARS): string {
@@ -788,12 +794,15 @@ export async function execute(ctx: AgentRuntimeExecutionContext): Promise<AgentR
     const parsedError = attempt.parsed.errors.find((message) => message.trim().length > 0)?.trim() ?? "";
     const fallbackErrorMessage = parsedError || stderrLine || `Pi exited with code ${rawExitCode ?? -1}`;
     const hasSemanticError = parsedError.length > 0;
+    const failed = (rawExitCode ?? 0) !== 0 || hasSemanticError;
+    const authRequired = failed && isPiAuthRequiredEvidence(parsedError, attempt.proc.stderr);
 
     return {
       exitCode: rawExitCode,
       signal: attempt.proc.signal,
       timedOut: false,
       errorMessage: (rawExitCode ?? 0) === 0 && !hasSemanticError ? null : fallbackErrorMessage,
+      errorCode: authRequired ? "pi_auth_required" : null,
       usage: {
         inputTokens: attempt.parsed.usage.inputTokens,
         outputTokens: attempt.parsed.usage.outputTokens,

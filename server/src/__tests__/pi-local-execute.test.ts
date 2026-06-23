@@ -106,6 +106,23 @@ if (process.env.RUDDER_TEST_PI_SEMANTIC_ERROR === "1") {
   emitJson({ type: "agent_end", messageCount: 2 });
   process.exit(0);
 }
+if (process.env.RUDDER_TEST_PI_NON_AUTH_ERROR_WITH_AUTH_WORDS === "1") {
+  emitJson({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() });
+  emitJson({ type: "agent_start" });
+  emitJson({ type: "turn_start" });
+  emitJson({
+    type: "turn_end",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "I can document API key rotation and membership benefits later." }],
+      stopReason: "error",
+      errorMessage: "model overloaded before completion",
+      usage: { input: 1, output: 0, cacheRead: 0, cost: { total: 0 } }
+    }
+  });
+  emitJson({ type: "agent_end", messageCount: 2 });
+  process.exit(0);
+}
 console.log(JSON.stringify({ type: "session", version: 3, id: "pi-session-1", timestamp: new Date().toISOString(), cwd: process.cwd() }));
 console.log(JSON.stringify({ type: "agent_start" }));
 console.log(JSON.stringify({ type: "turn_start" }));
@@ -434,8 +451,63 @@ describe("pi execute", { timeout: 20_000 }, () => {
       });
 
       expect(result.exitCode).toBe(0);
+      expect(result.errorCode).toBe("pi_auth_required");
       expect(result.errorMessage).toBe("402 membership benefits unavailable");
       expect(result.summary).toBe("");
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousOperatorHome === undefined) delete process.env.RUDDER_OPERATOR_HOME;
+      else process.env.RUDDER_OPERATOR_HOME = previousOperatorHome;
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not classify non-auth Pi semantic failures from ordinary stdout text", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rudder-pi-execute-non-auth-error-"));
+    const workspace = path.join(root, "workspace");
+    const commandPath = path.join(root, "pi");
+    await fs.mkdir(workspace, { recursive: true });
+    await writeFakePiCommand(commandPath);
+
+    const previousHome = process.env.HOME;
+    const previousOperatorHome = process.env.RUDDER_OPERATOR_HOME;
+    process.env.HOME = root;
+    process.env.RUDDER_OPERATOR_HOME = root;
+    try {
+      const result = await execute({
+        runId: "run-pi-non-auth-error",
+        agent: {
+          id: "agent-1",
+          orgId: "organization-1",
+          name: "Pi Agent",
+          agentRuntimeType: "pi",
+          agentRuntimeConfig: {},
+        },
+        runtime: {
+          sessionId: null,
+          sessionParams: null,
+          sessionDisplayId: null,
+          taskKey: null,
+        },
+        config: {
+          command: commandPath,
+          cwd: workspace,
+          model: "openai/gpt-test",
+          env: {
+            ...clearInheritedGitIdentityEnv,
+            RUDDER_TEST_PI_NON_AUTH_ERROR_WITH_AUTH_WORDS: "1",
+          },
+          promptTemplate: "Follow the rudder heartbeat.",
+        },
+        context: {},
+        authToken: "run-jwt-token",
+        onLog: async () => {},
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.errorCode).toBeNull();
+      expect(result.errorMessage).toBe("model overloaded before completion");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
