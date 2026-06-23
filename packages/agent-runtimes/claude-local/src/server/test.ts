@@ -62,6 +62,11 @@ const CLAUDE_PROTECTED_ENV_KEYS = new Set([
   "USERPROFILE",
 ]);
 const CLAUDE_SETTINGS_AUTH_ENV_PREFIXES = ["ANTHROPIC_", "DEEPSEEK_"] as const;
+const SHARED_CLAUDE_HOME_ENTRIES = [
+  ".config/claude",
+  ".config/anthropic",
+  ".anthropic",
+] as const;
 
 function nonEmpty(value: string | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -83,6 +88,30 @@ async function readJsonObject(filePath: string): Promise<Record<string, unknown>
   } catch {
     return null;
   }
+}
+
+async function pathExists(candidate: string): Promise<boolean> {
+  return fs.access(candidate).then(() => true).catch(() => false);
+}
+
+async function ensureParentDir(target: string) {
+  await fs.mkdir(path.dirname(target), { recursive: true });
+}
+
+async function ensureSymlink(target: string, source: string) {
+  const existing = await fs.lstat(target).catch(() => null);
+  if (!existing) {
+    await ensureParentDir(target);
+    await fs.symlink(source, target);
+    return;
+  }
+  if (!existing.isSymbolicLink()) return;
+
+  const linkedPath = await fs.readlink(target).catch(() => null);
+  const resolvedLinkedPath = linkedPath ? path.resolve(path.dirname(target), linkedPath) : null;
+  if (resolvedLinkedPath === source) return;
+  await fs.unlink(target);
+  await fs.symlink(source, target);
 }
 
 async function writeSanitizedClaudeSettings(sourceHome: string, targetHome: string): Promise<string> {
@@ -115,6 +144,11 @@ async function prepareManagedClaudeProbeHome(
   await fs.rm(path.join(home, ".claude.json"), { force: true });
   await fs.mkdir(path.join(configDir, "skills"), { recursive: true });
   const settingsPath = await writeSanitizedClaudeSettings(operatorHome, home);
+  for (const relativeEntry of SHARED_CLAUDE_HOME_ENTRIES) {
+    const source = path.join(operatorHome, relativeEntry);
+    if (!(await pathExists(source))) continue;
+    await ensureSymlink(path.join(home, relativeEntry), source);
+  }
   await syncLocalCliCredentialHomeEntries({
     sourceHome: operatorHome,
     targetHome: home,

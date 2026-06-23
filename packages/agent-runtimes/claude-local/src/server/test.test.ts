@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -117,6 +117,7 @@ describe("claude hello probe classification", () => {
     const command = path.join(tempDir, "claude");
     const capturePath = path.join(tempDir, "capture.json");
     const hostClaudeDir = path.join(tempDir, ".claude");
+    const hostAnthropicDir = path.join(tempDir, ".anthropic");
     await writeFile(
       command,
       [
@@ -138,6 +139,7 @@ describe("claude hello probe classification", () => {
     );
     await chmod(command, 0o755);
     await mkdir(hostClaudeDir, { recursive: true });
+    await mkdir(hostAnthropicDir, { recursive: true });
     await writeFile(path.join(hostClaudeDir, "settings.json"), "{}", "utf8");
     process.env.PATH = `${tempDir}${path.delimiter}${originalPath ?? ""}`;
     const previousHome = process.env.HOME;
@@ -177,6 +179,7 @@ describe("claude hello probe classification", () => {
       expect(capture.argv[capture.argv.indexOf("--settings") + 1]).toBe(path.join(managedHome, ".claude", "settings.json"));
       expect(capture.argv[capture.argv.indexOf("--setting-sources") + 1]).toBe("user");
       expect(capture.argv).toContain("--strict-mcp-config");
+      await expect(lstat(path.join(managedHome, ".anthropic")).then((stat) => stat.isSymbolicLink())).resolves.toBe(true);
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
