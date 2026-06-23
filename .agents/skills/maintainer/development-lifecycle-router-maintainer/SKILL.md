@@ -17,8 +17,9 @@ description: >
 This skill is the routing layer for Rudder development work. It decides which
 stage the user is entering, selects the right downstream skill or normal coding
 workflow, defines the stage exit criteria, and adds review gates when needed.
-By default, every routed development stage should end with a review gate before
-handoff or before moving to the next consequential stage.
+By default, consequential routed artifacts should receive reviewer scrutiny, but
+implementation handoff follows the sandwich order: writer checks first, optional
+lightweight pre-review, verifier acceptance, then final reviewer gate.
 
 It should stay thin. Do not copy the full logic of advisor, reviewer, UI,
 release, debug, or preview skills into this file. Route to those skills and
@@ -171,6 +172,24 @@ evidence-aware judgment of the diff, architecture, scope, tests, handoff, and
 verifier evidence. A reviewer gate can challenge acceptance evidence, but it
 does not replace a verifier gate for workflow, UI, Desktop, release, runtime,
 CLI, or regression work where the final product path is cheap to exercise.
+
+For implementation workflows, the normal order is:
+
+```text
+writer implementation
+-> writer basic checks
+-> optional lightweight pre-review
+-> verifier black-box acceptance
+-> final spawned reviewer gate
+-> handoff / commit / push
+```
+
+Use optional lightweight pre-review only to avoid wasting verifier time on
+obvious diff, startup, safety, scope, or test-readiness problems. It is not the
+final reviewer gate. The final reviewer gate happens after verifier `PASS` so
+reviewers can inspect the implementation, tests, handoff, and verifier evidence
+as one acceptance packet. If verifier returns `FAIL` or `QUESTION`, return to
+implementation or clarification before final review.
 
 Default to review with real spawned reviewers. Do not use self-review or a
 serial two-role simulation as a substitute for the reviewer gate; those modes
@@ -354,7 +373,8 @@ Before implementation, say:
 - lifecycle stage now
 - downstream skill or normal coding workflow selected
 - acceptance bar for the current stage
-- review gate plan, with `spawned reviewers` as the required mode
+- verification and review gate plan, including whether a lightweight
+  pre-review is useful and that final review follows verifier `PASS`
 
 Keep this concise. For a small bug, one sentence is enough.
 
@@ -608,10 +628,12 @@ For skill-usage analytics specifically, verify both sides:
 
 ### 4. Run default review gates
 
-Use review gates by default for every routed stage that produces an artifact,
-decision, diff, validation bundle, or handoff. This includes narrow bug fixes:
-implement first, collect verification evidence, then review the actual diff and
-evidence before final handoff.
+Use review gates by default for routed stage artifacts that affect consequential
+decisions, implementation diffs, validation bundles, or handoff. This includes
+narrow bug fixes: implement first, run writer checks, optionally run a
+lightweight pre-review if it can cheaply catch obvious diff/safety/scope
+problems, then collect verifier acceptance evidence, then run final review on
+the actual diff and evidence before handoff.
 
 The reviewer gate is not only a functionality check. Its job is to expand the
 author's field of view. A valid gate must preserve distinct reviewer lenses so
@@ -648,12 +670,16 @@ Escalate the review depth when:
 - the user complains that a prior review missed risks, lacked first-principles
   thinking, or failed to provide a new perspective
 
-Skip or defer the review gate only when:
+Skip or defer the final review gate only when:
 
 - the user explicitly changes this spawned-reviewer policy for the current turn
 - the work is a truly mechanical no-code operation such as a quick status check,
   with no routed artifact, diff, validation bundle, or handoff to judge
 - the stage has no artifact yet; create the artifact first, then review it
+
+Do not treat pre-review as the final gate. A pre-review verdict can block work
+before verifier if it finds obvious defects, but it cannot close final handoff
+because it has not seen verifier evidence yet.
 
 Review-only requests are not an exemption from independent review. Route them to
 the reviewer skill, produce the review artifact, then use spawned reviewers to
@@ -693,6 +719,10 @@ For the same classes of changes, the parent must also verify that a distinct
 black-box verifier pass either produced `PASS` evidence or was explicitly
 blocked/substituted. Spawned reviewer approval is not a substitute for a missing
 verifier result when acceptance verification was required.
+
+Final reviewers should receive the verifier packet. If final review happens
+before verifier `PASS`, the final review is premature; keep it as pre-review or
+rerun final review after acceptance evidence exists.
 
 Before recording `blocked: spawned reviewers unavailable`, perform an explicit
 spawn availability probe. Absence of a visible spawn tool in the first tool list,
@@ -955,15 +985,18 @@ Do not hand off as complete when any of these are true:
 Route: `implementation -> verification -> review -> handoff`.
 
 Use the UI or Desktop-specific workflow needed for the bug. Review after the
-diff and tests exist. Do not run a full advisor loop unless the bug reveals an
-unclear product decision.
+diff, writer checks, and verifier evidence exist. Use lightweight pre-review
+only if it can cheaply catch obvious diff/scope/startup problems before
+verifier. Do not run a full advisor loop unless the bug reveals an unclear
+product decision.
 
 ### Small UI bug without explicit review request
 
 Route: `implementation -> verification -> review -> handoff`.
 
 Default review still applies. Keep the review lightweight when the bug is
-narrow, but the gate still requires spawned reviewers before handoff.
+narrow, but final review still follows verifier `PASS` and requires spawned
+reviewers before handoff.
 
 ### Visible workflow change in a hotspot file
 

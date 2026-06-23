@@ -300,6 +300,22 @@
       ]
     },
     {
+      "id": 33,
+      "prompt": "我认同 sandwich 顺序：writer basic checks -> optional lightweight reviewer -> verifier -> final reviewer。优化 development-lifecycle-router-maintainer，避免以后把正式 review 放在 verifier 前面。",
+      "expected_output": "Classifies the turn as skill_optimization and patches development-lifecycle-router-maintainer so implementation workflows use the sandwich order: writer basic checks, optional lightweight pre-review only for obvious diff/safety/scope issues, black-box verifier, then final spawned reviewer review of the diff plus verifier evidence before handoff. It must not make pre-review a required final gate or allow final review before verifier PASS.",
+      "files": [
+        ".agents/skills/maintainer/development-lifecycle-router-maintainer/SKILL.md",
+        ".agents/skills/maintainer/development-lifecycle-router-maintainer/evals/evals.json"
+      ],
+      "expectations": [
+        "The result treats the newest turn as skill optimization, not a product implementation task.",
+        "The router states the normal implementation order as writer basic checks -> optional lightweight pre-review -> verifier -> final reviewer -> handoff.",
+        "The router distinguishes optional pre-review from final spawned reviewer gate.",
+        "The router requires final review to happen after verifier PASS so reviewers can inspect verifier evidence.",
+        "The router does not let a pre-review or clean diff substitute for black-box acceptance verification."
+      ]
+    },
+    {
       "id": 7,
       "prompt": "organization-portability 这个文件太大了，一口气做完架构优化，但可以分批 commit，不要一下子来一个很大的 commit。",
       "expected_output": "Routes the long refactor through phased implementation, creates a visible phase checklist, commits coherent phases separately when safe, keeps checkpoint evidence after each phase, and requires spawned reviewers before each phase handoff or final completion.",
