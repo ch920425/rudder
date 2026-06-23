@@ -9,6 +9,7 @@ contract_ids:
   - CHAT.RICH.REFERENCE.RENDERING.001
   - CHAT.WEBSITE.LINK.ICON.001
   - MESSENGER.ATTENTION.001
+  - MESSENGER.CUSTOM.GROUPS.001
   - IM.FEISHU.001
 related_code:
   - packages/db/src/schema/chat_conversations.ts
@@ -300,6 +301,83 @@ Evidence:
 - Messenger contract E2E covers ordering, previews, read state, groups,
   redirects, empty state, pin/archive/delete, issue notifications, approvals,
   and automation-created issue attention.
+
+## MESSENGER.CUSTOM.GROUPS.001
+
+Why:
+
+- Operators use Messenger custom groups to keep related chat, issue, approval,
+  and synthetic attention rows together without changing the owning domain's
+  lifecycle.
+- Group membership must not make a thread feel like a second-class item. A
+  grouped row is still the same Messenger item for navigation, unread state,
+  pin ordering, and attention semantics.
+
+Product model:
+
+- A custom group is an organization-scoped, operator-scoped Messenger directory
+  section over thread summaries. It is a `threadKey` membership overlay, not
+  owning-domain state.
+- A Messenger member can belong to at most one custom group per operator.
+  Moving a member into a group removes its previous custom group membership for
+  that operator.
+- Group membership is keyed by the Messenger thread key, not by chat-only
+  identity. Supported members include chat rows such as `chat:<id>`, aggregate
+  issue rows such as `issues`, split issue rows such as `issue:<id>`, and known
+  synthetic keys such as `approvals`, `failed-runs`, `budget-alerts`, and
+  `join-requests`.
+- Grouped members are hydrated thread summaries. They must preserve the same
+  identity, preview, unread count, attention state, supported actions, and
+  destination route as the same summary shown outside a group.
+- Dormant synthetic memberships may remain persisted even when the backing
+  attention count temporarily drops to zero. The visible hydrated member may be
+  absent while the row is empty, but the group must not silently lose the
+  membership.
+
+Flow:
+
+1. The operator creates a custom group, moves a Messenger item into a group, or
+   drags an item between groups.
+2. Rudder writes the operator-scoped membership using the item's Messenger
+   thread key.
+3. Messenger hydrates the group's members from the same source summaries used
+   for loose Messenger rows.
+4. Selecting a grouped member opens the same destination as selecting the loose
+   row and applies the same read-marker behavior.
+5. Actions that change a member's visible summary, including mark read/unread,
+   pin/unpin, archive/delete where supported, and preview-changing source
+   events, update or refetch the group's hydrated rows so grouped badges do not
+   diverge from loose rows.
+
+Invariants:
+
+- Custom groups must not redefine chat, issue, approval, run, budget, or
+  join-request state. They only organize and hydrate Messenger summaries.
+- Grouped issue rows must clear the same issue read markers as loose issue
+  rows when opened. Split issue rows and aggregate issue rows must not require a
+  different user gesture to become read.
+- Grouped chat rows must clear the same chat read state as loose chat rows when
+  opened.
+- A grouped member's read/unread badge, unread count, attention state, preview,
+  and last-activity ordering must not diverge from the source Messenger
+  summary after local optimistic updates settle.
+- Loose pinned threads render first. Pinned custom groups render immediately
+  after that top pinned-thread section. Unpinned groups and loose unpinned
+  issue, chat, approval, and synthetic attention rows follow.
+- Pinning a custom group does not pin every member individually, and pinning a
+  member does not remove it from its group.
+- Removing an item from a group returns that item to the loose Messenger
+  directory with its existing read/unread and attention state intact.
+
+Evidence:
+
+- Messenger service tests cover thread-key membership, non-chat hydration,
+  dormant synthetic membership, and fork-family group reuse.
+- Messenger sidebar tests cover non-chat row group actions, grouped rendering,
+  stale/newer unread handling, and grouped split issue read acknowledgement.
+- Messenger E2E covers aggregate issue grouping, split issue grouping,
+  synthetic membership, drag/drop grouping, row-action group creation, and
+  custom group pin/order behavior.
 
 ## IM.FEISHU.001
 

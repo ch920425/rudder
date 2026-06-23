@@ -46,5 +46,8 @@ edit_policy: user_confirmed_only
   across composers and read-only rendered markdown.
 - `MESSENGER.ATTENTION.001`: Messenger aggregates chat, issue, approval, and
   run attention without becoming the source of every domain rule.
+- `MESSENGER.CUSTOM.GROUPS.001`: Messenger custom groups organize chat, issue,
+  approval, and synthetic attention rows while preserving each row's native
+  navigation, read state, attention semantics, and pin ordering.
 - `IM.FEISHU.001`: Feishu inbound/outbound integration bridges external chat
   into Rudder Messenger, issue, and run records.

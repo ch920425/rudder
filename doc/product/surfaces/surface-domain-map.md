@@ -85,8 +85,10 @@ owning domain contract.
 
 - Chat conversation/message lifecycle, attachments, rich references, and
   assistant turns: `CHAT.LIFECYCLE.001`, `RUN.CHAT.AGENT.001`.
-- Messenger thread attention, unread/read state, ordering, groups, pin/archive,
-  and issue/approval/run attention: `MESSENGER.ATTENTION.001`.
+- Messenger thread attention, unread/read state, ordering, pin/archive, and
+  issue/approval/run attention: `MESSENGER.ATTENTION.001`.
+- Messenger custom group membership, grouped-row navigation/read behavior, and
+  group pin priority: `MESSENGER.CUSTOM.GROUPS.001`.
 - Issue comment and issue-thread facts: `ISSUE.COMMENTS.001`,
   `ROUTING.COMMENT.WAKE.001`.
 

@@ -664,6 +664,22 @@ contracts:
       - tests/e2e/messenger-contract.spec.ts
     related_plans:
       - doc/plans/2026-06-21-product-logic-registry.md
+  MESSENGER.CUSTOM.GROUPS.001:
+    owner: product
+    domain: collaboration
+    docs:
+      - doc/product/domains/collaboration/chat-messenger-im.md
+    related_code:
+      - server/src/services/messenger.ts
+      - ui/src/components/MessengerContextSidebar.tsx
+      - ui/src/pages/Messenger.tsx
+    related_tests:
+      - server/src/__tests__/messenger-service.test.ts
+      - ui/src/components/MessengerContextSidebar.test.tsx
+      - ui/src/components/MessengerContextSidebar.actions.test.tsx
+      - tests/e2e/messenger-contract.spec.ts
+    related_plans:
+      - doc/plans/2026-06-21-product-logic-registry.md
   IM.FEISHU.001:
     owner: product
     domain: collaboration
