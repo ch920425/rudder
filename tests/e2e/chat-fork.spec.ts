@@ -10,7 +10,8 @@ import {
   messengerCustomGroups,
 } from "../../packages/db/src/index.ts";
 import { MESSENGER_FORK_GROUP_DEFAULT_ICON } from "../../packages/shared/src/index.ts";
-import { E2E_DATABASE_URL } from "./support/e2e-env";
+import { createE2EChatAgent } from "./support/chat-agent";
+import { E2E_CODEX_STUB, E2E_DATABASE_URL } from "./support/e2e-env";
 
 const e2eDb = createDb(E2E_DATABASE_URL);
 
@@ -158,4 +159,111 @@ test("forks a chat from a selected message and groups the fork family in Messeng
     `chat:${forkedConversation.id}`,
     `chat:${sourceConversationId}`,
   ]));
+});
+
+test("forks from an earlier assistant message while a later reply is streaming", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("rudder.theme", "dark");
+  });
+
+  const orgRes = await page.request.post("/api/orgs", {
+    data: { name: `Chat-Fork-Streaming-${Date.now()}` },
+  });
+  expect(orgRes.ok()).toBe(true);
+  const organization = await orgRes.json() as { id: string; issuePrefix: string };
+  const chatAgent = await createE2EChatAgent(page.request, organization.id, {
+    name: "Autumn",
+    command: E2E_CODEX_STUB,
+  });
+
+  const sourceConversationId = randomUUID();
+  const sourceMessageIds = [randomUUID(), randomUUID()];
+  await e2eDb.insert(chatConversations).values({
+    id: sourceConversationId,
+    orgId: organization.id,
+    title: "Forkable streaming chat",
+    preferredAgentId: chatAgent.id,
+    issueCreationMode: "manual_approval",
+    planMode: false,
+    createdByUserId: "local-board",
+    lastMessageAt: new Date("2026-06-22T09:02:00.000Z"),
+    createdAt: new Date("2026-06-22T09:00:00.000Z"),
+    updatedAt: new Date("2026-06-22T09:02:00.000Z"),
+  });
+  await e2eDb.insert(chatMessages).values([
+    {
+      id: sourceMessageIds[0],
+      orgId: organization.id,
+      conversationId: sourceConversationId,
+      role: "user",
+      kind: "message",
+      status: "completed",
+      body: "Stable premise before streaming",
+      createdAt: new Date("2026-06-22T09:01:00.000Z"),
+      updatedAt: new Date("2026-06-22T09:01:00.000Z"),
+    },
+    {
+      id: sourceMessageIds[1],
+      orgId: organization.id,
+      conversationId: sourceConversationId,
+      role: "assistant",
+      kind: "message",
+      status: "completed",
+      body: "Earlier completed branch point",
+      replyingAgentId: chatAgent.id,
+      createdAt: new Date("2026-06-22T09:02:00.000Z"),
+      updatedAt: new Date("2026-06-22T09:02:00.000Z"),
+    },
+  ]);
+
+  await page.goto("/");
+  await page.evaluate((orgId) => {
+    window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
+  }, organization.id);
+  await page.goto(`/${organization.issuePrefix}/messenger/chat/${sourceConversationId}`);
+
+  const sourceAssistant = page.locator(`[data-testid="chat-assistant-message"][data-message-id="${sourceMessageIds[1]}"]`);
+  await expect(sourceAssistant).toContainText("Earlier completed branch point", { timeout: 15_000 });
+
+  const composer = page.locator(".rudder-mdxeditor-content").first();
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await composer.fill("Later prompt that is still running");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("button", { name: "Stop streaming" })).toBeVisible({ timeout: 15_000 });
+
+  await sourceAssistant.scrollIntoViewIfNeeded();
+  await sourceAssistant.hover();
+  await expect(sourceAssistant.getByRole("button", { name: "Fork from here" })).toBeVisible();
+  const forkResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST"
+    && response.url().includes(`/api/chats/${sourceConversationId}/fork`),
+  );
+  await sourceAssistant.getByRole("button", { name: "Fork from here" }).click();
+  const forkResponse = await forkResponsePromise;
+  expect(forkResponse.ok()).toBe(true);
+  const forkedConversation = await forkResponse.json() as {
+    id: string;
+    forkedFromConversationId: string | null;
+    forkedFromMessageId: string | null;
+    forkRootConversationId: string | null;
+  };
+
+  expect(forkedConversation.forkedFromConversationId).toBe(sourceConversationId);
+  expect(forkedConversation.forkedFromMessageId).toBe(sourceMessageIds[1]);
+  expect(forkedConversation.forkRootConversationId).toBe(sourceConversationId);
+  await expect(page).toHaveURL(new RegExp(`/messenger/chat/${forkedConversation.id}$`));
+  await expect(page.getByTestId("chat-messages-content")).toContainText("Stable premise before streaming");
+  await expect(page.getByTestId("chat-messages-content")).toContainText("Earlier completed branch point");
+  await expect(page.getByTestId("chat-messages-content")).not.toContainText("Later prompt that is still running");
+  await expect(page.getByTestId("chat-messages-content")).not.toContainText("Streaming reply for chat.");
+
+  const messagesRes = await page.request.get(`/api/chats/${forkedConversation.id}/messages`);
+  expect(messagesRes.ok()).toBe(true);
+  const forkMessages = await messagesRes.json() as Array<{ role: string; body: string }>;
+  expect(forkMessages.map((message) => message.body).slice(0, 2)).toEqual([
+    "Stable premise before streaming",
+    "Earlier completed branch point",
+  ]);
+  expect(forkMessages.some((message) => message.body.includes("Later prompt that is still running"))).toBe(false);
+  expect(forkMessages.some((message) => message.body.includes("Streaming reply for chat."))).toBe(false);
 });

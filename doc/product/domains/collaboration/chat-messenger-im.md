@@ -405,7 +405,11 @@ Flow:
 Invariants:
 
 - Forking is board-operator only and organization-scoped.
-- Forking is rejected while the source conversation has an active generation.
+- Forking the latest state is rejected while the source conversation has an
+  active generation.
+- Message-level forking remains allowed during later active generation when the
+  source message is an already-persisted assistant response, because the forked
+  conversation is truncated at that response.
 - Forked conversations must not share mutable runtime context with the source
   conversation.
 - A message-level fork must not copy messages after the selected assistant

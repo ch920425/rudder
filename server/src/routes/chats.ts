@@ -1381,7 +1381,8 @@ export function chatRoutes(db: Db, storage: StorageService) {
       res.status(404).json({ error: "Chat conversation not found" });
       return;
     }
-    if (hasActiveChatGeneration(existing.id)) {
+    const sourceMessageId = req.body.sourceMessageId ?? null;
+    if (!sourceMessageId && hasActiveChatGeneration(existing.id)) {
       throw conflict("Cannot fork a chat while a reply is in progress");
     }
 
@@ -1391,7 +1392,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       sourceConversationId: existing.id,
       orgId: existing.orgId,
       userId,
-      sourceMessageId: req.body.sourceMessageId ?? null,
+      sourceMessageId,
       title: req.body.title,
       createdByUserId: actor.actorType === "user" ? actor.actorId : null,
     });
@@ -1407,7 +1408,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       entityId: forked?.id ?? "unknown",
       details: {
         sourceConversationId: existing.id,
-        sourceMessageId: req.body.sourceMessageId ?? null,
+        sourceMessageId,
         forkRootConversationId: forked?.forkRootConversationId ?? existing.id,
       },
     });

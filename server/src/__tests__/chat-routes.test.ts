@@ -647,6 +647,48 @@ describe("chat routes", () => {
     }
   });
 
+  it("forks from a selected message while later reply generation is in progress", async () => {
+    const sourceMessageId = "10000000-0000-4000-8000-000000000011";
+    const sourceConversation = createConversation({
+      id: "chat-source",
+      title: "Generating chat",
+    });
+    const childConversation = createConversation({
+      id: "chat-child",
+      title: "Alternative angle",
+      forkedFromConversationId: "chat-source",
+      forkedFromMessageId: sourceMessageId,
+      forkRootConversationId: "chat-source",
+    });
+    mockChatService.getById.mockResolvedValue(sourceConversation);
+    mockChatService.forkConversation.mockResolvedValue(childConversation);
+    const release = claimChatGeneration(sourceConversation.id);
+
+    try {
+      const res = await request(createApp())
+        .post("/api/chats/chat-source/fork")
+        .send({ sourceMessageId, title: "Alternative angle" });
+
+      expect(res.status).toBe(201);
+      expect(mockChatService.forkConversation).toHaveBeenCalledWith({
+        sourceConversationId: "chat-source",
+        orgId: "organization-1",
+        userId: "user-1",
+        sourceMessageId,
+        title: "Alternative angle",
+        createdByUserId: "user-1",
+      });
+      expect(res.body).toEqual(expect.objectContaining({
+        id: "chat-child",
+        forkedFromConversationId: "chat-source",
+        forkedFromMessageId: sourceMessageId,
+        forkRootConversationId: "chat-source",
+      }));
+    } finally {
+      release?.();
+    }
+  });
+
   it("cancels and deletes an active chat conversation when explicitly requested", async () => {
     const conversation = createConversation({ title: "Generating chat" });
     const abortController = new AbortController();
