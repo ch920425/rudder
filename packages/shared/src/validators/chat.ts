@@ -319,6 +319,7 @@ export const createMessengerCustomGroupSchema = z.object({
 
 export const createMessengerCustomGroupWithEntriesSchema = createMessengerCustomGroupSchema.extend({
   threadKeys: z.array(z.string().trim().min(1).max(240)).min(1).max(50),
+  autoGenerateName: z.boolean().optional(),
 });
 
 export const updateMessengerCustomGroupSchema = z.object({

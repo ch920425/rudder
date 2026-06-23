@@ -54,6 +54,20 @@ async function createConfiguredOrganization(page: Page, name: string) {
   return { ...organization, chatAgent };
 }
 
+async function configureFastTitleProfile(page: Page, orgId: string, title: string) {
+  const profileRes = await page.request.put(`/api/orgs/${orgId}/intelligence-profiles/lightweight`, {
+    data: {
+      agentRuntimeType: "process",
+      agentRuntimeConfig: {
+        command: "node",
+        args: ["-e", `process.stdout.write(${JSON.stringify(title)})`],
+      },
+      status: "configured",
+    },
+  });
+  expect(profileRes.ok()).toBe(true);
+}
+
 function threadTestId(threadKey: string) {
   return `messenger-thread-${threadKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
@@ -1403,6 +1417,7 @@ test.describe("Messenger unified threads contract", () => {
 
   test("keeps a pending custom group rendered while a loose-row merge is saving", async ({ page }) => {
     const organization = await createOrganization(page, `Messenger-Pending-Merge-${Date.now()}`);
+    await configureFastTitleProfile(page, organization.id, "Generated planning bundle");
 
     async function createChat(title: string, summary = `${title} summary`) {
       const res = await page.request.post(`/api/orgs/${organization.id}/chats`, {
@@ -1432,7 +1447,9 @@ test.describe("Messenger unified threads contract", () => {
     const mergeStarted = new Promise<void>((resolve) => {
       startedMerge = resolve;
     });
+    let mergePayload: { name?: string; threadKeys?: string[]; autoGenerateName?: boolean } | null = null;
     await page.route(`**/api/orgs/${organization.id}/messenger/groups/merge`, async (route) => {
+      mergePayload = route.request().postDataJSON();
       startedMerge();
       await releaseMerge.promise;
       const response = await route.fetch();
@@ -1449,8 +1466,14 @@ test.describe("Messenger unified threads contract", () => {
     const pendingSectionId = messengerSectionTestId(`pending-custom-group:chat:${targetChat.id}->chat:${sourceChat.id}`);
     const pendingSection = page.getByTestId(pendingSectionId);
     await expect(pendingSection).toBeVisible();
+    expect(mergePayload).toMatchObject({
+      name: "Pending target tab",
+      threadKeys: [`chat:${targetChat.id}`, `chat:${sourceChat.id}`],
+      autoGenerateName: true,
+    });
     await expect(pendingSection).toContainText("Pending target tab");
     await expect(pendingSection).toContainText("Pending source tab");
+    await expect(pendingSection).toContainText("Naming");
     await expect(page.getByTestId(messengerSectionTestId(`chat:${sourceChat.id}`))).toHaveCount(0);
     await expect(page.getByTestId(messengerSectionTestId(`chat:${targetChat.id}`))).toHaveCount(0);
 
@@ -1462,7 +1485,7 @@ test.describe("Messenger unified threads contract", () => {
       const payload = await groupsRes.json() as { groups: Array<{ id: string; name: string; entries: Array<{ threadKey: string }> }> };
       const group = payload.groups.find((candidate) => {
         const threadKeys = candidate.entries.map((entry) => entry.threadKey);
-        return candidate.name === "Pending target tab" &&
+        return candidate.name === "Generated planning bundle" &&
           threadKeys[0] === `chat:${targetChat.id}` &&
           threadKeys[1] === `chat:${sourceChat.id}`;
       });
@@ -1472,6 +1495,7 @@ test.describe("Messenger unified threads contract", () => {
     expect(savedGroupId).toBeTruthy();
     await expect(pendingSection).toHaveCount(0);
     const savedGroupSection = page.getByTestId(`messenger-thread-section-custom-group-${savedGroupId}`);
+    await expect(savedGroupSection).toContainText("Generated planning bundle");
     await expect(savedGroupSection).toContainText("Pending target tab");
     await expect(savedGroupSection).toContainText("Pending source tab");
   });

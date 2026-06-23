@@ -16,6 +16,7 @@ const mockCreateCustomGroupWithEntries = vi.hoisted(() => vi.fn());
 const mockAssignCustomGroupEntry = vi.hoisted(() => vi.fn());
 const mockListCustomGroups = vi.hoisted(() => vi.fn());
 const mockUpdateCustomGroup = vi.hoisted(() => vi.fn());
+const mockRegenerateCustomGroupTitle = vi.hoisted(() => vi.fn());
 const mockSeparateCustomGroup = vi.hoisted(() => vi.fn());
 const mockReorderCustomGroups = vi.hoisted(() => vi.fn());
 const mockReorderCustomGroupEntries = vi.hoisted(() => vi.fn());
@@ -34,6 +35,9 @@ const invalidateQueries = vi.fn();
 const cancelQueries = vi.fn(() => Promise.resolve());
 const setQueryData = vi.fn();
 const setQueriesData = vi.fn();
+const mutationMockState = vi.hoisted(() => ({
+  pendingVariables: new Map<unknown, unknown>(),
+}));
 const sortableMockState = vi.hoisted(() => ({
   draggingId: null as string | null,
   measuredHeight: 96,
@@ -88,20 +92,29 @@ vi.mock("@tanstack/react-query", () => ({
     onMutate?: (variables: any) => Promise<unknown> | unknown;
     onSuccess?: (data: any, variables: any) => Promise<void> | void;
     onError?: (error: unknown, variables: any) => Promise<void> | void;
+    onSettled?: (data: any | undefined, error: unknown, variables: any) => Promise<void> | void;
   }) => ({
     mutate: vi.fn(async (variables: any) => {
+      let result: any;
+      let caughtError: unknown;
       try {
+        mutationMockState.pendingVariables.set(options.mutationFn, variables);
         const mutationContext = options.onMutate?.(variables);
         if (mutationContext && typeof (mutationContext as Promise<unknown>).then === "function") {
           await mutationContext;
         }
-        const result = await options.mutationFn(variables);
+        result = await options.mutationFn(variables);
         await options.onSuccess?.(result, variables);
       } catch (error) {
+        caughtError = error;
         await options.onError?.(error, variables);
+      } finally {
+        mutationMockState.pendingVariables.delete(options.mutationFn);
+        await options.onSettled?.(result, caughtError, variables);
       }
     }),
-    isPending: false,
+    isPending: mutationMockState.pendingVariables.has(options.mutationFn),
+    variables: mutationMockState.pendingVariables.get(options.mutationFn),
   }),
   useQueryClient: () => ({ cancelQueries, invalidateQueries, setQueryData, setQueriesData }),
   useQuery: (options: { queryKey?: unknown; enabled?: boolean }) => {
@@ -139,6 +152,7 @@ vi.mock("@/api/messenger", () => ({
     createCustomGroup: mockCreateCustomGroup,
     createCustomGroupWithEntries: mockCreateCustomGroupWithEntries,
     updateCustomGroup: mockUpdateCustomGroup,
+    regenerateCustomGroupTitle: mockRegenerateCustomGroupTitle,
     separateCustomGroup: mockSeparateCustomGroup,
     reorderCustomGroups: mockReorderCustomGroups,
     assignCustomGroupEntry: mockAssignCustomGroupEntry,
@@ -505,6 +519,7 @@ describe("MessengerContextSidebar chat actions", () => {
     mockAssignCustomGroupEntry.mockClear();
     mockListCustomGroups.mockClear();
     mockUpdateCustomGroup.mockClear();
+    mockRegenerateCustomGroupTitle.mockClear();
     mockSeparateCustomGroup.mockClear();
     mockReorderCustomGroups.mockClear();
     mockReorderCustomGroupEntries.mockClear();
@@ -514,6 +529,7 @@ describe("MessengerContextSidebar chat actions", () => {
     invalidateQueries.mockClear();
     setQueryData.mockClear();
     setQueriesData.mockClear();
+    mutationMockState.pendingVariables.clear();
   });
 
   it("optimistically pins a chat thread before the user-state request resolves", async () => {
@@ -685,6 +701,34 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(setQueryData).toHaveBeenCalledWith(["chats", "org-1", "detail", "chat-1"], expect.any(Function));
     expect(setQueryData).toHaveBeenCalledWith(["messenger", "org-1", "threads"], expect.any(Function));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats", "org-1", "detail", "chat-1"] });
+  });
+
+  it("shows title-generation motion while a chat title is regenerating", async () => {
+    const pendingRegeneration = deferred<any>();
+    mockRegenerateTitle.mockReturnValueOnce(pendingRegeneration.promise);
+    const { root } = renderSidebar();
+
+    const regenerate = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Regenerate title")) as HTMLButtonElement | undefined;
+
+    await act(async () => {
+      regenerate?.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      root.render(<MessengerContextSidebar />);
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-testid="messenger-title-generating-chat-chat-1"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="messenger-title-spinner-chat-chat-1"]')).toBeTruthy();
+    expect(document.body.textContent).toContain("Naming");
+
+    await act(async () => {
+      pendingRegeneration.resolve(baseConversation({ title: "Regenerated title" }));
+      await pendingRegeneration.promise;
+      await Promise.resolve();
+    });
   });
 
   it("hides chat title regeneration when fast intelligence is not configured", () => {
@@ -2203,6 +2247,7 @@ describe("MessengerContextSidebar chat actions", () => {
       name: "Planning chat",
       icon: "folder::amber",
       threadKeys: ["chat:chat-1", "issues"],
+      autoGenerateName: true,
     }));
     expect(mockAssignCustomGroupEntry).not.toHaveBeenCalled();
   });
@@ -2266,6 +2311,7 @@ describe("MessengerContextSidebar chat actions", () => {
       '[data-testid="messenger-thread-section-pending-custom-group-chat-chat-1--issues"]',
     );
     expect(pendingSection?.textContent).toContain("Planning chat");
+    expect(pendingSection?.textContent).toContain("Naming");
     expect(pendingSection?.textContent).toContain("Issues");
     expect(document.querySelector('[data-testid="messenger-thread-section-chat-chat-1"]')).toBeNull();
     expect(document.querySelector('[data-testid="messenger-thread-section-issues"]')).toBeNull();
@@ -2275,6 +2321,68 @@ describe("MessengerContextSidebar chat actions", () => {
       await pendingMerge.promise;
       await Promise.resolve();
     });
+  });
+
+  it("regenerates a custom group title from the group actions menu", async () => {
+    customGroupList = [
+      {
+        id: "group-1",
+        orgId: "org-1",
+        userId: "local-board",
+        name: "Deep work",
+        icon: "folder::amber",
+        sortOrder: 0,
+        collapsed: false,
+        pinnedAt: null,
+        createdAt: "2026-04-11T09:40:00.000Z",
+        updatedAt: "2026-04-11T09:40:00.000Z",
+        entries: [
+          {
+            id: "entry-1",
+            orgId: "org-1",
+            userId: "local-board",
+            groupId: "group-1",
+            threadKey: "chat:chat-1",
+            sortOrder: 0,
+            createdAt: "2026-04-11T09:40:00.000Z",
+            updatedAt: "2026-04-11T09:40:00.000Z",
+            thread: {
+              threadKey: "chat:chat-1",
+              kind: "chat",
+              title: "Planning chat",
+              preview: "Chat work.",
+              subtitle: null,
+              href: "/messenger/chat/chat-1",
+              latestActivityAt: "2026-04-11T09:50:00.000Z",
+              lastReadAt: null,
+              unreadCount: 0,
+              needsAttention: false,
+              isPinned: false,
+            },
+          },
+        ],
+      },
+    ];
+    messengerModel = { ...baseModel(), threadSummaries: [] };
+    mockRegenerateCustomGroupTitle.mockResolvedValueOnce({
+      ...customGroupList[0],
+      name: "Generated group title",
+    });
+
+    renderSidebar();
+
+    const regenerate = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.trim() === "Regenerate title") as HTMLButtonElement | undefined;
+
+    expect(regenerate).toBeTruthy();
+    await act(async () => {
+      regenerate?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRegenerateCustomGroupTitle).toHaveBeenCalledWith("org-1", "group-1");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["messenger", "org-1", "groups"] });
   });
 
   it("moves non-chat rows into an existing custom group", async () => {

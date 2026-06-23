@@ -13,6 +13,12 @@ import {
 import { Router } from "express";
 import { validate } from "../middleware/validate.js";
 import { messengerService } from "../services/messenger.js";
+import { productIntelligenceService } from "../services/product-intelligence.js";
+import {
+  buildMessengerGroupTitlePrompt,
+  runtimeResultText,
+  sanitizeGeneratedTitle,
+} from "../services/title-generation.js";
 import { assertBoard, assertCompanyAccess } from "./authz.js";
 
 const SYSTEM_THREAD_KIND_SET = new Set<MessengerSystemThreadKind>(MESSENGER_SYSTEM_THREAD_KINDS);
@@ -40,6 +46,19 @@ function parseThreadKey(threadKey: string) {
 export function messengerRoutes(db: Db) {
   const router = Router();
   const svc = messengerService(db);
+  const productIntelligence = productIntelligenceService(db);
+
+  async function generateCustomGroupTitle(orgId: string, titles: string[]) {
+    const sourceTitles = titles.map((title) => title.trim()).filter(Boolean);
+    if (sourceTitles.length === 0) return null;
+    const result = await productIntelligence.execute({
+      orgId,
+      purpose: "lightweight",
+      feature: "messenger_group_title",
+      prompt: buildMessengerGroupTitlePrompt(sourceTitles),
+    });
+    return sanitizeGeneratedTitle(runtimeResultText(result));
+  }
 
   router.get("/orgs/:orgId/messenger/groups", async (req, res) => {
     const orgId = req.params.orgId as string;
@@ -66,7 +85,17 @@ export function messengerRoutes(db: Db) {
       const orgId = req.params.orgId as string;
       assertCompanyAccess(req, orgId);
       const userId = boardUserId(req);
-      res.status(201).json(await svc.createCustomGroupWithEntries(orgId, userId, req.body.name, req.body.icon ?? null, req.body.threadKeys));
+      const threadKeys = req.body.threadKeys as string[];
+      const generatedName = req.body.autoGenerateName
+        ? await generateCustomGroupTitle(orgId, await svc.listThreadTitles(orgId, userId, threadKeys)).catch(() => null)
+        : null;
+      res.status(201).json(await svc.createCustomGroupWithEntries(
+        orgId,
+        userId,
+        generatedName ?? req.body.name,
+        req.body.icon ?? null,
+        threadKeys,
+      ));
     },
   );
 
@@ -91,6 +120,20 @@ export function messengerRoutes(db: Db) {
       res.json(await svc.updateCustomGroup(orgId, userId, req.params.groupId as string, req.body));
     },
   );
+
+  router.post("/orgs/:orgId/messenger/groups/:groupId/title/regenerate", async (req, res) => {
+    const orgId = req.params.orgId as string;
+    assertCompanyAccess(req, orgId);
+    const userId = boardUserId(req);
+    const groupId = req.params.groupId as string;
+    const titles = await svc.listCustomGroupThreadTitles(orgId, userId, groupId);
+    const title = await generateCustomGroupTitle(orgId, titles);
+    if (!title) {
+      res.status(422).json({ error: "Fast Intelligence did not return a usable Messenger group title" });
+      return;
+    }
+    res.json(await svc.updateCustomGroup(orgId, userId, groupId, { name: title }));
+  });
 
   router.post("/orgs/:orgId/messenger/groups/:groupId/separate", async (req, res) => {
     const orgId = req.params.orgId as string;

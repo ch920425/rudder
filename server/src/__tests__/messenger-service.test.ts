@@ -472,6 +472,54 @@ describe("messengerService and issue follows", () => {
     ]);
   });
 
+  it("lists Messenger thread titles for custom group title generation context", async () => {
+    const orgId = randomUUID();
+    const userId = "board-user-custom-group-title-context";
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Custom Group Title Context Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Custom Group Title Context Org"),
+      issuePrefix: `T${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    const conversationId = randomUUID();
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Planning chat",
+      summary: "Summary",
+      issueCreationMode: "manual_approval" as const,
+      planMode: false,
+      createdByUserId: userId,
+    });
+
+    const issueId = randomUUID();
+    await db.insert(issues).values({
+      id: issueId,
+      orgId,
+      identifier: `${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}-14`,
+      title: "Grouped issue title",
+      description: "Issue title context.",
+      status: "todo",
+      priority: "medium",
+      createdByUserId: userId,
+      updatedAt: new Date("2026-05-04T09:00:00.000Z"),
+    });
+
+    const titles = await messengerSvc.listThreadTitles(orgId, userId, [
+      `chat:${conversationId}`,
+      `issue:${issueId}`,
+      "unknown:missing",
+    ]);
+
+    expect(titles).toEqual([
+      "Planning chat",
+      `${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}-14 · Grouped issue title`,
+    ]);
+  });
+
   it("rolls back custom group merge when any thread cannot be grouped", async () => {
     const orgId = randomUUID();
     const userId = "board-user-custom-group-merge-rollback";

@@ -226,6 +226,9 @@ The operator sees the chat title update in the chat surface and Messenger row:
   still succeeds.
 - On manual regeneration success, the existing title changes to the generated
   title.
+- While manual regeneration is in flight, Messenger shows a title-generation
+  motion state on the chat row so the operator can distinguish title work from
+  a reply-generation spinner.
 - On manual regeneration failure, the existing title remains unchanged and the
   API error is surfaced through the normal mutation failure path.
 
@@ -590,6 +593,11 @@ Product model:
   attention count temporarily drops to zero. The visible hydrated member may be
   absent while the row is empty, but the group must not silently lose the
   membership.
+- Custom group titles can be explicit operator titles or Fast
+  Intelligence-generated titles. Automatic group title generation only runs
+  when a drag/drop merge creates a new group from existing Messenger members.
+  Menu-created groups keep the operator-provided title unless the operator later
+  chooses `Regenerate title`.
 
 Flow:
 
@@ -597,11 +605,20 @@ Flow:
    drags an item between groups.
 2. Rudder writes the operator-scoped membership using the item's Messenger
    thread key.
-3. Messenger hydrates the group's members from the same source summaries used
+3. When drag/drop merges loose members into a new group, Rudder sends the
+   member titles to Fast Intelligence with `feature: "messenger_group_title"`.
+   If Fast Intelligence returns a usable title, Rudder stores that title; if it
+   fails or returns unusable output, Rudder stores the deterministic fallback
+   title from the drop target so grouping still succeeds.
+4. Messenger hydrates the group's members from the same source summaries used
    for loose Messenger rows.
-4. Selecting a grouped member opens the same destination as selecting the loose
+5. Selecting a grouped member opens the same destination as selecting the loose
    row and applies the same read-marker behavior.
-5. Actions that change a member's visible summary, including mark read/unread,
+6. The operator may choose `Regenerate title` from the group actions menu.
+   Rudder rebuilds title-generation context from current group member titles,
+   calls Fast Intelligence, and updates only the group name when generation
+   succeeds.
+7. Actions that change a member's visible summary, including mark read/unread,
    pin/unpin, archive/delete where supported, and preview-changing source
    events, update or refetch the group's hydrated rows so grouped badges do not
    diverge from loose rows.
@@ -625,13 +642,28 @@ Invariants:
   member does not remove it from its group.
 - Removing an item from a group returns that item to the loose Messenger
   directory with its existing read/unread and attention state intact.
+- Automatic group title generation must not run for menu-created groups or for
+  moving a member into an existing group.
+- Group title generation uses only member thread titles as context. It must not
+  send full chat transcripts, issue descriptions, comments, or approval bodies.
+- Drag/drop merge must remain successful when Fast Intelligence is unavailable;
+  the fallback title is stored and the pending group clears normally.
+- While automatic or manual group title generation is in flight, Messenger
+  shows a title-generation motion state on the group header.
+- Manual group title regeneration failure must not mutate the existing group
+  title.
 
 Evidence:
 
 - Messenger service tests cover thread-key membership, non-chat hydration,
   dormant synthetic membership, and fork-family group reuse.
 - Messenger sidebar tests cover non-chat row group actions, grouped rendering,
-  stale/newer unread handling, and grouped split issue read acknowledgement.
+  stale/newer unread handling, grouped split issue read acknowledgement,
+  drag/drop auto-title requests, group title regeneration actions, and
+  title-generation motion states.
+- Messenger route tests cover Fast Intelligence group title generation,
+  fallback-on-merge failure, manual regeneration, and no mutation when
+  regenerated output is unusable.
 - Messenger E2E covers aggregate issue grouping, split issue grouping,
   synthetic membership, drag/drop grouping, row-action group creation, and
   custom group pin/order behavior.

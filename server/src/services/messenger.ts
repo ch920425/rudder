@@ -269,6 +269,7 @@ type ChatSummarySource = Pick<
   | "routedAgentId"
 > & {
   chatRuntime?: { runtimeAgentId?: string | null } | null;
+  sourceMetadata?: Record<string, unknown> | null;
 };
 type ChatMessageRow = Awaited<ReturnType<ReturnType<typeof chatService>["listMessages"]>>[number];
 type HeartbeatRunRow = typeof heartbeatRuns.$inferSelect;
@@ -677,6 +678,7 @@ function chatSummary(conversation: ChatSummarySource): MessengerThreadSummary {
       routedAgentId: conversation.routedAgentId,
       runtimeAgentId: conversation.chatRuntime?.runtimeAgentId ?? null,
       latestUserMessagePreview: conversation.latestUserMessagePreview,
+      ...(conversation.sourceMetadata ?? {}),
     },
   };
 }
@@ -1105,6 +1107,29 @@ export function messengerService(db: Db) {
     if (!summary) {
       throw notFound("Messenger thread not found");
     }
+  }
+
+  async function listThreadTitles(orgId: string, userId: string, threadKeys: string[]) {
+    const titles: string[] = [];
+    for (const threadKey of [...new Set(threadKeys)]) {
+      const summary = await findMessengerThreadSummary(orgId, userId, threadKey);
+      if (summary?.title) titles.push(summary.title);
+    }
+    return titles;
+  }
+
+  async function listCustomGroupThreadTitles(orgId: string, userId: string, groupId: string) {
+    await getCustomGroupOrThrow(orgId, userId, groupId);
+    const entries = await db
+      .select({ threadKey: messengerCustomGroupEntries.threadKey })
+      .from(messengerCustomGroupEntries)
+      .where(and(
+        eq(messengerCustomGroupEntries.orgId, orgId),
+        eq(messengerCustomGroupEntries.userId, userId),
+        eq(messengerCustomGroupEntries.groupId, groupId),
+      ))
+      .orderBy(asc(messengerCustomGroupEntries.sortOrder), asc(messengerCustomGroupEntries.createdAt));
+    return listThreadTitles(orgId, userId, entries.map((entry) => entry.threadKey));
   }
 
   async function listCustomGroups(orgId: string, userId: string): Promise<MessengerCustomGroupsResponse> {
@@ -2645,6 +2670,8 @@ export function messengerService(db: Db) {
 
   return {
     listCustomGroups,
+    listThreadTitles,
+    listCustomGroupThreadTitles,
     createCustomGroup,
     createCustomGroupWithEntries,
     updateCustomGroup,

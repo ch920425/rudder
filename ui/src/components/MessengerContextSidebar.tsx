@@ -116,6 +116,7 @@ type PendingCustomGroupMerge = {
   icon: string | null;
   threadKeys: string[];
   createdAt: string;
+  titleGenerating?: boolean;
 };
 
 const THREAD_ORGANIZATION_STORAGE_KEY = "rudder.messengerThreadOrganizationByOrg";
@@ -1242,6 +1243,7 @@ function ChatThreadRow({
   onCommitRename,
   onStartRename,
   onRegenerateTitle,
+  titleGenerating = false,
   onFork,
   onArchive,
   onDelete,
@@ -1271,6 +1273,7 @@ function ChatThreadRow({
   onCommitRename: () => void;
   onStartRename: () => void;
   onRegenerateTitle?: () => void;
+  titleGenerating?: boolean;
   onFork: () => void;
   onArchive: () => void;
   onDelete: () => void;
@@ -1294,8 +1297,8 @@ function ChatThreadRow({
   const secondaryActionClass = compact ? "right-7" : "right-8";
 
   useEffect(() => {
-    if (generating) setActionsOpen(false);
-  }, [generating]);
+    if (generating || titleGenerating) setActionsOpen(false);
+  }, [generating, titleGenerating]);
 
   return (
     <div
@@ -1360,6 +1363,16 @@ function ChatThreadRow({
                   )}
                 >
                   <span className="truncate">{conversationDisplayTitle(conversation)}</span>
+                  {titleGenerating ? (
+                    <span
+                      data-testid={`messenger-title-generating-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_oklab,var(--surface-active)_76%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                      aria-label="Generating chat title"
+                    >
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
+                      Naming
+                    </span>
+                  ) : null}
                 </div>
                 {!compact ? (
                   <div
@@ -1379,7 +1392,7 @@ function ChatThreadRow({
                 className={cn(
                   "block shrink-0 whitespace-nowrap text-right text-[10px] leading-none tabular-nums text-muted-foreground transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0",
                   compact ? "w-11" : "mt-0.5 w-12",
-                  (actionsOpen || generating) && "opacity-0",
+                  (actionsOpen || generating || titleGenerating) && "opacity-0",
                 )}
               >
                 {timeLabel}
@@ -1401,6 +1414,19 @@ function ChatThreadRow({
             </span>
           ) : null}
 
+          {titleGenerating ? (
+            <span
+              data-testid={`messenger-title-spinner-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
+              aria-label="Generating chat title"
+              className={cn(
+                "pointer-events-none absolute top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-opacity duration-150",
+                compact ? "right-1.5 h-5 w-5" : "right-2 h-6 w-6",
+              )}
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.25} aria-hidden />
+            </span>
+          ) : null}
+
           {conversation.isPinned ? (
             <button
               type="button"
@@ -1408,7 +1434,7 @@ function ChatThreadRow({
               className={cn(
                 "absolute top-1/2 z-10 -translate-y-1/2 rounded-md p-1 text-[color:var(--accent-strong)] opacity-0 transition-[opacity,background-color,color] duration-150 hover:bg-[color:var(--surface-page)] hover:text-[color:var(--accent-strong)] focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100",
                 rightActionClass,
-                (actionsOpen || generating) && "pointer-events-none opacity-0",
+                (actionsOpen || generating || titleGenerating) && "pointer-events-none opacity-0",
               )}
               aria-label="Unpin chat"
               title="Unpin chat"
@@ -1426,6 +1452,7 @@ function ChatThreadRow({
                   "absolute top-1/2 z-10 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-[opacity,background-color,color] duration-150 hover:bg-[color:var(--surface-page)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100",
                   conversation.isPinned ? secondaryActionClass : rightActionClass,
                   actionsOpen ? "opacity-100" : "opacity-0",
+                  titleGenerating && "pointer-events-none opacity-0",
                 )}
                 aria-label="Chat actions"
               >
@@ -1438,8 +1465,12 @@ function ChatThreadRow({
                 Rename
               </DropdownMenuItem>
               {onRegenerateTitle ? (
-                <DropdownMenuItem onClick={onRegenerateTitle}>
-                  <RefreshCw className="h-4 w-4" />
+                <DropdownMenuItem disabled={titleGenerating} onClick={onRegenerateTitle}>
+                  {titleGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
                   Regenerate title
                 </DropdownMenuItem>
               ) : null}
@@ -2231,6 +2262,7 @@ export function MessengerContextSidebar() {
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [pendingChatRenameTitles, setPendingChatRenameTitles] = useState<Record<string, string>>({});
+  const [generatingChatTitleIds, setGeneratingChatTitleIds] = useState<Set<string>>(() => new Set());
   const [customGroupEditor, setCustomGroupEditor] = useState<CustomGroupEditorState | null>(null);
   const [customGroupRename, setCustomGroupRename] = useState<CustomGroupRenameState | null>(null);
   const [customGroupNameDraft, setCustomGroupNameDraft] = useState("");
@@ -2238,6 +2270,7 @@ export function MessengerContextSidebar() {
   const [customGroupColorDraft, setCustomGroupColorDraft] = useState<CustomGroupColor | null>("amber");
   const [pendingCustomGroupIcons, setPendingCustomGroupIcons] = useState<Record<string, string | null>>({});
   const [pendingCustomGroupMerges, setPendingCustomGroupMerges] = useState<Record<string, PendingCustomGroupMerge>>({});
+  const [generatingGroupTitleIds, setGeneratingGroupTitleIds] = useState<Set<string>>(() => new Set());
   const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [locallyReadThreadWatermarks, setLocallyReadThreadWatermarks] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -2864,17 +2897,19 @@ export function MessengerContextSidebar() {
       name,
       icon,
       threadKeys,
+      autoGenerateName,
     }: {
       name: string;
       icon: string | null;
       threadKeys: string[];
+      autoGenerateName?: boolean;
       pendingGroupId?: string;
       pendingCreatedAt?: string;
     }) => {
       if (!model.selectedOrganizationId) throw new Error("Organization is required to create a Messenger group");
-      return messengerApi.createCustomGroupWithEntries(model.selectedOrganizationId, { name, icon, threadKeys });
+      return messengerApi.createCustomGroupWithEntries(model.selectedOrganizationId, { name, icon, threadKeys, autoGenerateName });
     },
-    onMutate: ({ name, icon, threadKeys, pendingGroupId, pendingCreatedAt }) => {
+    onMutate: ({ name, icon, threadKeys, autoGenerateName, pendingGroupId, pendingCreatedAt }) => {
       if (!pendingGroupId) return;
       setPendingCustomGroupMerges((current) => ({
         ...current,
@@ -2884,6 +2919,7 @@ export function MessengerContextSidebar() {
           icon,
           threadKeys,
           createdAt: pendingCreatedAt ?? new Date().toISOString(),
+          titleGenerating: Boolean(autoGenerateName),
         },
       }));
     },
@@ -2919,6 +2955,28 @@ export function MessengerContextSidebar() {
       return messengerApi.updateCustomGroup(model.selectedOrganizationId, groupId, data);
     },
     onSuccess: refreshCustomGroups,
+  });
+
+  const regenerateCustomGroupTitleMutation = useMutation({
+    mutationFn: (groupId: string) => {
+      if (!model.selectedOrganizationId) throw new Error("Organization is required to regenerate a Messenger group title");
+      return messengerApi.regenerateCustomGroupTitle(model.selectedOrganizationId, groupId);
+    },
+    onMutate: (groupId) => {
+      setGeneratingGroupTitleIds((current) => {
+        const next = new Set(current);
+        next.add(groupId);
+        return next;
+      });
+    },
+    onSettled: async (_data, _error, groupId) => {
+      setGeneratingGroupTitleIds((current) => {
+        const next = new Set(current);
+        next.delete(groupId);
+        return next;
+      });
+      await refreshCustomGroups();
+    },
   });
 
   const separateCustomGroupMutation = useMutation({
@@ -3028,6 +3086,7 @@ export function MessengerContextSidebar() {
           name: overEntry?.thread.title ? threadDisplayTitle(overEntry.thread.title) : "New group",
           icon: composeCustomGroupIconValue("folder", "amber"),
           threadKeys,
+          autoGenerateName: true,
           pendingGroupId: pendingCustomGroupId(threadKeys),
           pendingCreatedAt: new Date().toISOString(),
         });
@@ -3318,6 +3377,7 @@ export function MessengerContextSidebar() {
             setRenameDraft(conversation.title);
           }}
           onRegenerateTitle={canRegenerateChatTitles ? () => regenerateTitleMutation.mutate(conversation.id) : undefined}
+          titleGenerating={generatingChatTitleIds.has(conversation.id)}
           onFork={() => forkConversationMutation.mutate(conversation.id)}
           onArchive={() => {
             if (model.selectedOrganizationId) {
@@ -3408,6 +3468,10 @@ export function MessengerContextSidebar() {
     const pendingCustomGroup = effectiveThreadOrganizationRule === "custom" && section.pending
       ? pendingCustomGroupMerges[section.key.slice("pending-custom-group:".length)] ?? null
       : null;
+    const customGroupTitleGenerating = Boolean(
+      pendingCustomGroup?.titleGenerating
+        || (customGroup && generatingGroupTitleIds.has(customGroup.id)),
+    );
     const displayedCustomGroup = customGroup ?? (pendingCustomGroup
       ? {
         id: pendingCustomGroup.id,
@@ -3534,6 +3598,16 @@ export function MessengerContextSidebar() {
               )}
               <CustomGroupIcon icon={displayedCustomGroup.icon} />
               <span className="min-w-0 flex-1 truncate">{section.label}</span>
+              {customGroupTitleGenerating ? (
+                <span
+                  data-testid={`messenger-thread-section-${sanitizeThreadKey(section.key)}-title-generating`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/35 px-1.5 py-0.5 text-[10px] font-semibold text-current/75"
+                  aria-label="Generating group title"
+                >
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
+                  Naming
+                </span>
+              ) : null}
               {attentionCount > 0 ? (
                 <span
                   data-testid={`messenger-thread-section-${sanitizeThreadKey(section.key)}-attention-count`}
@@ -3558,6 +3632,17 @@ export function MessengerContextSidebar() {
                 <DropdownMenuItem onClick={() => handleRenameCustomGroup(customGroup)}>
                   <PencilLine className="h-4 w-4" />
                   Rename...
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={customGroupTitleGenerating}
+                  onClick={() => regenerateCustomGroupTitleMutation.mutate(customGroup.id)}
+                >
+                  {customGroupTitleGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Regenerate title
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => updateCustomGroupMutation.mutate({
@@ -3830,13 +3915,24 @@ export function MessengerContextSidebar() {
 
   const regenerateTitleMutation = useMutation({
     mutationFn: (chatId: string) => chatsApi.regenerateTitle(chatId),
+    onMutate: (chatId) => {
+      setGeneratingChatTitleIds((current) => {
+        const next = new Set(current);
+        next.add(chatId);
+        return next;
+      });
+    },
     onSuccess: async (conversation) => {
       if (model.selectedOrganizationId) {
         renameMessengerChatInCache(queryClient, model.selectedOrganizationId, conversation.id, conversation.title);
       }
-      await refreshChatViews(conversation.id);
     },
-    onError: async (_error, chatId) => {
+    onSettled: async (_data, _error, chatId) => {
+      setGeneratingChatTitleIds((current) => {
+        const next = new Set(current);
+        next.delete(chatId);
+        return next;
+      });
       await refreshChatViews(chatId);
     },
   });

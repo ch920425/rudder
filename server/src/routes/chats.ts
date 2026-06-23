@@ -8,7 +8,6 @@ import {
   createChatConversationSchema,
   createChatQueuedMessageSchema,
   forkChatConversationSchema,
-  formatMessengerTitle,
   steerChatQueuedMessageSchema,
   updateChatConversationSchema,
   updateChatQueuedMessageSchema,
@@ -67,6 +66,12 @@ import {
 } from "../services/index.js";
 import { sanitizeStartupContextPromptForPersistence } from "../services/runtime-kernel/heartbeat.core.js";
 import { summarizeRuntimeSkillsForTrace } from "../services/runtime-trace-metadata.js";
+import {
+  buildChatTitlePrompt,
+  fallbackTitleFromText,
+  runtimeResultText,
+  sanitizeGeneratedTitle,
+} from "../services/title-generation.js";
 import type { StorageService } from "../storage/types.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { wakeIssueAssigneeAfterChatConversion } from "./chat-issue-assignment-wakeup.js";
@@ -88,8 +93,6 @@ export function chatRoutes(db: Db, storage: StorageService) {
   const heartbeat = heartbeatService(db);
   const productIntelligence = productIntelligenceService(db);
 
-  const CHAT_TITLE_SOURCE_LIMIT = 1600;
-  const CHAT_TITLE_MAX_LENGTH = 80;
   const CHAT_TITLE_REGENERATION_MESSAGE_LIMIT = 12;
   const CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE =
     "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
@@ -170,60 +173,8 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
   }
 
-  function buildChatTitlePrompt(body: string, sourceLabel = "First user message") {
-    const normalized = body.replace(/\s+/g, " ").trim();
-    const source = normalized.length > CHAT_TITLE_SOURCE_LIMIT
-      ? `${normalized.slice(0, CHAT_TITLE_SOURCE_LIMIT)}\n\n[Input truncated for title generation.]`
-      : normalized;
-    return [
-      "Generate a concise title for this chat.",
-      "Rules:",
-      "- Return only the title text.",
-      "- No quotes, markdown, emoji, or trailing punctuation.",
-      `- Maximum ${CHAT_TITLE_MAX_LENGTH} characters.`,
-      "",
-      `${sourceLabel}:`,
-      source,
-    ].join("\n");
-  }
-
-  function runtimeResultText(result: unknown) {
-    if (!result || typeof result !== "object") return "";
-    const candidate = result as Record<string, unknown>;
-    if (candidate.timedOut === true || candidate.signal !== null || candidate.exitCode !== 0) return "";
-    for (const key of ["output", "stdout", "text", "message", "summary"]) {
-      const value = candidate[key];
-      if (typeof value === "string" && value.trim().length > 0) return value;
-    }
-    if (candidate.resultJson && typeof candidate.resultJson === "object") {
-      const resultJson = candidate.resultJson as Record<string, unknown>;
-      for (const key of ["output", "stdout", "text", "message", "summary"]) {
-        const value = resultJson[key];
-        if (typeof value === "string" && value.trim().length > 0) return value;
-      }
-    }
-    return "";
-  }
-
-  function sanitizeGeneratedChatTitle(raw: string) {
-    let title = raw
-      .replace(/^```(?:\w+)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim()
-      .replace(/^#+\s*/, "")
-      .replace(/^[-*]\s*/, "")
-      .replace(/\s+/g, " ")
-      .trim();
-    title = title.replace(/^["'`]+|["'`]+$/g, "").trim();
-    title = title.replace(/[.!?:;]+$/g, "").trim();
-    if (!title) return null;
-    return title.length > CHAT_TITLE_MAX_LENGTH
-      ? title.slice(0, CHAT_TITLE_MAX_LENGTH).trim()
-      : title;
-  }
-
   function fallbackChatTitleFromBody(body: string) {
-    return formatMessengerTitle(body, { max: CHAT_TITLE_MAX_LENGTH });
+    return fallbackTitleFromText(body);
   }
 
   function buildChatTitlePromptFromMessages(messages: ChatMessage[]) {
@@ -251,7 +202,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
           feature: "chat_title",
           prompt,
         });
-        const title = sanitizeGeneratedChatTitle(runtimeResultText(result));
+        const title = sanitizeGeneratedTitle(runtimeResultText(result));
         if (title) {
           if (fallbackTitle) {
             await svc.replaceSystemGeneratedTitle(conversation.id, fallbackTitle, title);
@@ -288,7 +239,7 @@ export function chatRoutes(db: Db, storage: StorageService) {
       feature: "chat_title",
       prompt,
     });
-    return sanitizeGeneratedChatTitle(runtimeResultText(result));
+    return sanitizeGeneratedTitle(runtimeResultText(result));
   }
 
   function positiveIntegerQuery(value: unknown, fallback: number, max: number) {
