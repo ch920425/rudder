@@ -53,6 +53,7 @@ import {
 } from "@/lib/project-order";
 import { queryKeys } from "@/lib/queryKeys";
 import { Link, useLocation, useNavigate } from "@/lib/router";
+import { resolveSourceBadge, type SourceBadge } from "@/lib/source-badge";
 import { cn, relativeTime } from "@/lib/utils";
 import {
   closestCenter,
@@ -1233,6 +1234,7 @@ function ChatThreadRow({
   conversation,
   agent,
   agentId,
+  sourceBadge,
   href,
   active,
   generating,
@@ -1263,6 +1265,7 @@ function ChatThreadRow({
   conversation: ChatConversation;
   agent: Agent | null;
   agentId: string | null;
+  sourceBadge?: SourceBadge | null;
   href: string;
   active: boolean;
   generating: boolean;
@@ -1363,6 +1366,14 @@ function ChatThreadRow({
                   )}
                 >
                   <span className="truncate">{conversationDisplayTitle(conversation)}</span>
+                  {sourceBadge ? (
+                    <span
+                      data-testid={`messenger-source-badge-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
+                      className="inline-flex shrink-0 items-center rounded-[calc(var(--radius-sm)-2px)] border border-sky-500/35 bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-sky-700 dark:text-sky-300"
+                    >
+                      {sourceBadge.label}
+                    </span>
+                  ) : null}
                   {titleGenerating ? (
                     <span
                       data-testid={`messenger-title-generating-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
@@ -3364,6 +3375,7 @@ export function MessengerContextSidebar() {
           conversation={conversation}
           agent={agentId ? agentsById.get(agentId) ?? null : null}
           agentId={agentId}
+          sourceBadge={resolveSourceBadge(conversation, thread.metadata)}
           href={thread.href}
           active={active}
           generating={isChatGenerationActive(conversation.id)}

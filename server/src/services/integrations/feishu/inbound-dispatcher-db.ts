@@ -306,6 +306,15 @@ export function createFeishuInboundDispatcherDbDeps(
         userMessageId: message.chatMessageId,
         linkedIssueIds: issue ? [issue.issueId] : [],
         linkedProjectId: null,
+        sourceMetadata: {
+          source: "agent_integration",
+          provider: integration.provider,
+          integrationId: integration.id,
+          externalChatId: _event.chatId,
+          externalChatType: _event.chatType,
+          externalMessageId: _event.messageId,
+          externalEventId: _event.eventId,
+        },
       });
       return { runId: run.id };
     };

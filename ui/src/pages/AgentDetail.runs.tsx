@@ -42,6 +42,7 @@ import {
 } from "../lib/run-detail-display";
 import { formatRunDurationLabel, formatRunOccurrenceLabel, formatRunTimingTitle } from "../lib/run-duration-label";
 import { describeRunReason, runReasonBadgeClassName } from "../lib/run-reason";
+import { resolveSourceBadge } from "../lib/source-badge";
 import { cn, formatTokens, relativeTime } from "../lib/utils";
 import { RunChatContextCard } from "./AgentDetail.chat-context";
 import { asNonEmptyString, asRecord, formatCompactTokenLabel, runMetrics, runStatusIcons, useRunDurationNow } from "./AgentDetail.helpers";
@@ -88,10 +89,14 @@ const runTargetLabels: Record<AgentRunTargetType, string> = {
 
 export function runDetailFacts(run: HeartbeatRun) {
   const agentRun = toAgentRun(run);
-  const facts: Array<{ label: string; value: string; href?: string }> = [
+  const facts: Array<{ label: string; value: string; href?: string; badge?: boolean }> = [
     { label: "Scene", value: runSceneLabels[agentRun.scene] },
     { label: "Target", value: runTargetLabels[agentRun.targetType] },
   ];
+  const sourceBadge = resolveSourceBadge(run.contextSnapshot);
+  if (sourceBadge) {
+    facts.push({ label: "Source", value: sourceBadge.label, badge: true });
+  }
   if (agentRun.targetId) {
     facts.push({
       label: "Target ID",
@@ -667,6 +672,13 @@ export function RunDetail({ run: initialRun, agentRouteId, agentRuntimeType }: {
                       <Link className="block truncate font-medium text-foreground underline-offset-2 hover:underline" title={fact.value} to={fact.href}>
                         {fact.value}
                       </Link>
+                    ) : fact.badge ? (
+                      <div
+                        className="inline-flex max-w-full items-center rounded-[calc(var(--radius-sm)-2px)] border border-sky-500/35 bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-sky-700 dark:text-sky-300"
+                        title={fact.value}
+                      >
+                        {fact.value}
+                      </div>
                     ) : (
                       <div className="truncate font-medium text-foreground" title={fact.value}>{fact.value}</div>
                     )}

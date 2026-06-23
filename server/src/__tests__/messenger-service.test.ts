@@ -1,5 +1,7 @@
 import {
   activityLog,
+  agentIntegrationChatBindings,
+  agentIntegrations,
   agents,
   applyPendingMigrations,
   approvalComments,
@@ -21,6 +23,7 @@ import {
   messengerCustomGroups,
   messengerThreadUserStates,
   organizations,
+  organizationSecrets,
   projects,
 } from "@rudderhq/db";
 import { deriveOrganizationUrlKey, MESSENGER_FORK_GROUP_DEFAULT_ICON } from "@rudderhq/shared";
@@ -135,6 +138,7 @@ describe("messengerService and issue follows", () => {
     await db.delete(messengerCustomGroups);
     await db.delete(messengerThreadUserStates);
     await db.delete(chatMessages);
+    await db.delete(agentIntegrationChatBindings);
     await db.delete(chatConversations);
     await db.delete(assets);
     await db.delete(approvalComments);
@@ -148,6 +152,8 @@ describe("messengerService and issue follows", () => {
     await db.delete(documents);
     await db.delete(issues);
     await db.delete(projects);
+    await db.delete(agentIntegrations);
+    await db.delete(organizationSecrets);
     await db.delete(agents);
     await db.delete(organizations);
   });
@@ -257,6 +263,80 @@ describe("messengerService and issue follows", () => {
     });
     expect(firstPage.items.map((item) => item.threadKey)).toContain(`chat:${conversationIds[44]}`);
     expect(secondPage.items.map((item) => item.threadKey)).not.toContain(`chat:${conversationIds[44]}`);
+  });
+
+  it("marks Feishu-bound chats in Messenger thread summary metadata", async () => {
+    const orgId = randomUUID();
+    const agentId = randomUUID();
+    const conversationId = randomUUID();
+    const integrationId = randomUUID();
+    const secretId = randomUUID();
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: "Messenger Feishu Source Org",
+      urlKey: deriveOrganizationUrlKey("Messenger Feishu Source Org"),
+      issuePrefix: `F${orgId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(agents).values({
+      id: agentId,
+      orgId,
+      name: "Feishu Agent",
+      role: "engineer",
+      status: "active",
+      agentRuntimeType: "codex_local",
+      agentRuntimeConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+    await db.insert(organizationSecrets).values({
+      id: secretId,
+      orgId,
+      name: "Feishu app credentials",
+      provider: "local_encrypted",
+    });
+    await db.insert(agentIntegrations).values({
+      id: integrationId,
+      orgId,
+      agentId,
+      provider: "feishu",
+      status: "active",
+      transport: "long_connection",
+      providerRegion: "feishu_cn",
+      appCredentialSecretId: secretId,
+      externalAppId: "cli_a_feishu_app",
+      externalBotOpenId: "ou_bot",
+    });
+    await db.insert(chatConversations).values({
+      id: conversationId,
+      orgId,
+      title: "Feishu chat oc_ddb65b7a99d57",
+      issueCreationMode: "manual_approval",
+      planMode: false,
+      preferredAgentId: agentId,
+      lastMessageAt: new Date("2026-06-23T08:00:00.000Z"),
+    });
+    await db.insert(agentIntegrationChatBindings).values({
+      orgId,
+      integrationId,
+      conversationId,
+      externalChatId: "oc_ddb65b7a99d57",
+      externalChatType: "p2p",
+    });
+
+    const page = await messengerSvc.listThreadSummaryPage(orgId, "board-user-feishu", { limit: 5 });
+
+    expect(page.items[0]).toMatchObject({
+      threadKey: `chat:${conversationId}`,
+      metadata: {
+        source: "agent_integration",
+        provider: "feishu",
+        integrationId,
+        externalChatId: "oc_ddb65b7a99d57",
+        externalChatType: "p2p",
+      },
+    });
   });
 
   it("hydrates custom group entries outside the current Messenger thread summary page", async () => {

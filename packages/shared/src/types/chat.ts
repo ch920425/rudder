@@ -158,6 +158,7 @@ export interface ChatConversation {
   needsAttention: boolean;
   resolvedAt: Date | null;
   contextLinks: ChatContextLink[];
+  sourceMetadata?: Record<string, unknown> | null;
   chatRuntime: ChatRuntimeDescriptor;
   createdAt: Date;
   updatedAt: Date;

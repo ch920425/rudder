@@ -594,6 +594,29 @@ describe("MessengerContextSidebar chat actions", () => {
     expect(mockUpdateUserState).toHaveBeenCalledWith("chat-1", { pinned: false, unread: undefined });
   });
 
+  it("labels Feishu-sourced chat threads in the Messenger list", () => {
+    chatList = [baseConversation({
+      source: "feishu",
+      sourceLabel: "Feishu chat oc_ddb65b7a99d57",
+    })];
+    messengerModel = {
+      ...baseModel(),
+      threadSummaries: [
+        {
+          ...baseModel().threadSummaries[0],
+          metadata: {
+            source: "feishu",
+          },
+        },
+      ],
+    };
+
+    renderSidebar();
+
+    const thread = document.querySelector('[data-testid="messenger-thread-chat-chat-1"]');
+    expect(thread?.textContent).toContain("Feishu");
+  });
+
   it("optimistically removes an archived chat from active Messenger caches before the update request resolves", async () => {
     renderSidebar();
 

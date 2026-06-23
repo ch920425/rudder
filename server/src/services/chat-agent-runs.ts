@@ -111,6 +111,7 @@ export function chatAgentRunService(db: Db) {
     linkedIssueIds: string[];
     linkedProjectId: string | null;
     runContext?: Record<string, unknown> | null;
+    sourceMetadata?: Record<string, unknown> | null;
   }) {
     const now = new Date();
     const issueId = input.conversation.primaryIssueId ?? input.linkedIssueIds[0] ?? null;
@@ -130,6 +131,7 @@ export function chatAgentRunService(db: Db) {
       planMode: input.conversation.planMode,
       stream: input.triggerDetail === "chat_assistant_reply_stream",
       controlIntent: "new",
+      ...(input.sourceMetadata ?? {}),
       ...(input.runContext ?? {}),
     };
     const run = await db

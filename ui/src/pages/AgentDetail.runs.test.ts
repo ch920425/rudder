@@ -85,4 +85,17 @@ describe("getRunListSummary", () => {
       { label: "Message", value: "assistant-message-1" },
     ]);
   });
+
+  it("marks Feishu-sourced chat runs in the run detail facts", () => {
+    expect(runDetailFacts(run({
+      invocationSource: "chat",
+      triggerDetail: "chat_assistant_reply_stream",
+      chatConversationId: "chat-1",
+      contextSnapshot: {
+        source: "feishu",
+        conversationId: "chat-1",
+        userMessageId: "user-message-1",
+      },
+    }))).toContainEqual({ label: "Source", value: "Feishu", badge: true });
+  });
 });

@@ -1,5 +1,7 @@
 import type { Db } from "@rudderhq/db";
 import {
+  agentIntegrationChatBindings,
+  agentIntegrations,
   agents,
   approvals,
   assets,
@@ -42,6 +44,13 @@ type ConversationSummaryCursor = {
   activityAt: Date;
   title: string;
   threadKey: string;
+};
+type ConversationSourceMetadata = {
+  source: "agent_integration";
+  provider: string;
+  integrationId: string;
+  externalChatId: string;
+  externalChatType: string;
 };
 type ContextLinkRow = typeof chatContextLinks.$inferSelect;
 type ApprovalRow = typeof approvals.$inferSelect;
@@ -161,6 +170,39 @@ export function chatService(db: Db) {
       )
       .groupBy(chatMessages.conversationId);
     return new Set(rows.map((row) => row.conversationId));
+  }
+
+  async function listConversationSourceMetadata(orgId: string, conversationIds: string[]) {
+    if (conversationIds.length === 0) return new Map<string, ConversationSourceMetadata>();
+    const rows = await db
+      .select({
+        conversationId: agentIntegrationChatBindings.conversationId,
+        integrationId: agentIntegrationChatBindings.integrationId,
+        provider: agentIntegrations.provider,
+        externalChatId: agentIntegrationChatBindings.externalChatId,
+        externalChatType: agentIntegrationChatBindings.externalChatType,
+      })
+      .from(agentIntegrationChatBindings)
+      .innerJoin(agentIntegrations, eq(agentIntegrations.id, agentIntegrationChatBindings.integrationId))
+      .where(
+        and(
+          eq(agentIntegrationChatBindings.orgId, orgId),
+          inArray(agentIntegrationChatBindings.conversationId, conversationIds),
+        ),
+      )
+      .orderBy(agentIntegrationChatBindings.createdAt);
+    const map = new Map<string, ConversationSourceMetadata>();
+    for (const row of rows) {
+      if (map.has(row.conversationId)) continue;
+      map.set(row.conversationId, {
+        source: "agent_integration",
+        provider: row.provider,
+        integrationId: row.integrationId,
+        externalChatId: row.externalChatId,
+        externalChatType: row.externalChatType,
+      });
+    }
+    return map;
   }
 
   async function listLatestReplyPreviews(orgId: string, conversationIds: string[]) {
@@ -354,6 +396,7 @@ export function chatService(db: Db) {
       pendingProposalConversationIds,
       latestReplyPreviewsByConversationId,
       userMessageSummariesByConversationId,
+      sourceMetadataByConversationId,
     ] = await Promise.all([
       listContextLinksForConversationIds(db, rows.map((row) => row.id)),
       listPrimaryIssues(db, rows),
@@ -372,6 +415,9 @@ export function chatService(db: Db) {
       orgId
         ? listUserMessageSummaries(orgId, conversationIds)
         : Promise.resolve(new Map<string, { count: number; latestPreview: string | null }>()),
+      orgId
+        ? listConversationSourceMetadata(orgId, conversationIds)
+        : Promise.resolve(new Map<string, ConversationSourceMetadata>()),
     ]);
     return rows.map((row) => ({
       ...row,
@@ -380,6 +426,7 @@ export function chatService(db: Db) {
       latestUserMessagePreview: userMessageSummariesByConversationId.get(row.id)?.latestPreview ?? null,
       userMessageCount: userMessageSummariesByConversationId.get(row.id)?.count ?? 0,
       contextLinks: contextLinksByConversationId.get(row.id) ?? [],
+      sourceMetadata: sourceMetadataByConversationId.get(row.id) ?? null,
       lastReadAt: userStatesByConversationId.get(row.id)?.lastReadAt ?? null,
       isPinned: Boolean(userStatesByConversationId.get(row.id)?.pinnedAt),
       unreadCount: unreadCountsByConversationId.get(row.id) ?? 0,
@@ -404,6 +451,7 @@ export function chatService(db: Db) {
       pendingProposalConversationIds,
       latestReplyPreviewsByConversationId,
       userMessageSummariesByConversationId,
+      sourceMetadataByConversationId,
     ] = await Promise.all([
       userId && orgId
         ? listConversationUserStates(orgId, userId, conversationIds)
@@ -420,12 +468,16 @@ export function chatService(db: Db) {
       orgId
         ? listUserMessageSummaries(orgId, conversationIds)
         : Promise.resolve(new Map<string, { count: number; latestPreview: string | null }>()),
+      orgId
+        ? listConversationSourceMetadata(orgId, conversationIds)
+        : Promise.resolve(new Map<string, ConversationSourceMetadata>()),
     ]);
     return rows.map((row) => ({
       ...row,
       latestReplyPreview: latestReplyPreviewsByConversationId.get(row.id) ?? null,
       latestUserMessagePreview: userMessageSummariesByConversationId.get(row.id)?.latestPreview ?? null,
       userMessageCount: userMessageSummariesByConversationId.get(row.id)?.count ?? 0,
+      sourceMetadata: sourceMetadataByConversationId.get(row.id) ?? null,
       lastReadAt: userStatesByConversationId.get(row.id)?.lastReadAt ?? null,
       isPinned: Boolean(userStatesByConversationId.get(row.id)?.pinnedAt),
       unreadCount: unreadCountsByConversationId.get(row.id) ?? 0,

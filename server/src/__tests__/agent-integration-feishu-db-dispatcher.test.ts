@@ -505,7 +505,15 @@ describe("Feishu inbound dispatcher DB deps", () => {
 
     await expect(db.select().from(agentIntegrationInboundDedup)).resolves.toHaveLength(1);
     await expect(db.select().from(agentIntegrationChatBindings)).resolves.toHaveLength(1);
-    await expect(db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, result.runId!))).resolves.toHaveLength(1);
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, result.runId!));
+    expect(run?.contextSnapshot).toMatchObject({
+      source: "agent_integration",
+      provider: "feishu",
+      integrationId: seeded.integrationId,
+      externalChatId: event.chatId,
+      externalChatType: event.chatType,
+      externalMessageId: event.messageId,
+    });
     const [outbound] = await db.select().from(agentIntegrationOutboundMessages);
     expect(outbound).toMatchObject({
       orgId: seeded.orgId,
