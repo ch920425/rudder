@@ -1347,7 +1347,7 @@ function ChatWorkspace() { const { conversationId } = useParams<{ conversationId
           "chat-composer rounded-[var(--radius-lg)] p-3 transition-all duration-300",
           centered ? "mx-auto w-full max-w-3xl" : "w-full",
         )} >
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-soft)] bg-[color:var(--surface-elevated)] px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-medium text-foreground">Feishu chat is read-only in Rudder</div>
               <div className="mt-0.5 text-xs text-muted-foreground">Fork it to continue in a normal Rudder chat.</div>

@@ -161,6 +161,12 @@ export function chatService(db: Db) {
           isNull(chatMessages.supersededAt),
           visibleIncomingMessageSql(),
           gt(chatMessages.createdAt, chatConversationUserStates.lastReadAt),
+          sql<boolean>`not exists (
+            select 1
+            from ${agentIntegrationChatBindings}
+            where ${agentIntegrationChatBindings.orgId} = ${orgId}
+              and ${agentIntegrationChatBindings.conversationId} = ${chatMessages.conversationId}
+          )`,
         ),
       )
       .groupBy(chatMessages.conversationId);
@@ -442,6 +448,8 @@ export function chatService(db: Db) {
     ]);
     return rows.map((row) => {
       const sourceMetadata = sourceMetadataByConversationId.get(row.id) ?? null;
+      const isExternalBound = Boolean(sourceMetadata);
+      const unreadCount = isExternalBound ? 0 : (unreadCountsByConversationId.get(row.id) ?? 0);
       return {
         ...row,
         primaryIssue: row.primaryIssueId ? (primaryIssuesById.get(row.primaryIssueId) ?? null) : null,
@@ -453,11 +461,12 @@ export function chatService(db: Db) {
         mutability: conversationMutability(row, sourceMetadata, sourceMetadataByConversationId),
         lastReadAt: userStatesByConversationId.get(row.id)?.lastReadAt ?? null,
         isPinned: Boolean(userStatesByConversationId.get(row.id)?.pinnedAt),
-        unreadCount: unreadCountsByConversationId.get(row.id) ?? 0,
-        isUnread: (unreadCountsByConversationId.get(row.id) ?? 0) > 0,
-        needsAttention:
-          (unreadCountsByConversationId.get(row.id) ?? 0) > 0 ||
-          pendingProposalConversationIds.has(row.id),
+        unreadCount,
+        isUnread: unreadCount > 0,
+        needsAttention: !isExternalBound && (
+          unreadCount > 0 ||
+          pendingProposalConversationIds.has(row.id)
+        ),
       };
     });
   }
@@ -505,6 +514,8 @@ export function chatService(db: Db) {
     ]);
     return rows.map((row) => {
       const sourceMetadata = sourceMetadataByConversationId.get(row.id) ?? null;
+      const isExternalBound = Boolean(sourceMetadata);
+      const unreadCount = isExternalBound ? 0 : (unreadCountsByConversationId.get(row.id) ?? 0);
       return {
         ...row,
         latestReplyPreview: latestReplyPreviewsByConversationId.get(row.id) ?? null,
@@ -514,11 +525,12 @@ export function chatService(db: Db) {
         mutability: conversationMutability(row, sourceMetadata, sourceMetadataByConversationId),
         lastReadAt: userStatesByConversationId.get(row.id)?.lastReadAt ?? null,
         isPinned: Boolean(userStatesByConversationId.get(row.id)?.pinnedAt),
-        unreadCount: unreadCountsByConversationId.get(row.id) ?? 0,
-        isUnread: (unreadCountsByConversationId.get(row.id) ?? 0) > 0,
-        needsAttention:
-          (unreadCountsByConversationId.get(row.id) ?? 0) > 0 ||
-          pendingProposalConversationIds.has(row.id),
+        unreadCount,
+        isUnread: unreadCount > 0,
+        needsAttention: !isExternalBound && (
+          unreadCount > 0 ||
+          pendingProposalConversationIds.has(row.id)
+        ),
       };
     });
   }
