@@ -93,6 +93,7 @@ vi.mock("../services/managed-workspace-preflight.js", async (importOriginal) => 
   };
 });
 
+import { buildAgentWorkspaceKey } from "../agent-workspace-key.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 
 type EmbeddedPostgresInstance = {
@@ -374,6 +375,52 @@ describe("heartbeat managed workspace preflight", () => {
     await expect(fs.stat(path.join(agentHome, "memory")).then((stat) => stat.isDirectory())).resolves.toBe(true);
     await expect(fs.stat(path.join(agentHome, "life")).then((stat) => stat.isDirectory())).resolves.toBe(true);
     await expect(fs.stat(path.join(agentHome, "skills")).then((stat) => stat.isDirectory())).resolves.toBe(true);
+  });
+
+  it("backfills legacy renamed agent workspace keys before creating heartbeat directories", async () => {
+    const agent = await seedAgentFixture();
+    const legacyWorkspaceKey = buildAgentWorkspaceKey("Wesley", agent.agentId);
+    const renamedWorkspaceKey = buildAgentWorkspaceKey("Chief of Staff", agent.agentId);
+    const legacyAgentHome = resolveDefaultAgentWorkspaceDir(agent.orgId, legacyWorkspaceKey);
+    const renamedAgentHome = resolveDefaultAgentWorkspaceDir(agent.orgId, renamedWorkspaceKey);
+    const instructionsDir = path.join(legacyAgentHome, "instructions");
+
+    await db
+      .update(agents)
+      .set({
+        name: "Chief of Staff",
+        workspaceKey: null,
+        agentRuntimeConfig: {
+          instructionsRootPath: instructionsDir,
+          instructionsFilePath: path.join(instructionsDir, "SOUL.md"),
+        },
+      })
+      .where(eq(agents.id, agent.agentId));
+
+    await expect(fs.stat(legacyAgentHome)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(renamedAgentHome)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const run = await heartbeatService(db).wakeup(agent.agentId, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "test_renamed_legacy_workspace_key_backfill",
+      contextSnapshot: { taskKey: "workspace-key:renamed-legacy-agent" },
+    });
+
+    expect(run?.id).toBeTruthy();
+    await waitForCondition(async () => {
+      const succeededRun = await getRun(run!.id);
+      return succeededRun?.status === "succeeded";
+    });
+
+    const updatedAgent = await getAgent(agent.agentId);
+    expect(updatedAgent?.workspaceKey).toBe(legacyWorkspaceKey);
+    expect(mockPreflight.calls[0]).toEqual(expect.objectContaining({
+      agentHome: legacyAgentHome,
+    }));
+    await expect(fs.stat(legacyAgentHome).then((stat) => stat.isDirectory())).resolves.toBe(true);
+    await expect(fs.stat(path.join(legacyAgentHome, "memory")).then((stat) => stat.isDirectory())).resolves.toBe(true);
+    await expect(fs.stat(renamedAgentHome)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("persists forbidden runtime skill marker evidence from adapter output", async () => {

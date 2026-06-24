@@ -40,6 +40,7 @@ import { logger } from "../../middleware/logger.js";
 import {
   agentRunContextService
 } from "../agent-run-context.js";
+import { agentService } from "../agents.js";
 import { budgetService, type BudgetEnforcementScope } from "../budgets.js";
 import { costService } from "../costs.js";
 import { runWorkspaceService } from "../execution-workspaces.js";
@@ -86,6 +87,7 @@ export function heartbeatService(db: Db) {
 
   const runLogStore = getRunLogStore();
   const runContextSvc = agentRunContextService(db);
+  const agentsSvc = agentService(db);
   const issuesSvc = issueService(db);
   const executionWorkspacesSvc = runWorkspaceService(db);
   const workspaceOperationsSvc = workspaceOperationService(db);
@@ -96,11 +98,7 @@ export function heartbeatService(db: Db) {
   const budgets = budgetService(db, budgetHooks);
 
   async function getAgent(agentId: string) {
-    return db
-      .select()
-      .from(agents)
-      .where(eq(agents.id, agentId))
-      .then((rows) => rows[0] ?? null);
+    return agentsSvc.getInternalById(agentId);
   }
 
   async function getRun(runId: string) {
