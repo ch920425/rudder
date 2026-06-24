@@ -49,6 +49,10 @@ import {
   getActiveChatGeneration,
   hasActiveChatGeneration
 } from "../services/chat-generation-locks.js";
+import {
+  buildChatTitlePromptFromMessages,
+  chatTitleGenerationService,
+} from "../services/chat-title-generation.js";
 import { validateCron } from "../services/cron.js";
 import {
   accessService,
@@ -67,8 +71,6 @@ import {
 import { sanitizeStartupContextPromptForPersistence } from "../services/runtime-kernel/heartbeat.core.js";
 import { summarizeRuntimeSkillsForTrace } from "../services/runtime-trace-metadata.js";
 import {
-  buildChatTitlePrompt,
-  fallbackTitleFromText,
   runtimeResultText,
   sanitizeGeneratedTitle,
 } from "../services/title-generation.js";
@@ -92,8 +94,8 @@ export function chatRoutes(db: Db, storage: StorageService) {
   const operatorProfiles = operatorProfileService(db);
   const heartbeat = heartbeatService(db);
   const productIntelligence = productIntelligenceService(db);
+  const chatTitles = chatTitleGenerationService({ chats: svc, productIntelligence });
 
-  const CHAT_TITLE_REGENERATION_MESSAGE_LIMIT = 12;
   const CHAT_ASSISTANT_RECOVERABLE_FAILURE_FALLBACK_MESSAGE =
     "The assistant reply could not be completed. Rudder saved this attempt for diagnostics; retry when ready.";
 
@@ -173,110 +175,13 @@ export function chatRoutes(db: Db, storage: StorageService) {
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
   }
 
-  function fallbackChatTitleFromBody(body: string) {
-    return fallbackTitleFromText(body);
-  }
-
-  function titleGenerationExpectedCurrentTitle(conversation: ChatConversation) {
-    const currentTitle = conversation.title.trim();
-    if (currentTitle === "New chat") return "New chat";
-    if (conversation.forkedFromConversationId && currentTitle.length > 0) return currentTitle;
-    return null;
-  }
-
-  function isForkSystemEvent(message: ChatMessage) {
-    if (message.role !== "system" || message.kind !== "system_event") return false;
-    if (message.structuredPayload?.type === "chat_fork") return true;
-    return message.body.startsWith("Forked from ");
-  }
-
-  async function isFirstUserMessageAfterFork(conversationId: string, userMessage: ChatMessage) {
-    const messages = (await svc.listMessages(conversationId, { includeTranscript: false })) ?? [];
-    let forkEventIndex = -1;
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
-      if (message && isForkSystemEvent(message as ChatMessage)) {
-        forkEventIndex = index;
-        break;
-      }
-    }
-    if (forkEventIndex < 0) return false;
-    const firstNewUserMessage = messages
-      .slice(forkEventIndex + 1)
-      .find((message) => message.role === "user" && message.kind === "message");
-    return firstNewUserMessage?.id === userMessage.id;
-  }
-
   function assertChatLocalMutationAllowed(conversation: ChatConversation) {
     if (conversation.mutability === "external_bound_chat") {
       throw conflict("Fork this Feishu chat to continue in Rudder");
     }
   }
 
-  function buildChatTitlePromptFromMessages(messages: ChatMessage[]) {
-    const source = messages
-      .filter((message) => message.role === "user" || message.role === "assistant")
-      .slice(-CHAT_TITLE_REGENERATION_MESSAGE_LIMIT)
-      .map((message) => `${message.role}: ${message.body}`)
-      .join("\n\n")
-      .trim();
-    return source ? buildChatTitlePrompt(source, "Conversation excerpt") : null;
-  }
-
-  function startChatTitleGeneration(conversation: ChatConversation, userMessage: ChatMessage) {
-    const body = userMessage.body;
-    const expectedCurrentTitle = titleGenerationExpectedCurrentTitle(conversation);
-    if (!expectedCurrentTitle || body.trim().length === 0) return;
-    const prompt = buildChatTitlePrompt(body);
-    const fallbackTitle = fallbackChatTitleFromBody(body);
-    const updateTitleIfExpected = (title: string) =>
-      expectedCurrentTitle === "New chat"
-        ? svc.updateDefaultTitle(conversation.id, title)
-        : svc.updateDefaultTitle(conversation.id, title, expectedCurrentTitle);
-    void (async () => {
-      if (conversation.forkedFromConversationId) {
-        const shouldRetitleFork = await isFirstUserMessageAfterFork(conversation.id, userMessage);
-        if (!shouldRetitleFork) return;
-      }
-      if (fallbackTitle) {
-        await updateTitleIfExpected(fallbackTitle);
-      }
-      try {
-        const result = await productIntelligence.execute({
-          orgId: conversation.orgId,
-          purpose: "lightweight",
-          feature: "chat_title",
-          prompt,
-        });
-        const title = sanitizeGeneratedTitle(runtimeResultText(result));
-        if (title) {
-          if (fallbackTitle) {
-            await svc.replaceSystemGeneratedTitle(conversation.id, fallbackTitle, title);
-          } else {
-            await updateTitleIfExpected(title);
-          }
-        }
-      } catch (error) {
-        logger.warn(
-          {
-            err: error,
-            conversationId: conversation.id,
-            orgId: conversation.orgId,
-          },
-          "Failed to generate chat title with organization lightweight model",
-        );
-      }
-    })().catch((error) => {
-      logger.warn(
-        {
-          err: error,
-          conversationId: conversation.id,
-          orgId: conversation.orgId,
-        },
-        "Failed to update chat title",
-      );
-    });
-  }
+  const startChatTitleGeneration = chatTitles.startAutomaticGeneration;
 
   async function generateChatTitle(orgId: string, prompt: string) {
     const result = await productIntelligence.execute({

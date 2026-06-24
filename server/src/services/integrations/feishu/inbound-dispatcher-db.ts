@@ -10,11 +10,17 @@ import {
   chatConversations,
   organizationMemberships,
 } from "@rudderhq/db";
+import { formatMessengerTitle } from "@rudderhq/shared";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { chatAgentRunService } from "../../chat-agent-runs.js";
+import {
+  chatTitleGenerationService,
+  type ChatTitleGenerationOptions,
+} from "../../chat-title-generation.js";
 import { chatService } from "../../chats.js";
 import { issueService } from "../../issues.js";
+import { productIntelligenceService, type ProductIntelligenceExecuteInput } from "../../product-intelligence.js";
 import type {
   AgentIntegrationInboundDispatcherDeps,
   FeishuInboundMessage,
@@ -41,14 +47,16 @@ function integrationStatus(value: string): ResolvedAgentIntegration["status"] {
 }
 
 function chatTitle(event: FeishuInboundMessage) {
-  const prefix = event.chatType === "group" ? "Feishu group" : "Feishu chat";
-  return `${prefix} ${event.chatId}`.slice(0, 120);
+  return formatMessengerTitle(event.body) ?? "New chat";
 }
 
 export interface FeishuInboundDispatcherDbOptions {
   orgId?: string;
   enqueueAgentRun?: boolean;
   createOutboundPlaceholder?: boolean;
+  productIntelligence?: {
+    execute(input: ProductIntelligenceExecuteInput): Promise<unknown>;
+  };
 }
 
 export function createFeishuInboundDispatcherDbDeps(
@@ -58,6 +66,10 @@ export function createFeishuInboundDispatcherDbDeps(
   const chats = chatService(db);
   const issues = issueService(db);
   const chatRuns = chatAgentRunService(db);
+  const chatTitles = chatTitleGenerationService({
+    chats,
+    productIntelligence: options.productIntelligence ?? productIntelligenceService(db),
+  });
 
   const deps: AgentIntegrationInboundDispatcherDeps = {
     resolveActiveIntegration: async (event) => {
@@ -195,8 +207,9 @@ export function createFeishuInboundDispatcherDbDeps(
         .then((rows) => rows[0] ?? null);
       if (existing) return existing;
 
+      const initialTitle = chatTitle(event);
       const conversation = await chats.create(integration.orgId, {
-        title: chatTitle(event),
+        title: initialTitle,
         summary: null,
         preferredAgentId: integration.agentId,
         issueCreationMode: "manual_approval",
@@ -224,7 +237,7 @@ export function createFeishuInboundDispatcherDbDeps(
           })
           .returning({ conversationId: agentIntegrationChatBindings.conversationId })
           .then((rows) => rows[0]);
-        if (inserted) return inserted;
+        if (inserted) return { ...inserted, created: true, initialTitle };
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
       }
@@ -262,6 +275,15 @@ export function createFeishuInboundDispatcherDbDeps(
           externalParentMessageId: event.parentMessageId ?? null,
         },
       });
+      if (chat.created && chat.initialTitle) {
+        const conversation = await chats.getById(chat.conversationId);
+        if (conversation) {
+          const generationOptions: ChatTitleGenerationOptions = {
+            expectedCurrentTitle: chat.initialTitle,
+          };
+          chatTitles.startAutomaticGeneration(conversation, message, generationOptions);
+        }
+      }
       return { chatMessageId: message.id };
     },
 
