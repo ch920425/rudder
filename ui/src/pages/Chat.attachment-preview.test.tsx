@@ -39,6 +39,7 @@ const mockState = vi.hoisted(() => ({
   navigate: vi.fn(),
   pushToast: vi.fn(),
   queryKeys: [] as unknown[][],
+  getQueryData: vi.fn(),
   sendInFlightByChatId: {} as Record<string, true>,
   sendMessageStream: vi.fn(),
   setQueriesData: vi.fn(),
@@ -111,6 +112,7 @@ vi.mock("@tanstack/react-query", () => ({
     },
   }),
   useQueryClient: () => ({
+    getQueryData: mockState.getQueryData,
     invalidateQueries: mockState.invalidateQueries,
     setQueryData: mockState.setQueryData,
     setQueriesData: mockState.setQueriesData,
@@ -640,6 +642,7 @@ beforeEach(() => {
   mockState.navigate.mockReset();
   mockState.pushToast.mockReset();
   mockState.queryKeys = [];
+  mockState.getQueryData.mockReset();
   mockState.sendInFlightByChatId = {};
   mockState.sendMessageStream.mockReset();
   mockState.setQueriesData.mockReset();

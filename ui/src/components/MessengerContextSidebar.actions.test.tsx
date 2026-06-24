@@ -33,6 +33,7 @@ const mockConfirm = vi.hoisted(() => vi.fn(async () => true));
 const mockMarkThreadRead = vi.hoisted(() => vi.fn());
 const invalidateQueries = vi.fn();
 const cancelQueries = vi.fn(() => Promise.resolve());
+const getQueryData = vi.fn();
 const setQueryData = vi.fn();
 const setQueriesData = vi.fn();
 const mutationMockState = vi.hoisted(() => ({
@@ -116,7 +117,7 @@ vi.mock("@tanstack/react-query", () => ({
     isPending: mutationMockState.pendingVariables.has(options.mutationFn),
     variables: mutationMockState.pendingVariables.get(options.mutationFn),
   }),
-  useQueryClient: () => ({ cancelQueries, invalidateQueries, setQueryData, setQueriesData }),
+  useQueryClient: () => ({ cancelQueries, getQueryData, invalidateQueries, setQueryData, setQueriesData }),
   useQuery: (options: { queryKey?: unknown; enabled?: boolean }) => {
     if (options.enabled === false) return { data: undefined };
     const queryKey = Array.isArray(options.queryKey) ? options.queryKey : [];
@@ -530,6 +531,7 @@ describe("MessengerContextSidebar chat actions", () => {
     invalidateQueries.mockClear();
     setQueryData.mockClear();
     setQueriesData.mockClear();
+    getQueryData.mockClear();
     mutationMockState.pendingVariables.clear();
   });
 
