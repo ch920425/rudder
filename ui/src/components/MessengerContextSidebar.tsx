@@ -131,6 +131,7 @@ const DEFAULT_THREAD_DENSITY: MessengerThreadDensity = "compact";
 const DEFAULT_SPLIT_ISSUE_NOTIFICATIONS = true;
 const MANAGED_GROUP_INITIAL_VISIBLE_COUNT = 6;
 const MANAGED_GROUP_VISIBLE_INCREMENT = 10;
+const MESSENGER_AUTO_LOAD_RENDERED_THREAD_LIMIT = 160;
 const DELETE_AFTER_STOP_RETRY_DELAYS_MS = [120, 300, 700] as const;
 const CUSTOM_GROUP_COLOR_OPTIONS = ["slate", "teal", "sky", "indigo", "amber", "rose", "red", "orange"] as const;
 type CustomGroupColor = (typeof CUSTOM_GROUP_COLOR_OPTIONS)[number];
@@ -1345,7 +1346,7 @@ function ChatThreadRow({
       data-testid={`messenger-thread-${sanitizeThreadKey(`chat:${conversation.id}`)}`}
       data-messenger-thread-key={`chat:${conversation.id}`}
       className={cn(
-        "group relative mx-1.5 flex rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
+        "group relative mx-1.5 flex [contain-intrinsic-size:auto_44px] [content-visibility:auto] rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
         compact ? "items-center gap-2 px-2 py-1.5" : "items-start gap-3 px-3 py-2.5",
         active
           ? "chat-conversation-active border-[color:var(--border-strong)] bg-[color:color-mix(in_oklab,var(--surface-active)_90%,var(--surface-elevated))]"
@@ -1673,7 +1674,7 @@ function ThreadRow({
       data-testid={`messenger-thread-${sanitizeThreadKey(thread.threadKey)}`}
       data-messenger-thread-key={thread.threadKey}
       className={cn(
-        "group relative mx-1.5 flex rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
+        "group relative mx-1.5 flex [contain-intrinsic-size:auto_44px] [content-visibility:auto] rounded-[calc(var(--radius-md)-2px)] border transition-[background-color,border-color,color]",
         compact ? "items-center gap-2 px-2 py-1.5" : "items-start gap-3 px-3 py-2.5",
         active
           ? "chat-conversation-active border-[color:var(--border-strong)] bg-[color:color-mix(in_oklab,var(--surface-active)_90%,var(--surface-elevated))]"
@@ -2750,6 +2751,10 @@ export function MessengerContextSidebar() {
     }
     return map;
   }, [customGroups, effectiveThreadOrganizationRule, organizedThreadSections]);
+  const renderedThreadCount = useMemo(() => (
+    organizedThreadSections.reduce((count, section) => count + section.entries.length, 0)
+  ), [organizedThreadSections]);
+  const shouldAutoLoadMoreThreadSummaries = renderedThreadCount < MESSENGER_AUTO_LOAD_RENDERED_THREAD_LIMIT;
   const resolveCustomDragIntent = useCallback((activeId: string, overId: string | null): MessengerDragIntent => {
     if (effectiveThreadOrganizationRule !== "custom" || !overId || activeId === overId) return null;
     const activeIsThread = customEntryGroupByThreadKey.has(activeId);
@@ -4273,6 +4278,7 @@ export function MessengerContextSidebar() {
     const sentinel = loadMoreThreadSummariesRef.current;
     const root = sidebarScrollElementRef.current;
     if (!sentinel || !root) return;
+    if (!shouldAutoLoadMoreThreadSummaries) return;
     if (!model.hasMoreThreadSummaries || model.isFetchingMoreThreadSummaries || model.isLoading) return;
     if (typeof IntersectionObserver === "undefined") return;
 
@@ -4289,6 +4295,7 @@ export function MessengerContextSidebar() {
     model.isFetchingMoreThreadSummaries,
     model.isLoading,
     model.loadMoreThreadSummaries,
+    shouldAutoLoadMoreThreadSummaries,
     visibleThreadSummaries.length,
   ]);
 
@@ -4419,6 +4426,15 @@ export function MessengerContextSidebar() {
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 Loading more threads
               </span>
+            ) : !shouldAutoLoadMoreThreadSummaries ? (
+              <button
+                type="button"
+                data-testid="messenger-thread-page-load-more"
+                className="inline-flex h-7 items-center rounded-[calc(var(--radius-sm)-1px)] px-2 text-[11px] font-medium text-muted-foreground transition-[background-color,color] hover:bg-[color:var(--surface-active)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+                onClick={() => void model.loadMoreThreadSummaries()}
+              >
+                Load more threads
+              </button>
             ) : null}
           </div>
         ) : null}

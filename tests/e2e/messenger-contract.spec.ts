@@ -152,7 +152,7 @@ test.describe("Messenger unified threads contract", () => {
   test("loads additional chat sessions in the Messenger sidebar without fetching every thread up front", async ({ page }) => {
     const organization = await createOrganization(page, `Messenger-Paged-Sessions-${Date.now()}`);
     const baseTime = Date.parse("2026-05-15T12:00:00.000Z");
-    const rows = Array.from({ length: 55 }).map((_, index) => {
+    const rows = Array.from({ length: 205 }).map((_, index) => {
       const activityAt = new Date(baseTime - index * 60_000);
       return {
         id: randomUUID(),
@@ -201,7 +201,7 @@ test.describe("Messenger unified threads contract", () => {
     const firstPage = await (await firstPageResponse).json();
     expect(firstPage.items).toHaveLength(40);
     expect(firstPage.pageInfo.hasMore).toBe(true);
-    expect(firstPage.items.some((item: { title: string }) => item.title === "Paged session 55")).toBe(false);
+    expect(firstPage.items.some((item: { title: string }) => item.title === "Paged session 205")).toBe(false);
     expect(unpagedThreadRequests).toEqual([]);
     expect(fullChatListRequests).toEqual([]);
 
@@ -217,6 +217,32 @@ test.describe("Messenger unified threads contract", () => {
     const nextPage = await (await nextPageResponse).json();
     expect(nextPage.items.some((item: { title: string }) => item.title === "Paged session 55")).toBe(true);
     await expect(page.getByTestId(threadTestId(`chat:${rows[54]!.id}`))).toBeVisible({ timeout: 15_000 });
+    expect(unpagedThreadRequests).toEqual([]);
+    expect(fullChatListRequests).toEqual([]);
+
+    const sidebarThreadList = page.getByTestId("workspace-sidebar").locator("nav");
+    const manualLoadButton = page.getByTestId("messenger-thread-page-load-more");
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await sidebarThreadList.evaluate((node) => {
+        node.scrollTop = node.scrollHeight;
+        node.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      if (await manualLoadButton.isVisible().catch(() => false)) break;
+      await page.waitForTimeout(250);
+    }
+
+    await expect(manualLoadButton).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => page.locator("[data-messenger-thread-key]").count()).toBe(160);
+    await sidebarThreadList.evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+      node.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await page.waitForTimeout(500);
+    await expect.poll(async () => page.locator("[data-messenger-thread-key]").count()).toBe(160);
+
+    await manualLoadButton.click();
+    await expect.poll(async () => page.locator("[data-messenger-thread-key]").count()).toBe(200);
+    await expect(page.getByTestId(threadTestId(`chat:${rows[199]!.id}`))).toBeAttached({ timeout: 15_000 });
     expect(unpagedThreadRequests).toEqual([]);
     expect(fullChatListRequests).toEqual([]);
   });
