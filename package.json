@@ -15,6 +15,7 @@
     "architecture:audit:check": "node scripts/architecture-audit.mjs --baseline scripts/architecture-audit-baseline.json --fail-on-regression",
     "product-logic:check": "node scripts/product-logic-check.mjs",
     "product-logic:test": "node --test scripts/product-logic-check.test.mjs",
+    "test:bundled-skills": "node --test 'server/resources/bundled-skills/**/tests/*.test.mjs' 'packages/plugins/local/*/test/*.test.mjs'",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest",
