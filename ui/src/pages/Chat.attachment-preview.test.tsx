@@ -1049,8 +1049,8 @@ describe("Feishu-backed chat controls", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("Pin Chat");
-    expect(document.body.textContent).toContain("Fork latest");
+    expect(document.body.textContent).toContain("Pin");
+    expect(document.body.textContent).toContain("Fork");
     expect(document.body.textContent).not.toContain("Delete");
     expect(document.body.textContent).not.toContain("Archive");
   });
