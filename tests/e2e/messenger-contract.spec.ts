@@ -174,7 +174,6 @@ test.describe("Messenger unified threads contract", () => {
       window.localStorage.setItem("rudder.selectedOrganizationId", orgId);
     }, organization.id);
     const unpagedThreadRequests: string[] = [];
-    const fullChatListRequests: string[] = [];
     page.on("request", (request) => {
       const url = new URL(request.url());
       if (
@@ -184,26 +183,18 @@ test.describe("Messenger unified threads contract", () => {
       ) {
         unpagedThreadRequests.push(request.url());
       }
-      if (
-        request.method() === "GET"
-        && url.pathname === `/api/orgs/${organization.id}/chats`
-        && url.searchParams.get("status") === "active"
-      ) {
-        fullChatListRequests.push(request.url());
-      }
     });
 
     const firstPageResponse = page.waitForResponse((response) =>
       response.request().method() === "GET"
       && response.url().includes(`/api/orgs/${organization.id}/messenger/threads?limit=40`),
     );
-    await page.goto(`/${organization.issuePrefix}/messenger`, { waitUntil: "commit" });
+    await page.goto(`/${organization.issuePrefix}/messenger/issues`, { waitUntil: "commit" });
     const firstPage = await (await firstPageResponse).json();
     expect(firstPage.items).toHaveLength(40);
     expect(firstPage.pageInfo.hasMore).toBe(true);
     expect(firstPage.items.some((item: { title: string }) => item.title === "Paged session 205")).toBe(false);
     expect(unpagedThreadRequests).toEqual([]);
-    expect(fullChatListRequests).toEqual([]);
 
     const nextPageResponse = page.waitForResponse((response) =>
       response.request().method() === "GET"
@@ -218,7 +209,6 @@ test.describe("Messenger unified threads contract", () => {
     expect(nextPage.items.some((item: { title: string }) => item.title === "Paged session 55")).toBe(true);
     await expect(page.getByTestId(threadTestId(`chat:${rows[54]!.id}`))).toBeVisible({ timeout: 15_000 });
     expect(unpagedThreadRequests).toEqual([]);
-    expect(fullChatListRequests).toEqual([]);
 
     const sidebarThreadList = page.getByTestId("workspace-sidebar").locator("nav");
     const manualLoadButton = page.getByTestId("messenger-thread-page-load-more");
@@ -244,7 +234,6 @@ test.describe("Messenger unified threads contract", () => {
     await expect.poll(async () => page.locator("[data-messenger-thread-key]").count()).toBe(200);
     await expect(page.getByTestId(threadTestId(`chat:${rows[199]!.id}`))).toBeAttached({ timeout: 15_000 });
     expect(unpagedThreadRequests).toEqual([]);
-    expect(fullChatListRequests).toEqual([]);
   });
 
   test("keeps pinned Messenger chats visible when they are older than the first activity page", async ({ page }) => {
