@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 const TOOL_PREFIX = "sj.mac-mini-agent:";
 
@@ -162,7 +162,20 @@ function compactEvent(event) {
     if (event[key] !== undefined && event[key] !== null && event[key] !== "") out[key] = event[key];
   }
   if (event.data && typeof event.data === "object") {
-    for (const key of ["status", "exitCode", "summary", "text", "stdout", "stderr"]) {
+    for (const key of [
+      "status",
+      "exitCode",
+      "summary",
+      "text",
+      "stdout",
+      "stderr",
+      "discordThreadUrl",
+      "discord_thread_url",
+      "discordThreadId",
+      "discord_thread_id",
+      "relayStatus",
+      "relay_status",
+    ]) {
       if (event.data[key] !== undefined && event.data[key] !== null && event.data[key] !== "") {
         out[`data.${key}`] = event.data[key];
       }
@@ -247,6 +260,30 @@ function normalize(tool, response, httpStatus) {
   const data = result?.data ?? {};
   const events = Array.isArray(data.events) ? data.events : [];
   const eventText = collectEventText(events);
+  const terminalArtifacts = data.terminalResult?.artifacts && typeof data.terminalResult.artifacts === "object"
+    ? data.terminalResult.artifacts
+    : {};
+  const discordThreadUrl = data.discordThreadUrl
+    ?? data.discord_thread_url
+    ?? data.terminalResult?.discordThreadUrl
+    ?? data.terminalResult?.discord_thread_url
+    ?? terminalArtifacts.discordThreadUrl
+    ?? terminalArtifacts.discord_thread_url
+    ?? null;
+  const discordThreadId = data.discordThreadId
+    ?? data.discord_thread_id
+    ?? data.terminalResult?.discordThreadId
+    ?? data.terminalResult?.discord_thread_id
+    ?? terminalArtifacts.discordThreadId
+    ?? terminalArtifacts.discord_thread_id
+    ?? null;
+  const relayStatus = data.relayStatus
+    ?? data.relay_status
+    ?? data.terminalResult?.relayStatus
+    ?? data.terminalResult?.relay_status
+    ?? terminalArtifacts.relayStatus
+    ?? terminalArtifacts.relay_status
+    ?? null;
   const error = response?.error ?? result?.error ?? null;
   const ok = httpStatus >= 200 && httpStatus < 300 && !error;
   return {
@@ -263,6 +300,9 @@ function normalize(tool, response, httpStatus) {
       timedOut: data.timedOut ?? null,
       nextAction: data.nextAction ?? data.terminalResult?.next_action ?? data.job?.result?.next_action ?? null,
       resultReady: data.resultReady ?? data.terminalResult?.ready ?? null,
+      discordThreadUrl,
+      discordThreadId,
+      relayStatus,
       lastSeq: data.lastSeq ?? null,
       eventTextChars: eventText.length,
     },

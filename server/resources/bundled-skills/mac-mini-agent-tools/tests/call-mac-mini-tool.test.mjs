@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import http from "node:http";
 import { once } from "node:events";
-import { fileURLToPath } from "node:url";
+import http from "node:http";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const helperPath = resolve(__dirname, "../scripts/call-mac-mini-tool.mjs");
@@ -366,6 +366,13 @@ test("hermes-project uses first-class tool with one hour defaults and requestId"
       push: true,
       restart_gateway: true,
       target_branch: "main",
+      discordThread: {
+        channelName: "general",
+        relayMode: "progress_and_final",
+        includeToolCalls: true,
+        includeAnswers: true,
+        includeFollowUps: true,
+      },
     });
 
     assert.equal(result.status, 0, result.stderr);
@@ -376,7 +383,126 @@ test("hermes-project uses first-class tool with one hour defaults and requestId"
     assert.equal(requests[0].body.parameters.push, true);
     assert.equal(requests[0].body.parameters.restart_gateway, true);
     assert.equal(requests[0].body.parameters.target_branch, "main");
+    assert.deepEqual(requests[0].body.parameters.discordThread, {
+      channelName: "general",
+      relayMode: "progress_and_final",
+      includeToolCalls: true,
+      includeAnswers: true,
+      includeFollowUps: true,
+    });
     assert.match(requests[0].body.parameters.requestId, /^run-1:agent-1:hermes-project:[a-f0-9]{32}$/);
+  });
+});
+
+test("job-status output preserves Discord relay evidence", async () => {
+  const discordThreadUrl = "https://discord.com/channels/guild/channel/thread";
+  const discordThreadId = "thread-1";
+  await withFakeApi(() => ({
+    body: toolResult("mac_mini_job_status", {
+      jobId: "job-relay-1",
+      status: "succeeded",
+      content: "done",
+      events: [
+        {
+          seq: 1,
+          ts: "now",
+          type: "relay",
+          data: {
+            discord_thread_url: discordThreadUrl,
+            discord_thread_id: discordThreadId,
+            relay_status: "posted",
+          },
+        },
+      ],
+      data: {
+        terminalResult: {
+          ready: true,
+          status: "succeeded",
+          next_action: "finish_successfully",
+          artifacts: {
+            discord_thread_url: discordThreadUrl,
+            discord_thread_id: discordThreadId,
+            relay_status: "posted",
+          },
+        },
+      },
+    }),
+  }), async ({ apiUrl }) => {
+    const result = await runHelper(apiUrl, "job-status", {
+      jobId: "job-relay-1",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.summary.discordThreadUrl, discordThreadUrl);
+    assert.equal(output.summary.discordThreadId, discordThreadId);
+    assert.equal(output.summary.relayStatus, "posted");
+    assert.equal(output.eventsTail[0]["data.discord_thread_url"], discordThreadUrl);
+    assert.equal(output.eventsTail[0]["data.discord_thread_id"], discordThreadId);
+    assert.equal(output.eventsTail[0]["data.relay_status"], "posted");
+  });
+});
+
+test("Hermes start idempotency conflict is surfaced without duplicate start", async () => {
+  await withFakeApi(() => ({
+    status: 409,
+    body: { error: { code: "idempotency_conflict", message: "requestId already used with a different payload" } },
+  }), async ({ apiUrl, requests }) => {
+    const result = await runHelper(apiUrl, "hermes-project", {
+      prompt: "Run this once.",
+      requestId: "req-conflict",
+      discordThread: {
+        channelName: "general",
+        relayMode: "progress_and_final",
+      },
+    });
+
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.equal(output.httpStatus, 409);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].body.tool, "sj.mac-mini-agent:mac_mini_hermes_project");
+  });
+});
+
+test("successful Hermes result can still surface Discord relay fallback evidence", async () => {
+  await withFakeApi(() => ({
+    body: toolResult("mac_mini_job_status", {
+      jobId: "job-relay-gap-1",
+      status: "succeeded",
+      content: "done",
+      events: [
+        {
+          seq: 1,
+          ts: "now",
+          type: "relay",
+          data: {
+            relay_status: "unsupported",
+            summary: "Discord relay is not available on this gateway.",
+          },
+        },
+      ],
+      data: {
+        terminalResult: {
+          ready: true,
+          status: "succeeded",
+          next_action: "finish_successfully",
+          relay_status: "unsupported",
+        },
+      },
+    }),
+  }), async ({ apiUrl, requests }) => {
+    const result = await runHelper(apiUrl, "job-status", {
+      jobId: "job-relay-gap-1",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.summary.nextAction, "finish_successfully");
+    assert.equal(output.summary.relayStatus, "unsupported");
+    assert.equal(output.eventsTail[0]["data.relay_status"], "unsupported");
+    assert.equal(requests.length, 1);
   });
 });
 

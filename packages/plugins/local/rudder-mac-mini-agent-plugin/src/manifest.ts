@@ -57,6 +57,75 @@ const jobParametersSchema = {
   additionalProperties: false,
 } as const;
 
+const discordThreadSchema = {
+  type: "object",
+  description: "Optional Discord relay metadata for Hermes jobs. Discord credentials stay on the Mac mini gateway; Rudder forwards ids and parity intent only.",
+  properties: {
+    enabled: {
+      type: "boolean",
+      default: true,
+      description: "Set false to explicitly disable a caller-provided relay object.",
+    },
+    guildId: {
+      type: "string",
+      description: "Optional Discord guild id. Omit when the Mac gateway has a configured default.",
+    },
+    channelId: {
+      type: "string",
+      description: "Optional Discord channel id for the parent channel.",
+    },
+    channelName: {
+      type: "string",
+      default: "general",
+      description: "Parent Discord channel name when channelId is omitted.",
+    },
+    threadId: {
+      type: "string",
+      description: "Existing Discord thread id. Omit to let the Mac gateway create or locate a request thread.",
+    },
+    threadName: {
+      type: "string",
+      description: "Requested thread name when the Mac gateway creates a thread.",
+    },
+    sourceMessageId: {
+      type: "string",
+      description: "Optional source message id to anchor the Discord thread.",
+    },
+    relayMode: {
+      type: "string",
+      enum: ["metadata_only", "final_only", "progress_and_final"],
+      default: "progress_and_final",
+      description: "How much of the Hermes job should be reflected in Discord.",
+    },
+    createThread: {
+      type: "boolean",
+      default: true,
+      description: "Whether the Mac gateway may create a Discord thread when threadId is omitted.",
+    },
+    includeStreams: {
+      type: "boolean",
+      default: true,
+      description: "Mirror live streamed text/progress events when relayMode allows it.",
+    },
+    includeToolCalls: {
+      type: "boolean",
+      default: true,
+      description: "Mirror tool-call activity when the Hermes gateway exposes it.",
+    },
+    includeAnswers: {
+      type: "boolean",
+      default: true,
+      description: "Mirror final answer content.",
+    },
+    includeFollowUps: {
+      type: "boolean",
+      default: true,
+      description: "Mirror follow-up questions and required next actions.",
+    },
+  },
+  additionalProperties: false,
+} as const;
+
 const manifest: PaperclipPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
@@ -240,6 +309,7 @@ const manifest: PaperclipPluginManifestV1 = {
           push: { type: "boolean" },
           restart_gateway: { type: "boolean" },
           target_branch: { type: "string" },
+          discordThread: discordThreadSchema,
           wait: { type: "boolean", default: true },
           followSeconds: { type: "number", minimum: 0, maximum: 3600, default: 120 },
           timeout_seconds: { type: "number", minimum: 1, default: 3600 },

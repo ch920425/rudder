@@ -197,6 +197,13 @@ export function summarizeTerminalResult(result: GatewayTerminalResult | null | u
   if (typeof resultJson === "string" && resultJson.trim()) {
     parts.push(`result_json=${resultJson.trim()}`);
   }
+  const discordThreadUrl = result.discord_thread_url
+    ?? result.discordThreadUrl
+    ?? artifacts?.discord_thread_url
+    ?? artifacts?.discordThreadUrl;
+  if (typeof discordThreadUrl === "string" && discordThreadUrl.trim()) {
+    parts.push(`discord_thread_url=${discordThreadUrl.trim()}`);
+  }
   const stdout = conciseTail(result.stdout_tail);
   const stderr = conciseTail(result.stderr_tail);
   if (stdout) parts.push(`stdout_tail=${stdout}`);

@@ -52,6 +52,15 @@ test("blocks single-quoted inline JSON for prompt-like commands even when shell 
   assert.match(result.reason, /@file/);
 });
 
+test("treats hermes-project as a prompt-like helper alias", () => {
+  const command = `${helper} hermes-project '{"prompt":"Mirror this to Discord","discordThread":{"channelName":"general"}}'`;
+
+  const result = evaluateCommand(command, { toolName: "exec_command" });
+
+  assert.equal(result.allow, false);
+  assert.match(result.reason, /single-quoted inline JSON/);
+});
+
 test("allows @file params and unrelated commands", () => {
   assert.deepEqual(
     evaluateCommand(`${helper} answer @/tmp/mac-mini-answer.json`, { toolName: "exec_command" }),

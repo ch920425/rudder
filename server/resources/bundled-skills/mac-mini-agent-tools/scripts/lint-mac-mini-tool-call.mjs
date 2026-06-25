@@ -11,6 +11,7 @@ const PROMPT_ALIASES = new Set([
   "vault-intake",
   "ask-kb",
   "gbrain",
+  "hermes-project",
 ]);
 
 export function getToolName(payload) {

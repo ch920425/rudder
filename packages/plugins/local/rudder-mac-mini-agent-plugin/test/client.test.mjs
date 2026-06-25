@@ -10,6 +10,7 @@ import {
   parseSseEvents,
   summarizeTerminalResult,
 } from "../dist/client.js";
+import { normalizeDiscordThreadRelay } from "../dist/discord-relay.js";
 import manifest from "../dist/manifest.js";
 import {
   clearGatewayTokenCache,
@@ -133,6 +134,126 @@ test("summarizeTerminalResult keeps action, exit code, artifact, and tails", () 
   assert.match(summary, /stderr_tail=some stderr/);
 });
 
+test("summarizeTerminalResult keeps Discord thread permalink evidence", () => {
+  const summary = summarizeTerminalResult({
+    ready: true,
+    status: "succeeded",
+    next_action: "finish_successfully",
+    artifacts: {
+      discord_thread_url: "https://discord.com/channels/guild/channel/thread",
+    },
+  });
+  assert.match(summary, /discord_thread_url=https:\/\/discord\.com\/channels\/guild\/channel\/thread/);
+});
+
+test("normalizeDiscordThreadRelay maps Rudder metadata to gateway wire shape", () => {
+  const relay = normalizeDiscordThreadRelay({
+    channelName: "general",
+    threadName: "Hermes request",
+    relayMode: "progress_and_final",
+    includeToolCalls: true,
+    includeAnswers: true,
+    includeFollowUps: false,
+  }, {
+    orgId: "org-1",
+    agentId: "agent-1",
+    runId: "run-123456789",
+    projectId: "project-1",
+  }, "request-1");
+
+  assert.deepEqual(relay, {
+    enabled: true,
+    provider: "discord",
+    relay_mode: "progress_and_final",
+    create_thread: true,
+    include_streams: true,
+    include_tool_calls: true,
+    include_answers: true,
+    include_follow_ups: false,
+    rudder: {
+      org_id: "org-1",
+      agent_id: "agent-1",
+      run_id: "run-123456789",
+      project_id: "project-1",
+      request_id: "request-1",
+    },
+    channel_name: "general",
+    thread_name: "Hermes request",
+  });
+});
+
+test("normalizeDiscordThreadRelay preserves existing Discord thread ids", () => {
+  const relay = normalizeDiscordThreadRelay({
+    guildId: "guild-1",
+    channelId: "channel-1",
+    threadId: "thread-1",
+    sourceMessageId: "message-1",
+    relayMode: "final_only",
+  }, {
+    orgId: "org-1",
+    agentId: "agent-1",
+    runId: "run-123456789",
+    projectId: "project-1",
+  }, undefined);
+
+  assert.equal(relay.enabled, true);
+  assert.equal(relay.create_thread, false);
+  assert.equal(relay.guild_id, "guild-1");
+  assert.equal(relay.channel_id, "channel-1");
+  assert.equal(relay.thread_id, "thread-1");
+  assert.equal(relay.source_message_id, "message-1");
+  assert.equal(relay.relay_mode, "final_only");
+  assert.equal(relay.rudder.request_id, null);
+  assert.equal(relay.thread_name, undefined);
+});
+
+test("normalizeDiscordThreadRelay accepts snake_case input fields", () => {
+  const relay = normalizeDiscordThreadRelay({
+    channel_name: "general",
+    thread_name: "Existing request name",
+    relay_mode: "final_only",
+    include_followups: false,
+  }, {
+    orgId: "org-1",
+    agentId: "agent-1",
+    runId: "run-123456789",
+    projectId: "project-1",
+  }, "request-1");
+
+  assert.equal(relay.channel_name, "general");
+  assert.equal(relay.thread_name, "Existing request name");
+  assert.equal(relay.relay_mode, "final_only");
+  assert.equal(relay.include_follow_ups, false);
+});
+
+test("normalizeDiscordThreadRelay fails invalid relay modes closed", () => {
+  const relay = normalizeDiscordThreadRelay({
+    channelName: "general",
+    relayMode: "finalOnly",
+  }, {
+    orgId: "org-1",
+    agentId: "agent-1",
+    runId: "run-123456789",
+    projectId: "project-1",
+  }, "request-1");
+
+  assert.equal(relay.relay_mode, "metadata_only");
+});
+
+test("normalizeDiscordThreadRelay allows explicit relay disable", () => {
+  const relay = normalizeDiscordThreadRelay({ enabled: false }, {
+    orgId: "org-1",
+    agentId: "agent-1",
+    runId: "run-123456789",
+    projectId: "project-1",
+  }, "request-1");
+
+  assert.equal(relay.enabled, false);
+  assert.equal(relay.create_thread, false);
+  assert.equal(relay.include_streams, false);
+  assert.equal(relay.rudder.request_id, "request-1");
+});
+
 test("resolveGatewayToken caches secret refs per worker process", async () => {
   clearGatewayTokenCache();
   let calls = 0;
@@ -183,4 +304,7 @@ test("manifest exposes upload artifact and hermes project tools", () => {
   assert.ok(hermes.parametersSchema.properties.commit);
   assert.ok(hermes.parametersSchema.properties.push);
   assert.ok(hermes.parametersSchema.properties.restart_gateway);
+  assert.ok(hermes.parametersSchema.properties.discordThread);
+  assert.equal(hermes.parametersSchema.properties.discordThread.properties.relayMode.default, "progress_and_final");
+  assert.equal(hermes.parametersSchema.properties.discordThread.additionalProperties, false);
 });

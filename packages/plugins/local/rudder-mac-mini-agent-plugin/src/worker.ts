@@ -23,6 +23,7 @@ import {
   STREAM_CHANNEL,
   TOOL_NAMES
 } from "./constants.js";
+import { normalizeDiscordThreadRelay } from "./discord-relay.js";
 import { resolveGatewayToken } from "./token-cache.js";
 
 const INLINE_GATEWAY_BODY_LIMIT_BYTES = 1_000_000;
@@ -144,6 +145,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function discordThreadActivityMetadata(params: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  const relay = asRecord(params?.discord_thread);
+  if (!relay) return null;
+  return {
+    enabled: relay.enabled ?? null,
+    provider: relay.provider ?? null,
+    guildId: relay.guild_id ?? null,
+    channelId: relay.channel_id ?? null,
+    channelName: relay.channel_name ?? null,
+    threadId: relay.thread_id ?? null,
+    relayMode: relay.relay_mode ?? null,
+    createThread: relay.create_thread ?? null,
+  };
 }
 
 function extractUploadId(value: unknown): string {
@@ -330,6 +346,7 @@ async function startGatewayJob(
       workspace: params.workspace ?? created.job.workspace ?? null,
       mutating: created.job.mutating ?? null,
       uploadedPrompt: Boolean(prepared.upload),
+      discordThread: discordThreadActivityMetadata(params.params),
     },
   });
 
@@ -550,6 +567,8 @@ async function registerTools(ctx: PluginContext): Promise<void> {
         push?: boolean;
         restart_gateway?: boolean;
         target_branch?: string;
+        discordThread?: unknown;
+        discord_thread?: unknown;
         requestId?: string;
         request_id?: string;
         wait?: boolean;
@@ -557,8 +576,14 @@ async function registerTools(ctx: PluginContext): Promise<void> {
         timeout_seconds?: number;
       };
       if (!payload.prompt) return { error: "prompt is required" };
+      const requestId = payload.requestId ?? payload.request_id;
+      const discordThread = normalizeDiscordThreadRelay(
+        payload.discordThread ?? payload.discord_thread,
+        runCtx,
+        requestId,
+      );
       return await startGatewayJob(ctx, runCtx, {
-        requestId: payload.requestId ?? payload.request_id,
+        requestId,
         template: "hermes_project",
         params: {
           prompt: payload.prompt,
@@ -566,6 +591,7 @@ async function registerTools(ctx: PluginContext): Promise<void> {
           push: payload.push,
           restart_gateway: payload.restart_gateway,
           target_branch: payload.target_branch,
+          discord_thread: discordThread,
         },
         timeout_seconds: payload.timeout_seconds ?? 3600,
         wait: payload.wait,

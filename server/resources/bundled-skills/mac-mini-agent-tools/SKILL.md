@@ -113,6 +113,33 @@ also return `startedJobId`.
   `restart_gateway`, and `target_branch` only when the user asked for those
   outcomes. Never force-push, rewrite history, bypass hooks, or invent a PR
   request from Rudder.
+- For Rudder-driven Hermes requests that should appear in Hermes-agent Discord,
+  pass a `discordThread` object to `hermes-project`. Rudder only forwards
+  metadata; the Mac mini Hermes gateway owns Discord credentials, creation of a
+  `#general` thread, streaming updates, tool-call/follow-up rendering, retries,
+  and failure fallbacks. Use:
+
+```json
+{
+  "prompt": "<full Hermes task>",
+  "discordThread": {
+    "channelName": "general",
+    "relayMode": "progress_and_final",
+    "includeStreams": true,
+    "includeToolCalls": true,
+    "includeAnswers": true,
+    "includeFollowUps": true
+  }
+}
+```
+
+  If `summary.discordThreadUrl`, `summary.discordThreadId`,
+  `summary.relayStatus`, or relay fields appear in `eventsTail`, include that
+  permalink/status in the final handoff. If the Mac gateway accepts the Hermes
+  job but reports that Discord relay is unsupported or failed, relay the Hermes
+  result and report the relay gap. If the initial job start rejects the relay
+  metadata, report the gateway capability failure rather than starting a second
+  Hermes job without relay.
 - Use `sj.mac-mini-agent:mac_mini_hermes_gateway_restart` only when the user
   explicitly asks to restart Hermes.
 

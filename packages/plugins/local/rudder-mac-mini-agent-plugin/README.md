@@ -44,6 +44,47 @@ bodies to `/v1/uploads` before job start when possible, and the bundled
 plugin. Transcript semantics must not be truncated or summarized to satisfy the
 inline JSON limit.
 
+### Hermes Discord Relay Metadata
+
+`mac_mini_hermes_project` accepts an optional `discordThread` object. Rudder
+only forwards ids, preferences, and Rudder run attribution; Discord credentials,
+thread creation, message edits, retries, and rate-limit handling stay owned by
+the Mac mini Hermes gateway.
+
+Example:
+
+```json
+{
+  "prompt": "Run the requested Hermes project work.",
+  "discordThread": {
+    "channelName": "general",
+    "relayMode": "progress_and_final",
+    "includeStreams": true,
+    "includeToolCalls": true,
+    "includeAnswers": true,
+    "includeFollowUps": true
+  }
+}
+```
+
+The worker forwards this to the gateway template as `params.discord_thread`
+with snake_case keys plus Rudder correlation metadata:
+
+- `provider: "discord"`
+- `channel_name` or `channel_id`
+- `thread_name` or `thread_id`
+- `relay_mode`: `metadata_only`, `final_only`, or `progress_and_final`
+- `include_streams`, `include_tool_calls`, `include_answers`,
+  `include_follow_ups`
+- `rudder.org_id`, `rudder.agent_id`, `rudder.run_id`,
+  `rudder.project_id`, and `rudder.request_id`
+
+When the Mac gateway mirrors to Discord, it should return relay evidence in
+gateway events or the terminal result, preferably `discord_thread_url`,
+`discord_thread_id`, and `relay_status`. The helper preserves those fields in
+its normalized summary or compact event output so Rudder agents can cite the
+Discord thread without parsing raw gateway JSON.
+
 ## Build Inside A Rudder Checkout
 
 Copy this directory into a Rudder checkout, for example:

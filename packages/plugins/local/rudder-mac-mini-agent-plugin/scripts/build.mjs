@@ -36,6 +36,13 @@ await esbuild.build({
 });
 
 await esbuild.build({
+  entryPoints: ["src/discord-relay.ts"],
+  outfile: "dist/discord-relay.js",
+  bundle: false,
+  ...common,
+});
+
+await esbuild.build({
   entryPoints: ["src/token-cache.ts"],
   outfile: "dist/token-cache.js",
   bundle: false,
